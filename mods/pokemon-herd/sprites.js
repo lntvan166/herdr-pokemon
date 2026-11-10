@@ -178,7 +178,7 @@ export async function ensureIcon(dex, form) {
 }
 
 // The Megas drawn since this release: SpriteCollab's tracker, read at most once a day and boiled
-// down to data/pokemon-herd/megas.json ({ at, megas }).
+// down to data/pokemon-herd/megas.json ({ v: 2, at, megas }).
 const TRACKER = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/tracker.json";
 const MEGAS_FILE = `${DATA}/megas.json`;
 
@@ -186,7 +186,7 @@ const MEGAS_FILE = `${DATA}/megas.json`;
 export async function savedMegas() {
   try {
     const saved = JSON.parse(await fs.readFile(MEGAS_FILE, "utf8"));
-    return saved && typeof saved.megas === "object" ? saved : null;
+    return saved?.v === 2 && typeof saved.megas === "object" ? saved : null; // v1 had one Mega each
   } catch {
     return null;
   }
@@ -205,7 +205,7 @@ export async function refreshMegas(saved, now = Date.now()) {
     if (Object.keys(fresh).length) megas = fresh; // an empty or odd tracker never wipes the list
   } finally {
     await exec("rm", ["-f", tmp]).catch(() => null);
-    await fs.writeFile(MEGAS_FILE, JSON.stringify({ at: now, megas }));
+    await fs.writeFile(MEGAS_FILE, JSON.stringify({ v: 2, at: now, megas }));
   }
   return megas;
 }

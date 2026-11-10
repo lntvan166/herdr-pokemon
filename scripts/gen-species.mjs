@@ -46,7 +46,7 @@ export const SPECIES = [
   ${body},
 ];
 
-// Mega forms that walk: dex -> [form folder under sprite/<dex>/, has a shiny (1/0)].
+// Mega forms that walk: dex -> [[form folder under sprite/<dex>/, has a shiny (1/0), "X" | "Y" | ""], ...].
 export const MEGA = ${JSON.stringify(megas)};
 
 // Regional forms that walk: [dex, form folder under sprite/<dex>/, label, has a shiny (1/0)].

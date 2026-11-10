@@ -1,4 +1,5 @@
-// Who is which Pokémon. Saved per pane in shared state as { v: 2, panes: { <pane>: { dex, shiny } } }.
+// Who is which Pokémon. Saved per pane in shared state as
+// { v: 2, panes: { <pane>: { dex, shiny, mega, form?, megaKind? } } }.
 import { WALKABLE, isWalkable, hasShiny, hasForm } from "./dex.js";
 
 const SHINY_ODDS = 64;
@@ -22,7 +23,8 @@ export function loadPicks(current, legacy) {
     for (const [pane, p] of Object.entries(current.panes)) {
       if (!isObj(p) || !isWalkable(p.dex)) continue;
       const form = hasForm(p.dex, p.form) ? p.form : undefined; // a regional form, if it still exists
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}) };
+      const megaKind = p.megaKind === "X" || p.megaKind === "Y" ? p.megaKind : undefined; // Mega X or Y
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }

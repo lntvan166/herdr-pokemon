@@ -60,6 +60,8 @@ forms, and Mega Evolution while an agent works.
     Evolves or turns back.
 - **The picker:** a 640×560 dialog titled "Choose a Pokémon", "for <tag> · now <name>".
   - An optional row "Mega: Off / On / Auto: while working", only for species with a Mega.
+  - An optional row "Form: Mega X / Mega Y", only when both are drawn. Mega X is the default, and
+    a choice of Y falls back to X until Y is drawn.
   - A search box, then a grid of every match: 6 columns of 92×96 cells, each with a 56 px
     portrait, its dex number "#025" and its name. Regional forms follow their species as
     "Vulpix (Alola)".

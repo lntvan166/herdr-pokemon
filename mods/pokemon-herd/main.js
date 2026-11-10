@@ -7,7 +7,7 @@ import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gp
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
 import { nightness, palette, features, isLight, treeParts } from "./scene.js";
-import { hasShiny, dexNo, megaForm, setMegas, fullName, searchEntries } from "./dex.js";
+import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries } from "./dex.js";
 import { MOD, LEGACY_KEY } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
 import { forEachSafe, logOnce } from "./safe.js";
@@ -34,7 +34,8 @@ const SLEEP_AFTER = 3 * 60 * 1000; // idle this long: fall asleep
 
 const slotOf = (a) => a.pane || a.address;
 const entryKey = (e) => `${e.dex}${e.form ? `-${e.form}` : ""}`;
-const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.form}` : ""}${mega ? "m" : ""}${pick.shiny ? "s" : ""}`;
+// (A Mega is keyed by the X or Y really shown, so a Mega Y drawn later replaces the X stand-in.)
+const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.form}` : ""}${mega ? `m${megaForm(pick.dex, pick.megaKind)?.kind ?? ""}` : ""}${pick.shiny ? "s" : ""}`;
 
 // Saved picks, live: the picker (another copy of this mod) writes them too.
 const savedPicks = () => loadPicks(shared(MOD), null).panes;
@@ -196,7 +197,7 @@ export default class PokemonHerd extends View {
   // A shiny whose shiny sprite can't be had shows the normal one.
   want(pick, cx, mega = false) {
     const key = spriteKey(pick, mega);
-    const form = mega ? megaForm(pick.dex)?.form : (pick.form ?? null); // its Mega, or its regional form
+    const form = mega ? megaForm(pick.dex, pick.megaKind)?.form : (pick.form ?? null); // its Mega (X or Y), or its regional form
     const cur = this.sprites[key];
     if (cur === "loading" || (cur && !cur.error)) return;
     if (cur?.error && Date.now() - cur.at < 60000) return;
@@ -709,6 +710,7 @@ export default class PokemonHerd extends View {
   initPicker(cx) {
     this.filter = "";
     this.megaMode = props()?.current?.mega ?? "auto";
+    this.megaKind = props()?.current?.megaKind ?? null; // "X" | "Y", for a species with both
     this.icons = {}; // dex -> "loading" | "ready" | "failed"
     this.iconQueue = [];
     this.iconActive = 0;
@@ -754,10 +756,16 @@ export default class PokemonHerd extends View {
 
   choose(entry) { // { dex, form? }: a species, or one of its regional forms
     const p = props();
-    // A shiny pane stays shiny; its Mega setting carries over.
+    // A shiny pane stays shiny; its Mega setting carries over, and X or Y if it stays the same species.
     const { dex, form } = entry;
-    savePicks({ [p.slot]: { dex, shiny: p.current?.shiny === true && hasShiny(dex, form), mega: this.megaMode, ...(form ? { form } : {}) } });
+    const megaKind = dex === p.current?.dex && this.megaKind ? { megaKind: this.megaKind } : {};
+    savePicks({ [p.slot]: { dex, shiny: p.current?.shiny === true && hasShiny(dex, form), mega: this.megaMode, ...(form ? { form } : {}), ...megaKind } });
     closeOverlay(p.overlay);
+  }
+
+  // Saves the picker's Mega mode and X/Y on the current pick, together (one never drops the other).
+  saveMega(p) {
+    savePicks({ [p.slot]: { ...p.current, mega: this.megaMode, ...(this.megaKind ? { megaKind: this.megaKind } : {}) } });
   }
 
   renderPicker(cx) {
@@ -792,10 +800,29 @@ export default class PokemonHerd extends View {
             .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click((_e, cx) => {
               this.megaMode = mode;
-              savePicks({ [p.slot]: { ...p.current, mega: mode } });
+              this.saveMega(p);
               cx.notify();
             })
             .child(txt))),
+      ))
+      // Mega X or Y, for a species with both drawn (Charizard, Mewtwo, Raichu as SpriteCollab adds them).
+      .when(megaForms(p.current?.dex).length > 1 && !p.current?.form, (el) => el.child(
+        h_flex().gap(6).items_center()
+          .child(div().text_size(11.5).text_color(t.muted).mr(4).child("Form"))
+          .children(megaForms(p.current?.dex).map(({ kind }) => {
+            const on = (this.megaKind ?? megaForm(p.current?.dex).kind) === kind;
+            return div()
+              .id(`mega-kind-${kind}`).h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
+              .border_color(on ? t.accent : t.border)
+              .bg(on ? t.selected : "#00000000")
+              .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+              .on_click((_e, cx) => {
+                this.megaKind = kind;
+                this.saveMega(p);
+                cx.notify();
+              })
+              .child(`Mega ${kind}`);
+          })),
       ))
       .child(
         Input.new(this.input).h(34).flex_none().px(10).rounded(8).border_1().border_color(t.accent)

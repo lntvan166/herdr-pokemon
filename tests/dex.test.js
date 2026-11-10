@@ -38,8 +38,8 @@ test("hasShiny", () => {
 
 import { megaForm } from "../mods/pokemon-herd/dex.js";
 test("megaForm: the walking Mega's folder, and whether it has a shiny", () => {
-  assert.deepEqual(megaForm(6), { form: "0001", shiny: true }); // Charizard: Mega X walks, Y doesn't
-  assert.deepEqual(megaForm(150), { form: "0002", shiny: true }); // Mewtwo: only Mega Y walks
+  assert.deepEqual(megaForm(6), { form: "0001", shiny: true, kind: "X" }); // Charizard: Mega X walks, Y doesn't
+  assert.deepEqual(megaForm(150), { form: "0002", shiny: true, kind: "Y" }); // Mewtwo: only Mega Y walks
   assert.equal(megaForm(80).form, "0002"); // Slowbro: Mega, not Mega_Altcolor
   assert.equal(megaForm(25), null);
 });

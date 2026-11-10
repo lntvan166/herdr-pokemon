@@ -78,3 +78,10 @@ test("a regional form is kept when it exists, dropped (species kept) when not", 
   assert.equal(r.panes.b.dex, 37);
   assert.equal(r.panes.b.form, undefined);
 });
+
+test("Mega X or Y: kept when it's X or Y, dropped otherwise", () => {
+  const r = loadPicks({ v: 2, panes: { a: { dex: 6, shiny: false, megaKind: "Y" }, b: { dex: 6, shiny: false, megaKind: "Z" }, c: { dex: 6, shiny: false } } }, null);
+  assert.equal(r.panes.a.megaKind, "Y");
+  assert.equal("megaKind" in r.panes.b, false);
+  assert.equal("megaKind" in r.panes.c, false);
+});

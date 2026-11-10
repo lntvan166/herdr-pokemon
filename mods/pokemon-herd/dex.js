@@ -53,13 +53,19 @@ export function search(query, limit) {
   return { ids, total };
 }
 
-// Its walking Mega form ({ form: folder under sprite/<dex>/, shiny: has one }), or null.
 // The Megas with art: the built-in list, plus any drawn since (setMegas, from the tracker).
+// Each species: [[form folder under sprite/<dex>/, has a shiny (1/0), "X" | "Y" | ""], ...].
 let megas = MEGA;
 export function setMegas(fresh) {
   megas = { ...MEGA, ...fresh };
 }
-export const megaForm = (dex) => (megas[dex] ? { form: megas[dex][0], shiny: megas[dex][1] === 1 } : null);
+// Every walking Mega form of a species: [{ form, shiny, kind }], X before Y.
+export const megaForms = (dex) => (megas[dex] ?? []).map(([form, shiny, kind]) => ({ form, shiny: shiny === 1, kind }));
+// The Mega to show: the `kind` asked for (X or Y) when it's drawn, else the first; null when none.
+export const megaForm = (dex, kind) => {
+  const forms = megaForms(dex);
+  return forms.find((f) => kind && f.kind === kind) ?? forms[0] ?? null;
+};
 
 // Every species, each followed by its regional forms: what the picker lists.
 const ENTRIES = WALKABLE.flatMap((dex) => [{ dex }, ...formsOf(dex).map((f) => ({ dex, form: f.form }))]);
