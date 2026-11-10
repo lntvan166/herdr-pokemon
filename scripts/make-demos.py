@@ -211,8 +211,9 @@ def draw(path, width, rows, mons, caption=None, caption_color=MUTED, cursor=None
         # Bubbles and "zZ" stay inside its row's sky, as in the mod (at least 2 px from its top).
         head = max(ground - m.anim.height(), top + m.row * ROW_H + 28)
         # Its name under its feet, with its status dot.
-        tw = len(m.tag) * 7
-        tx = min(max(round(m.cx - tw / 2), 14), width - tw - 4)  # pushed in at the edges, as in the mod
+        # Dot and name centred together under it (the name's real width), pushed in at the edges.
+        tw = glyph_width(m.tag, 12)
+        tx = min(max(round(m.cx - (tw + 11) / 2) + 11, 14), width - tw - 4)
         ty = ground + 11 + lines[id(m)] * 18
         args += ["-fill", DOT[m.status], "-draw", f"circle {tx - 8},{ty + 7} {tx - 5},{ty + 7}"]
         args += ["-fill", FG if m.bright else MUTED, "-pointsize", "12", "-annotate", f"+{tx}+{ty + 11}", m.tag]
