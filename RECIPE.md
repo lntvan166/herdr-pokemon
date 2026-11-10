@@ -20,11 +20,13 @@ forms, and Mega Evolution while an agent works.
   - `props.scale` (default 1; 0.75 suits a sidebar) scales the sprites.
 - **Scenery** (`props.background`, default; `"plain"` turns it off): each row has its own scene
   above its ground line.
-  - The sky is 8 flat bands, from `#64aef2` to `#cdeaff` by day and from `#0d1430` to `#2a3762`
-    by night. It is day from 6:30 to 17:30 and night from 18:30 to 5:30, blended over an hour
-    at dawn and dusk.
-  - Clouds by day, stars and a moon by night, and rounded hills (`#9ad08a` / `#1f2d45`).
-  - A 7 px grass band (`#5fb84e` / `#2f6b3e`) on the ground line, with 1 px tufts every 3 px.
+  - The sky is one flat colour, muted and dark so it sits in a dark app: a grey teal `#22383c`
+    by day (not blue, or the many blue Pokémon sink into it) and `#141b2c` by night. It is day
+    from 6:30 to 17:30 and night from 18:30 to 5:30, blended over an hour at dawn and dusk.
+  - By day at most 3 clouds per row, white at 14 %. By night sparse stars (one per 40 px, 70 %)
+    and a moon. Low rounded hills one step lighter than the sky (`#2c4636` / `#1b2637`).
+  - A 7 px grass band (`#558a41` / `#27472f`) on the ground line, with a 1–3 px tuft every
+    6–17 px.
   - Below it the names keep the strip's colour. Positions are seeded per row, so nothing
     flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.

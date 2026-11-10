@@ -25,6 +25,9 @@ DOT = {"idle": "#6b7080", "working": "#e8b062", "done": "#7bc47f", "blocked": "#
 ACCENT = "#7aa2f7"
 ROW_H = 122  # one row: sprites above the ground line, then two lines for names
 GROUND = 80  # ground line's y within a row
+NIGHT = {"focus"}  # scenes drawn by night (Scenery); the rest by day
+SCENE_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mods", "pokemon-herd", "scene.js")
+sky = {"night": 0, "dir": None, "cache": {}}  # the current scene's time of day, and backgrounds drawn so far
 
 
 def magick(*args):
@@ -115,12 +118,52 @@ def tag_lines(mons):
     return line
 
 
+def scenery(width, rows, top, h):
+    """The mod's Scenery behind the rows, from scene.js itself (same colours, same seeded hills,
+    clouds, stars and tufts), drawn once per strip size and time of day."""
+    key = (width, rows, top, h, sky["night"])
+    if key in sky["cache"]:
+        return sky["cache"][key]
+    js = (f"import('file://{os.path.abspath(SCENE_JS)}').then(m => console.log(JSON.stringify("
+          f"{{p: m.palette({sky['night']}), rows: [...Array({rows}).keys()].map(r => m.features({width}, {GROUND}, r))}})))")
+    data = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
+    p = data["p"]
+    line = GROUND + 4
+    args = ["-size", f"{width}x{h}", f"xc:{BG}"]
+    for r, f in enumerate(data["rows"]):
+        y0 = top + r * ROW_H
+        args += ["-fill", p["sky"], "-draw", f"rectangle 0,{y0} {width},{y0 + line + 5}"]
+        if p["stars"] > 0.05:
+            for st in f["stars"]:
+                if st["y"] < line - 20:
+                    sz = 2 if st["bright"] else 1
+                    a = round(255 * p["stars"] * 0.7)
+                    args += ["-fill", ("#ffeebb" if st["bright"] else "#cfd8ff") + f"{a:02x}", "-draw", f"rectangle {st['x']},{y0 + st['y']} {st['x'] + sz - 1},{y0 + st['y'] + sz - 1}"]
+            m = f["moon"]
+            args += ["-fill", f"#e9e5c8{round(255 * p['stars'] * 0.85):02x}", "-draw", f"circle {m['x'] + 5},{y0 + m['y'] + 5} {m['x'] + 10},{y0 + m['y'] + 5}"]
+        if p["clouds"] > 0.05:
+            a = round(255 * p["clouds"] * 0.14)
+            for c in f["clouds"]:
+                if c["y"] + 10 < line - 24:
+                    x, y, w = c["x"], y0 + c["y"], c["w"]
+                    args += ["-fill", f"#ffffff{a:02x}", "-draw", f"roundrectangle {x},{y + 4} {x + w},{y + 11} 4,4",
+                             "-draw", f"roundrectangle {x + round(w * .25)},{y} {x + round(w * .7)},{y + 8} 5,5"]
+        for hl in f["hills"]:
+            args += ["-fill", p["hill"], "-draw", f"ellipse {round(hl['cx'])},{y0 + line} {round(hl['rx'])},{round(hl['ry'])} 0,360"]
+        args += ["-fill", p["grass"], "-draw", f"rectangle 0,{y0 + line - 3} {width},{y0 + line + 3}"]
+        for u in f["tufts"]:
+            args += ["-fill", p["dark"] if u["dark"] else p["grass"], "-draw", f"rectangle {u['x']},{y0 + line - 3 - u['h']} {u['x']},{y0 + line - 4}"]
+        args += ["-fill", p["dark"], "-draw", f"rectangle 0,{y0 + line + 4} {width},{y0 + line + 5}"]
+        args += ["-fill", BG, "-draw", f"rectangle 0,{y0 + line + 6} {width},{y0 + ROW_H - 1}"]  # names keep the plain strip
+    path = os.path.join(sky["dir"], f"scenery-{len(sky['cache'])}.png")
+    magick(*args, path)
+    sky["cache"][key] = path
+    return path
+
+
 def draw(path, width, rows, mons, caption=None, caption_color=MUTED, cursor=None, top=44):
     h = top + rows * ROW_H - 18 * (rows == 1)
-    args = ["-size", f"{width}x{h}", f"xc:{BG}"]
-    for r in range(rows):
-        y = top + r * ROW_H + GROUND + 4
-        args += ["-fill", LINE, "-draw", f"rectangle 0,{y} {width},{y}"]
+    args = [scenery(width, rows, top, h)]
     for m in mons:
         ground = top + m.row * ROW_H + GROUND
         x, y = m.anim.place(m.cx, ground)
@@ -360,7 +403,9 @@ def main():
         sys.exit(f"missing sprite sets in {SPRITES}: {', '.join(missing)} (pick them once in the mod's picker)")
     tmp = tempfile.mkdtemp(prefix="pokemon-demos-")
     try:
+        sky["dir"] = tmp
         for n in names:
+            sky["night"] = 1 if n in NIGHT else 0
             SCENES[n](tmp)
     finally:
         shutil.rmtree(tmp)

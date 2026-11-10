@@ -6,7 +6,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
-import { nightness, palette, skyBands, features } from "./scene.js";
+import { nightness, palette, features } from "./scene.js";
 import { hasShiny, dexNo, megaForm, fullName, searchEntries } from "./dex.js";
 import { MOD, LEGACY_KEY } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
@@ -132,7 +132,7 @@ export default class PokemonHerd extends View {
     });
   }
 
-  // One row's Scenery: sky bands, stars and moon (night) or clouds (day), hills, then grass on
+  // One row's Scenery: a flat sky, stars and moon (night) or clouds (day), hills, then grass on
   // the ground line. It stops just under the grass: the names below keep the strip's colour.
   scenery(top, ground, row) {
     const now = new Date();
@@ -141,16 +141,13 @@ export default class PokemonHerd extends View {
     this.sceneCache ??= {};
     const f = (this.sceneCache[key] ??= features(Math.round(this.width), ground, row));
     const line = ground + 4; // the ground line, as the plain background draws it
-    const bands = skyBands(p, 8);
-    const bandH = Math.ceil(line / bands.length);
-    const box = div().absolute().left(0).top(top).w(this.width).h(line + 6).overflow_hidden();
+    const box = div().absolute().left(0).top(top).w(this.width).h(line + 6).overflow_hidden().bg(p.sky);
     return box
-      .children(bands.map((c, i) => div().absolute().left(0).right(0).top(i * bandH).h(bandH + 1).bg(c)))
       .when(p.stars > 0.05, (el) => el
-        .children(f.stars.filter((s) => s.y < line - 20).map((s) => div().absolute().left(s.x).top(s.y).size(s.bright ? 2 : 1).bg(s.bright ? "#ffeebb" : "#cfd8ff").opacity(p.stars)))
-        .child(div().absolute().left(f.moon.x).top(f.moon.y).size(10).rounded_full().bg("#f4f1d0").opacity(p.stars)))
+        .children(f.stars.filter((s) => s.y < line - 20).map((s) => div().absolute().left(s.x).top(s.y).size(s.bright ? 2 : 1).bg(s.bright ? "#ffeebb" : "#cfd8ff").opacity(p.stars * 0.7)))
+        .child(div().absolute().left(f.moon.x).top(f.moon.y).size(10).rounded_full().bg("#e9e5c8").opacity(p.stars * 0.85)))
       .when(p.clouds > 0.05, (el) => el.children(f.clouds.filter((c) => c.y + 10 < line - 24).map((c) => div()
-        .absolute().left(c.x).top(c.y).w(c.w).h(12).opacity(p.clouds * 0.85)
+        .absolute().left(c.x).top(c.y).w(c.w).h(12).opacity(p.clouds * 0.14)
         .child(div().absolute().left(0).top(4).w(c.w).h(8).rounded(4).bg("#ffffff"))
         .child(div().absolute().left(Math.round(c.w * 0.25)).top(0).w(Math.round(c.w * 0.45)).h(9).rounded(5).bg("#ffffff")))))
       .children(f.hills.map((h) => div().absolute().left(Math.round(h.cx - h.rx)).top(line - h.ry).w(Math.round(2 * h.rx)).h(Math.round(2 * h.ry)).rounded_full().bg(p.hill)))

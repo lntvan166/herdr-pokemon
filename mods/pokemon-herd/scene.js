@@ -2,8 +2,10 @@
 // keep the strip's plain colour). Day by day, night by night, from the clock, blending for an hour
 // at dawn and dusk. Pure: colours and where things go; main.js draws them.
 
-const DAY = { skyTop: "#64aef2", skyBottom: "#cdeaff", hill: "#9ad08a", grass: "#5fb84e", dark: "#3f8f38" };
-const NIGHT = { skyTop: "#0d1430", skyBottom: "#2a3762", hill: "#1f2d45", grass: "#2f6b3e", dark: "#21502d" };
+// Muted and dark, so the strip sits in a dark app and the sprites stand out against it. The day sky
+// is a grey teal, not blue: many Pokémon are blue and would sink into a blue sky.
+const DAY = { sky: "#22383c", hill: "#2c4636", grass: "#558a41", dark: "#3a612e" };
+const NIGHT = { sky: "#141b2c", hill: "#1b2637", grass: "#27472f", dark: "#1a3222" };
 
 // 0 by day (6:30–17:30), 1 by night (18:30–5:30), in between at dawn and dusk. `hour` is 0–24.
 export function nightness(hour) {
@@ -26,9 +28,6 @@ export function palette(n) {
   return { ...p, clouds: 1 - n, stars: n };
 }
 
-// The sky as `count` flat bands, top to horizon: a pixel-art gradient.
-export const skyBands = (p, count) => Array.from({ length: count }, (_, i) => mix(p.skyTop, p.skyBottom, count > 1 ? i / (count - 1) : 0));
-
 // A small seeded random, so a row's scene is the same on every frame.
 function rng(seed) {
   let s = (seed * 2654435761 + 1) >>> 0;
@@ -48,15 +47,16 @@ export function features(width, ground, row) {
   const hills = [];
   for (let x = -40; x < width + 40; x += 110 + r() * 70) hills.push({ cx: x, rx: 70 + r() * 60, ry: 16 + r() * 12 });
   const clouds = [];
-  for (let x = 10 + r() * 40; x + 50 < width; x += 120 + r() * 90) {
+  for (let x = 20 + r() * 80; x + 50 < width && clouds.length < 3; x += 320 + r() * 240) {
     clouds.push({ x: Math.round(x), y: Math.round(6 + r() * Math.max(1, ground * 0.25)), w: Math.round(34 + r() * 18) });
   }
   const stars = [];
-  const count = Math.round(width / 14);
+  const count = Math.round(width / 40);
   for (let i = 0; i < count; i++) {
     stars.push({ x: Math.floor(r() * width), y: Math.floor(r() * Math.max(1, ground - 24)), bright: r() < 0.3 });
   }
-  const tufts = Array.from({ length: Math.ceil(width / 3) }, (_, i) => ({ x: i * 3, h: 2 + Math.floor(r() * 4), dark: r() < 0.4 }));
+  const tufts = [];
+  for (let x = Math.floor(r() * 8); x < width; x += 6 + Math.floor(r() * 12)) tufts.push({ x, h: 1 + Math.floor(r() * 3), dark: r() < 0.4 });
   const moon = { x: Math.round(width * 0.8), y: 10 + Math.round(r() * 8) };
   return { hills, clouds, stars, tufts, moon };
 }
