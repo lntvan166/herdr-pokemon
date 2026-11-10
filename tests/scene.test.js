@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nightness, mix, palette, features } from "../mods/pokemon-herd/scene.js";
+import { nightness, mix, palette, features, isLight } from "../mods/pokemon-herd/scene.js";
 
 test("nightness: day 6:30–17:30, night 18:30–5:30, an hour's blend at dawn and dusk", () => {
   assert.equal(nightness(12), 0);
@@ -40,4 +40,22 @@ test("features: the same for a row every time, inside the row, scaled to its wid
   assert.ok(features(1600, 72, 0).stars.length > a.stars.length);
   assert.ok(features(1600, 72, 0).stars.length <= 1600 / 30, "stars stay sparse");
   assert.ok(a.hills.length >= 2);
+});
+
+test("isLight: by the colour's brightness", () => {
+  assert.equal(isLight("#ffffff"), true);
+  assert.equal(isLight("#f3f1ec"), true);
+  assert.equal(isLight("#16171b"), false);
+  assert.equal(isLight("#2b2d34"), false);
+});
+
+test("palette for a light theme: pale and soft, day and night, still a step from white", () => {
+  const lum = (c) => [1, 3, 5].reduce((a, i) => a + parseInt(c.slice(i, i + 2), 16), 0) / 3;
+  for (const n of [0, 0.5, 1]) {
+    const p = palette(n, true);
+    assert.ok(lum(p.sky) > 180 && lum(p.sky) < 240, `light sky at ${n}: ${p.sky}`);
+    assert.ok(lum(p.grass) < lum(p.sky), "grass darker than the sky");
+  }
+  assert.notEqual(palette(0, true).sky, palette(1, true).sky);
+  assert.equal(palette(0).sky, palette(0, false).sky);
 });

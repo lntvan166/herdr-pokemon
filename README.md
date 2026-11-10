@@ -46,6 +46,7 @@ done.
   bottom of the window, or the right panel.
 - The background is **Scenery** by default: sky, hills and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
+  It is muted in a dark theme and pale in a light one.
   Switch it to **Plain** in the same menu.
 - The rows form one track: walk off the right edge of one and you turn up on the left of the next.
 - Drag a Pokémon to move it, or to change its row.

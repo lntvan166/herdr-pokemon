@@ -6,6 +6,10 @@
 // is a grey teal, not blue: many Pokémon are blue and would sink into a blue sky.
 const DAY = { sky: "#22383c", hill: "#2c4636", grass: "#558a41", dark: "#3a612e" };
 const NIGHT = { sky: "#141b2c", hill: "#1b2637", grass: "#27472f", dark: "#1a3222" };
+// For a light theme: pale and soft, a step off the app's own light surfaces. Night is a pale
+// dusk slate, so it still reads as night without a dark block in a light window.
+const LIGHT_DAY = { sky: "#d9e6e4", hill: "#c6d9c4", grass: "#8fb878", dark: "#6f9a5c" };
+const LIGHT_NIGHT = { sky: "#c8cddb", hill: "#b6bece", grass: "#7f9e85", dark: "#62806a" };
 
 // 0 by day (6:30–17:30), 1 by night (18:30–5:30), in between at dawn and dusk. `hour` is 0–24.
 export function nightness(hour) {
@@ -21,11 +25,20 @@ export function mix(a, b, t) {
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("")}`;
 }
 
-// The colours at a given nightness, and how much the clouds (day) and stars and moon (night) show.
-export function palette(n) {
+// A light colour (a light theme's chrome), by its perceived brightness.
+export const isLight = (c) => {
+  const [r, g, b] = hex(c);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 140;
+};
+
+// The colours at a given nightness, for a dark theme or a light one (`light`), and how much the
+// clouds (day) and stars and moon (night) show.
+export function palette(n, light = false) {
+  const [day, night] = light ? [LIGHT_DAY, LIGHT_NIGHT] : [DAY, NIGHT];
   const p = {};
-  for (const k of Object.keys(DAY)) p[k] = mix(DAY[k], NIGHT[k], n);
-  return { ...p, clouds: 1 - n, stars: n };
+  for (const k of Object.keys(day)) p[k] = mix(day[k], night[k], n);
+  // On a pale sky white clouds and stars need more weight to show at all.
+  return { ...p, clouds: 1 - n, stars: n, cloudAlpha: light ? 0.75 : 0.14, starAlpha: light ? 0.95 : 0.7 };
 }
 
 // A small seeded random, so a row's scene is the same on every frame.

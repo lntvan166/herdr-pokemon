@@ -27,6 +27,9 @@ forms, and Mega Evolution while an agent works.
     and a moon. Low rounded hills one step lighter than the sky (`#2c4636` / `#1b2637`).
   - A 7 px grass band (`#558a41` / `#27472f`) on the ground line, with a 1–3 px tuft every
     6–17 px.
+  - In a light theme (the theme's `chrome` is light) the same scene is pale and soft: sky
+    `#d9e6e4` by day and a dusk slate `#c8cddb` by night, hills `#c6d9c4` / `#b6bece`, grass
+    `#8fb878` / `#7f9e85`; clouds at 75 % and stars at 95 % so they still show on it.
   - Below it the names keep the strip's colour. Positions are seeded per row, so nothing
     flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.

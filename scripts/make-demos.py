@@ -27,7 +27,7 @@ ROW_H = 122  # one row: sprites above the ground line, then two lines for names
 GROUND = 80  # ground line's y within a row
 NIGHT = {"focus"}  # scenes drawn by night (Scenery); the rest by day
 SCENE_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mods", "pokemon-herd", "scene.js")
-sky = {"night": 0, "dir": None, "cache": {}}  # the current scene's time of day, and backgrounds drawn so far
+sky = {"night": 0, "light": False, "dir": None, "cache": {}}  # the current scene's time of day, and backgrounds drawn so far
 
 
 def magick(*args):
@@ -121,11 +121,11 @@ def tag_lines(mons):
 def scenery(width, rows, top, h):
     """The mod's Scenery behind the rows, from scene.js itself (same colours, same seeded hills,
     clouds, stars and tufts), drawn once per strip size and time of day."""
-    key = (width, rows, top, h, sky["night"])
+    key = (width, rows, top, h, sky["night"], sky["light"])
     if key in sky["cache"]:
         return sky["cache"][key]
     js = (f"import('file://{os.path.abspath(SCENE_JS)}').then(m => console.log(JSON.stringify("
-          f"{{p: m.palette({sky['night']}), rows: [...Array({rows}).keys()].map(r => m.features({width}, {GROUND}, r))}})))")
+          f"{{p: m.palette({sky['night']}, {str(sky['light']).lower()}), rows: [...Array({rows}).keys()].map(r => m.features({width}, {GROUND}, r))}})))")
     data = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
     p = data["p"]
     line = GROUND + 4
@@ -137,12 +137,12 @@ def scenery(width, rows, top, h):
             for st in f["stars"]:
                 if st["y"] < line - 20:
                     sz = 2 if st["bright"] else 1
-                    a = round(255 * p["stars"] * 0.7)
+                    a = round(255 * p["stars"] * p["starAlpha"])
                     args += ["-fill", ("#ffeebb" if st["bright"] else "#cfd8ff") + f"{a:02x}", "-draw", f"rectangle {st['x']},{y0 + st['y']} {st['x'] + sz - 1},{y0 + st['y'] + sz - 1}"]
             m = f["moon"]
             args += ["-fill", f"#e9e5c8{round(255 * p['stars'] * 0.85):02x}", "-draw", f"circle {m['x'] + 5},{y0 + m['y'] + 5} {m['x'] + 10},{y0 + m['y'] + 5}"]
         if p["clouds"] > 0.05:
-            a = round(255 * p["clouds"] * 0.14)
+            a = round(255 * p["clouds"] * p["cloudAlpha"])
             for c in f["clouds"]:
                 if c["y"] + 10 < line - 24:
                     x, y, w = c["x"], y0 + c["y"], c["w"]
