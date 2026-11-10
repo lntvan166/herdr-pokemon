@@ -18,5 +18,6 @@ test("isNewer: by each dotted number", () => {
 });
 
 test("this build has a version", () => {
-  assert.match(VERSION, /^\d{4}\.\d{1,2}\.\d{1,2}$/);
+  assert.match(VERSION, /^\d{4}\.\d{1,2}\.\d{1,2}(\.\d+)?$/); // a second release that day: .1, .2…
+  assert.equal(isNewer("2026.11.10.1", "2026.11.10"), true);
 });
