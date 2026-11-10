@@ -10,6 +10,7 @@ The sprites are PMDCollab's SpriteCollab (CC BY-NC 4.0): the README credits them
 Needs ImageMagick 7 (`magick`) and the DejaVu Sans font.
 """
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -27,7 +28,11 @@ ROW_H = 122  # one row: sprites above the ground line, then two lines for names
 GROUND = 80  # ground line's y within a row
 NIGHT = {"focus"}  # scenes drawn by night (Scenery); the rest by day
 SCENE_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mods", "pokemon-herd", "scene.js")
-sky = {"night": 0, "light": False, "dir": None, "cache": {}}  # the current scene's time of day, and backgrounds drawn so far
+# The current scene's time of day, its season per row (None: summer; else scene.js's { a, b, t }),
+# and the backgrounds drawn so far.
+sky = {"night": 0, "light": False, "season": None, "dir": None, "cache": {}, "flakes": {}}
+SEASON = {"spring": 0, "summer": 1, "autumn": 2, "winter": 3}
+season = lambda name: {"a": SEASON[name], "b": SEASON[name], "t": 0}
 
 
 def magick(*args):
@@ -121,16 +126,18 @@ def tag_lines(mons):
 def scenery(width, rows, top, h):
     """The mod's Scenery behind the rows, from scene.js itself (same colours, same seeded hills,
     clouds, stars and tufts), drawn once per strip size and time of day."""
-    key = (width, rows, top, h, sky["night"], sky["light"])
+    seasons = [(sky["season"] or [None] * rows)[r] if sky["season"] else None for r in range(rows)]
+    key = (width, rows, top, h, sky["night"], sky["light"], json.dumps(seasons))
     if key in sky["cache"]:
         return sky["cache"][key]
     js = (f"import('file://{os.path.abspath(SCENE_JS)}').then(m => console.log(JSON.stringify("
-          f"{{p: m.palette({sky['night']}, {str(sky['light']).lower()}), rows: [...Array({rows}).keys()].map(r => {{ const f = m.features({width}, {GROUND}, r); return {{ ...f, treeParts: f.trees.flatMap(t => m.treeParts(t, {GROUND + 1})) }}; }})}})))")
+          f"{json.dumps(seasons)}.map((s, r) => {{ const f = m.features({width}, {GROUND}, r); return {{ ...f, p: m.palette({sky['night']}, {str(sky['light']).lower()}, s), treeParts: f.trees.flatMap(t => m.treeParts(t, {GROUND + 1})) }}; }}))))")
     data = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
-    p = data["p"]
     line = GROUND + 4
     args = ["-size", f"{width}x{h}", f"xc:{BG}"]
-    for r, f in enumerate(data["rows"]):
+    flakes = []
+    for r, f in enumerate(data):
+        p = f["p"]
         y0 = top + r * ROW_H
         args += ["-fill", p["sky"], "-draw", f"rectangle 0,{y0} {width},{y0 + line + 5}"]
         if p["stars"] > 0.05:
@@ -156,17 +163,37 @@ def scenery(width, rows, top, h):
         args += ["-fill", p["grass"], "-draw", f"rectangle 0,{y0 + line - 3} {width},{y0 + line + 3}"]
         for u in f["tufts"]:
             args += ["-fill", p["dark"] if u["dark"] else p["grass"], "-draw", f"rectangle {u['x']},{y0 + line - 3 - u['h']} {u['x']},{y0 + line - 4}"]
+        if p["flowers"] > 0.05:
+            for w in f["flowers"]:
+                c = ("#f2a6c8" if w["pink"] else "#f4e27a") + f"{round(255 * p['flowers'] * 0.75):02x}"
+                args += ["-fill", c, "-draw", f"rectangle {w['x']},{y0 + line - 4} {w['x'] + 1},{y0 + line - 3}"]
+        if p["snow"] > 0.05:
+            flakes.append((y0, f["flakes"], round(255 * p["snow"] * 0.55)))
         args += ["-fill", p["dark"], "-draw", f"rectangle 0,{y0 + line + 4} {width},{y0 + line + 5}"]
         args += ["-fill", BG, "-draw", f"rectangle 0,{y0 + line + 6} {width},{y0 + ROW_H - 1}"]  # names keep the plain strip
     path = os.path.join(sky["dir"], f"scenery-{len(sky['cache'])}.png")
     magick(*args, path)
     sky["cache"][key] = path
+    sky["flakes"][path] = flakes
     return path
 
 
-def draw(path, width, rows, mons, caption=None, caption_color=MUTED, cursor=None, top=44):
+def snow(background, t):
+    """Falling snow over a background, at t ms: scene.js's snowAt, frame by frame."""
+    out = []
+    for y0, flakes, a in sky["flakes"].get(background, []):
+        sec, line = t / 1000, GROUND + 4 - 2
+        for f in flakes:
+            x = math.floor(f["x"] + math.sin(sec * 0.8 + f["phase"]) * f["drift"])
+            y = y0 + math.floor((f["y"] + f["speed"] * sec) % line)
+            out += ["-fill", f"#ffffff{a:02x}", "-draw", f"rectangle {x},{y} {x + 1},{y + 1}"]
+    return out
+
+
+def draw(path, width, rows, mons, caption=None, caption_color=MUTED, cursor=None, top=44, t=0):
     h = top + rows * ROW_H - 18 * (rows == 1)
-    args = [scenery(width, rows, top, h)]
+    bg = scenery(width, rows, top, h)
+    args = [bg] + snow(bg, t)
     for m in mons:
         ground = top + m.row * ROW_H + GROUND
         x, y = m.anim.place(m.cx, ground)
@@ -368,33 +395,62 @@ def charizard_mega(tmp):
     s.save()
 
 
+def seasons(tmp):
+    """The four seasons going by (in the mod, 3 hours each), each blending into the next."""
+    A = lambda f, n: Anim.get(f, n, tmp)
+    s = Scene("seasons", tmp, 480, 1)
+    names, each, blend = ["spring", "summer", "autumn", "winter"], 2600, 400
+    for i in range(4 * each // TICK):
+        t = i * TICK
+        k, into = t // each, t % each
+        a = SEASON[names[k]]
+        mix = max(0, (into - (each - blend)) / blend)
+        sky["season"] = [{"a": a, "b": (a + 1) % 4, "t": round(mix * 4) / 4}]  # a few blend steps
+        sway = lambda lo, hi, ms: lo + (hi - lo) * ((t % ms) / (ms / 2) if t % ms < ms / 2 else 2 - (t % ms) / (ms / 2))
+        right = lambda ms: t % ms < ms / 2
+        mons = [  # each in its own stretch, so names never cross
+            Mon(A("0025", "walkR" if right(5000) else "walkL"), sway(45, 165, 5000), 0, "api", "working", t=t),
+            Mon(A("0009", "sleep"), 250, 0, "docs", t=t, zz=True),
+            Mon(A("0006-0001", "walkL" if right(4000) else "walkR"), sway(430, 350, 4000), 0, "deploy", "working", t=t),
+        ]
+        s.add(mons, caption=f"{names[k]} · a season every 3 hours", caption_color=FG, t=t)
+    sky["season"] = None
+    s.save()
+
+
 def preview(tmp):
     """preview.png at the repo root (the herdr.dev gallery card, 1600x900): the herd, big, with
     the mod's name."""
     A = lambda f, n: Anim.get(f, n, tmp)
     t = 1200
+    mega = A("0006-0001", "idleD")
     mons = [
         Mon(A("0025", "sleep"), 40, 0, "api", t=t, zz=True),
         Mon(A("0009", "walkR"), 150, 0, "refactor auth", "working", t=t),
         Mon(A("0445", "idleR"), 280, 0, "review", "blocked", t=t, bubble="!"),
         Mon(A("0003", "idleD"), 55, 1, "docs", "done", t=t, bubble="✓"),
-        Mon(A("0006-0001", "walkR"), 175, 1, "deploy", "working", t=t),
-        Mon(A("0493", "idleL"), 300, 1, "tests", t=t),
+        # Charizard, just Mega Evolved into Mega Charizard X as its agent got to work.
+        Mon(mega, 180, 1, "deploy", "working", t=t, sparkles=sparkle_ring(0, 180, 20 + ROW_H + GROUND - mega.height(), spread=40)),
+        Mon(A("0493", "idleL"), 305, 1, "tests", t=t),
     ]
+    sky["season"] = [season("autumn"), season("winter")]  # two of the seasons the scene turns through
     strip = os.path.join(tmp, "preview-strip.png")
-    draw(strip, 360, 2, mons, top=20)
+    draw(strip, 360, 2, mons, top=20, t=4000)
+    sky["season"] = None
     out = os.path.join(OUT, "..", "..", "preview.png")
     magick("-size", "1600x900", f"xc:{BG}", "(", strip, "-filter", "point", "-resize", "250%", ")", "-gravity", "east", "-geometry", "+90+0", "-composite",
            "-gravity", "northwest", "-font", FONT, "-fill", FG, "-pointsize", "64", "-annotate", "+110+330", "Pokémon herd",
            "-fill", MUTED, "-pointsize", "28", "-annotate", "+114+430", "Every coding agent in Herdr", "-annotate", "+114+472", "is a pixel-art Pokémon.",
+           "-fill", ACCENT, "-pointsize", "22", "-annotate", "+114+560", "Mega Evolves while its agent works",
+           "-fill", MUTED, "-annotate", "+114+598", "Seasons turn every 3 hours",
            out)
     print(f"{os.path.relpath(out)}: {os.path.getsize(out) // 1024} KB")
 
 
-SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "preview": preview}
+SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview}
 NEEDS = {"herd": ["0025", "0445", "0003", "0493", "0009", "0006-0001"], "focus": ["0025", "0003", "0493"],
          "reactions": ["0003", "0445"], "variety": ["0025", "0025s", "0037-0001", "0006-0001"],
-         "charizard-mega": ["0006", "0006-0001"], "preview": ["0025", "0009", "0445", "0003", "0006-0001", "0493"]}
+         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0009", "0445", "0003", "0006-0001", "0493"]}
 
 
 def main():

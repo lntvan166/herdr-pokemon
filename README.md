@@ -50,12 +50,15 @@ Mega X / Y: pick one in the picker once both are drawn.
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
   It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring
   flowers, summer green, autumn leaves, then snow, a step further on each day.
+
   Switch it to **Plain** in the same menu.
 - **Stats:** each species counts the jobs its agents finished and the time they spent working.
   Two agents that are both Pikachu add to Pikachu's. The same menu shows the totals and the three
   busiest species.
 - The rows form one track: walk off the right edge of one and you turn up on the left of the next.
 - Drag a Pokémon to move it, or to change its row.
+
+<p align="center"><img src="docs/demo/seasons.gif" alt="The same strip through spring flowers, summer green, autumn leaves and falling snow" width="480"></p>
 
 ## Install
 
