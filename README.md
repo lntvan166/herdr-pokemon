@@ -49,7 +49,7 @@ Mega X / Y: pick one in the picker once both are drawn.
 - The background is **Scenery** by default: sky, hills, trees and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
   It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring
-  flowers, summer green, autumn leaves, then snow, a step further on each day.
+  blossom, summer green, gold autumn with falling leaves, then snow, a step further on each day.
 
   Switch it to **Plain** in the same menu.
 - **Stats:** each species counts the jobs its agents finished and the time they spent working.

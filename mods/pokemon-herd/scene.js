@@ -36,20 +36,21 @@ export function seasonAt(date) {
   return { a, b: (a + 1) % 4, t: Math.min(1, Math.max(0, (into - 160) / 20)) };
 }
 
-// What each season does to the colours: [colour key, the colour it leans to, how far].
-// Summer is the plain palette.
+// What each season does to the colours: [colour key, the colour it leans to, how far]. The grass
+// band is the biggest patch of colour, so each season changes it most: fresh lime in spring, deep
+// green in summer, gold in autumn, white in winter. Spring's trees blossom pink.
 const SEASONS = [
-  [["tree", "#9ad46c", 0.3], ["treeDark", "#6aa84f", 0.25], ["grass", "#86c45e", 0.2]],
-  [],
-  [["tree", "#d9822b", 0.7], ["treeDark", "#a64b25", 0.7], ["grass", "#b5a24a", 0.45], ["dark", "#7d6a2f", 0.4]],
+  [["tree", "#f7a8cc", 0.85], ["treeDark", "#8ccf68", 0.45], ["grass", "#9be060", 0.65], ["dark", "#6cb84a", 0.45]],
+  [["tree", "#2f8a3a", 0.3], ["treeDark", "#1f6a2c", 0.3], ["grass", "#3d9a33", 0.3]],
+  [["tree", "#e07a26", 0.85], ["treeDark", "#b0461f", 0.8], ["grass", "#d1a640", 0.85], ["dark", "#946b26", 0.7], ["hill", "#5c4a2a", 0.2]],
   [["tree", "#eef3f5", 0.75], ["treeDark", "#c9d6dc", 0.65], ["grass", "#e6edf0", 0.7], ["dark", "#b8c6cc", 0.55], ["hill", "#d5e0e4", 0.3]],
 ];
 
 // The palette `p` in season `s`. In a dark theme the season's colours are dimmed with the rest
-// (snow less, or it reads as grey).
+// only a little, or blossoms, gold and snow read as grey.
 function inSeason(p, s, n, light) {
   const q = { ...p };
-  const dim = (light ? 0.05 : s === 3 ? 0.25 : 0.4) + 0.35 * n;
+  const dim = (light ? 0.05 : 0.18) + 0.35 * n;
   for (const [k, c, w] of SEASONS[s]) q[k] = mix(p[k], mix(c, "#000000", dim), w);
   return q;
 }
@@ -62,19 +63,19 @@ export const isLight = (c) => {
 
 // The colours at a given nightness, for a dark theme or a light one (`light`), in a season
 // (seasonAt; none: summer), and how much the clouds (day), stars and moon (night), spring's
-// flowers and winter's snow show.
+// flowers, autumn's falling leaves and winter's snow show.
 export function palette(n, light = false, season = null) {
   const [day, night] = light ? [LIGHT_DAY, LIGHT_NIGHT] : [DAY, NIGHT];
   let p = {};
   for (const k of Object.keys(day)) p[k] = mix(day[k], night[k], n);
-  let flowers = 0, snow = 0;
+  let flowers = 0, leaves = 0, snow = 0;
   if (season) {
     const [a, b] = [inSeason(p, season.a, n, light), inSeason(p, season.b, n, light)];
     for (const k of Object.keys(p)) p[k] = mix(a[k], b[k], season.t);
     const weight = (s) => (season.a === s ? 1 - season.t : 0) + (season.b === s ? season.t : 0);
-    [flowers, snow] = [weight(0), weight(3)];
+    [flowers, leaves, snow] = [weight(0), weight(2), weight(3)];
   }
-  p = { ...p, flowers, snow };
+  p = { ...p, flowers, leaves, snow };
   // On a pale sky white clouds and stars need more weight to show at all.
   return { ...p, clouds: 1 - n, stars: n, cloudAlpha: light ? 0.75 : 0.14, starAlpha: light ? 0.95 : 0.7 };
 }
@@ -124,7 +125,7 @@ export function features(width, ground, row) {
   const moon = { x: Math.round(width * 0.8), y: 10 + Math.round(r() * 8) };
   // Spring's flowers on the grass, and winter's snowflakes (snowAt moves them).
   const flowers = [];
-  for (let x = Math.floor(r() * 20); x < width - 2; x += 14 + Math.floor(r() * 30)) flowers.push({ x, pink: r() < 0.5 });
+  for (let x = Math.floor(r() * 10); x < width - 2; x += 7 + Math.floor(r() * 16)) flowers.push({ x, pink: r() < 0.5 });
   const flakes = [];
   for (let i = 0, n = Math.round(width / 25); i < n; i++) {
     const drift = 2 + r() * 4;

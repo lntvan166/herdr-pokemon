@@ -8,5 +8,5 @@ export const STATS_KEY = `${MOD}-stats`;
 export const LEGACY_KEY = "pokemon-agents";
 // This release (year.month.day, then .1, .2 for more releases that day). Bump it with every change worth updating for: copies that are
 // installed compare it with the repo's once a day and offer the update.
-export const VERSION = "2026.11.10.1";
+export const VERSION = "2026.11.10.2";
 export const REPO = "lntvan166/herdr-pokemon";

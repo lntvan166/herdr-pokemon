@@ -167,8 +167,9 @@ def scenery(width, rows, top, h):
             for w in f["flowers"]:
                 c = ("#f2a6c8" if w["pink"] else "#f4e27a") + f"{round(255 * p['flowers'] * 0.75):02x}"
                 args += ["-fill", c, "-draw", f"rectangle {w['x']},{y0 + line - 4} {w['x'] + 1},{y0 + line - 3}"]
-        if p["snow"] > 0.05:
-            flakes.append((y0, f["flakes"], round(255 * p["snow"] * 0.55)))
+        if p["snow"] > 0.05 or p["leaves"] > 0.05:  # snow, or autumn leaves (every other flake)
+            snowy = p["snow"] >= p["leaves"]
+            flakes.append((y0, f["flakes"] if snowy else f["flakes"][::2], snowy, round(255 * (p["snow"] * 0.55 if snowy else p["leaves"] * 0.7))))
         args += ["-fill", p["dark"], "-draw", f"rectangle 0,{y0 + line + 4} {width},{y0 + line + 5}"]
         args += ["-fill", BG, "-draw", f"rectangle 0,{y0 + line + 6} {width},{y0 + ROW_H - 1}"]  # names keep the plain strip
     path = os.path.join(sky["dir"], f"scenery-{len(sky['cache'])}.png")
@@ -181,12 +182,13 @@ def scenery(width, rows, top, h):
 def snow(background, t):
     """Falling snow over a background, at t ms: scene.js's snowAt, frame by frame."""
     out = []
-    for y0, flakes, a in sky["flakes"].get(background, []):
+    for y0, flakes, snowy, a in sky["flakes"].get(background, []):
         sec, line = t / 1000, GROUND + 4 - 2
-        for f in flakes:
+        for i, f in enumerate(flakes):
             x = math.floor(f["x"] + math.sin(sec * 0.8 + f["phase"]) * f["drift"])
             y = y0 + math.floor((f["y"] + f["speed"] * sec) % line)
-            out += ["-fill", f"#ffffff{a:02x}", "-draw", f"rectangle {x},{y} {x + 1},{y + 1}"]
+            c = "#ffffff" if snowy else ("#d9822b" if i % 2 else "#b0461f")
+            out += ["-fill", f"{c}{a:02x}", "-draw", f"rectangle {x},{y} {x + 1},{y + 1}"]
     return out
 
 
@@ -198,29 +200,33 @@ def draw(path, width, rows, mons, caption=None, caption_color=MUTED, cursor=None
         ground = top + m.row * ROW_H + GROUND
         x, y = m.anim.place(m.cx, ground)
         args += [m.anim.at(m.t, white=m.white, once=m.once), "-geometry", f"+{x}+{y}", "-composite"]
-    args += ["-font", FONT, "-gravity", "northwest"]
+    # Text sits on its baseline (gravity none), so names line up whatever their letters; glyphs in
+    # bubbles are centred on the bubble (gravity center, offsets from the image's centre).
+    args += ["-font", FONT, "-gravity", "none"]
     lines = tag_lines(mons)
+    W, H = width, top + rows * ROW_H - 18 * (rows == 1)
+    centred = lambda x, y: f"{round(x - W / 2):+d}{round(y - H / 2):+d}"
     for m in mons:
         ground = top + m.row * ROW_H + GROUND
-        head = ground - m.anim.height()
+        # Bubbles and "zZ" stay inside its row's sky, as in the mod (at least 2 px from its top).
+        head = max(ground - m.anim.height(), top + m.row * ROW_H + 28)
         # Its name under its feet, with its status dot.
         tw = len(m.tag) * 7
         tx = min(max(round(m.cx - tw / 2), 14), width - tw - 4)  # pushed in at the edges, as in the mod
         ty = ground + 11 + lines[id(m)] * 18
-        args += ["-fill", DOT[m.status], "-draw", f"circle {tx - 8},{ty + 8} {tx - 5},{ty + 8}"]
-        args += ["-fill", FG if m.bright else MUTED, "-pointsize", "12", "-annotate", f"+{tx}+{ty}", m.tag]
+        args += ["-fill", DOT[m.status], "-draw", f"circle {tx - 8},{ty + 7} {tx - 5},{ty + 7}"]
+        args += ["-fill", FG if m.bright else MUTED, "-pointsize", "12", "-annotate", f"+{tx}+{ty + 11}", m.tag]
         if m.zz:
             z = ["z", "zZ", "zZz", "zZ"][(m.t // 700) % 4]
-            args += ["-fill", MUTED, "-pointsize", "13", "-annotate", f"+{m.cx - 6}+{head - 22}", z]
+            args += ["-fill", MUTED, "-pointsize", "13", "-annotate", f"+{m.cx - 6}+{head - 12}", z]
         if m.bubble:  # "!" (needs you) or "✓" (done), above its head
             color = DOT["blocked"] if m.bubble == "!" else DOT["done"]
             args += ["-fill", color, "-draw", f"roundrectangle {m.cx - 9},{head - 26} {m.cx + 9},{head - 8} 6,6"]
-            gw = glyph_width(m.bubble, 12)  # centre the glyph: "!" is far narrower than "✓"
-            args += ["-fill", "#ffffff", "-pointsize", "12", "-annotate", f"+{round(m.cx - gw / 2)}+{head - 25}", m.bubble]
+            args += ["-fill", "#ffffff", "-pointsize", "12", "-gravity", "center", "-annotate", centred(m.cx, head - 17), m.bubble, "-gravity", "none"]
         for sx, sy, size, color in m.sparkles:
-            args += ["-fill", color, "-pointsize", str(size), "-annotate", f"+{sx}+{sy}", "✦"]
+            args += ["-fill", color, "-pointsize", str(size), "-annotate", f"+{sx}+{sy + size}", "✦"]
     if caption:
-        args += ["-fill", caption_color, "-pointsize", "13", "-gravity", "north", "-annotate", "+0+8", caption, "-gravity", "northwest"]
+        args += ["-fill", caption_color, "-pointsize", "13", "-gravity", "north", "-annotate", "+0+8", caption, "-gravity", "none"]
     if cursor:  # a mouse pointer, its tip at (x, y); pressed: a little ring
         x, y, pressed = cursor
         pts = f"{x},{y} {x},{y + 16} {x + 4},{y + 12} {x + 7},{y + 18} {x + 9},{y + 17} {x + 6},{y + 11} {x + 11},{y + 11}"

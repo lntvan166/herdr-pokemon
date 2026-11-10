@@ -117,7 +117,12 @@ test("palette with a season: autumn turns leaves warm, winter whitens, spring br
   assert.ok(r > g, "autumn leaves are red-orange");
   const lum = (c) => [1, 3, 5].reduce((s, i) => s + parseInt(c.slice(i, i + 2), 16), 0);
   assert.ok(lum(leaf(3).tree) > lum(leaf(1).tree) + 60, "winter trees are snowy");
-  assert.equal(leaf(1).tree, palette(0, false).tree); // summer is the plain palette
+  const G = (c) => parseInt(c.slice(3, 5), 16), R = (c) => parseInt(c.slice(1, 3), 16);
+  assert.ok(R(leaf(0).tree) > R(leaf(1).tree) + 40, "spring trees blossom pink");
+  assert.ok(R(leaf(2).grass) > R(leaf(1).grass) + 30, "autumn grass turns gold");
+  assert.ok(G(leaf(0).grass) > G(leaf(1).grass), "spring grass is fresher than summer's");
+  assert.equal(leaf(2).leaves, 1);
+  assert.equal(leaf(1).leaves, 0);
   assert.equal(leaf(0).flowers, 1);
   assert.equal(leaf(1).flowers, 0);
   assert.equal(leaf(3).snow, 1);

@@ -38,12 +38,14 @@ forms, and Mega Evolution while an agent works.
     readable. It uses the heads' places on the last frame.
   - Seasons (`seasonAt`): spring, summer, autumn, winter, 3 hours each, the cycle one step later
     each day (so a given hour changes season from day to day); the last 20 minutes blend into the
-    next. Summer is the plain palette. Spring: lighter green leaves and 2 px pink/yellow flowers
-    on the grass every 14–43 px. Autumn: leaves `#d9822b` / `#a64b25`, grass towards `#b5a24a`.
-    Winter: trees, grass and hills towards white, and 2 px flakes (one per 25 px) falling 5–12 px/s
-    with a sway, redrawn every tick and slid with `top`/`left` transitions; a flake back at the top
-    is a new element, so it never slides up. In a dark theme the season colours are dimmed with
-    the night (snow less, or it looks grey).
+    next. The grass band changes most, so each season reads at a glance. Spring: pink blossom
+    trees (`#f7a8cc`), lime grass (`#9be060`), 2 px pink/yellow flowers every 7–22 px. Summer: deep
+    green (`#2f8a3a`, grass `#3d9a33`). Autumn: orange trees (`#e07a26` / `#b0461f`), gold grass
+    (`#d1a640`), and falling leaves. Winter: trees, grass and hills towards white, and falling snow.
+    Snow is 2 px flakes (one per 25 px) falling 5–12 px/s with a sway; leaves are every other flake,
+    orange. Redrawn every tick and slid with `top`/`left` transitions; a flake back at the top is a
+    new element, so it never slides up. In a dark theme the season colours are dimmed only a little
+    (and more at night), or blossoms, gold and snow read as grey.
   - Below it the names keep the strip's colour. Positions are seeded per row, so nothing
     flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.

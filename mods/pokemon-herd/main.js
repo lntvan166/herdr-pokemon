@@ -162,7 +162,7 @@ export default class PokemonHerd extends View {
     const now = new Date();
     const light = isLight(theme().chrome);
     const p = palette(nightness(now.getHours() + now.getMinutes() / 60), light, seasonAt(now));
-    this.snowing = p.snow > 0.05; // the tick redraws it four times a second, for the snow to fall
+    this.snowing = p.snow > 0.05 || p.leaves > 0.05; // the tick redraws four times a second, so snow and leaves fall
     const key = `v3|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
     // Clouds and the moon fade over a Pokémon's head (its bubble stays readable): where heads were
     // on the last frame, which is a quarter second at most.
@@ -190,10 +190,14 @@ export default class PokemonHerd extends View {
       .when(p.flowers > 0.05, (el) => el.children(f.flowers.map((w) => div()
         .absolute().left(w.x).top(line - 4).size(2).bg(w.pink ? "#f2a6c8" : "#f4e27a").opacity(p.flowers * (light ? 1 : 0.75)))))
       .child(div().absolute().left(0).right(0).top(line + 4).h(2).bg(p.dark))
-      // Falling snow: each flake slides to where it is next; back at the top, it is a new one.
-      .when(this.snowing, (el) => el.children(snowAt(f.flakes, now.getTime() / 1000, line - 2).map((s, i) => div()
-        .id(`flake-${row}-${i}-${s.fall}`).absolute().left(s.x).top(s.y).size(2).rounded_full().bg("#ffffff")
-        .opacity(p.snow * (light ? 0.9 : 0.55))
+      // Falling snow, or autumn leaves (every other flake, slower): each slides to where it is
+      // next; back at the top, it is a new one.
+      .when(this.snowing, (el) => el.children(snowAt(f.flakes, now.getTime() / 1000, line - 2).map((s, i) => [s, i])
+        .filter(([, i]) => p.snow > 0.05 || i % 2 === 0)
+        .map(([s, i]) => div()
+        .id(`flake-${row}-${i}-${s.fall}`).absolute().left(s.x).top(s.y).size(2).rounded_full()
+        .bg(p.snow >= p.leaves ? "#ffffff" : i % 4 ? "#d9822b" : "#b0461f")
+        .opacity(p.snow >= p.leaves ? p.snow * (light ? 0.9 : 0.55) : p.leaves * (light ? 0.9 : 0.7))
         .transition("top", { duration: 300, easing: "linear" })
         .transition("left", { duration: 300, easing: "linear" }))));
   }
