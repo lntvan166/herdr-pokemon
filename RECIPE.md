@@ -104,7 +104,10 @@ forms, and Mega Evolution while an agent works.
   - Sub-agents without a pane keep theirs in memory.
   - Picks made by the upstream `pokemon-agents` mod are taken over once.
 - **Mega** (per Pokémon, in its picker): Off, On, or Auto (the default: Mega while its agent is
-  working). 41 species; regional forms don't Mega Evolve.
+  working). 41 species at release; regional forms don't Mega Evolve.
+  - SpriteCollab draws new Megas every few weeks. Once a day the strip downloads its
+    `tracker.json` and keeps the Megas that walk in `data/pokemon-herd/megas.json`. A new one shows
+    up without a release. The built-in list always stays, and a failed download waits a day.
 
 ## Built from
 
@@ -123,6 +126,7 @@ forms, and Mega Evolution while an agent works.
     - `wrap.js`: rows as a track.
     - `place.js`: layout edits for the menu.
     - `sheets.js`: which sheets to fetch.
+    - `megas.js`: which Megas have art, from `tracker.json`; also used by `scripts/gen-species.mjs`.
     - `safe.js`: a tick that survives errors.
     - `scene.js`: Scenery colours by the clock, and seeded positions.
 - **Herdr functions:** `agents()`, `spaces()` (tab names, `changed_at`), `theme()`,

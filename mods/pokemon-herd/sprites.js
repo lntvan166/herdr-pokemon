@@ -5,6 +5,7 @@ import { exec, appHome } from "herdr";
 import * as fs from "fs/promises";
 import { REACTIONS } from "./react.js";
 import { sheetPlan } from "./sheets.js";
+import { megasFrom, isStale } from "./megas.js";
 
 import { DATA_REL } from "./id.js";
 export { DATA_REL };
@@ -175,3 +176,37 @@ export async function ensureIcon(dex, form) {
   const r = await exec("mv", ["-f", tmp, file]); // no fs.rename here
   if (r.code !== 0) throw new Error("icon move failed");
 }
+
+// The Megas drawn since this release: SpriteCollab's tracker, read at most once a day and boiled
+// down to data/pokemon-herd/megas.json ({ at, megas }).
+const TRACKER = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/tracker.json";
+const MEGAS_FILE = `${DATA}/megas.json`;
+
+// The saved list, or null when there is none yet.
+export async function savedMegas() {
+  try {
+    const saved = JSON.parse(await fs.readFile(MEGAS_FILE, "utf8"));
+    return saved && typeof saved.megas === "object" ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetches the tracker again when the saved list is a day old; returns the new megas, or null when
+// it wasn't due. A failed fetch keeps the old list and waits another day.
+export async function refreshMegas(saved, now = Date.now()) {
+  if (!isStale(saved?.at, now)) return null;
+  await exec("mkdir", ["-p", DATA]);
+  const tmp = `${DATA}/tracker.json.part`;
+  let megas = saved?.megas ?? {};
+  try {
+    await curl([[tmp, TRACKER]]);
+    const fresh = megasFrom(JSON.parse(await fs.readFile(tmp, "utf8")));
+    if (Object.keys(fresh).length) megas = fresh; // an empty or odd tracker never wipes the list
+  } finally {
+    await exec("rm", ["-f", tmp]).catch(() => null);
+    await fs.writeFile(MEGAS_FILE, JSON.stringify({ at: now, megas }));
+  }
+  return megas;
+}
+

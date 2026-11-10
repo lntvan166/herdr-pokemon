@@ -7,7 +7,7 @@ import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gp
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
 import { nightness, palette, features, isLight, treeParts } from "./scene.js";
-import { hasShiny, dexNo, megaForm, fullName, searchEntries } from "./dex.js";
+import { hasShiny, dexNo, megaForm, setMegas, fullName, searchEntries } from "./dex.js";
 import { MOD, LEGACY_KEY } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
 import { forEachSafe, logOnce } from "./safe.js";
@@ -15,7 +15,7 @@ import { layoutTags } from "./tags.js";
 import { restSpot, roomAt } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, megaShown } from "./react.js";
-import { loadSprite, ensureIcon, iconPath, imageMagick } from "./sprites.js";
+import { loadSprite, ensureIcon, iconPath, imageMagick, savedMegas, refreshMegas } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -93,8 +93,9 @@ const scaleOf = () => {
 export default class PokemonHerd extends View {
   init(_p, cx) {
     this.picker = !!props()?.picker;
-    if (this.picker) return this.initPicker(cx);
     this.menu = !!props()?.menu;
+    if (!this.menu) this.loadMegas(cx, !this.picker); // the strip refreshes them; the picker only reads
+    if (this.picker) return this.initPicker(cx);
     if (this.menu) return;
     this.width = 900;
     this.sized = false; // Pokémon are placed only once the real width is known
@@ -128,6 +129,22 @@ export default class PokemonHerd extends View {
         const list = agents();
         const a = list.find((x) => x.focused) ?? list[0];
         if (a) this.openPicker(a, assignAll(list).ids[a.address], tagOf(a, tabsById()));
+      }
+    });
+  }
+
+  // Megas drawn since this release (SpriteCollab adds one every few weeks): the saved list at
+  // once, then, from the strip, the tracker again when that list is a day old.
+  loadMegas(cx, refresh) {
+    cx.spawn(async (cx) => {
+      try {
+        const saved = await savedMegas();
+        if (saved) { setMegas(saved.megas); cx.notify(); }
+        if (!refresh) return;
+        const fresh = await refreshMegas(saved);
+        if (fresh) { setMegas(fresh); cx.notify(); }
+      } catch (e) {
+        logOnce(e, console.log, Date.now(), (this.errSeen ??= new Map()));
       }
     });
   }
