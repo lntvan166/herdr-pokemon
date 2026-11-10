@@ -6,16 +6,17 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
-import { nightness, palette, features, isLight, treeParts } from "./scene.js";
+import { nightness, palette, features, isLight, treeParts, overHead } from "./scene.js";
+import { isNewer } from "./update.js";
 import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries } from "./dex.js";
-import { MOD, LEGACY_KEY } from "./id.js";
+import { MOD, LEGACY_KEY, VERSION, REPO } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, megaShown } from "./react.js";
-import { loadSprite, ensureIcon, iconPath, imageMagick, savedMegas, refreshMegas } from "./sprites.js";
+import { loadSprite, ensureIcon, iconPath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -144,6 +145,8 @@ export default class PokemonHerd extends View {
         if (!refresh) return;
         const fresh = await refreshMegas(saved);
         if (fresh) { setMegas(fresh); cx.notify(); }
+        this.latest = await latestVersion(); // a newer release on GitHub: the strip offers it
+        cx.notify();
       } catch (e) {
         logOnce(e, console.log, Date.now(), (this.errSeen ??= new Map()));
       }
@@ -156,6 +159,10 @@ export default class PokemonHerd extends View {
     const now = new Date();
     const p = palette(nightness(now.getHours() + now.getMinutes() / 60), isLight(theme().chrome));
     const key = `v2|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
+    // Clouds and the moon fade over a Pokémon's head (its bubble stays readable): where heads were
+    // on the last frame, which is a quarter second at most.
+    const heads = this.heads?.[row] ?? [];
+    const fade = (box) => (overHead(box, heads) ? 0.15 : 1);
     this.sceneCache ??= {};
     const f = (this.sceneCache[key] ??= features(Math.round(this.width), ground, row));
     const line = ground + 4; // the ground line, as the plain background draws it
@@ -163,9 +170,9 @@ export default class PokemonHerd extends View {
     return box
       .when(p.stars > 0.05, (el) => el
         .children(f.stars.filter((s) => s.y < line - 20).map((s) => div().absolute().left(s.x).top(s.y).size(s.bright ? 2 : 1).bg(s.bright ? "#ffeebb" : "#cfd8ff").opacity(p.stars * p.starAlpha)))
-        .child(div().absolute().left(f.moon.x).top(f.moon.y).size(10).rounded_full().bg("#e9e5c8").opacity(p.stars * 0.85)))
+        .child(div().absolute().left(f.moon.x).top(f.moon.y).size(10).rounded_full().bg("#e9e5c8").opacity(p.stars * 0.85 * fade({ x: f.moon.x, y: f.moon.y, w: 10, h: 10 }))))
       .when(p.clouds > 0.05, (el) => el.children(f.clouds.filter((c) => c.y + 10 < line - 24).map((c) => div()
-        .absolute().left(c.x).top(c.y).w(c.w).h(12).opacity(p.clouds * p.cloudAlpha)
+        .absolute().left(c.x).top(c.y).w(c.w).h(12).opacity(p.clouds * p.cloudAlpha * fade({ x: c.x, y: c.y, w: c.w, h: 12 }))
         .child(div().absolute().left(0).top(4).w(c.w).h(8).rounded(4).bg("#ffffff"))
         .child(div().absolute().left(Math.round(c.w * 0.25)).top(0).w(Math.round(c.w * 0.45)).h(9).rounded(5).bg("#ffffff")))))
       .children(f.hills.map((h) => div().absolute().left(Math.round(h.cx - h.rx)).top(line - h.ry).w(Math.round(2 * h.rx)).h(Math.round(2 * h.ry)).rounded_full().bg(p.hill)))
@@ -423,6 +430,16 @@ export default class PokemonHerd extends View {
     closeOverlay(props()?.overlay);
   }
 
+  // The update waiting on GitHub (its version), or null.
+  update() {
+    return isNewer(this.latest, VERSION) ? this.latest : null;
+  }
+
+  openMenu() {
+    const update = this.update();
+    openOverlay({ mod: MOD, kind: "popup", width: 236, height: update ? 352 : 272, props: { menu: true, update } });
+  }
+
   renderMenu() {
     const t = theme();
     const tree = layout();
@@ -473,7 +490,13 @@ export default class PokemonHerd extends View {
         item(`place-${p}`, p === place && hidden(p) ? `${NAMES[p]}, closed` : NAMES[p],
           () => this.applyLayout(p, rows), p === place, have.includes(p) && !shipped)))
       .when(shipped, (el) => el.child(div().pt(4).text_size(11).text_color(t.muted)
-        .child(`"${name}" is a built-in layout: clone it to move things.`)));
+        .child(`"${name}" is a built-in layout: clone it to move things.`)))
+      // A newer release: an installed copy never updates by itself.
+      .when(!!props()?.update, (el) => el
+        .child(div().h(4))
+        .child(label(`Update: ${props().update} (you have ${VERSION})`))
+        .child(div().text_size(11.5).text_color(t.muted)
+          .child(`Delete mods/${MOD} and add github.com/${REPO} again. Your Pokémon are kept.`)));
   }
 
   openPicker(a, pick, tag) {
@@ -525,7 +548,7 @@ export default class PokemonHerd extends View {
       .on_mouse_move((e, cx) => this.dragTo(e, g, cx))
       .on_mouse_up("left", (_e, cx) => this.dragEnd(cx))
       // Right-click on the ground (not on a Pokémon): rows and where the strip sits.
-      .on_mouse_down("right", () => openOverlay({ mod: MOD, kind: "popup", width: 236, height: 272, props: { menu: true } }))
+      .on_mouse_down("right", () => this.openMenu())
       .on_hover((h, cx) => { if (!h) this.dragEnd(cx); })
       // Scenery (the default): sky, hills and grass above each ground line. Plain: a faint line.
       .children(sceneryOn
@@ -582,6 +605,7 @@ export default class PokemonHerd extends View {
       (byRow[rowOf(a)] ??= []).push({ id: a.address, cx: headedTo(a), from: isAt(a), text: label(a), rank: rank(a), settled: was.has(a.address) && this.standing.has(a.address), since: this.since[a.address] });
     }
     for (const row of byRow) if (row) for (const [id, spot] of layoutTags(row, this.width, { maxLines: TAG_LINES })) tags.set(id, spot);
+    const heads = []; // per row, where each head and its bubble is: clouds and the moon fade there
     for (const a of order) {
       const pick = ids[a.address];
       const id = pick.dex;
@@ -630,6 +654,8 @@ export default class PokemonHerd extends View {
         : mood === "done" ? div().px(6).rounded(7).bg(t.done).text_color("#ffffff").font_bold().child("✓")
         : mood === "sleep" ? div().text_color(t.muted).frames(["z", "zZ", "zZz", "zZ"], 700)
         : null;
+      const x0 = isAt(a) - sw / 2 + hit.left;
+      (heads[g ? rowOf(a) : 0] ??= []).push({ x0, x1: x0 + hit.w, top: bubble ? headY - 24 : headY - 4 });
 
       // Its tag, in this box's coordinates. Walking, it stays centred under its feet (its laid-out
       // spot is where it will stop, which the edge may have pushed in, or past the edge when it
@@ -701,6 +727,15 @@ export default class PokemonHerd extends View {
             );
           })
       );
+    }
+    this.heads = heads;
+    // A newer release on GitHub: a small pill in the corner; it opens the menu, which says how.
+    const update = this.update();
+    if (update) {
+      root.child(div().id("pokemon-update").absolute().right(6).top(4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).bg(t.accent).text_color(t.accent_foreground)
+        .cursor_pointer().on_click(() => this.openMenu())
+        .child(`Update ${update}`));
     }
     return root;
   }

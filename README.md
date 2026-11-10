@@ -79,6 +79,21 @@ focused agent.
 The mod downloads sprites as it needs them into `~/.config/herdr-app/data/pokemon-herd/`.
 If you are coming from the upstream `pokemon-agents` mod, your agents keep their Pokémon.
 
+## Updating
+
+An installed copy doesn't update by itself. Once a day the strip checks this repo, and when a
+newer version is out it shows a small **Update** pill in its corner (right-click the ground for
+the details). To update:
+
+- **Installed by your agent:** delete `~/.config/herdr-app/mods/pokemon-herd/`, then ask it to
+  add `herdr.dev/mods/lntvan166/herdr-pokemon` again. Without the delete it adds a second copy
+  under another name.
+- **Cloned by hand:** `git pull && scripts/install.sh`.
+
+Your agents keep their Pokémon, shinies and Mega settings, since those live in Herdr's shared
+state and not in the mod's folder. New Megas need no update: the mod picks them up as
+SpriteCollab draws them.
+
 ## Art and names
 
 - Sprites and portraits: [PMD SpriteCollab](https://github.com/PMDCollab/SpriteCollab) by the

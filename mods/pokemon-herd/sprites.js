@@ -6,8 +6,9 @@ import * as fs from "fs/promises";
 import { REACTIONS } from "./react.js";
 import { sheetPlan } from "./sheets.js";
 import { megasFrom, isStale } from "./megas.js";
+import { versionIn } from "./update.js";
 
-import { DATA_REL } from "./id.js";
+import { DATA_REL, REPO } from "./id.js";
 export { DATA_REL };
 const DATA = `${appHome()}/${DATA_REL}`;
 const PMD = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/sprite";
@@ -208,5 +209,29 @@ export async function refreshMegas(saved, now = Date.now()) {
     await fs.writeFile(MEGAS_FILE, JSON.stringify({ v: 2, at: now, megas }));
   }
   return megas;
+}
+
+// The newest release's VERSION on GitHub (read from its id.js at most once a day, kept in
+// data/pokemon-herd/latest.json), or null when not known. A failed read keeps the last one.
+const LATEST_FILE = `${DATA}/latest.json`;
+export async function latestVersion(now = Date.now()) {
+  let saved = null;
+  try {
+    saved = JSON.parse(await fs.readFile(LATEST_FILE, "utf8"));
+  } catch {}
+  if (!isStale(saved?.at, now)) return saved?.version ?? null;
+  await exec("mkdir", ["-p", DATA]);
+  const tmp = `${DATA}/id.js.part`;
+  let version = saved?.version ?? null;
+  try {
+    await curl([[tmp, `https://raw.githubusercontent.com/${REPO}/main/mods/pokemon-herd/id.js`]]);
+    version = versionIn(await fs.readFile(tmp, "utf8")) ?? version;
+  } catch {
+    // offline or rate-limited: try again tomorrow
+  } finally {
+    await exec("rm", ["-f", tmp]).catch(() => null);
+    await fs.writeFile(LATEST_FILE, JSON.stringify({ at: now, version }));
+  }
+  return version;
 }
 

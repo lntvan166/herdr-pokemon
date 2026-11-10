@@ -34,6 +34,8 @@ forms, and Mega Evolution while an agent works.
   - In a light theme (the theme's `chrome` is light) the same scene is pale and soft: sky
     `#d9e6e4` by day and a dusk slate `#c8cddb` by night, hills `#c6d9c4` / `#b6bece`, grass
     `#8fb878` / `#7f9e85`; clouds at 75 % and stars at 95 % so they still show on it.
+  - A cloud or the moon right above a Pokémon's head or bubble fades to 15 %, so the bubble stays
+    readable. It uses the heads' places on the last frame.
   - Below it the names keep the strip's colour. Positions are seeded per row, so nothing
     flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.
@@ -100,6 +102,10 @@ forms, and Mega Evolution while an agent works.
   the row's edge. Off the right, it appears outside the left of the next row and walks in. Off
   the left, it appears on the row above. The last row wraps to the first. It won't move onto a
   row that already holds its fair share.
+- **Updates:** `id.js` holds `VERSION` (year.month.day). Once a day the strip reads `id.js` from
+  the repo on GitHub (`data/pokemon-herd/latest.json`). When that is newer, an accent pill
+  "Update <version>" sits in the strip's top-right corner. Clicking it opens the menu, which
+  grows to 352 px with how to update.
 - **Picks:** a new agent's Pokémon is chosen from the 974 walking species by a hash of its pane
   id, skipping any already on screen.
   - 1 in 64 is shiny, if a shiny sprite exists. Picks are saved per pane and kept.
@@ -128,6 +134,7 @@ forms, and Mega Evolution while an agent works.
     - `wrap.js`: rows as a track.
     - `place.js`: layout edits for the menu.
     - `sheets.js`: which sheets to fetch.
+    - `update.js`: the release on GitHub vs this one.
     - `megas.js`: which Megas have art, from `tracker.json`; also used by `scripts/gen-species.mjs`.
     - `safe.js`: a tick that survives errors.
     - `scene.js`: Scenery colours by the clock, and seeded positions.

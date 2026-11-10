@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nightness, mix, palette, features, isLight, treeParts } from "../mods/pokemon-herd/scene.js";
+import { nightness, mix, palette, features, isLight, treeParts, overHead } from "../mods/pokemon-herd/scene.js";
 
 test("nightness: day 6:30–17:30, night 18:30–5:30, an hour's blend at dawn and dusk", () => {
   assert.equal(nightness(12), 0);
@@ -89,4 +89,12 @@ test("treeParts: a tree stands on the grass, inside its own box, with a trunk", 
       assert.ok(y >= 80 - t.h && y + h <= 81, `${kind} y`);
     }
   }
+});
+
+test("overHead: a cloud or the moon right above a Pokémon's head or bubble, not one off to the side", () => {
+  const heads = [{ x0: 100, x1: 140, top: 30 }];
+  assert.equal(overHead({ x: 110, y: 18, w: 40, h: 12 }, heads), true); // over it, reaching its bubble
+  assert.equal(overHead({ x: 150, y: 10, w: 40, h: 12 }, heads), false); // beside it
+  assert.equal(overHead({ x: 110, y: 2, w: 40, h: 8 }, [{ x0: 100, x1: 140, top: 40 }]), false); // well above
+  assert.equal(overHead({ x: 110, y: 10, w: 40, h: 12 }, []), false);
 });

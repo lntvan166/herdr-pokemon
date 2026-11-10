@@ -108,3 +108,9 @@ export function treeParts(t, base) {
   }
   return parts;
 }
+
+// A cloud or the moon (`box`, in its row) that sits right above a Pokémon's head or its bubble, so
+// it should fade: `heads` are [{ x0, x1, top }], top being the top of the bubble.
+export const overHead = (box, heads) =>
+  heads.some((h) => box.x < h.x1 && box.x + box.w > h.x0 && box.y + box.h > h.top - 4);
+
