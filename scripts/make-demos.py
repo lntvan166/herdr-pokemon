@@ -85,6 +85,19 @@ class Mon:
         del self.__dict__["self"]
 
 
+_glyphs = {}
+
+
+def glyph_width(text, size):
+    """The drawn width of `text` in DejaVu Sans at `size` (ImageMagick's own measure)."""
+    key = (text, size)
+    if key not in _glyphs:
+        out = subprocess.run(["magick", "-font", FONT, "-pointsize", str(size), f"label:{text}", "-trim", "-format", "%w", "info:"],
+                             check=True, capture_output=True, text=True).stdout
+        _glyphs[key] = int(out or 0)
+    return _glyphs[key]
+
+
 def tag_lines(mons):
     """As the mod does: standing Pokémon's names on the first line, a walking one's drops to the
     second when it would overlap one there."""
@@ -129,7 +142,8 @@ def draw(path, width, rows, mons, caption=None, caption_color=MUTED, cursor=None
         if m.bubble:  # "!" (needs you) or "✓" (done), above its head
             color = DOT["blocked"] if m.bubble == "!" else DOT["done"]
             args += ["-fill", color, "-draw", f"roundrectangle {m.cx - 9},{head - 26} {m.cx + 9},{head - 8} 6,6"]
-            args += ["-fill", "#ffffff", "-pointsize", "12", "-annotate", f"+{m.cx - 4}+{head - 25}", m.bubble]
+            gw = glyph_width(m.bubble, 12)  # centre the glyph: "!" is far narrower than "✓"
+            args += ["-fill", "#ffffff", "-pointsize", "12", "-annotate", f"+{round(m.cx - gw / 2)}+{head - 25}", m.bubble]
         for sx, sy, size, color in m.sparkles:
             args += ["-fill", color, "-pointsize", str(size), "-annotate", f"+{sx}+{sy}", "✦"]
     if caption:
