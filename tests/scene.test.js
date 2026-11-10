@@ -98,3 +98,38 @@ test("overHead: a cloud or the moon right above a Pokémon's head or bubble, not
   assert.equal(overHead({ x: 110, y: 2, w: 40, h: 8 }, [{ x0: 100, x1: 140, top: 40 }]), false); // well above
   assert.equal(overHead({ x: 110, y: 10, w: 40, h: 12 }, []), false);
 });
+
+test("seasonAt: a season every 3 hours, one step on each day, a 20-minute blend into the next", async () => {
+  const { seasonAt } = await import("../mods/pokemon-herd/scene.js");
+  const d = (h, m = 0, day = 10) => new Date(2026, 10, day, h, m);
+  const a = seasonAt(d(0)).a;
+  assert.equal(seasonAt(d(3)).a, (a + 1) % 4);
+  assert.equal(seasonAt(d(12)).a, a); // 4 slots of 3 hours: back around at noon
+  assert.equal(seasonAt(d(0, 0, 11)).a, (a + 1) % 4); // tomorrow starts one later
+  assert.deepEqual(seasonAt(d(1)), { a, b: (a + 1) % 4, t: 0 });
+  assert.equal(seasonAt(d(2, 50)).t, 0.5);
+  assert.equal(seasonAt(d(2, 40)).t, 0);
+});
+
+test("palette with a season: autumn turns leaves warm, winter whitens, spring brings flowers", () => {
+  const leaf = (s) => palette(0, false, { a: s, b: s, t: 0 });
+  const [r, g] = [1, 3].map((i) => parseInt(leaf(2).tree.slice(i, i + 2), 16));
+  assert.ok(r > g, "autumn leaves are red-orange");
+  const lum = (c) => [1, 3, 5].reduce((s, i) => s + parseInt(c.slice(i, i + 2), 16), 0);
+  assert.ok(lum(leaf(3).tree) > lum(leaf(1).tree) + 60, "winter trees are snowy");
+  assert.equal(leaf(1).tree, palette(0, false).tree); // summer is the plain palette
+  assert.equal(leaf(0).flowers, 1);
+  assert.equal(leaf(1).flowers, 0);
+  assert.equal(leaf(3).snow, 1);
+  assert.equal(palette(0, false, { a: 2, b: 3, t: 0.5 }).snow, 0.5);
+});
+
+test("features: flowers on the grass and snowflakes that fall and wrap", async () => {
+  const { snowAt } = await import("../mods/pokemon-herd/scene.js");
+  const f = features(800, 80, 0);
+  assert.ok(f.flowers.length >= 10 && f.flowers.every((x) => x.x >= 0 && x.x < 800));
+  assert.ok(f.flakes.length >= 10);
+  const a = snowAt(f.flakes, 0, 80), b = snowAt(f.flakes, 3, 80);
+  assert.notDeepEqual(a, b);
+  assert.ok([...a, ...b].every((p) => p.y >= 0 && p.y < 80 && p.x >= 0 && p.x < 800));
+});

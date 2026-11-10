@@ -15,7 +15,8 @@ A Herdr mod, `pokemon-herd`. It started as a copy of
 **They react to you and to their agents.** Click an agent, or focus its pane, and its Pokémon
 wakes up and looks at you, then stays up 15 s. When its agent finishes, it celebrates. When the
 agent needs you, it startles and calls. When the agent starts working, it gets ready to go. Hover
-one and it turns to you.
+one and it turns to you, and its name shows what its species has done: "Pikachu · api · 128 done ·
+14h 20m".
 
 <p align="center">
   <img src="docs/demo/focus.gif" alt="Clicking an agent wakes its sleeping Pikachu, which looks at you" width="360">
@@ -47,8 +48,12 @@ Mega X / Y: pick one in the picker once both are drawn.
   bottom of the window, or the right panel.
 - The background is **Scenery** by default: sky, hills, trees and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
-  It is muted in a dark theme and pale in a light one.
+  It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring
+  flowers, summer green, autumn leaves, then snow, a step further on each day.
   Switch it to **Plain** in the same menu.
+- **Stats:** each species counts the jobs its agents finished and the time they spent working.
+  Two agents that are both Pikachu add to Pikachu's. The same menu shows the totals and the three
+  busiest species.
 - The rows form one track: walk off the right edge of one and you turn up on the left of the next.
 - Drag a Pokémon to move it, or to change its row.
 

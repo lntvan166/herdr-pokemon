@@ -6,10 +6,13 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
-import { nightness, palette, features, isLight, treeParts, overHead } from "./scene.js";
+import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt } from "./scene.js";
+import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
+
+const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
 import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries } from "./dex.js";
-import { MOD, LEGACY_KEY, VERSION, REPO } from "./id.js";
+import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -157,8 +160,10 @@ export default class PokemonHerd extends View {
   // the ground line. It stops just under the grass: the names below keep the strip's colour.
   scenery(top, ground, row) {
     const now = new Date();
-    const p = palette(nightness(now.getHours() + now.getMinutes() / 60), isLight(theme().chrome));
-    const key = `v2|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
+    const light = isLight(theme().chrome);
+    const p = palette(nightness(now.getHours() + now.getMinutes() / 60), light, seasonAt(now));
+    this.snowing = p.snow > 0.05; // the tick redraws it four times a second, for the snow to fall
+    const key = `v3|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
     // Clouds and the moon fade over a Pokémon's head (its bubble stays readable): where heads were
     // on the last frame, which is a quarter second at most.
     const heads = this.heads?.[row] ?? [];
@@ -182,7 +187,15 @@ export default class PokemonHerd extends View {
       })))
       .child(div().absolute().left(0).right(0).top(line - 3).h(7).bg(p.grass))
       .children(f.tufts.map((u) => div().absolute().left(u.x).top(line - 3 - u.h).w(1).h(u.h).bg(u.dark ? p.dark : p.grass)))
-      .child(div().absolute().left(0).right(0).top(line + 4).h(2).bg(p.dark));
+      .when(p.flowers > 0.05, (el) => el.children(f.flowers.map((w) => div()
+        .absolute().left(w.x).top(line - 4).size(2).bg(w.pink ? "#f2a6c8" : "#f4e27a").opacity(p.flowers * (light ? 1 : 0.75)))))
+      .child(div().absolute().left(0).right(0).top(line + 4).h(2).bg(p.dark))
+      // Falling snow: each flake slides to where it is next; back at the top, it is a new one.
+      .when(this.snowing, (el) => el.children(snowAt(f.flakes, now.getTime() / 1000, line - 2).map((s, i) => div()
+        .id(`flake-${row}-${i}-${s.fall}`).absolute().left(s.x).top(s.y).size(2).rounded_full().bg("#ffffff")
+        .opacity(p.snow * (light ? 0.9 : 0.55))
+        .transition("top", { duration: 300, easing: "linear" })
+        .transition("left", { duration: 300, easing: "linear" }))));
   }
 
   // The sprite set to draw: its Mega while megaShown and once loaded, else its usual one.
@@ -256,6 +269,13 @@ export default class PokemonHerd extends View {
     cx.notify();
   }
 
+  // Its agent changed status: the work it did goes to its species' stats.
+  count(pick, m, next, now) {
+    const c = statusChange(m.run, m.status, next, now);
+    m.run = c.run;
+    if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
+  }
+
   // Rows: grows or shrinks this block to hold them (props.block names it, default the mod id).
   fitHeight(g) {
     const want = g.rows * g.rowH;
@@ -316,6 +336,7 @@ export default class PokemonHerd extends View {
         const inRow = Math.ceil((list.length - (i % rows)) / rows);
         const x = clamp(((k + 0.5) / inRow) * this.width + rand(-20, 20), lo, hi);
         m = this.mons[a.address] = { x, from: x, target: x, dir: Math.random() < 0.5 ? "l" : "r", moving: false, start: 0, dur: 0, pauseUntil: now + rand(300, 2500), mood: null, status: a.status, react: null, awakeUntil: 0, sparkleUntil: ids[a.address]?.shiny ? now + 2500 : 0 };
+        m.run = statusChange({}, undefined, a.status, now).run; // already working: counts from now
         changed = true;
       }
       // Reactions (react.js): to its agent's status changing, and to you focusing it.
@@ -328,7 +349,7 @@ export default class PokemonHerd extends View {
       const has = new Set(Object.keys(meta?.react ?? {}));
       const msOf = (name) => meta.react[name].ms;
       const raw = moodOf(a, tabs, now);
-      if (m.status !== a.status) { onStatus(m, m.status, a.status, now, has, msOf); m.status = a.status; changed = true; }
+      if (m.status !== a.status) { onStatus(m, m.status, a.status, now, has, msOf); this.count(ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
       const mood = effectiveMood(raw, m, now);
       if (mood !== m.mood) { m.mood = mood; changed = true; }
@@ -412,7 +433,7 @@ export default class PokemonHerd extends View {
       }
     }, console.log, now, this.errSeen);
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
-    if (changed) cx.notify();
+    if (changed || this.snowing) cx.notify();
   }
 
   // ---- the menu (right-click on the strip; a popup with props { menu }) ----
@@ -437,7 +458,8 @@ export default class PokemonHerd extends View {
 
   openMenu() {
     const update = this.update();
-    openOverlay({ mod: MOD, kind: "popup", width: 236, height: update ? 352 : 272, props: { menu: true, update } });
+    const top = summary(stats(), 3).top.length;
+    openOverlay({ mod: MOD, kind: "popup", width: 236, height: (update ? 352 : 272) + 52 + top * 20, props: { menu: true, update } });
   }
 
   renderMenu() {
@@ -491,12 +513,29 @@ export default class PokemonHerd extends View {
           () => this.applyLayout(p, rows), p === place, have.includes(p) && !shipped)))
       .when(shipped, (el) => el.child(div().pt(4).text_size(11).text_color(t.muted)
         .child(`"${name}" is a built-in layout: clone it to move things.`)))
+      .child(this.renderStats(label))
       // A newer release: an installed copy never updates by itself.
       .when(!!props()?.update, (el) => el
         .child(div().h(4))
         .child(label(`Update: ${props().update} (you have ${VERSION})`))
         .child(div().text_size(11.5).text_color(t.muted)
           .child(`Delete mods/${MOD} and add github.com/${REPO} again. Your Pokémon are kept.`)));
+  }
+
+  // The menu's Stats: everything together, then the three species that finished most jobs.
+  renderStats(label) {
+    const t = theme();
+    const s = summary(stats(), 3);
+    const row = (left, right) => h_flex().h(20).px(8).items_center().justify_between().text_size(12)
+      .child(div().min_w(0).truncate().text_color(t.foreground).child(left))
+      .child(div().flex_none().text_color(t.muted).child(right));
+    return v_flex().gap(0)
+      .child(div().h(4))
+      .child(label("Stats"))
+      .child(s.jobs || s.ms
+        ? row("All", `${s.jobs} done · ${duration(s.ms)}`)
+        : div().px(8).h(20).text_size(11.5).text_color(t.muted).child("Counted as your agents finish work."))
+      .children(s.top.map((x) => row(fullName(x.dex), `${x.jobs} · ${duration(x.ms)}`)));
   }
 
   openPicker(a, pick, tag) {
@@ -526,6 +565,7 @@ export default class PokemonHerd extends View {
     const ground = (g ? g.rowH : this.height) - FEET - (TAG_LINES - 1) * LABEL_H;
     const grounds = g ? Array.from({ length: g.rows }, (_, r) => r * g.rowH + ground) : [ground];
     const sceneryOn = props()?.background !== "plain";
+    this.snowing = false; // scenery() turns it on while it snows
 
     const root = div()
       .id("pokemon-strip")
@@ -580,7 +620,9 @@ export default class PokemonHerd extends View {
     const rowOf = (a) => (g ? Math.min(this.mons[a.address]?.row ?? list.indexOf(a) % g.rows, g.rows - 1) : 0);
     const label = (a, full) => {
       const pick = ids[a.address];
-      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}` : tagOf(a, tabs);
+      // Hovered: its species' stats too ("Pikachu · api · 128 done · 14h 20m").
+      const line = full ? statLine(stats().species[pick.dex]) : "";
+      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.

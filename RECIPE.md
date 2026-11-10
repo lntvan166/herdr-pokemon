@@ -36,6 +36,14 @@ forms, and Mega Evolution while an agent works.
     `#8fb878` / `#7f9e85`; clouds at 75 % and stars at 95 % so they still show on it.
   - A cloud or the moon right above a Pokémon's head or bubble fades to 15 %, so the bubble stays
     readable. It uses the heads' places on the last frame.
+  - Seasons (`seasonAt`): spring, summer, autumn, winter, 3 hours each, the cycle one step later
+    each day (so a given hour changes season from day to day); the last 20 minutes blend into the
+    next. Summer is the plain palette. Spring: lighter green leaves and 2 px pink/yellow flowers
+    on the grass every 14–43 px. Autumn: leaves `#d9822b` / `#a64b25`, grass towards `#b5a24a`.
+    Winter: trees, grass and hills towards white, and 2 px flakes (one per 25 px) falling 5–12 px/s
+    with a sway, redrawn every tick and slid with `top`/`left` transitions; a flake back at the top
+    is a new element, so it never slides up. In a dark theme the season colours are dimmed with
+    the night (snow less, or it looks grey).
   - Below it the names keep the strip's colour. Positions are seeded per row, so nothing
     flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.
@@ -68,7 +76,14 @@ forms, and Mega Evolution while an agent works.
     portrait, its dex number "#025" and its name. Regional forms follow their species as
     "Vulpix (Alola)".
 - **The menu:** a 236×272 popup with "Rows: 1 2 3", "Background: Plain / Scenery", and "Place: Sidebar / Bottom of the window /
-  Right panel (with Files)". The current choices carry an accent border or a ✓.
+  Right panel (with Files)". The current choices carry an accent border or a ✓. Under them,
+  "Stats": "All: 128 done · 14h 20m" and the three species with the most jobs (52 px plus 20 px
+  a species taller).
+- **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
+  longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
+  regional forms count as their species. A job is work that ends in done or idle; blocked
+  (waiting on you) pauses it without counting the wait. An agent already working when the strip
+  starts counts from then. The hovered name adds "128 done · 14h 20m".
 
 ## How it behaves
 
@@ -137,7 +152,8 @@ forms, and Mega Evolution while an agent works.
     - `update.js`: the release on GitHub vs this one.
     - `megas.js`: which Megas have art, from `tracker.json`; also used by `scripts/gen-species.mjs`.
     - `safe.js`: a tick that survives errors.
-    - `scene.js`: Scenery colours by the clock, and seeded positions.
+    - `scene.js`: Scenery colours by the clock and the season, and seeded positions.
+    - `stats.js`: jobs and working time per species.
 - **Herdr functions:** `agents()`, `spaces()` (tab names, `changed_at`), `theme()`,
   `settings().zoom`, `props()`, `shared/setShared("pokemon-herd")` for picks, `layout()`,
   `openOverlay/closeOverlay`, `nextCommand()`, `exec`, `appHome()`, and `fs/promises`.
