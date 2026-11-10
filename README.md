@@ -31,7 +31,8 @@ or scroll through them all. The **regional forms** (Alola, Galar, Hisui, Paldea)
 
 **Mega Evolution.** About 40 species can Mega Evolve. Each one's picker has a Mega setting: Off,
 On, or Auto. On Auto, it Mega Evolves while its agent works and turns back when the agent is
-done.
+done. New Megas show up by themselves as SpriteCollab draws them (the mod checks once a day).
+Mega X / Y: pick one in the picker once both are drawn.
 
 <p align="center"><img src="docs/demo/charizard-mega.gif" alt="Charizard asleep; its agent starts working; it Mega Evolves into Mega Charizard X and walks off" width="360"></p>
 
