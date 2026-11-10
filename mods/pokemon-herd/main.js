@@ -18,7 +18,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -30,7 +30,7 @@ const LABEL_H = 18; // name tag under the feet
 const TAG_LINES = 2; // lines kept under each row for names: fixed, so the ground lines never move
 const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
-const SLEEP_AFTER = 3 * 60 * 1000; // idle this long: fall asleep
+const SEASON_CHANCE = 0.3; // idle, about to stroll: how often it reacts to the season instead
 // props.rows (> 1): agents take turns across that many rows; each roams its whole row, passing
 // the others, and the block grows to fit the rows.
 
@@ -70,14 +70,15 @@ function tagOf(a, tabs) {
   return a.space_name || a.tab_name || a.address;
 }
 
-// What the Pokémon is doing: walks while working, strolls while idle, sleeps when idle long.
-function moodOf(a, tabs, now) {
+// What the Pokémon is doing: walks while working, strolls while idle, sleeps when idle long
+// (`after`: sleepAfter, sooner at night).
+function moodOf(a, tabs, now, after) {
   if (a.status === "blocked") return "blocked";
   if (a.status === "done") return "done";
   if (a.status === "working") return "working";
   // changed_at is null when nothing in the tab changed since the app started: idle all along.
   const changed = tabs[a.tab]?.changed_at;
-  return changed == null || now - changed > SLEEP_AFTER ? "sleep" : "idle";
+  return changed == null || now - changed > after ? "sleep" : "idle";
 }
 
 const PICK_COLS = 6; // the picker's grid: columns, cell width and gap, row height
@@ -323,6 +324,12 @@ export default class PokemonHerd extends View {
       m.dur = (Math.abs(target - m.x) / speed) * 1000;
       m.moving = true;
     };
+    // The clock: night makes them sleep sooner; with Scenery on, the season gives idle ones
+    // something to react to (the season it mostly is now).
+    const date = new Date(now);
+    const after = sleepAfter(nightness(date.getHours() + date.getMinutes() / 60));
+    const s = seasonAt(date);
+    const season = props()?.background !== "plain" ? (s.t < 0.5 ? s.a : s.b) : null;
     // Whose agent you just focused: that Pokémon wakes up and looks at you.
     const focus = focusEdge(this.lastFocus, list);
     this.lastFocus = focus.addr;
@@ -352,7 +359,7 @@ export default class PokemonHerd extends View {
       if (m.flashUntil && now >= m.flashUntil) { m.flashUntil = 0; changed = true; }
       const has = new Set(Object.keys(meta?.react ?? {}));
       const msOf = (name) => meta.react[name].ms;
-      const raw = moodOf(a, tabs, now);
+      const raw = moodOf(a, tabs, now, after);
       if (m.status !== a.status) { onStatus(m, m.status, a.status, now, has, msOf); this.count(ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
       const mood = effectiveMood(raw, m, now);
@@ -395,6 +402,11 @@ export default class PokemonHerd extends View {
           m.dur = 150;
           changed = true;
         }
+      } else if (mood === "idle" && !reacting && now >= m.pauseUntil && season !== null && Math.random() < SEASON_CHANCE
+        && onSeason(m, season, now, has, msOf)) {
+        // Instead of strolling on, it sniffs the flowers, basks, looks up at the leaves or shivers.
+        m.pauseUntil = m.react.until + rand(3000, 8000);
+        changed = true;
       } else if ((mood === "working" || mood === "idle") && !reacting && now >= m.pauseUntil && hi > lo) {
         let target = rand(lo, hi);
         if (!m.entering && Math.abs(target - m.x) < 60) target = m.x + (target >= m.x ? 60 : -60);
@@ -741,6 +753,10 @@ export default class PokemonHerd extends View {
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 22)).justify_center().text_size(12.5).child(bubble)))
+          // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
+          .when(!!m.react?.icon && now < m.react.until, (el) =>
+            el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - 12)).text_size(12)
+              .loop("opacity", { from: 0.5, to: 1, period: 700 }).child(m.react.icon)))
           // A shiny shows off when it first turns up.
           .when((m.sparkleUntil > now && this.showsShiny(pick)) || m.flashUntil > now, (el) =>
             el.child(div().absolute().left(sw / 2 + 10).top(Math.max(2, headY - 10)).text_size(13)

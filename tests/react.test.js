@@ -12,7 +12,8 @@ test("reactionAnim fallbacks", () => {
 });
 
 test("REACTIONS lists every animation sprites must cut", () => {
-  assert.deepEqual([...new Set(Object.values(REACTIONS).flat())].sort(), ["Charge", "Dance", "Hop", "Hurt", "Shake", "Wake"]);
+  assert.deepEqual([...new Set(Object.values(REACTIONS).flat())].sort(),
+    ["Charge", "Cringe", "Dance", "DeepBreath", "Eat", "Hop", "Hurt", "Laying", "LookUp", "Nod", "Rotate", "Shake", "Sit", "Wake"]);
 });
 
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, LOOK_MS, AWAKE_MS } from "../mods/pokemon-herd/react.js";
@@ -112,4 +113,38 @@ test("megaShown: On always, Auto while working, Off never; only for species with
 test("a regional form never Mega Evolves", () => {
   assert.equal(megaShown({ dex: 80, form: "0001", mega: "on" }, "working"), false); // Galarian Slowbro
   assert.equal(megaShown({ dex: 80, mega: "on" }, "working"), true);
+});
+
+import { onSeason, SEASON_KINDS, sleepAfter, SEASON_MS } from "../mods/pokemon-herd/react.js";
+
+test("each season has its reaction, falling back to animations every Pokémon has", () => {
+  assert.deepEqual(SEASON_KINDS.map((k) => k.kind), ["sniff", "bask", "lookUp", "shiver"]);
+  const common = new Set(["Hop", "Hurt", "Charge", "Rotate"]); // what nearly every sprite has
+  for (const { kind } of SEASON_KINDS) assert.ok(reactionAnim(kind, common), kind);
+  assert.equal(reactionAnim("sniff", new Set(["Eat", "Hop"])), "Eat");
+  assert.equal(reactionAnim("lookUp", new Set(["LookUp", "Rotate"])), "LookUp");
+  assert.equal(reactionAnim("shiver", new Set(["Shake", "Hurt"])), "Shake");
+});
+
+test("onSeason: plays the season's animation for about 2 s with its icon, not looking at you", () => {
+  const m = mon();
+  assert.equal(onSeason(m, 3, 1000, new Set(["Hurt"]), () => 600), true);
+  assert.equal(m.react.anim, "Hurt");
+  assert.equal(m.react.icon, "❄️");
+  assert.equal(m.react.animUntil, 1000 + 2400); // 600 ms, played 4 times: at least SEASON_MS
+  assert.equal(m.react.until, m.react.animUntil);
+  assert.ok(SEASON_MS <= 2400);
+});
+
+test("onSeason: nothing fitting, nothing played", () => {
+  const m = mon();
+  assert.equal(onSeason(m, 0, 0, new Set(), ms), false);
+  assert.equal(m.react, null);
+});
+
+test("sleepAfter: idle 3 minutes to fall asleep by day, 1 by night", () => {
+  assert.equal(sleepAfter(0), 180000);
+  assert.equal(sleepAfter(1), 60000);
+  assert.equal(sleepAfter(0.4), 180000);
+  assert.equal(sleepAfter(0.6), 60000);
 });

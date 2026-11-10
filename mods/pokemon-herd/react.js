@@ -8,7 +8,23 @@ export const REACTIONS = {
   celebrate: ["Dance", "Hop"],
   startle: ["Hurt", "Shake"],
   charge: ["Charge", "Hop"],
+  // By the season (Scenery), now and then while idle. Few sprites have the fitting animation
+  // (Eat, LookUp, Shake…), so each ends in one nearly all have (Hop, Rotate, Hurt).
+  sniff: ["Eat", "Nod", "Hop"], // spring: the flowers
+  bask: ["Laying", "Sit", "DeepBreath", "Hop"], // summer: the sun
+  lookUp: ["LookUp", "Rotate"], // autumn: the falling leaves
+  shiver: ["Shake", "Cringe", "Hurt"], // winter: the cold
 };
+
+// Spring, summer, autumn, winter (scene.js's seasons): the reaction, and an icon over its head
+// that says what it is about, whichever animation it got.
+export const SEASON_KINDS = [
+  { kind: "sniff", icon: "🌸" },
+  { kind: "bask", icon: "☀️" },
+  { kind: "lookUp", icon: "🍂" },
+  { kind: "shiver", icon: "❄️" },
+];
+export const SEASON_MS = 2000; // a seasonal reaction plays its animation over again for this long
 
 // The animation to play for a reaction, given the ones this sprite has; null: none fits.
 export function reactionAnim(kind, has) {
@@ -49,6 +65,20 @@ export function onStatus(m, prev, next, now, has, msOf) {
   else if (next === "blocked") play(m, "startle", now, has, msOf, false);
   else if (next === "working" && (prev === "idle" || prev === "done")) play(m, "charge", now, has, msOf, false);
 }
+
+// Idle, it reacts to the season: true when it does (false: no fitting animation, it strolls on).
+export function onSeason(m, season, now, has, msOf) {
+  const { kind, icon } = SEASON_KINDS[season];
+  const anim = reactionAnim(kind, has);
+  if (!anim) return false;
+  const ms = Math.max(100, msOf(anim));
+  const until = now + ms * Math.ceil(SEASON_MS / ms);
+  m.react = { anim, animUntil: until, until, icon };
+  return true;
+}
+
+// Idle this long and it falls asleep: sooner at night.
+export const sleepAfter = (night) => (night > 0.5 ? 60000 : 180000);
 
 // Asleep, unless you looked at it recently.
 export const effectiveMood = (mood, m, now) => (mood === "sleep" && now < (m.awakeUntil ?? 0) ? "idle" : mood);

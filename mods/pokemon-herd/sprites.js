@@ -14,7 +14,7 @@ const DATA = `${appHome()}/${DATA_REL}`;
 const PMD = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/sprite";
 const PORTRAITS = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait";
 // Bump when the GIF recipe changes, so old caches are rebuilt.
-const VERSION = 2;
+const VERSION = 3; // 3: the seasonal reactions' animations
 
 // PMD sheets have one row per facing: 0 down, 1 down-right, 2 right, 3 up-right,
 // 4 up, 5 up-left, 6 left, 7 down-left. Walk sideways, stand half-facing the viewer

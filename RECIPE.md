@@ -89,10 +89,17 @@ forms, and Mega Evolution while an agent works.
 
 ## How it behaves
 
+- **Seasonal reactions** (Scenery on): an idle Pokémon about to stroll on reacts to the season
+  instead, 3 times in 10: spring `sniff` (Eat, Nod, Hop), summer `bask` (Laying, Sit, DeepBreath,
+  Hop), autumn `lookUp` (LookUp, Rotate), winter `shiver` (Shake, Cringe, Hurt): the first
+  animation its sprite has, played over for about 2 s, with 🌸 ☀️ 🍂 ❄️ pulsing beside its head.
+  Only some sprites have the fitting animations, so each list ends in one nearly all have. Then it
+  rests 3–8 s. It falls asleep after 3 minutes idle by day, 1 minute by night.
+
 - **Agent statuses:**
   - **working:** walks to random spots at 70 px/s, pausing 0.3–1.8 s.
   - **idle:** strolls at 32 px/s, pausing 4–12 s, and stops at least 60 px from other resting
-    Pokémon. After 3 minutes idle (the tab's `changed_at`), it sleeps, using the Sleep sprite
+    Pokémon. After 3 minutes idle (1 at night; the tab's `changed_at`), it sleeps, using the Sleep sprite
     with "zZ". A tab unchanged since start counts as asleep.
   - **blocked:** stops where it is, startles once (Hurt or Shake), then shows the "!".
   - **done:** stops, celebrates once (Dance or Hop), faces you with a "✓". Herdr reports `done`

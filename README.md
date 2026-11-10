@@ -14,7 +14,9 @@ A Herdr mod, `pokemon-herd`. It started as a copy of
 
 **They react to you and to their agents.** Click an agent, or focus its pane, and its Pokémon
 wakes up and looks at you, then stays up 15 s. When its agent finishes, it celebrates. When the
-agent needs you, it startles and calls. When the agent starts working, it gets ready to go. Hover
+agent needs you, it startles and calls. When the agent starts working, it gets ready to go. Idle ones mind the season: they sniff
+the spring flowers 🌸, bask in the summer sun ☀️, look up at the falling leaves 🍂 and shiver in
+the snow ❄️, and they fall asleep sooner at night. Hover
 one and it turns to you, and its name shows what its species has done: "Pikachu · api · 128 done ·
 14h 20m".
 
