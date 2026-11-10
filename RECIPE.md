@@ -18,6 +18,15 @@ forms, and Mega Evolution while an agent works.
     then two lines for names below it.
   - The block resizes itself to `rows × that` with `layout.resize`.
   - `props.scale` (default 1; 0.75 suits a sidebar) scales the sprites.
+- **Scenery** (`props.background`, default; `"plain"` turns it off): each row has its own scene
+  above its ground line.
+  - The sky is 8 flat bands, from `#64aef2` to `#cdeaff` by day and from `#0d1430` to `#2a3762`
+    by night. It is day from 6:30 to 17:30 and night from 18:30 to 5:30, blended over an hour
+    at dawn and dusk.
+  - Clouds by day, stars and a moon by night, and rounded hills (`#9ad08a` / `#1f2d45`).
+  - A 7 px grass band (`#5fb84e` / `#2f6b3e`) on the ground line, with 1 px tufts every 3 px.
+  - Below it the names keep the strip's colour. Positions are seeded per row, so nothing
+    flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.
   - Its feet stand on the ground line, with a soft shadow (`#00000030`).
   - Sprites are drawn 2× with nearest-neighbour scaling, or 1× for big ones whose frames are
@@ -45,7 +54,7 @@ forms, and Mega Evolution while an agent works.
   - A search box, then a grid of every match: 6 columns of 92×96 cells, each with a 56 px
     portrait, its dex number "#025" and its name. Regional forms follow their species as
     "Vulpix (Alola)".
-- **The menu:** a 236×214 popup with "Rows: 1 2 3" and "Place: Sidebar / Bottom of the window /
+- **The menu:** a 236×272 popup with "Rows: 1 2 3", "Background: Plain / Scenery", and "Place: Sidebar / Bottom of the window /
   Right panel (with Files)". The current choices carry an accent border or a ✓.
 
 ## How it behaves
@@ -106,6 +115,7 @@ forms, and Mega Evolution while an agent works.
     - `place.js`: layout edits for the menu.
     - `sheets.js`: which sheets to fetch.
     - `safe.js`: a tick that survives errors.
+    - `scene.js`: Scenery colours by the clock, and seeded positions.
 - **Herdr functions:** `agents()`, `spaces()` (tab names, `changed_at`), `theme()`,
   `settings().zoom`, `props()`, `shared/setShared("pokemon-herd")` for picks, `layout()`,
   `openOverlay/closeOverlay`, `nextCommand()`, `exec`, `appHome()`, and `fs/promises`.

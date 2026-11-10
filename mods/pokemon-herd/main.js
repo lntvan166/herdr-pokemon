@@ -5,7 +5,8 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
-import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows } from "./place.js";
+import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
+import { nightness, palette, skyBands, features } from "./scene.js";
 import { hasShiny, dexNo, megaForm, fullName, searchEntries } from "./dex.js";
 import { MOD, LEGACY_KEY } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
@@ -111,6 +112,7 @@ export default class PokemonHerd extends View {
     });
     this.errSeen = new Map(); // error message -> when it was last logged
     // The timer must never see a throw: one would stop every Pokémon for good.
+    cx.timer.every(60000, (cx) => cx.notify()); // the sky follows the clock
     cx.timer.every(250, (cx) => {
       try {
         this.tick(cx);
@@ -128,6 +130,33 @@ export default class PokemonHerd extends View {
         if (a) this.openPicker(a, assignAll(list).ids[a.address], tagOf(a, tabsById()));
       }
     });
+  }
+
+  // One row's Scenery: sky bands, stars and moon (night) or clouds (day), hills, then grass on
+  // the ground line. It stops just under the grass: the names below keep the strip's colour.
+  scenery(top, ground, row) {
+    const now = new Date();
+    const p = palette(nightness(now.getHours() + now.getMinutes() / 60));
+    const key = `${Math.round(this.width)}|${ground}|${row}`;
+    this.sceneCache ??= {};
+    const f = (this.sceneCache[key] ??= features(Math.round(this.width), ground, row));
+    const line = ground + 4; // the ground line, as the plain background draws it
+    const bands = skyBands(p, 8);
+    const bandH = Math.ceil(line / bands.length);
+    const box = div().absolute().left(0).top(top).w(this.width).h(line + 6).overflow_hidden();
+    return box
+      .children(bands.map((c, i) => div().absolute().left(0).right(0).top(i * bandH).h(bandH + 1).bg(c)))
+      .when(p.stars > 0.05, (el) => el
+        .children(f.stars.filter((s) => s.y < line - 20).map((s) => div().absolute().left(s.x).top(s.y).size(s.bright ? 2 : 1).bg(s.bright ? "#ffeebb" : "#cfd8ff").opacity(p.stars)))
+        .child(div().absolute().left(f.moon.x).top(f.moon.y).size(10).rounded_full().bg("#f4f1d0").opacity(p.stars)))
+      .when(p.clouds > 0.05, (el) => el.children(f.clouds.filter((c) => c.y + 10 < line - 24).map((c) => div()
+        .absolute().left(c.x).top(c.y).w(c.w).h(12).opacity(p.clouds * 0.85)
+        .child(div().absolute().left(0).top(4).w(c.w).h(8).rounded(4).bg("#ffffff"))
+        .child(div().absolute().left(Math.round(c.w * 0.25)).top(0).w(Math.round(c.w * 0.45)).h(9).rounded(5).bg("#ffffff")))))
+      .children(f.hills.map((h) => div().absolute().left(Math.round(h.cx - h.rx)).top(line - h.ry).w(Math.round(2 * h.rx)).h(Math.round(2 * h.ry)).rounded_full().bg(p.hill)))
+      .child(div().absolute().left(0).right(0).top(line - 3).h(7).bg(p.grass))
+      .children(f.tufts.map((u) => div().absolute().left(u.x).top(line - 3 - u.h).w(1).h(u.h).bg(u.dark ? p.dark : p.grass)))
+      .child(div().absolute().left(0).right(0).top(line + 4).h(2).bg(p.dark));
   }
 
   // The sprite set to draw: its Mega while megaShown and once loaded, else its usual one.
@@ -384,6 +413,7 @@ export default class PokemonHerd extends View {
     const place = placeOf(tree, MOD);
     const rows = rowsOf(tree, MOD);
     const inLayout = !!setRows(tree, MOD, rows, 0); // its block is in the shown layout (wherever)
+    const background = blockProps(tree, MOD).background === "plain" ? "plain" : "scenery";
     const label = (txt) => div().text_size(11).text_color(t.dim).child(txt);
     const item = (id, txt, on, active, enabled) => h_flex()
       .id(id).h(26).px(8).rounded(6).items_center().justify_between()
@@ -404,6 +434,20 @@ export default class PokemonHerd extends View {
         .text_color(inLayout && !shipped ? t.foreground : t.dim)
         .when(inLayout && !shipped, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click(() => this.applyLayout(place, n)))
         .child(String(n)))))
+      .child(div().h(4))
+      .child(label("Background"))
+      .child(h_flex().gap(4).children([["plain", "Plain"], ["scenery", "Scenery"]].map(([v, txt]) => div()
+        .id(`bg-${v}`).flex_1().h(26).rounded(6).flex().items_center().justify_center()
+        .text_size(12.5).border_1()
+        .border_color(v === background ? t.accent : t.border)
+        .bg(v === background ? t.selected : "#00000000")
+        .text_color(inLayout && !shipped ? t.foreground : t.dim)
+        .when(inLayout && !shipped, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click(() => {
+          const next = setBlockProps(layout(), MOD, { background: v });
+          if (next) run("layout.set", { layout: next });
+          closeOverlay(props()?.overlay);
+        }))
+        .child(txt))))
       .child(div().h(4))
       .child(label("Place"))
       .children(["sidebar", "bottom", "panel"].map((p) =>
@@ -439,6 +483,7 @@ export default class PokemonHerd extends View {
     // with rows: per row, from the row's top; below it the name tags, on as many lines as they need
     const ground = (g ? g.rowH : this.height) - FEET - (TAG_LINES - 1) * LABEL_H;
     const grounds = g ? Array.from({ length: g.rows }, (_, r) => r * g.rowH + ground) : [ground];
+    const sceneryOn = props()?.background !== "plain";
 
     const root = div()
       .id("pokemon-strip")
@@ -461,10 +506,12 @@ export default class PokemonHerd extends View {
       .on_mouse_move((e, cx) => this.dragTo(e, g, cx))
       .on_mouse_up("left", (_e, cx) => this.dragEnd(cx))
       // Right-click on the ground (not on a Pokémon): rows and where the strip sits.
-      .on_mouse_down("right", () => openOverlay({ mod: MOD, kind: "popup", width: 236, height: 214, props: { menu: true } }))
+      .on_mouse_down("right", () => openOverlay({ mod: MOD, kind: "popup", width: 236, height: 272, props: { menu: true } }))
       .on_hover((h, cx) => { if (!h) this.dragEnd(cx); })
-      // the ground: a faint line the Pokémon stand on (one per row)
-      .children(grounds.map((y) => div().absolute().left(0).right(0).top(y + 4).h(1).bg(t.border)));
+      // Scenery (the default): sky, hills and grass above each ground line. Plain: a faint line.
+      .children(sceneryOn
+        ? grounds.map((y, r) => this.scenery(y - ground, ground, r))
+        : grounds.map((y) => div().absolute().left(0).right(0).top(y + 4).h(1).bg(t.border)));
 
     if (list.length === 0) {
       return root.child(

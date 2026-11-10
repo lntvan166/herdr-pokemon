@@ -72,10 +72,17 @@ export function hiddenAlong(tree, place) {
 // A copy of the tree with the mod's block showing `rows` rows, `px` tall, wherever it is (also
 // where Herdr docked it on first sight). Null when it isn't in this layout.
 export function setRows(tree, mod, rows, px) {
+  const out = setBlockProps(tree, mod, { rows });
+  if (out) find(out, isMod(mod)).node.size = { px };
+  return out;
+}
+
+// A copy of the tree with `patch` merged into the mod's block's props, wherever it is. Null when
+// it isn't in this layout.
+export function setBlockProps(tree, mod, patch) {
   const out = JSON.parse(JSON.stringify(tree));
   const hit = find(out, isMod(mod));
   if (!hit) return null;
-  hit.node.content = { ...hit.node.content, props: { ...(hit.node.content.props ?? {}), rows } };
-  hit.node.size = { px };
+  hit.node.content = { ...hit.node.content, props: { ...(hit.node.content.props ?? {}), ...patch } };
   return out;
 }

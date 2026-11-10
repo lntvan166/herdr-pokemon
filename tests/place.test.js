@@ -107,3 +107,12 @@ test("setRows: rows and height changed where it is, even outside the known place
   assert.equal(docked.children[1].size.px, 112); // input not mutated
   assert.equal(setRows({ id: "root", children: [] }, "pokemon-herd", 2, 216), null);
 });
+
+import { setBlockProps } from "../mods/pokemon-herd/place.js";
+test("setBlockProps: merges props where it is, size untouched", () => {
+  const out = setBlockProps(tree(), "pokemon-herd", { background: "plain" });
+  const { n } = find(out, "pokemon-herd");
+  assert.deepEqual(n.content.props, { scale: 0.75, rows: 2, background: "plain" });
+  assert.deepEqual(n.size, { px: 180 });
+  assert.equal(setBlockProps({ id: "root", children: [] }, "pokemon-herd", { background: "plain" }), null);
+});
