@@ -44,7 +44,7 @@ done.
 **Yours to arrange.**
 - Right-click the strip's ground to choose 1–3 rows, and where the strip sits: the sidebar, the
   bottom of the window, or the right panel.
-- The background is **Scenery** by default: sky, hills and grass. It shows day or night by your
+- The background is **Scenery** by default: sky, hills, trees and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
   It is muted in a dark theme and pale in a light one.
   Switch it to **Plain** in the same menu.

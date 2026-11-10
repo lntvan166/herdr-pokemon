@@ -125,7 +125,7 @@ def scenery(width, rows, top, h):
     if key in sky["cache"]:
         return sky["cache"][key]
     js = (f"import('file://{os.path.abspath(SCENE_JS)}').then(m => console.log(JSON.stringify("
-          f"{{p: m.palette({sky['night']}, {str(sky['light']).lower()}), rows: [...Array({rows}).keys()].map(r => m.features({width}, {GROUND}, r))}})))")
+          f"{{p: m.palette({sky['night']}, {str(sky['light']).lower()}), rows: [...Array({rows}).keys()].map(r => {{ const f = m.features({width}, {GROUND}, r); return {{ ...f, treeParts: f.trees.flatMap(t => m.treeParts(t, {GROUND + 1})) }}; }})}})))")
     data = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
     p = data["p"]
     line = GROUND + 4
@@ -150,6 +150,9 @@ def scenery(width, rows, top, h):
                              "-draw", f"roundrectangle {x + round(w * .25)},{y} {x + round(w * .7)},{y + 8} 5,5"]
         for hl in f["hills"]:
             args += ["-fill", p["hill"], "-draw", f"ellipse {round(hl['cx'])},{y0 + line} {round(hl['rx'])},{round(hl['ry'])} 0,360"]
+        for x, y, w, hh, c, round_ in f["treeParts"]:
+            shape = f"roundrectangle {x},{y0 + y} {x + w - 1},{y0 + y + hh - 1} {w / 2},{hh / 2}" if round_ else f"rectangle {x},{y0 + y} {x + w - 1},{y0 + y + hh - 1}"
+            args += ["-fill", p[c], "-draw", shape]
         args += ["-fill", p["grass"], "-draw", f"rectangle 0,{y0 + line - 3} {width},{y0 + line + 3}"]
         for u in f["tufts"]:
             args += ["-fill", p["dark"] if u["dark"] else p["grass"], "-draw", f"rectangle {u['x']},{y0 + line - 3 - u['h']} {u['x']},{y0 + line - 4}"]

@@ -6,7 +6,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps } from "./place.js";
-import { nightness, palette, features, isLight } from "./scene.js";
+import { nightness, palette, features, isLight, treeParts } from "./scene.js";
 import { hasShiny, dexNo, megaForm, fullName, searchEntries } from "./dex.js";
 import { MOD, LEGACY_KEY } from "./id.js";
 import { loadPicks, assign } from "./picks.js";
@@ -137,7 +137,7 @@ export default class PokemonHerd extends View {
   scenery(top, ground, row) {
     const now = new Date();
     const p = palette(nightness(now.getHours() + now.getMinutes() / 60), isLight(theme().chrome));
-    const key = `${Math.round(this.width)}|${ground}|${row}`;
+    const key = `v2|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
     this.sceneCache ??= {};
     const f = (this.sceneCache[key] ??= features(Math.round(this.width), ground, row));
     const line = ground + 4; // the ground line, as the plain background draws it
@@ -151,6 +151,10 @@ export default class PokemonHerd extends View {
         .child(div().absolute().left(0).top(4).w(c.w).h(8).rounded(4).bg("#ffffff"))
         .child(div().absolute().left(Math.round(c.w * 0.25)).top(0).w(Math.round(c.w * 0.45)).h(9).rounded(5).bg("#ffffff")))))
       .children(f.hills.map((h) => div().absolute().left(Math.round(h.cx - h.rx)).top(line - h.ry).w(Math.round(2 * h.rx)).h(Math.round(2 * h.ry)).rounded_full().bg(p.hill)))
+      .children(f.trees.flatMap((t) => treeParts(t, line - 3).map(([x, y, w, h, c, round]) => {
+        const el = div().absolute().left(x).top(y).w(w).h(h).bg(p[c]);
+        return round ? el.rounded_full() : el;
+      })))
       .child(div().absolute().left(0).right(0).top(line - 3).h(7).bg(p.grass))
       .children(f.tufts.map((u) => div().absolute().left(u.x).top(line - 3 - u.h).w(1).h(u.h).bg(u.dark ? p.dark : p.grass)))
       .child(div().absolute().left(0).right(0).top(line + 4).h(2).bg(p.dark));

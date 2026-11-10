@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nightness, mix, palette, features, isLight } from "../mods/pokemon-herd/scene.js";
+import { nightness, mix, palette, features, isLight, treeParts } from "../mods/pokemon-herd/scene.js";
 
 test("nightness: day 6:30–17:30, night 18:30–5:30, an hour's blend at dawn and dusk", () => {
   assert.equal(nightness(12), 0);
@@ -58,4 +58,35 @@ test("palette for a light theme: pale and soft, day and night, still a step from
   }
   assert.notEqual(palette(0, true).sky, palette(1, true).sky);
   assert.equal(palette(0).sky, palette(0, false).sky);
+});
+
+test("features: a few small trees, sparse, inside the row, under the Pokémon's heads", () => {
+  const wide = features(1600, 72, 0).trees;
+  assert.ok(wide.length >= 5 && wide.length <= 1600 / 90, `trees: ${wide.length}`);
+  for (const t of wide) {
+    assert.ok(t.x >= 0 && t.x + t.w <= 1600);
+    assert.ok(t.h >= 12 && t.h <= 30, "below most heads");
+  }
+  assert.deepEqual(features(243, 72, 1).trees, features(243, 72, 1).trees);
+});
+
+test("palette: tree colours for both themes", () => {
+  for (const light of [false, true]) for (const n of [0, 1]) {
+    const p = palette(n, light);
+    assert.match(p.tree, /^#[0-9a-f]{6}$/);
+    assert.match(p.treeDark, /^#[0-9a-f]{6}$/);
+    assert.match(p.trunk, /^#[0-9a-f]{6}$/);
+  }
+});
+
+test("treeParts: a tree stands on the grass, inside its own box, with a trunk", () => {
+  for (const kind of ["round", "pine"]) {
+    const t = { x: 40, w: 14, h: 18, kind };
+    const parts = treeParts(t, 80);
+    assert.ok(parts.some(([, , , , c]) => c === "trunk"));
+    for (const [x, y, w, h] of parts) {
+      assert.ok(x >= t.x - 1 && x + w <= t.x + t.w + 1, `${kind} x`);
+      assert.ok(y >= 80 - t.h && y + h <= 81, `${kind} y`);
+    }
+  }
 });

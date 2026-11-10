@@ -25,6 +25,10 @@ forms, and Mega Evolution while an agent works.
     from 6:30 to 17:30 and night from 18:30 to 5:30, blended over an hour at dawn and dusk.
   - By day at most 3 clouds per row, white at 14 %. By night sparse stars (one per 40 px, 70 %)
     and a moon. Low rounded hills one step lighter than the sky (`#2c4636` / `#1b2637`).
+  - Small trees standing on the grass behind the Pokémon, one every 150–310 px (sometimes a
+    little one beside): round (a canopy with a darker lower right) or pine (four tiers), 18–30 px
+    tall, one step darker than the hills (`#3b6e3c` / `#22402f`, light theme `#86b673` /
+    `#8aa293`), on a 2 px trunk.
   - A 7 px grass band (`#558a41` / `#27472f`) on the ground line, with a 1–3 px tuft every
     6–17 px.
   - In a light theme (the theme's `chrome` is light) the same scene is pale and soft: sky
