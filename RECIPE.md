@@ -1,0 +1,157 @@
+# Pokémon herd
+
+Every coding agent becomes a pixel-art Pokémon on a strip of ground. It walks while its agent
+works, strolls and naps when the agent is idle, and stands calling for you with a red "!" when
+the agent is blocked. Each Pokémon's agent name sits under its feet. Click a Pokémon to jump to
+its agent; it wakes up and looks at you. There are 974 species, an occasional shiny, regional
+forms, and Mega Evolution while an agent works.
+
+![Pokémon herd](preview.png)
+
+## What you see
+
+- **A strip:** one block, background `chrome`. It has a faint ground line (1 px, `border`) per
+  row. Without `props.rows` it is the classic single strip that Herdr docks at the bottom of the
+  window (`mod.json`: `place: "bottom"`, `size: 112`). With `props.rows` = 1–3, it is that many
+  rows.
+  - Each row is `round(88 × scale) + 24 + 18` px tall: room for the sprites above the ground,
+    then two lines for names below it.
+  - The block resizes itself to `rows × that` with `layout.resize`.
+  - `props.scale` (default 1; 0.75 suits a sidebar) scales the sprites.
+- **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.
+  - Its feet stand on the ground line, with a soft shadow (`#00000030`).
+  - Sprites are drawn 2× with nearest-neighbour scaling, or 1× for big ones whose frames are
+    over 64 px tall.
+  - While a sprite downloads, a small Poké Ball (`#e3350d` / `#f4f4f4`) pulses in its place.
+- **Names:** under each Pokémon's feet. Each shows a 6 px status dot (theme colour `working`,
+  `blocked`, `done` or `idle`) and the tab's name (or the space's), in 10.5 px text.
+  - Muted text; `foreground` when the agent is focused or the Pokémon is hovered.
+  - Two lines per row, fixed. A tag is centred under its own Pokémon, pushed in only at the
+    strip's edge.
+  - On the first line, a tag keeps to its share: halfway to the Pokémon on each side.
+  - When two tags collide, the less important one drops to line 2. Blocked ranks above done,
+    above focused, above the rest. Tags of Pokémon standing longest keep their lines first.
+  - A crowded tag narrows to 54 px (about 6 letters), then 36, then 24, with "…". It is never
+    hidden.
+  - Shiny Pokémon get "✨ " before the name.
+- **Bubbles above heads:**
+  - Blocked: a red "!" (`blocked` colour), pulsing.
+  - Done: a green "✓" (`done` colour).
+  - Asleep: grey "z / zZ / zZz / zZ", cycling every 700 ms.
+  - A ✨ flashes beside a shiny when it first appears, and for 1.5 s when a Pokémon Mega
+    Evolves or turns back.
+- **The picker:** a 640×560 dialog titled "Choose a Pokémon", "for <tag> · now <name>".
+  - An optional row "Mega: Off / On / Auto: while working", only for species with a Mega.
+  - A search box, then a grid of every match: 6 columns of 92×96 cells, each with a 56 px
+    portrait, its dex number "#025" and its name. Regional forms follow their species as
+    "Vulpix (Alola)".
+- **The menu:** a 236×214 popup with "Rows: 1 2 3" and "Place: Sidebar / Bottom of the window /
+  Right panel (with Files)". The current choices carry an accent border or a ✓.
+
+## How it behaves
+
+- **Agent statuses:**
+  - **working:** walks to random spots at 70 px/s, pausing 0.3–1.8 s.
+  - **idle:** strolls at 32 px/s, pausing 4–12 s, and stops at least 60 px from other resting
+    Pokémon. After 3 minutes idle (the tab's `changed_at`), it sleeps, using the Sleep sprite
+    with "zZ". A tab unchanged since start counts as asleep.
+  - **blocked:** stops where it is, startles once (Hurt or Shake), then shows the "!".
+  - **done:** stops, celebrates once (Dance or Hop), faces you with a "✓". Herdr reports `done`
+    only if the agent finished while you weren't looking; working → idle celebrates too.
+  - **Starting work** (idle/done → working): a short Charge (or Hop), then it walks off.
+- **Focus:** when focus moves *to* an agent (its pane, or a click on its Pokémon), the Pokémon
+  wakes: Wake, or Hop if it has no Wake, or a 600 ms stand. Then it faces you for 1.5 s and
+  stays awake 15 s. Only the newly focused one reacts, and nobody reacts at startup.
+- **Hover** a standing Pokémon or its name: it turns half towards you (down-left or down-right,
+  facing inward). Its full "Pikachu · tag" floats over its neighbours on a popover background.
+- **Click** a Pokémon or its name: `pane.focus {pane}`, or `agent.focus {terminal}` for an
+  agent without a pane.
+- **Drag** a Pokémon (after 5 px): it follows the pointer, can change row, and stays put for
+  20 s. The click that ends a drag is ignored.
+- **Right-click** a Pokémon or its name: the picker for that agent. `alt-shift-p` (`keys.json`
+  → `pokemon-herd.pick`) opens it for the focused agent. Choosing saves the pick and closes it.
+  Enter chooses when exactly one matches.
+- **Right-click the ground:** the menu.
+  - Rows change the block's `props.rows` and height wherever it sits.
+  - Place moves the block to `sidebar-lists` (above `needs-you`), `work` (above `status-row`),
+    or `panel` (after `panel-body`), by `layout.set` on the shown layout.
+  - Built-in layouts (main, terminals, win98) are greyed out.
+- **Rows are one track:** about 3 in 10 walks of a working or strolling Pokémon go 40 px past
+  the row's edge. Off the right, it appears outside the left of the next row and walks in. Off
+  the left, it appears on the row above. The last row wraps to the first. It won't move onto a
+  row that already holds its fair share.
+- **Picks:** a new agent's Pokémon is chosen from the 974 walking species by a hash of its pane
+  id, skipping any already on screen.
+  - 1 in 64 is shiny, if a shiny sprite exists. Picks are saved per pane and kept.
+  - Sub-agents without a pane keep theirs in memory.
+  - Picks made by the upstream `pokemon-agents` mod are taken over once.
+- **Mega** (per Pokémon, in its picker): Off, On, or Auto (the default: Mega while its agent is
+  working). 41 species; regional forms don't Mega Evolve.
+
+## Built from
+
+- **The mod:** `mods/pokemon-herd/`.
+  - `main.js` is the view and wiring: the strip, the picker (`props.picker`), and the menu
+    (`props.menu`), all one mod opened three ways.
+  - Pure modules, testable with `node --test`:
+    - `id.js`: the id "pokemon-herd"; the shared key and the cache folder come from it.
+    - `species.js`: generated by `scripts/gen-species.mjs`. SPECIES `[dex, name, shiny]`,
+      MEGA, REGIONAL.
+    - `dex.js`: names, search, forms.
+    - `picks.js`: saved picks, hash, shiny, migration.
+    - `tags.js`: name-tag layout.
+    - `react.js`: reactions and poses.
+    - `rest.js`: resting spots.
+    - `wrap.js`: rows as a track.
+    - `place.js`: layout edits for the menu.
+    - `sheets.js`: which sheets to fetch.
+    - `safe.js`: a tick that survives errors.
+- **Herdr functions:** `agents()`, `spaces()` (tab names, `changed_at`), `theme()`,
+  `settings().zoom`, `props()`, `shared/setShared("pokemon-herd")` for picks, `layout()`,
+  `openOverlay/closeOverlay`, `nextCommand()`, `exec`, `appHome()`, and `fs/promises`.
+- **Commands:** `pane.focus`, `agent.focus`, `layout.resize`, `layout.set`.
+- **Motion:** a `cx.timer.every(250)` tick moves the Pokémon. Movement uses `left` transitions,
+  `.frames` for "zZ", and `.loop` for pulses. The picker grid is a `v_virtual_list`.
+- **Programs and network:** it runs `curl` and ImageMagick (`magick`, or `convert` +
+  `identify`).
+  - It downloads `AnimData.xml` and `*-Anim.png` sheets from
+    `raw.githubusercontent.com/PMDCollab/SpriteCollab` (`sprite/<dex>[/<form>][/0001 shiny]`)
+    and portraits (`portrait/<dex>[/<form>]/Normal.png`).
+  - It cuts one facing per GIF (walk right and left; idle down-right, down-left and down;
+    sleep; reactions facing down) into `~/.config/herdr-app/data/pokemon-herd/`.
+  - Sprites download when first shown, icons when they scroll into view, at most 8 at a time.
+- **Art:** PMD SpriteCollab (CC BY-NC 4.0). Names from PokeAPI. Nothing Pokémon is in
+  `mods/`.
+
+## Watch out
+
+- Each Pokémon's box is 128 px wide and spans its row. Take the mouse only on the visible
+  sprite and its tag, or neighbours steal each other's hover and clicks on a narrow sidebar.
+- Place Pokémon only after the first `on_size_change`. Placing them in a guessed width piles
+  them at the edge.
+- Keep the tag lines fixed. Growing the block for extra lines makes the ground lines jump.
+- Lay tags out where each Pokémon is headed. Put a walking Pokémon's tag on a line that stays
+  clear along its whole way, and lay it out after the standing ones.
+- A virtual list reports only the clicked row: the pointer's x picks the cell.
+- A one-shot reaction is a looping GIF, shown for the animation's total duration.
+- Some species lack Sleep (it uses Idle), Wake, Dance or Shake, so every reaction needs a
+  fallback. 51 species have no walking animation and are never handed out.
+- One missing optional reaction sheet must not sink the Pokémon, so fetch those one by one.
+- Don't open the right panel from the mod: Files/Changes own it.
+
+## Done when
+
+- `npm test` passes, and `herdr-app check mods/pokemon-herd` passes.
+- On a 243 px sidebar with 2 rows and 7 agents:
+  - every agent shows a Pokémon with its name under its feet;
+  - no name is hidden;
+  - the ground lines don't move for a minute.
+- A working agent's Pokémon walks, and sometimes leaves a row's edge and turns up on the next
+  row.
+- Focus a sleeping agent's pane: its Pokémon wakes, faces you, and sleeps again about 15 s
+  later.
+- Right-click a Pokémon: the picker searches "alola" and scrolls through all of them. Choosing
+  one changes it, and a shiny stays shiny.
+- Right-click the ground: 1/2/3 rows change the height at once. Bottom of the window moves the
+  strip there.
+- A Pokémon with Mega on Auto turns Mega when its agent starts working, and back when it is done.
