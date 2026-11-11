@@ -493,30 +493,26 @@ def party(tmp):
 
 
 def preview(tmp):
-    """preview.png at the repo root (the herdr.dev gallery card, 1600x900): the herd, big, with
-    the mod's name."""
+    """preview.png at the repo root (the herdr.dev gallery card, 1600x900). The card shows it about
+    245 px wide (a 6.5x shrink), so it carries little and big: one row of three Pokémon at 5x,
+    and the name in large type. Small sprites or thin text turn to mush at that size."""
     A = lambda f, n: Anim.get(f, n, tmp)
     t = 1200
     mega = A("0006-0001", "idleD")
+    top = 20
     mons = [
-        Mon(A("0025", "sleep"), 40, 0, "api", t=t, zz=True),
-        Mon(A("0009", "walkR"), 150, 0, "refactor auth", "working", t=t),
-        Mon(A("0445", "idleR"), 280, 0, "review", "blocked", t=t, bubble="!"),
-        Mon(A("0003", "idleD"), 55, 1, "docs", "done", t=t, bubble="✓"),
+        Mon(A("0025", "sleep"), 50, 0, "api", t=t, zz=True),
         # Charizard, just Mega Evolved into Mega Charizard X as its agent got to work.
-        Mon(mega, 180, 1, "deploy", "working", t=t, sparkles=sparkle_ring(0, 180, 20 + ROW_H + GROUND - mega.height(), spread=40)),
-        Mon(A("0493", "idleL"), 305, 1, "tests", t=t),
+        Mon(mega, 150, 0, "deploy", "working", t=t, sparkles=sparkle_ring(0, 150, top + GROUND - mega.height(), spread=40)),
+        Mon(A("0445", "idleL"), 250, 0, "review", "blocked", t=t, bubble="!"),
     ]
-    sky["season"] = [season("autumn"), season("winter")]  # two of the seasons the scene turns through
+    sky["season"] = [season("autumn")]
     strip = os.path.join(tmp, "preview-strip.png")
-    draw(strip, 360, 2, mons, top=20, t=4000)
+    draw(strip, 300, 1, mons, top=top, t=4000)
     sky["season"] = None
     out = os.path.join(OUT, "..", "..", "preview.png")
-    magick("-size", "1600x900", f"xc:{BG}", "(", strip, "-filter", "point", "-resize", "250%", ")", "-gravity", "east", "-geometry", "+90+0", "-composite",
-           "-gravity", "northwest", "-font", FONT, "-fill", FG, "-pointsize", "64", "-annotate", "+110+330", "Pokémon herd",
-           "-fill", MUTED, "-pointsize", "28", "-annotate", "+114+430", "Every coding agent in Herdr", "-annotate", "+114+472", "is a pixel-art Pokémon.",
-           "-fill", ACCENT, "-pointsize", "22", "-annotate", "+114+560", "Mega Evolves while its agent works",
-           "-fill", MUTED, "-annotate", "+114+598", "Seasons turn every 3 hours",
+    magick("-size", "1600x900", f"xc:{BG}", "(", strip, "-filter", "point", "-resize", "500%", ")", "-gravity", "south", "-geometry", "+0+20", "-composite",
+           "-gravity", "northwest", "-font", FONT, "-fill", FG, "-pointsize", "120", "-annotate", "+50+40", "Pokémon herd",
            out)
     print(f"{os.path.relpath(out)}: {os.path.getsize(out) // 1024} KB")
 
