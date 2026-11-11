@@ -34,11 +34,22 @@ Pokémon nobody else on screen has). The **regional forms** (Alola, Galar, Hisui
 
 <p align="center"><img src="docs/demo/variety.gif" alt="Pikachu, a shiny Pikachu, Alolan Vulpix and Mega Charizard X" width="440"></p>
 
-**Evolution.** Every 10 jobs its agent finishes, a Pokémon evolves (Charmander, then
-Charmeleon, then Charizard), with a sparkle. Eevee picks one of its branches; an Alolan Vulpix
-becomes an Alolan Ninetales. Give it an **Everstone** in its picker to keep it as it is. The
-picker shows who it is now, what its species has done, its evolution line (click one to switch)
-and how many jobs are left before it evolves.
+**Evolution, the way the games do it.** Most Pokémon evolve after their agent finishes 10 jobs
+(Charmander, then Charmeleon, then Charizard), with a sparkle. Others need what they need in the
+games: a **stone** (Pikachu takes a Thunder Stone; Eevee becomes whichever its stone says),
+**friendship** (Pichu, Riolu, Golbat at 5 ♥), or the **time of day** (Eevee with full hearts is
+Espeon by day and Umbreon at night; Gligar evolves at night). Give one an **Everstone** to keep it
+as it is. Deerling and Sawsbuck change coats with the season.
+
+**Hearts, and the Bag.** A Pokémon likes you more when you click it, or answer its agent within a
+minute; leave its agent waiting over 5 minutes and it gets hungry (😢, a heart down) until you
+answer, when it eats a Berry if you have one. Idle Pokémon now and then dig something up: Berries,
+stones, a Rare Candy. A job over 30 minutes earns a Rare Candy too (it evolves one now). Use them in
+the picker or in the **Bag** (right-click menu, "Open the Bag"): pick an item and it lists who on
+screen can take it now and what each would become, with a Use button. The picker shows who it is, its hearts, what its species has done, its evolution line (click
+one to switch) and what it takes to evolve. The Bag also holds the **8 badges**
+(10 jobs, 100, a first evolution, 24 hours of work, 5 hearts, a job finished after midnight, a job
+over an hour, 1000 jobs). At 500 jobs you get the **Shiny Charm**: shinies twice as often.
 
 **Mega Evolution.** About 40 species can Mega Evolve. Each one's picker has a Mega setting: Off,
 On, or Auto. On Auto, it Mega Evolves while its agent works and turns back when the agent is
@@ -92,7 +103,7 @@ first (`layout.clone`). To place it yourself instead, add a block to a layout yo
 ```
 
 Optional, in `keys.json`: `"alt-shift-p": "pokemon-herd.pick"` opens the picker for the
-focused agent.
+focused agent, and `"alt-shift-b": "pokemon-herd.bag"` opens the Bag.
 
 The mod downloads sprites as it needs them into `~/.config/herdr-app/data/pokemon-herd/`.
 If you are coming from the upstream `pokemon-agents` mod, your agents keep their Pokémon.
@@ -119,9 +130,11 @@ SpriteCollab draws them.
   them on first use.
 - The demo GIFs above are drawn from those sprites (same credits and licence) by
   `scripts/make-demos.py`. They are the only Pokémon art in this repo.
-- Names come from [PokeAPI](https://github.com/PokeAPI/pokeapi)'s
-  `pokemon_species_names.csv`. `node scripts/gen-species.mjs` bakes them into
-  `mods/pokemon-herd/species.js`.
+- Names and how each species evolves come from [PokeAPI](https://github.com/PokeAPI/pokeapi)'s
+  CSVs (`pokemon_species_names`, `pokemon_species`, `pokemon_evolution`, `items`).
+  `node scripts/gen-species.mjs` bakes them into `mods/pokemon-herd/species.js`.
+- The Bag's item and badge art is [PokeAPI's sprites](https://github.com/PokeAPI/sprites),
+  downloaded on first use.
 - Pokémon and all related names are trademarks of Nintendo, Creatures and GAME FREAK. This is
   an unofficial fan project, not affiliated with them.
 

@@ -93,13 +93,47 @@ forms, and Mega Evolution while an agent works.
   Right panel (with Files)". The current choices carry an accent border or a ✓. Under them,
   "Stats": "All: 128 done · 14h 20m" and the three species with the most jobs (52 px plus 20 px
   a species taller).
-- **Evolution** (`gainJob` in `picks.js`, data `EVOLVES_FROM` from PokeAPI's
-  pokemon_species.csv in `species.js`): each pane's pick counts `jobs` finished since it became
-  that Pokémon; at `EVOLVE_JOBS` (10) it evolves and the count restarts. Sub-agents don't evolve.
-  A branch is chosen by hash of pane and dex; a regional form evolves into the same region's form
-  when one walks. Shiny (if the new one has a shiny sprite), Mega mode, X/Y and `stay` (the
-  Everstone) carry over. Choosing a Pokémon in the picker restarts the count and keeps `stay`.
-  The strip flashes ✨ beside it for 3 s.
+- **Evolution** (`picks.js`; data from PokeAPI in `species.js`: `EVOLVES_FROM`, and `EVOLVE_HOW`
+  from pokemon_evolution.csv). Each species it can become has its ways ("jobs", "stone:<kind>"
+  for the ten common stones, "friend", "friend:day", "friend:night", "day", "night"); any one will
+  do. Levelling up, trades and odd ways count as "jobs": `EVOLVE_JOBS` (10) jobs since it became
+  this Pokémon. "friend" needs `MAX_HEARTS` (5) hearts and evolves on its next job. Day/night:
+  `nightness >= 0.5` when the job finishes. Stones and Rare Candy (any non-stone way, ignoring the
+  count) are used from the picker. A branch is chosen by hash of pane and dex among the ways met.
+  A regional form evolves into the same region's form when one walks. Shiny (if the new one has a
+  shiny sprite), Mega mode, X/Y, hearts and `stay` (the Everstone, which stops all of it) carry
+  over; `evolvedAt` makes every view flash ✨ for 3 s. Choosing a Pokémon restarts the count and
+  keeps `stay`. Sub-agents don't evolve.
+- **Seasonal coats** (`SEASONAL`, `coatOf` in `dex.js`): Deerling and Sawsbuck's sprites use their
+  Summer, Autumn or Winter form folder in those seasons (names and picks unchanged).
+- **Hearts** (`hearts` on a pane's pick, 0..5): +1 for a click on it (at most every 30 min), +1
+  when its agent is answered within a minute of asking (at most every 10 min); waiting over 5 min
+  makes it hungry (😢 pulsing beside its head, −1); answered while hungry, it eats a Berry from the
+  Bag if there is one (+1, 🍓). Picker: red ♥ for each, grey for the rest.
+- **The Bag** (`items.js`, shared state `pokemon-herd-bag`, `{ v: 1, items: { <id>: count },
+  marks: { evolutions, nightJob, fullHearts } }`, up to 99 each): Berry, Rare Candy and the ten
+  stones. Pickup: every 1 to 2 hours per Pokémon, if its agent is idle then, it finds one (Berry
+  70, each stone 2, Rare Candy 10 by weight), its icon beside its head for 8 s. A job of 30 min or
+  more earns a Rare Candy (🍬). The picker's "Bag" row lists Berries, Rare Candy and the stones it
+  could take; ones of no use now are greyed.
+- **The Bag dialog** (600×562, props `{ bag: true }`; opened from the menu's "Open the Bag" row,
+  which shows "n items · g/8 badges", or the command `pokemon-herd.bag`). Style: flat, elevation
+  by one lightness step (`raised` panels on `popover`, no borders, no shadows); colour only on
+  data (a 6 px `accent` dot on items someone can use now); the one primary control is `solid` on
+  `solid_foreground`. Title row: "Bag", under it the finding ("Thunder Stone can evolve Pikachu
+  (api) now", evolutions before hearts, else "Nothing to use right now"); right: "39 jobs · 26m
+  worked", "Esc". Left, a 218 px panel: all twelve items on a 30 px pitch, PokeAPI's 30 px item
+  sprite (saved at 2x, shown at 26), name, count right-aligned; zero counts dim with the sprite at
+  35%; the chosen one on `selected`. Right, the same height: the item at 56 px, its name, "n in
+  the Bag", what it does (`itemAbout`: a stone lists the species it evolves), "On screen" and up to
+  four agents it helps now (`takersOf`): portrait, "Name · tag", "becomes Raichu" or "♥ 2 → 3",
+  a "Use" pill; "and n more"; or an honest empty line. Bottom: "Badges g of 8" (hovering one
+  names it and what it takes, at the right), and a strip of the Kanto badge sprites (PokeAPI
+  badges/1..8, 34 px, unearned at 18%) with the Shiny Charm sprite and "At 500 jobs · 39 so far"
+  or "Shinies 1 in 32" at its right end. Redraws every second and fetches missing portraits.
+- **Badges and the Shiny Charm**: 🪨 10 jobs, 💧 100, ⚡ a first evolution, 🌈 24 h of work, 💗 5
+  hearts, 🌙 a job finished 0:00–5:00, 🌋 a job over an hour, 🌍 1000 jobs; Shiny Charm from 500
+  jobs (new agents' shinies 1 in 32). The emoji are only names here: the Bag draws the sprites.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

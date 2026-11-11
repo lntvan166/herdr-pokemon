@@ -1,5 +1,5 @@
 // Which Pokémon exist here and what they're called (from the generated species.js).
-import { SPECIES, MEGA, REGIONAL, EVOLVES_FROM } from "./species.js";
+import { SPECIES, MEGA, REGIONAL, EVOLVES_FROM, EVOLVE_HOW, SEASONAL } from "./species.js";
 
 const NAME = new Map(SPECIES.map(([dex, name]) => [dex, name]));
 const SHINY = new Set(SPECIES.filter((s) => s[2]).map((s) => s[0]));
@@ -113,4 +113,13 @@ export function chainOf(dex) {
   const stages = [];
   for (let stage = [root]; stage.length && stages.length < 9; stage = stage.flatMap(evolutionsOf)) stages.push(stage);
   return stages;
+}
+// How a species is evolved into: ["jobs"], or its special ways ("stone:fire", "friend", "night"…).
+export const waysOf = (dex) => EVOLVE_HOW[dex] ?? ["jobs"];
+
+// Its coat this season (Deerling, Sawsbuck): { form, shiny } for summer (1), autumn (2), winter (3);
+// null in spring (0, its own) or for any other species.
+export function coatOf(dex, season) {
+  const c = season > 0 && SEASONAL[dex]?.[season - 1];
+  return c ? { form: c[0], shiny: c[1] === 1 } : null;
 }

@@ -11,15 +11,16 @@ import { statusChange, record, loadStats, summary, duration, statLine } from "./
 
 const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
-import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries, REGIONS, regionOf, chainOf, formsOf } from "./dex.js";
-import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY } from "./id.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS } from "./picks.js";
+import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
+import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY } from "./id.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds } from "./picks.js";
+import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { loadSprite, ensureIcon, iconPath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
+import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -55,8 +56,42 @@ const paneless = {}; // sub-agents' picks: not saved, only kept while the app ru
 const assignAll = (list) => {
   const keys = Object.keys(paneless);
   for (let i = 0; i < keys.length - 200; i++) delete paneless[keys[i]]; // forget the oldest
-  return assign(list, savedPicks(), paneless);
+  return assign(list, savedPicks(), paneless, charmOdds());
 };
+
+// The Bag (items.js), shared by every pane and window.
+const bag = () => loadBag(shared(BAG_KEY));
+const saveBag = (b) => setShared(BAG_KEY, b);
+const isNight = (d = new Date()) => nightness(d.getHours() + d.getMinutes() / 60) >= 0.5;
+const seasonNow = () => { const s = seasonAt(new Date()); return s.t < 0.5 ? s.a : s.b; };
+// Shiny Charm: the odds for new agents' Pokémon, from all jobs done (looked up once a minute).
+let odds = { v: 64, at: 0 };
+function charmOdds() {
+  if (Date.now() - odds.at > 60000) odds = { v: shinyOdds(summary(stats(), 0).jobs), at: Date.now() };
+  return odds.v;
+}
+// One pane's saved Pokémon, changed by f (null: leave it). Returns the new one.
+function updatePick(slot, f) {
+  const cur = slot && savedPicks()[slot];
+  const next = cur && f(cur);
+  if (!next) return null;
+  savePicks({ [slot]: next });
+  if ((next.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+  return next;
+}
+const noteEvolved = () => { const b = bag(); saveBag(mark(b, { evolutions: b.marks.evolutions + 1 })); };
+// Deerling and Sawsbuck wear this season's coat (sprites only; its name and pick stay as they are).
+const dressed = (pick) => {
+  const c = !pick.form && coatOf(pick.dex, seasonNow());
+  return c ? { ...pick, form: c.form, shiny: pick.shiny && c.shiny } : pick;
+};
+const HEART = "#e5484d"; // a heart it has
+const PET_MS = 30 * 60000; // a click on a Pokémon adds a heart at most this often
+const HUNGRY_MS = 5 * 60000; // waiting on you this long: it gets hungry (a heart down)
+const QUICK_MS = 60000; // answered within this: a heart up
+const petAt = {}; // pane -> when it last got a heart from a click or a quick answer
+// The Bag: a dialog of its own (menu, or keys.json "pokemon-herd.bag").
+const openBag = () => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 562, props: { bag: true } });
 
 function tabsById() {
   const out = {};
@@ -100,6 +135,8 @@ export default class PokemonHerd extends View {
   init(_p, cx) {
     this.picker = !!props()?.picker;
     this.menu = !!props()?.menu;
+    this.bagView = !!props()?.bag;
+    if (this.bagView) return this.initBag(cx);
     if (!this.menu) this.loadMegas(cx, !this.picker); // the strip refreshes them; the picker only reads
     if (this.picker) return this.initPicker(cx);
     if (this.menu) return;
@@ -131,6 +168,7 @@ export default class PokemonHerd extends View {
     cx.spawn(async () => {
       for (;;) {
         const c = await nextCommand();
+        if (c === "bag") { openBag(); continue; }
         if (c !== "pick") continue;
         const list = agents();
         const a = list.find((x) => x.focused) ?? list[0];
@@ -206,6 +244,7 @@ export default class PokemonHerd extends View {
   // The sprite set to draw: its Mega while megaShown and once loaded, else its usual one.
   // (A Mega set is marked megaShown, so the tick can tell when it changes.)
   spriteFor(pick, status) {
+    pick = dressed(pick);
     if (megaShown(pick, status)) {
       const mega = this.sprites[spriteKey(pick, true)];
       if (mega?.walkR) { mega.megaShown = true; return mega; }
@@ -215,12 +254,14 @@ export default class PokemonHerd extends View {
 
   // Shiny, and really shown as one (not the normal sprite standing in for a shiny that failed).
   showsShiny(pick) {
+    pick = dressed(pick);
     return pick.shiny && this.sprites[spriteKey(pick)]?.shiny !== false;
   }
 
   // Loads one Pokémon's sprites in the background; a failed one retries after a minute.
   // A shiny whose shiny sprite can't be had shows the normal one.
   want(pick, cx, mega = false) {
+    pick = dressed(pick);
     const key = spriteKey(pick, mega);
     const form = mega ? megaForm(pick.dex, pick.megaKind)?.form : (pick.form ?? null); // its Mega (X or Y), or its regional form
     const cur = this.sprites[key];
@@ -280,11 +321,55 @@ export default class PokemonHerd extends View {
     const c = statusChange(m.run, m.status, next, now);
     m.run = c.run;
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
-    const saved = c.job && a.pane ? savedPicks()[a.pane] : null;
-    if (!saved) return;
-    const { pick: next2, evolved } = gainJob(saved, a.pane);
-    savePicks({ [a.pane]: next2 });
-    if (evolved) m.flashUntil = now + 3000; // ✨ while it turns into the next one
+    if (!c.job) return;
+    const d = new Date(now);
+    if (d.getHours() < 5 && !bag().marks.nightJob) saveBag(mark(bag(), { nightJob: true }));
+    if (c.task >= CANDY_JOB_MS) { saveBag(addItem(bag(), "rare-candy")); this.note(m, "🍬", now); } // a long job: a Rare Candy
+    let evolved = false;
+    updatePick(a.pane, (cur) => { const r = gainJob(cur, a.pane, { night: isNight(d) }, now); evolved = r.evolved; return r.pick; });
+    if (evolved) noteEvolved(); // the strip flashes it from its evolvedAt
+  }
+
+  // An icon beside its head for a few seconds: a find, a heart, a berry eaten.
+  note(m, icon, now, ms = 5000) {
+    m.note = { icon, until: now + ms };
+  }
+
+  // Friendship and Pickup, each tick. Waiting on you: after HUNGRY_MS it's hungry (a heart down);
+  // answered within QUICK_MS, a heart up; answered when hungry, it eats a Berry from the Bag if
+  // there is one (a heart back). Idle (its agent not working nor waiting): now and then it finds
+  // an item (items.js pickup) for the Bag.
+  care(a, m, now) {
+    if (a.status === "blocked") {
+      m.blockedAt ??= now;
+      if (!m.hungry && now - m.blockedAt >= HUNGRY_MS) {
+        m.hungry = true;
+        updatePick(a.pane, (p) => withHearts(p, -1));
+      }
+    } else if (m.blockedAt !== undefined) {
+      if (m.hungry) {
+        if (bag().items.berry) {
+          saveBag(addItem(bag(), "berry", -1));
+          updatePick(a.pane, (p) => withHearts(p, 1));
+          this.note(m, ITEMS.berry.icon, now);
+        }
+      } else if (now - m.blockedAt < QUICK_MS && now - (petAt[a.pane] ?? 0) > PET_MS / 3) {
+        petAt[a.pane] = now;
+        if (updatePick(a.pane, (p) => withHearts(p, 1))) this.note(m, "💗", now);
+      }
+      m.blockedAt = undefined;
+      m.hungry = false;
+    }
+    m.pickupAt ??= now + pickupDelay();
+    if (now >= m.pickupAt) {
+      m.pickupAt = now + pickupDelay();
+      if (a.status !== "working" && a.status !== "blocked") {
+        const id = pickup();
+        saveBag(addItem(bag(), id));
+        this.note(m, ITEMS[id].icon, now, 8000);
+      }
+    }
+    if (m.note && now >= m.note.until) m.note = null;
   }
 
   // Rows: grows or shrinks this block to hold them (props.block names it, default the mod id).
@@ -362,7 +447,13 @@ export default class PokemonHerd extends View {
       const mega = meta?.megaShown === true;
       if (m.mega !== undefined && mega !== m.mega) { m.flashUntil = now + 1500; changed = true; }
       m.mega = mega;
+      // It just evolved (here, or in the picker): sparkles.
+      const evolvedAt = ids[a.address]?.evolvedAt ?? 0;
+      if (now - evolvedAt < 3000 && (m.flashUntil ?? 0) < evolvedAt + 3000) { m.flashUntil = evolvedAt + 3000; changed = true; }
       if (m.flashUntil && now >= m.flashUntil) { m.flashUntil = 0; changed = true; }
+      const noted = !!m.note;
+      this.care(a, m, now);
+      if (noted !== !!m.note) changed = true;
       const has = new Set(Object.keys(meta?.react ?? {}));
       const msOf = (name) => meta.react[name].ms;
       const raw = moodOf(a, tabs, now, after);
@@ -481,7 +572,7 @@ export default class PokemonHerd extends View {
   openMenu() {
     const update = this.update();
     const top = summary(stats(), 3).top.length;
-    openOverlay({ mod: MOD, kind: "popup", width: 236, height: (update ? 352 : 272) + 52 + top * 20, props: { menu: true, update } });
+    openOverlay({ mod: MOD, kind: "popup", width: 236, height: (update ? 352 : 272) + 52 + top * 20 + 52, props: { menu: true, update } });
   }
 
   renderMenu() {
@@ -536,12 +627,30 @@ export default class PokemonHerd extends View {
       .when(shipped, (el) => el.child(div().pt(4).text_size(11).text_color(t.muted)
         .child(`"${name}" is a built-in layout: clone it to move things.`)))
       .child(this.renderStats(label))
+      .child(this.renderBag(label))
       // A newer release: an installed copy never updates by itself.
       .when(!!props()?.update, (el) => el
         .child(div().h(4))
         .child(label(`Update: ${props().update} (you have ${VERSION})`))
         .child(div().text_size(11.5).text_color(t.muted)
           .child(`Delete mods/${MOD} and add github.com/${REPO} again. Your Pokémon are kept.`)));
+  }
+
+  // The menu's way into the Bag: what's in it and how many badges, one click to open it.
+  renderBag(label) {
+    const t = theme();
+    const b = bag();
+    const n = Object.values(b.items).reduce((x, y) => x + y, 0);
+    const got = badges(summary(stats(), 0), b.marks).filter((x) => x.earned).length;
+    return v_flex().gap(0)
+      .child(div().h(4))
+      .child(label("Bag"))
+      .child(h_flex()
+        .id("open-bag").h(26).px(8).rounded(6).items_center().justify_between()
+        .text_size(12.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+        .on_click(() => { closeOverlay(props()?.overlay); openBag(); })
+        .child("Open the Bag")
+        .child(div().text_size(11.5).text_color(t.muted).child(`${n} item${n === 1 ? "" : "s"} · ${got}/8 badges`)));
   }
 
   // The menu's Stats: everything together, then the three species that finished most jobs.
@@ -565,13 +674,14 @@ export default class PokemonHerd extends View {
       mod: MOD,
       kind: "dialog",
       width: 640,
-      height: 700,
+      height: 760,
       props: { picker: true, slot: slotOf(a), current: pick, tag },
     });
   }
 
   render(cx) {
     if (this.menu) return this.renderMenu();
+    if (this.bagView) return this.renderBagDialog();
     return this.picker ? this.renderPicker(cx) : this.renderStrip(cx);
   }
 
@@ -644,7 +754,8 @@ export default class PokemonHerd extends View {
       const pick = ids[a.address];
       // Hovered: its species' stats too ("Pikachu · api · 128 done · 14h 20m").
       const line = full ? statLine(stats().species[pick.dex]) : "";
-      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : "";
+      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${hearts}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -739,6 +850,13 @@ export default class PokemonHerd extends View {
         })
         .on_click(() => {
           if (this.dropped === a.address) { this.dropped = null; return; } // that press was a drag
+          // A pat: a heart, now and then.
+          const now2 = Date.now();
+          if (a.pane && now2 - (petAt[a.pane] ?? 0) > PET_MS && updatePick(a.pane, (p) => ((p.hearts ?? 0) < MAX_HEARTS ? withHearts(p, 1) : null))) {
+            petAt[a.pane] = now2;
+            const mm = this.mons[a.address];
+            if (mm) this.note(mm, "💗", now2, 3000);
+          }
           a.pane ? run("pane.focus", { pane: a.pane }) : run("agent.focus", { terminal: a.address });
         })
         .on_mouse_down("right", (_e, cx) => {
@@ -763,6 +881,11 @@ export default class PokemonHerd extends View {
           .when(!!m.react?.icon && now < m.react.until, (el) =>
             el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - 12)).text_size(12)
               .loop("opacity", { from: 0.5, to: 1, period: 700 }).child(m.react.icon)))
+          // A find, a heart, a berry; or hungry, waiting on you too long.
+          .when(!!m.note || !!m.hungry, (el) =>
+            el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
+              .when(!m.note, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 900 }))
+              .child(m.note?.icon ?? "😢")))
           // A shiny shows off when it first turns up.
           .when((m.sparkleUntil > now && this.showsShiny(pick)) || m.flashUntil > now, (el) =>
             el.child(div().absolute().left(sw / 2 + 10).top(Math.max(2, headY - 10)).text_size(13)
@@ -806,6 +929,149 @@ export default class PokemonHerd extends View {
         .child(`Update ${update}`));
     }
     return root;
+  }
+
+  // ---- the Bag (a dialog with props { bag }) ----
+  // Its question: what do I have, and who can use it now? Items on the left (all twelve, zeros
+  // too, a dot on those someone on screen can use now); the chosen one on the right with who can
+  // take it and what they'd become; the badge case along the bottom. Flat: the panels are one
+  // lightness step up (raised), no borders; the one primary control is ink on paper (solid).
+
+  initBag(cx) {
+    this.sel = null; // the chosen item, or null: the first one usable now (else the first owned)
+    this.badgeHover = null;
+    this.art = {}; // art key -> "ready" | "failed"
+    const keys = [...Object.values(ITEMS).map((x) => x.art), ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `badges/${n}`), CHARM_ART];
+    cx.spawn(async (cx) => {
+      for (const k of keys) {
+        try { await ensureArt(k); this.art[k] = "ready"; } catch { this.art[k] = "failed"; }
+        cx.notify();
+      }
+    });
+    this.icons = {}; // the herd's portraits: entry key -> "loading" | "ready" | "failed"
+    // The herd changes under it (agents finish, Pokémon evolve): redraw, and fetch new portraits.
+    cx.timer.every(1000, (cx) => {
+      for (const { pick } of this.herd()) {
+        const key = entryKey(pick);
+        if (this.icons[key]) continue;
+        this.icons[key] = "loading";
+        cx.spawn(async (cx) => {
+          try { await ensureIcon(pick.dex, pick.form); this.icons[key] = "ready"; } catch { this.icons[key] = "failed"; }
+          cx.notify();
+        });
+      }
+      cx.notify();
+    });
+  }
+
+  // The herd as the Bag sees it: agents with a pane, their saved Pokémon and tags.
+  herd() {
+    const tabs = tabsById();
+    const saved = savedPicks();
+    return agents().filter((a) => a.pane && saved[a.pane]).map((a) => ({ slot: a.pane, tag: tagOf(a, tabs), pick: saved[a.pane] }));
+  }
+
+  renderBagDialog() {
+    const t = theme();
+    const b = bag();
+    const s = summary(stats(), 0);
+    const herd = this.herd();
+    const how = { night: isNight() };
+    const ids = Object.keys(ITEMS);
+    const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
+    // Usable now: an evolution first (that's news), then hearts.
+    const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
+    const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
+    const LIST_H = ids.length * 30 + 8; // the items list; the panel beside it is held to the same height
+    const SHOW = 4; // takers listed; the rest as "and n more"
+    const all = badges(s, b.marks);
+    const got = all.filter((x) => x.earned).length;
+    const art = (key, size) => this.art[key] === "ready" ? image(artPath(key)).size(size).flex_none() : div().size(size).flex_none();
+    const icon = (p, size) => this.icons[entryKey(p)] === "ready" ? image(iconPath(p.dex, p.form)).size(size).flex_none() : div().size(size).flex_none();
+    // The finding: what can be done right now, in one line.
+    const first = usable[0] && takers[usable[0]][0];
+    const finding = !first ? "Nothing to use right now"
+      : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
+      : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) a heart`;
+    const use = (id, h) => {
+      const r = useItem(savedPicks()[h.slot] ?? h.pick, h.slot, id, { night: isNight() }, Date.now());
+      if (!r) return;
+      savePicks({ [h.slot]: r.pick });
+      saveBag(addItem(bag(), id, -1));
+      if (r.evolved) noteEvolved();
+      if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+    };
+    const shown = all.find((x) => x.id === this.badgeHover);
+    const charm = s.jobs >= CHARM_JOBS;
+
+    return v_flex().id("pokemon-bag").size_full().min_h(0).p(18).gap(14).bg(t.popover)
+      // Title row: the name, the finding under it; the trainer's totals at the right.
+      .child(h_flex().items_start().justify_between().gap(12).flex_none()
+        .child(v_flex().min_w(0).gap(3)
+          .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Bag"))
+          .child(div().text_size(12).text_color(first ? t.foreground : t.muted).truncate().child(finding)))
+        .child(h_flex().gap(12).items_center().flex_none()
+          .child(div().text_size(11.5).text_color(t.muted).child(`${s.jobs} jobs · ${duration(s.ms)} worked`))
+          .child(div().text_size(11).text_color(t.dim).child("Esc"))))
+      .child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
+        // Items: every one, in the Bag's order.
+        .child(v_flex().w(218).flex_none().p(4).gap(0).rounded(10).bg(t.raised)
+          .children(ids.map((id) => {
+            const n = b.items[id] ?? 0;
+            const on = id === sel;
+            return h_flex().id(`item-${id}`).h(30).px(8).gap(8).rounded(7).items_center()
+              .bg(on ? t.selected : "#00000000").cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
+              .on_click((_e, cx) => { this.sel = id; cx.notify(); })
+              .child(div().opacity(n ? 1 : 0.35).child(art(ITEMS[id].art, 26)))
+              .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(n ? t.foreground : t.dim).child(ITEMS[id].name))
+              .when(takers[id].length > 0, (el) => el.child(div().size(6).rounded_full().bg(t.accent)))
+              .child(div().w(22).text_right().text_size(12.5).text_color(n ? t.foreground : t.dim).child(String(n)));
+          })))
+        // The chosen item: what it does, and who on screen can take it now.
+        .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()
+          .child(h_flex().gap(12).items_center()
+            .child(art(ITEMS[sel].art, 56))
+            .child(v_flex().min_w(0).gap(2)
+              .child(div().text_size(14).font_semibold().text_color(t.foreground).child(ITEMS[sel].name))
+              .child(div().text_size(12).text_color(t.muted).child(`${b.items[sel] ?? 0} in the Bag`))))
+          .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
+          .child(div().h(2))
+          .child(div().text_size(11.5).text_color(t.muted).child("On screen"))
+          .when(!(b.items[sel] ?? 0), (el) => el.child(div().text_size(12).text_color(t.dim)
+            .child(sel === "rare-candy" ? "None yet. A job over 30 minutes earns one; idle Pokémon sometimes find one."
+              : "None yet. Idle Pokémon find these now and then.")))
+          .when(!!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
+            .child(herd.length ? "No one here can use it now." : "No agents on screen.")))
+          .child(v_flex().gap(4).children((b.items[sel] ? takers[sel] : []).slice(0, SHOW).map((h) => h_flex().id(`taker-${h.slot}`).h(38).gap(10).items_center()
+            .child(icon(h.pick, 32))
+            .child(v_flex().flex_1().min_w(0).gap(1)
+              .child(div().text_size(12.5).text_color(t.foreground).truncate().child(`${fullName(h.pick.dex, h.pick.form)} · ${h.tag}`))
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(h.use === "evolve"
+                ? `becomes ${fullName(h.after.dex, h.after.form)}`
+                : `♥ ${h.pick.hearts ?? 0} → ${h.after.hearts}`)))
+            .child(div().id(`use-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
+              .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold()
+              .cursor_pointer()
+              .on_click((_e, cx) => { use(sel, h); cx.notify(); })
+              .child("Use")))))
+          .when((b.items[sel] ? takers[sel].length : 0) > SHOW, (el) => el.child(div().text_size(11.5).text_color(t.muted)
+            .child(`and ${takers[sel].length - SHOW} more`)))))
+      // The badge case, and the Shiny Charm.
+      .child(v_flex().flex_none().gap(6)
+        .child(h_flex().justify_between().items_center()
+          .child(div().text_size(11.5).text_color(t.muted).child(`Badges ${got} of 8`))
+          .child(div().text_size(11.5).text_color(t.muted).truncate()
+            .child(shown ? `${shown.name}: ${shown.how}${shown.earned ? ", earned" : ""}` : "")))
+        .child(h_flex().h(64).px(12).gap(4).items_center().rounded(10).bg(t.raised)
+          .children(all.map((x, i) => div().id(`badge-${x.id}`).w(40).flex_none().flex().justify_center()
+            .on_hover((h, cx) => { this.badgeHover = h ? x.id : this.badgeHover === x.id ? null : this.badgeHover; cx.notify(); })
+            .child(div().opacity(x.earned ? 1 : 0.18).child(art(`badges/${i + 1}`, 34)))))
+          .child(div().flex_1())
+          .child(h_flex().gap(8).items_center().flex_none()
+            .child(div().opacity(charm ? 1 : 0.3).child(art(CHARM_ART, 40)))
+            .child(v_flex().gap(1)
+              .child(div().text_size(12).text_color(charm ? t.foreground : t.muted).child("Shiny Charm"))
+              .child(div().text_size(11).text_color(t.muted).child(charm ? "Shinies 1 in 32" : `At ${CHARM_JOBS} jobs · ${s.jobs} so far`))))));
   }
 
   // ---- the picker (opened as a dialog with props { picker, slot, current, tag }) ----
@@ -902,12 +1168,13 @@ export default class PokemonHerd extends View {
   renderCurrent(cur, t) {
     const chain = this.chainEntries();
     const isCur = (e) => e.dex === cur.dex && (e.form ?? null) === (cur.form ?? null);
-    const stage = chain.findIndex((st) => st.some(isCur));
-    const last = stage === chain.length - 1;
-    const left = Math.max(1, EVOLVE_JOBS - (cur.jobs ?? 0));
+    const need = needsText(cur);
     const progress = cur.stay ? "Holds an Everstone: won't evolve"
-      : last ? (chain.length > 1 ? "Fully evolved" : "Doesn't evolve")
-      : `Evolves after ${left} more job${left === 1 ? "" : "s"}`;
+      : need ? `Evolves ${need}`
+      : chain.length > 1 ? "Fully evolved" : "Doesn't evolve";
+    // The job count shows as a bar when jobs are one of its ways.
+    const byJobs = !cur.stay && evolveNeeds(cur).some((n) => n.ways.some((w) => w === "jobs" || w === "day" || w === "night"));
+    const hearts = cur.hearts ?? 0;
     const line = statLine(stats().species[cur.dex]);
     const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
     const branchy = chain.some((st) => st.length > 2);
@@ -920,10 +1187,13 @@ export default class PokemonHerd extends View {
               .child(h_flex().gap(6).items_center()
                 .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${cur.shiny ? "✨ " : ""}${fullName(cur.dex, cur.form)}`))
                 .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
-              .child(div().text_size(11.5).text_color(t.muted).child(line ? `Its species: ${line}` : "Its species hasn't finished a job yet"))
+              // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
+              .child(h_flex().gap(1).items_center()
+                .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
+                .child(div().ml(8).text_size(11.5).text_color(t.muted).child(line ? `Its species: ${line}` : "Its species hasn't finished a job yet")))
               .child(h_flex().gap(8).items_center()
-                .child(div().text_size(11.5).text_color(t.foreground).child(progress))
-                .when(!cur.stay && !last, (el) => el.child(
+                .child(div().min_w(0).text_size(11.5).text_color(t.foreground).child(progress))
+                .when(byJobs, (el) => el.child(
                   div().w(80).h(5).rounded_full().bg(t.border).overflow_hidden()
                     .child(div().h_full().w(80 * Math.min(1, (cur.jobs ?? 0) / EVOLVE_JOBS)).bg(t.accent))))),
           )
@@ -952,7 +1222,39 @@ export default class PokemonHerd extends View {
               .child(icon(e, branchy ? 30 : 36))
               .when(!branchy, (el2) => el2.child(div().text_size(10.5).text_color(t.muted).child(fullName(e.dex, e.form))))),
           ])),
-      ));
+      ))
+      .child(this.renderBagRow(cur, t));
+  }
+
+  // The Bag, for this Pokémon: Berries (a heart), Rare Candy (evolve now) and the stones it can
+  // take. What does nothing for it now is greyed out.
+  renderBagRow(cur, t) {
+    const b = bag();
+    const slot = props()?.slot;
+    const night = isNight();
+    const mine = new Set(evolveNeeds(cur).flatMap((n) => n.ways).filter((w) => w.startsWith("stone:")).map((w) => `${w.slice(6)}-stone`));
+    const ids = ["berry", "rare-candy", ...STONES.map((k) => `${k}-stone`).filter((id) => mine.has(id))].filter((id) => b.items[id]);
+    return h_flex().gap(6).items_center().flex_none()
+      .child(div().text_size(11.5).text_color(t.muted).mr(2).child("Bag"))
+      .when(!ids.length, (el) => el.child(div().text_size(11).text_color(t.dim)
+        .child("Nothing for it yet. Idle Pokémon find Berries and stones; a long job earns a Rare Candy.")))
+      .children(ids.map((id) => {
+        const use = itemUse(cur, slot, id, { night });
+        return div()
+          .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().gap(4).text_size(11.5).border_1()
+          .border_color(t.border).text_color(use ? t.foreground : t.dim)
+          .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
+            const r = useItem(this.livePick(), slot, id, { night: isNight() }, Date.now());
+            if (!r) return;
+            savePicks({ [slot]: r.pick });
+            saveBag(addItem(bag(), id, -1));
+            if (r.evolved) noteEvolved();
+            if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+            this.fetchIcons(cx);
+            cx.notify();
+          }))
+          .child(`${ITEMS[id].icon} ${ITEMS[id].name} ×${b.items[id]}`);
+      }));
   }
 
   renderPicker(cx) {

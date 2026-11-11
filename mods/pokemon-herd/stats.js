@@ -46,12 +46,13 @@ export function record(stats, dex, { ms, job, task }) {
   return { ...stats, species: { ...stats.species, [dex]: next } };
 }
 
-// Totals, and the `n` species with the most jobs.
+// Totals (jobs, time, the longest job), and the `n` species with the most jobs.
 export function summary(stats, n) {
   const all = Object.entries(stats.species).map(([dex, s]) => ({ dex: Number(dex), ...s }));
   return {
     jobs: all.reduce((t, s) => t + s.jobs, 0),
     ms: all.reduce((t, s) => t + s.ms, 0),
+    longest: all.reduce((t, s) => Math.max(t, s.longest), 0),
     top: all.filter((s) => s.jobs > 0).sort((a, b) => b.jobs - a.jobs || b.ms - a.ms).slice(0, n),
   };
 }

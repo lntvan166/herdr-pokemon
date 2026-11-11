@@ -178,6 +178,22 @@ export async function ensureIcon(dex, form) {
   if (r.code !== 0) throw new Error("icon move failed");
 }
 
+// Item and badge art from PokeAPI's sprites ("items/fire-stone", "badges/3"), downloaded once.
+// Items are 30 px of pixel art: saved at 2x, sharp (ImageMagick's -scale, no smoothing).
+const POKEAPI = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites";
+export const artPath = (key) => `${DATA_REL}/art/${key.replace("/", "-")}.png`;
+export async function ensureArt(key) {
+  const dir = `${DATA}/art`;
+  const file = `${dir}/${key.replace("/", "-")}.png`;
+  if (await fs.exists(file).catch(() => false)) return;
+  await fs.mkdir(dir, { recursive: true });
+  const tmp = `${file}.part`;
+  await curl([[tmp, `${POKEAPI}/${key}.png`]]);
+  if (key.startsWith("items/") && (await imageMagick())) await im("mogrify", ["-scale", "200%", tmp]).catch(() => null);
+  const r = await exec("mv", ["-f", tmp, file]);
+  if (r.code !== 0) throw new Error("art move failed");
+}
+
 // The Megas drawn since this release: SpriteCollab's tracker, read at most once a day and boiled
 // down to data/pokemon-herd/megas.json ({ v: 2, at, megas }).
 const TRACKER = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/tracker.json";
