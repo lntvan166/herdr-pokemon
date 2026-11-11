@@ -169,3 +169,17 @@ test("onSpar faces the partner and attacks", () => {
   assert.equal(m.react.icon, "💥");
   assert.equal(m.lastSpar, 0);
 });
+
+import { onCombo, COMBO_GAP } from "../mods/pokemon-herd/react.js";
+test("onCombo: both face one way and attack", () => {
+  const a = { x: 100, dir: "l" }, b = { x: 140, dir: "r" };
+  onCombo(a, "r", 0, new Set(["Strike"]), () => 400, "⚡");
+  onCombo(b, "r", 0, new Set([]), () => 400, null);
+  assert.equal(a.dir, "r");
+  assert.equal(b.dir, "r");
+  assert.equal(a.react.anim, "Strike");
+  assert.equal(a.react.icon, "⚡");
+  assert.equal(b.react.anim, null); // no attack drawn: it stands facing you a moment
+  assert.equal(a.lastCombo, 0);
+  assert.ok(COMBO_GAP >= 60000);
+});

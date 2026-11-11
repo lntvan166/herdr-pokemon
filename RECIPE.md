@@ -245,6 +245,16 @@ forms, and Mega Evolution while an agent works.
   by day: six 2 px rings (`#e8574f #f39a45 #f2d14b #62c463 #4f9be0 #8a63d2`, outside in) centred
   on the horizon at a random 25–75% of the width, outer radius min(sky − 6, 12% of the width),
   at 80%, drawn before the hills so its feet are behind them.
+- **Campfire** (Settings → Gameplay → Campfire, on; `campSeats` in `rest.js`): Scenery, night
+  (`nightness >= 0.5`), at least one agent and none working or blocked. Per row a fire at the
+  middle of the ground: an 80 px `#ff9a3c` glow (opacity 0.08–0.16 over 1.3 s), two logs, and
+  three flame blobs (`#f2702a`, `#ffb23c`, `#fff1a8`) flickering at 420 / 310 / 230 ms; all × the
+  strip's scale. Seats `CAMP_GAP` (46 px) apart, alternating sides from the fire, given out left
+  to right (again when an agent comes or goes); each walks to its seat even asleep, then faces
+  the fire and stays (pauseUntil kept a minute ahead). Ends (seats dropped) when any agent works.
+- **Combo** (`onCombo`, `COMBO_GAP` in `react.js`): an agent and its sub-agent (`family`) both
+  working: 1 in 480 per tick, at most every 5 min per pair, both stop where they are, face one
+  random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

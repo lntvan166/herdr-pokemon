@@ -78,6 +78,10 @@ Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the de
 carries a gift (🎁 over its head): click it as it passes and it leaves you something for the Bag
 (a Berry mostly, now and then a stone).
 
+**A campfire, and combos.** At night, once no agent is working or waiting on you, a fire is lit
+in the middle of the strip and the herd sleeps round it (Settings → Campfire). An agent and its
+sub-agent, both working, now and then attack together, side by side (⚡).
+
 **Notifications, rivals, and a tired herd.** Settings → "Pokémon in notifications" (needs a layout
 of your own) draws Herdr's notifications with the agent's Pokémon: "review · Gengar · needs you".
 Two agents working in the same folder at once may edit each other's files: their Pokémon show

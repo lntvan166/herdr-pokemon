@@ -25,3 +25,18 @@ export function restSpot(x, others, lo, hi, gap = 96) {
   }
   return best;
 }
+
+// Seats round a campfire at `fire` for `n` Pokémon, `gap` apart and the first `gap` from the fire,
+// alternating left and right, kept within lo..hi (a side that runs out of room overflows to the
+// other). Ascending, so the leftmost Pokémon takes the leftmost seat and nobody crosses the fire.
+export function campSeats(n, fire, gap, lo, hi) {
+  const seats = [];
+  let left = fire - gap, right = fire + gap;
+  for (let i = 0; i < n; i++) {
+    const leftOk = left >= lo, rightOk = right <= hi;
+    const goLeft = (i % 2 === 0 && leftOk) || !rightOk;
+    if (goLeft) { seats.push(Math.max(lo, left)); left -= gap; }
+    else { seats.push(right); right += gap; }
+  }
+  return seats.sort((a, b) => a - b);
+}

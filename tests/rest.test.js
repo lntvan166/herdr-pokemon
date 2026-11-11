@@ -29,3 +29,12 @@ test("roomAt", () => {
   assert.equal(roomAt(100, []), Infinity);
   assert.equal(roomAt(100, [90, 130]), 10);
 });
+
+import { campSeats } from "../mods/pokemon-herd/rest.js";
+test("campSeats: round the fire, alternating sides, within the strip", () => {
+  assert.deepEqual(campSeats(4, 500, 40, 0, 1000), [420, 460, 540, 580]);
+  assert.deepEqual(campSeats(3, 500, 40, 0, 1000), [420, 460, 540]);
+  // Near the left edge: the left side fills up, the rest go right.
+  assert.deepEqual(campSeats(4, 60, 40, 20, 1000), [20, 100, 140, 180]);
+  assert.deepEqual(campSeats(0, 500, 40, 0, 1000), []);
+});

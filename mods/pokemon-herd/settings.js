@@ -9,6 +9,7 @@ export const DEFAULTS = {
   weather: true, // rain while agents wait on you, a storm when they wait long
   spar: true, // two idle Pokémon now and then spar
   family: true, // a sub-agent is its agent's Pokémon, younger, and follows it
+  campfire: true, // at night with every agent resting, the herd sleeps round a fire
   tired: true, // near the 5-hour limit (Usage Limits) the herd sweats and walks slower
   visitors: "often", // how often a wild Pokémon walks across the strip: VISIT_EVERY
   sidebar: false, // publish shared "agent-icons" / "agent-cards" for Better Sidebar (opt-in: it needs a patch)

@@ -123,3 +123,15 @@ export function onSpar(m, partnerX, now, has, msOf, icon) {
   m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
   m.lastSpar = now;
 }
+
+// A combo: an agent's Pokémon and its sub-agent's, both working, attack together facing the same
+// way, for about two seconds (⚡ over one). At most every COMBO_GAP per pair.
+export const COMBO_GAP = 5 * 60000;
+export function onCombo(m, dir, now, has, msOf, icon) {
+  const anim = reactionAnim("spar", has);
+  const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
+  const until = now + ms * Math.max(1, Math.ceil(2000 / ms));
+  m.dir = dir;
+  m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
+  m.lastCombo = now;
+}

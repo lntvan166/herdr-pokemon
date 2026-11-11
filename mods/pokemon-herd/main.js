@@ -19,9 +19,9 @@ import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withH
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
-import { restSpot, roomAt } from "./rest.js";
+import { restSpot, roomAt, campSeats } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onSpar, sparPair, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onSpar, sparPair, onCombo, COMBO_GAP, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -35,7 +35,9 @@ const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
 const VISIT_SPEED = 45; // px per second
-const SPAR_CHANCE = 1 / 240; // per tick (4 a second): about once a minute while a pair is ready // idle, about to stroll: how often it reacts to the season instead
+const SPAR_CHANCE = 1 / 240;
+const COMBO_CHANCE = 1 / 480; // per tick: about every 2 minutes while an agent and its sub-agent both work
+const CAMP_GAP = 46; // px between seats round the campfire // per tick (4 a second): about once a minute while a pair is ready // idle, about to stroll: how often it reacts to the season instead
 // props.rows (> 1): agents take turns across that many rows; each roams its whole row, passing
 // the others, and the block grows to fit the rows.
 
@@ -648,6 +650,7 @@ export default class PokemonHerd extends View {
       .map((b) => { const o = this.mons[b.address]; return o.moving ? o.target : o.x; });
     const rowCounts = [];
     list.forEach((b, j) => { const r = rowAt(b, j); rowCounts[r] = (rowCounts[r] ?? 0) + 1; });
+    const hiFor = (w) => Math.max(EDGE, w - EDGE);
     const walk = (m, target, speed) => {
       if (this.tired) speed *= 0.6;
       m.from = m.x;
@@ -680,6 +683,25 @@ export default class PokemonHerd extends View {
     // Tired: the 5-hour window nearly used up (Usage Limits): slower steps, and working ones sweat.
     const tired = settingsNow().tired && (sessionUsed(shared("usage-limits.state")) ?? 0) >= TIRED_AT;
     if (tired !== !!this.tired) { this.tired = tired; changed = true; }
+    // Campfire: at night, nobody working or waiting on you: a fire in the middle of each row and
+    // the herd round it, each on its own side as it was, asleep and facing the fire.
+    const camp = settingsNow().campfire && season !== null && nightness(date.getHours() + date.getMinutes() / 60) >= 0.5
+      && list.length > 0 && list.every((a) => a.status !== "working" && a.status !== "blocked");
+    if (camp !== !!this.campfire) {
+      this.campfire = camp ? { n: -1 } : null;
+      for (const m of Object.values(this.mons)) m.seat = undefined;
+      changed = true;
+    }
+    if (this.campfire && this.campfire.n !== list.length && hiFor(this.width) > EDGE) {
+      // Seats, per row, given out left to right (again when an agent comes or goes).
+      this.campfire.n = list.length;
+      const rows = g ? g.rows : 1;
+      for (let r = 0; r < rows; r++) {
+        const members = list.filter((a, j) => rowAt(a, j) === r && this.mons[a.address]).map((a) => this.mons[a.address]).sort((x, y) => x.x - y.x);
+        const seats = campSeats(members.length, this.width / 2, CAMP_GAP, EDGE, hiFor(this.width));
+        members.forEach((m, k) => { m.seat = seats[k]; });
+      }
+    }
     // Whose agent you just focused: that Pokémon wakes up and looks at you.
     const focus = focusEdge(this.lastFocus, list);
     this.lastFocus = focus.addr;
@@ -740,6 +762,11 @@ export default class PokemonHerd extends View {
       if (leadM && !m.moving && !leadM.moving && !reacting && Math.abs(m.x - leadM.x) < 30 && hi > lo) {
         walk(m, clamp(leadM.x + (m.x <= leadM.x ? -44 : 44), lo, hi), SPEED.idle);
         changed = true;
+      }
+      // At the campfire: walk to its seat (asleep or not), then stay there facing the fire.
+      if (this.campfire && m.seat !== undefined && !m.moving && !m.entering && !reacting) {
+        if (Math.abs(m.x - m.seat) >= 8) { walk(m, m.seat, SPEED.idle); m.shuffle = true; m.wrap = false; changed = true; }
+        else { m.dir = this.width / 2 > m.x ? "r" : "l"; m.pauseUntil = now + 60000; }
       }
       if (m.moving) {
         const f = clamp((now - m.start) / m.dur, 0, 1);
@@ -824,6 +851,29 @@ export default class PokemonHerd extends View {
         changed = true;
       }
     }, console.log, now, this.errSeen);
+    // A combo: an agent and its sub-agent, both working, now and then attack together.
+    if (Math.random() < COMBO_CHANCE) {
+      for (const [child, parent] of Object.entries(family)) {
+        const [a, b] = [list.find((x) => x.address === child), list.find((x) => x.address === parent)];
+        const [mc, mp] = [this.mons[child], this.mons[parent]];
+        if (!a || !b || !mc || !mp || a.status !== "working" || b.status !== "working") continue;
+        if (now - (mp.lastCombo ?? -Infinity) < COMBO_GAP || (mc.react && now < mc.react.until) || (mp.react && now < mp.react.until)) continue;
+        const dir = Math.random() < 0.5 ? "l" : "r";
+        [[b, mp, "⚡"], [a, mc, null]].forEach(([ag, m, icon]) => {
+          const meta = this.spriteFor(ids[ag.address], ag.status);
+          if (m.moving) {
+            // Stop where it is now, mid-walk (not back where the walk began).
+            m.x = m.target = m.from + (m.target - m.from) * clamp((now - m.start) / m.dur, 0, 1);
+            m.moving = false;
+            m.dur = 150;
+          }
+          onCombo(m, dir, now, new Set(Object.keys(meta?.react ?? {})), (name) => meta.react[name].ms, icon);
+          m.pauseUntil = m.react.until + rand(1000, 3000);
+        });
+        changed = true;
+        break;
+      }
+    }
     // Sparring: now and then two idle ones standing close have a go, and like each other more.
     if (settingsNow().spar && Math.random() < SPAR_CHANCE) {
       const ready = list.filter((a) => {
@@ -1049,6 +1099,7 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
+        line("Campfire", "At night, with every agent resting, the herd sleeps round a fire.", toggle("campfire")),
         line("Visitors", "A wild Pokémon walks across, and the herd watches it go by. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
           choices("visitors", [["off", "Off"], ["rare", "Rare"], ["often", "Often"], ["lots", "Lots"]], st.visitors, () => true, (v) => setSetting("visitors", v))),
         line("Tired near the limit", "With Usage Limits: from 90% of the 5-hour window the herd sweats and walks slower.", toggle("tired")),
@@ -1143,6 +1194,19 @@ export default class PokemonHerd extends View {
         ? grounds.map((y, r) => this.scenery(y - ground, ground, r))
         : grounds.map((y) => div().absolute().left(0).right(0).top(y + 4).h(1).bg(t.border)));
 
+    // The campfire, in the middle of each row's ground: crossed logs, a flickering flame, a glow.
+    if (this.campfire && sceneryOn) {
+      const fx = this.width / 2;
+      for (const y of grounds) {
+        const k = scale;
+        root.child(div().absolute().left(fx - 40 * k).top(y - 46 * k).size(80 * k).rounded_full().bg("#ff9a3c").loop("opacity", { from: 0.08, to: 0.16, period: 1300 }))
+          .child(div().absolute().left(fx - 9 * k).top(y - 3 * k).w(18 * k).h(4 * k).rounded(2).bg("#6b4528"))
+          .child(div().absolute().left(fx - 6 * k).top(y - 5 * k).w(12 * k).h(3 * k).rounded(2).bg("#8a5a33"))
+          .child(div().absolute().left(fx - 6 * k).top(y - 16 * k).w(12 * k).h(12 * k).rounded_full().bg("#f2702a").loop("opacity", { from: 0.7, to: 1, period: 420 }))
+          .child(div().absolute().left(fx - 4 * k).top(y - 21 * k).w(8 * k).h(12 * k).rounded_full().bg("#ffb23c").loop("opacity", { from: 0.5, to: 1, period: 310 }))
+          .child(div().absolute().left(fx - 2 * k).top(y - 17 * k).w(4 * k).h(7 * k).rounded_full().bg("#fff1a8").loop("opacity", { from: 0.6, to: 1, period: 230 }));
+      }
+    }
     if (list.length === 0) {
       return root.child(
         div().absolute().inset_0().flex().items_center().justify_center()
