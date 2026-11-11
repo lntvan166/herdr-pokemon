@@ -56,18 +56,21 @@ over an hour, 1000 jobs); each badge, the first time, comes with an item to hold
 Coin** (it finds things twice as often). At 500 jobs you get the **Shiny Charm**: shinies twice as
 often.
 
-**A party of cards.** Turn on the **Party panel** (Settings → Strip → Party panel: Sidebar or
-Right panel) and every agent is its Pokémon's card: the agent's name, large; the card's edge in
-its status colour (working, done, pulsing red while it needs you); its Pokémon, hearts and how
-close it is to evolving. Click one to focus that agent. In a collapsed sidebar it shrinks to a
-column of portraits. It works with any layout you own.
+**Agent cards.** Settings → Agent cards → **Sidebar**, and every agent is its Pokémon's card: the
+agent's name, large; the card's edge in its status colour (working, done, pulsing red while it
+needs you); its Pokémon, hearts and how close it is to evolving. Click one to focus that agent.
+It changes the sidebar you have rather than adding to it: Herdr's own Agents list is drawn as
+cards, in the same place, in its sections (Needs you, Done, Working, Idle); with
+[Better Sidebar](https://herdr.dev/mods), its own rows become the cards (it gets a small patch,
+applied for you). **Right panel** puts the same list in the right panel instead. Off by
+default; turning it off puts everything back as it was. In a collapsed sidebar the cards shrink
+to a column of portraits.
 
 <p align="center"><img src="docs/demo/party.gif" alt="Five agents as Pokémon cards: auth working (Charmander, 6 of 10 jobs), review needing you (Gengar, its edge pulsing red), api working (Pikachu, needs a Thunder Stone), docs done (Eevee), tests idle (Lucario)" width="280"></p>
 
-With [Better Sidebar](https://herdr.dev/mods), the same cards can replace its own agent rows
-instead (off by default): turn on Settings → Gameplay → "Pokémon in the sidebar", then Settings →
-Updates → **Patch** (Better Sidebar 3.2.0 needs a small patch to draw them; reinstalling it undoes
-the patch, press Patch again). The mod publishes them as shared `agent-icons` and `agent-cards`.
+Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows **Make it mine**,
+which copies the layout you're on into one you own (and shows it) so the cards and the strip's
+place, rows and size can be set.
 
 **Weather, sparring, sub-agents, cries.** The sky rains while an agent waits on you, and storms
 when three do or one has waited 10 minutes. Two idle Pokémon standing close now and then spar
@@ -90,9 +93,9 @@ Mega X / Y: pick one in the picker once both are drawn.
 
 **Yours to arrange.**
 - Right-click the strip's ground for the **Bag** and **Settings**. Settings (it stays open while
-  you change things) has where the strip sits (sidebar, bottom of the window, right panel), 1–3
-  rows, the background, the cries, and a switch for each of evolution, Pickup, weather, sparring
-  and sub-agents.
+  you change things) has where the strip sits (sidebar, bottom of the window, right panel), its
+  size (Tiny, Small, Medium, Large; Small by default), 1–3 rows, the background, agent cards,
+  the cries, and a switch for each of evolution, Pickup, weather, sparring and sub-agents.
 - The background is **Scenery** by default: sky, hills, trees and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
   It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring

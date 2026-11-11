@@ -4,15 +4,15 @@
 // choose which Pokémon it is.
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
-import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals } from "herdr";
-import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty } from "./place.js";
+import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder } from "herdr";
+import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod } from "./place.js";
 import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning } from "./scene.js";
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
 
 const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
 import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
-import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY } from "./id.js";
+import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY } from "./id.js";
 import { loadSettings, withSetting } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders } from "./picks.js";
@@ -118,6 +118,14 @@ const dressed = (pick) => {
   return c ? { ...pick, form: c.form, shiny: pick.shiny && c.shiny } : pick;
 };
 const HEART = "#e5484d"; // a heart it has
+// "<1m", "12m", "3h", "2d": how long ago, as the sidebar's own Agents list says it.
+function ago(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "<1m";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
+}
 const PET_MS = 30 * 60000; // a click on a Pokémon adds a heart at most this often
 const HUNGRY_MS = 5 * 60000; // waiting on you this long: it gets hungry (a heart down)
 const QUICK_MS = 60000; // answered within this: a heart up
@@ -169,10 +177,13 @@ const ICON_JOBS = 8; // icon downloads at once
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
 const zoom = () => (Number(settings()?.zoom) > 0 ? Number(settings().zoom) : 1);
-const scaleOf = () => {
-  const s = props()?.scale;
-  return Number.isFinite(s) && s > 0 ? s : 1;
-};
+// How big the Pokémon are drawn: props.scale (Settings → Strip → Size), small by default.
+const DEFAULT_SCALE = 0.75;
+const SIZES = [[0.5, "Tiny"], [0.75, "Small"], [1, "Medium"], [1.25, "Large"]];
+const scaleIn = (p) => (Number.isFinite(Number(p?.scale)) && Number(p.scale) > 0 ? Number(p.scale) : DEFAULT_SCALE);
+const scaleOf = () => scaleIn(props());
+// One row's height at a scale: the sprites, the ground, and the lines for names.
+const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * LABEL_H;
 
 // ---- the view -------------------------------------------------------------------
 
@@ -346,7 +357,7 @@ export default class PokemonHerd extends View {
     const want = Math.floor(Number(props()?.rows));
     if (!(want >= 1)) return null; // no props.rows: the classic strip (as auto-docked at the bottom)
     const rows = Math.min(want, Math.max(1, n));
-    return { rows, rowH: Math.round(88 * scaleOf()) + FEET + (TAG_LINES - 1) * LABEL_H };
+    return { rows, rowH: rowHeight(scaleOf()) };
   }
 
   // Moves the dragged Pokémon under the pointer, once it has moved a few px (else it's a click).
@@ -574,6 +585,11 @@ export default class PokemonHerd extends View {
       const msOf = (name) => meta.react[name].ms;
       const raw = moodOf(a, tabs, now, after);
       if (m.status !== a.status) {
+        // When it changed, for the Party list's "3m" (200 agents at most, the oldest forgotten).
+        const since = { ...(shared(SINCE_KEY) ?? {}), [a.address]: now };
+        const keys = Object.keys(since);
+        for (let k = 0; k < keys.length - 200; k++) delete since[keys[k]];
+        setShared(SINCE_KEY, since);
         const st = settingsNow();
         if ((a.status === "blocked" && st.cryBlocked) || (a.status === "done" && st.cryDone)) cry(ids[a.address].dex);
         onStatus(m, m.status, a.status, now, has, msOf); this.count(a, ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
@@ -703,13 +719,20 @@ export default class PokemonHerd extends View {
   // `place` null: only the rows change, wherever it is (e.g. where Herdr docked it on install).
   applyLayout(place, rows, close = true) {
     const tree = layout();
-    const scale = Number(blockProps(tree, MOD).scale) > 0 ? Number(blockProps(tree, MOD).scale) : 1;
-    const px = rows * (Math.round(88 * scale) + FEET + (TAG_LINES - 1) * LABEL_H);
+    const px = rows * rowHeight(scaleIn(blockProps(tree, MOD)));
     const next = place ? placeBlock(tree, MOD, place, rows, px) : setRows(tree, MOD, rows, px);
     // The right panel stays the Files/Changes buttons' to open and close (they remember it per
     // space): the strip shows there whenever that panel is open.
     if (next) run("layout.set", { layout: next });
     if (close) closeOverlay(props()?.overlay);
+  }
+
+  // Settings → Strip → Size: the Pokémon's scale, and the block's height to match.
+  applySize(scale) {
+    const tree = layout();
+    const withScale = setBlockProps(tree, MOD, { scale });
+    const next = withScale && setRows(withScale, MOD, rowsOf(tree, MOD), rowsOf(tree, MOD) * rowHeight(scale));
+    if (next) run("layout.set", { layout: next });
   }
 
   // The update waiting on GitHub (its version), or null.
@@ -757,6 +780,25 @@ export default class PokemonHerd extends View {
     });
   }
 
+  // Agent cards: Off, Sidebar or Right panel. Undoes whatever there was, then: in the sidebar,
+  // the Agents list drawn as cards when the layout has one, else Better Sidebar's rows (patched
+  // if need be), else a Party panel there; or a Party panel in the right panel.
+  setCards(v, tree, betterHere) {
+    let next = placeParty(unswapAgents(tree), MOD, null);
+    let better = false;
+    if (v === "sidebar") {
+      if (hasAgentsList(next)) next = swapAgents(next, MOD);
+      else if (betterHere) better = true;
+      else next = placeParty(next, MOD, "sidebar") ?? next;
+    } else if (v === "panel") next = placeParty(next, MOD, "panel") ?? next;
+    if (settingsNow().sidebar !== better) setSetting("sidebar", better);
+    if (better && this.sidebar === "unpatched") {
+      this.patching = "running";
+      patchSidebar().then(async () => { this.patching = null; this.sidebar = await sidebarState(); }).catch((e) => { this.patching = String(e?.message ?? e); });
+    }
+    if (JSON.stringify(next) !== JSON.stringify(tree)) run("layout.set", { layout: next });
+  }
+
   // The Settings dialog: where the strip sits and how, sounds, and which of the games' mechanics
   // are on. Every change applies at once; it stays open (Esc closes it).
   renderSettings() {
@@ -772,6 +814,16 @@ export default class PokemonHerd extends View {
     const movable = inLayout && !shipped;
     const background = blockProps(tree, MOD).background === "plain" ? "plain" : "scenery";
     const NAMES = { sidebar: "Sidebar", bottom: "Bottom", panel: "Right panel" };
+    // Agent cards: where they are now. In the sidebar: the Agents list drawn as cards, the
+    // Party panel there, or Better Sidebar's own rows (patched); or the Party panel in the right panel.
+    const betterHere = usesMod(tree, "better-sidebar");
+    const party = partyPlace(tree);
+    const cardsNow = agentsSwapped(tree) || party === "sidebar" || (st.sidebar && betterHere) ? "sidebar" : party === "panel" ? "panel" : "off";
+    const cardsNote = cardsNow === "sidebar" && agentsSwapped(tree) ? "The sidebar's Agents list, as cards."
+      : cardsNow === "sidebar" && betterHere ? (this.sidebar === "patched" ? "Better Sidebar's rows, as cards." : "Better Sidebar's rows: needs its patch (Updates).")
+      : cardsNow === "sidebar" ? "A Party list in the sidebar."
+      : cardsNow === "panel" ? "A Party list in the right panel."
+      : "The agent's name large, its status as the card's edge, its Pokémon and hearts.";
     const heading = (txt) => div().pt(6).text_size(11.5).text_color(t.muted).child(txt);
     // A row of choices, one of them on.
     const choices = (id, opts, cur, enabled, pick) => h_flex().gap(4).flex_none().children(opts.map(([v, txt]) => div()
@@ -815,15 +867,22 @@ export default class PokemonHerd extends View {
       .child(panel(
         line("Place", shipped ? `"${name}" is a built-in layout: clone it to move things.` : null,
           choices("place", ["sidebar", "bottom", "panel"].map((p) => [p, NAMES[p]]), place, (p) => have.includes(p) && !shipped, (p) => this.applyLayout(p, rows, false))),
+        line("Size", null, choices("size", SIZES, scaleIn(blockProps(tree, MOD)), () => movable, (v) => this.applySize(v))),
         line("Rows", null, choices("rows", [[1, "1"], [2, "2"], [3, "3"]], rows, () => movable, (n) => this.applyLayout(place, n, false))),
-        line("Party panel", "Every agent as its Pokémon's card, with a click to focus it.",
-          choices("party", [["off", "Off"], ["sidebar", "Sidebar"], ["panel", "Right panel"]], partyPlace(tree) ?? "off",
-            (v) => !shipped && (v === "off" || have.includes(v)),
-            (v) => { const next = placeParty(layout(), MOD, v === "off" ? null : v); if (next) run("layout.set", { layout: next }); })),
         line("Background", null, choices("bg", [["plain", "Plain"], ["scenery", "Scenery"]], background, () => movable, (v) => {
           const next = setBlockProps(layout(), MOD, { background: v });
           if (next) run("layout.set", { layout: next });
         })),
+      ))
+      .child(heading("Agent cards"))
+      .child(panel(
+        // A built-in layout can't be changed: one click makes a copy of it, shown at once.
+        ...(shipped ? [line("Make this layout yours", `"${name}" is built in. A copy you own can hold the cards and move the strip.`,
+          button("clone-layout", "Make it mine", true, () => run("layout.clone", { name })))] : []),
+        line("Show each agent as its Pokémon's card", cardsNote,
+          choices("cards", [["off", "Off"], ["sidebar", "Sidebar"], ["panel", "Right panel"]], cardsNow,
+            (v) => !shipped && (v === "off" || (v === "sidebar" ? hasAgentsList(tree) || betterHere || have.includes("sidebar") : have.includes("panel"))),
+            (v) => this.setCards(v, tree, betterHere))),
       ))
       .child(heading("Sounds"))
       .child(panel(
@@ -841,7 +900,6 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
-        line("Pokémon in the sidebar", "Each agent's Pokémon instead of its program's icon (Better Sidebar).", toggle("sidebar")),
       ))
       .child(heading("Updates"))
       .child(panel(
@@ -1172,9 +1230,21 @@ export default class PokemonHerd extends View {
 
   renderParty() {
     const t = theme();
-    const list = agents().filter((a) => a.pane);
+    // In place of the sidebar's Agents list (props.was: what it was), it is that list: titled
+    // "Agents", in its sections (Needs you, Done, Working, Idle; the latest change first), each
+    // with when it last changed, and it sets the order agent.next / agent.prev walk.
+    const asAgents = !!props()?.was;
+    const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
+    const SECTION = { blocked: "Needs you", done: "Done", working: "Working", idle: "Idle" };
+    // When each last changed status, as the strip noted it (terminals()' status_ms runs stale).
+    const changedAt = shared(SINCE_KEY) ?? {};
+    const list = agents().filter((a) => a.pane)
+      .sort((x, y) => (RANK[y.status] ?? 0) - (RANK[x.status] ?? 0) || (changedAt[y.address] ?? 0) - (changedAt[x.address] ?? 0));
+    const order = list.map((a) => a.address).join(" ");
+    if (asAgents && order !== this.lastOrder) { this.lastOrder = order; setAgentOrder(list.map((a) => a.address)); }
     const tabs = tabsById();
     const { ids } = assignAll(list);
+    const now = Date.now();
     // Narrow (a collapsed sidebar): just each portrait, framed in its status colour.
     const narrow = (this.partyWidth ?? 300) < 120;
     const mini = (a) => {
@@ -1215,7 +1285,8 @@ export default class PokemonHerd extends View {
             .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}`))
             .child(h_flex().flex_none().gap(2).items_center()
               .child(div().text_color(c.hearts ? HEART : t.border).child("♥"))
-              .child(div().text_color(t.muted).child(String(c.hearts)))))
+              .child(div().text_color(t.muted).child(String(c.hearts))))
+            .when(!!changedAt[a.address], (el) => el.child(div().flex_none().text_color(t.dim).child(ago(now - changedAt[a.address])))))
           .when(bar, (el) => el.child(h_flex().gap(6).items_center()
             .child(div().flex_1().h(3).rounded_full().bg(t.border).overflow_hidden()
               .child(div().h_full().w(`${Math.round(c.progress * 100)}%`).bg(t.accent)))
@@ -1229,11 +1300,18 @@ export default class PokemonHerd extends View {
       })
       .when(narrow, (el) => el.child(v_flex().id("party-list").flex_1().min_h(0).overflow_y_scrollbar().py(4).children(list.map(mini))))
       .when(!narrow, (el) => el.child(h_flex().h(30).px(14).flex_none().items_center().justify_between()
-        .child(div().text_size(11.5).text_color(t.muted).child("Party"))
+        .child(div().text_size(11.5).text_color(t.muted).child(asAgents ? "Agents" : "Party"))
         .child(div().text_size(11).text_color(t.dim).child(list.length ? String(list.length) : "")))
       .child(v_flex().id("party-list").flex_1().min_h(0).overflow_y_scrollbar().px(8).pb(8)
         .when(!list.length, (el) => el.child(div().px(6).py(8).text_size(12).text_color(t.dim).child("No agents yet: each one that starts gets a Pokémon here.")))
-        .children(list.map(card))));
+        .children(list.flatMap((a, i) => {
+          // A section's heading before its first agent: "Working 2", in its colour.
+          const first = i === 0 || list[i - 1].status !== a.status;
+          const n = list.filter((b) => b.status === a.status).length;
+          return first ? [h_flex().px(6).pt(i ? 8 : 2).pb(2).gap(6).items_center()
+            .child(div().text_size(11).text_color(a.status === "idle" ? t.muted : t[a.status] ?? t.muted).child(SECTION[a.status] ?? a.status))
+            .child(div().text_size(11).text_color(t.dim).child(String(n))), card(a)] : [card(a)];
+        }))));
   }
 
   // ---- the Bag (a dialog with props { bag }) ----

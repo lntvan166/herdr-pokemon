@@ -10,9 +10,11 @@ export const BAG_KEY = `${MOD}-bag`;
 export const SETTINGS_KEY = `${MOD}-settings`;
 // Which pane's Pokémon each folder last had (picks.js fromFolders), in shared state.
 export const FOLDERS_KEY = `${MOD}-folders`;
+// When each agent last changed status (the strip notes it; the Party list shows "3m"), in shared state.
+export const SINCE_KEY = `${MOD}-since`;
 // The upstream mod's shared-state key: read once to keep agents' Pokémon when switching over.
 export const LEGACY_KEY = "pokemon-agents";
 // This release (year.month.day, then .1, .2 for more releases that day). Bump it with every change worth updating for: copies that are
 // installed compare it with the repo's once a day and offer the update.
-export const VERSION = "2026.11.11.2";
+export const VERSION = "2026.11.11.3";
 export const REPO = "lntvan166/herdr-pokemon";

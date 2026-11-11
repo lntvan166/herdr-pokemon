@@ -149,3 +149,37 @@ test("the Party panel: in the sidebar or the right panel, never taken for the st
   // A layout without that place.
   assert.equal(placeParty({ id: "root", type: "row", children: [] }, "pokemon-herd", "sidebar"), null);
 });
+
+test("in a layout cloned from main: the strip above its status bar, the Party panel after the agents list", () => {
+  const main = { id: "root", type: "row", children: [
+    { id: "sidebar", type: "column", children: [{ id: "sidebar-lists", type: "column", children: [
+      { id: "spaces", type: "block", content: { mod: "spaces" } }, { id: "agents", type: "block", content: { mod: "agents" } }] }] },
+    { id: "work", type: "column", children: [
+      { id: "tabs", type: "block" }, { id: "work-body", type: "row", children: [] }, { id: "status", type: "block" }] },
+  ] };
+  const withStrip = placeBlock(main, "pokemon-herd", "bottom", 1, 108);
+  assert.deepEqual(withStrip.children[1].children.map((c) => c.id), ["tabs", "work-body", "pokemon-herd", "status"]);
+  const withParty = placeParty(withStrip, "pokemon-herd", "sidebar");
+  assert.deepEqual(withParty.children[0].children[0].children.map((c) => c.id), ["spaces", "agents", PARTY_ID]);
+});
+
+import { swapAgents, unswapAgents, agentsSwapped, hasAgentsList } from "../mods/pokemon-herd/place.js";
+test("the Agents list drawn as cards: same block, same place and size; swapped back as it was", () => {
+  const agents = { id: "agents", type: "block", content: { mod: "agents", props: { x: 1 } }, size: { weight: 1 } };
+  const tree = { id: "root", type: "row", children: [{ id: "sidebar-lists", type: "column", children: [{ id: "spaces", type: "block", content: { mod: "spaces" } }, agents] },
+    { id: "pokemon-herd", type: "block", content: { mod: "pokemon-herd", props: { rows: 1 } } }] };
+  assert.equal(hasAgentsList(tree), true);
+  assert.equal(agentsSwapped(tree), false);
+  const swapped = swapAgents(tree, "pokemon-herd");
+  const block = swapped.children[0].children[1];
+  assert.equal(block.id, "agents");
+  assert.deepEqual(block.size, { weight: 1 });
+  assert.deepEqual(block.content, { mod: "pokemon-herd", props: { view: "party", was: { mod: "agents", props: { x: 1 } } } });
+  assert.equal(agentsSwapped(swapped), true);
+  assert.equal(JSON.stringify(swapAgents(swapped, "pokemon-herd")), JSON.stringify(swapped)); // twice: once
+  // The strip is still the strip.
+  assert.equal(rowsOf(swapped, "pokemon-herd"), 1);
+  assert.equal(partyPlace(swapped), null); // not "the Party panel"
+  assert.deepEqual(unswapAgents(swapped), tree);
+  assert.equal(swapAgents({ id: "root", type: "row", children: [] }, "pokemon-herd"), null);
+});

@@ -170,6 +170,19 @@ forms, and Mega Evolution while an agent works.
 - **Badges and the Shiny Charm**: 🪨 10 jobs, 💧 100, ⚡ a first evolution, 🌈 24 h of work, 💗 5
   hearts, 🌙 a job finished 0:00–5:00, 🌋 a job over an hour, 🌍 1000 jobs; Shiny Charm from 500
   jobs (new agents' shinies 1 in 32). The emoji are only names here: the Bag draws the sprites.
+- **Settings → Agent cards** (`setCards` in `main.js`): "Show each agent as its Pokémon's card:
+  Off / Sidebar / Right panel". Sidebar: in a layout with Herdr's Agents list (`agents` block),
+  that block keeps its id, place and size and is drawn by this mod (`swapAgents`: content
+  `{ mod: "pokemon-herd", props: { view: "party", was: <its content> } }`; `unswapAgents` puts
+  it back); else with Better Sidebar, its rows (setting `sidebar`, patched if need be); else a
+  Party block in the sidebar. Right panel: a Party block there. Off undoes all of it. In a
+  built-in layout every choice is greyed and "Make this layout yours" (pill "Make it mine")
+  runs `layout.clone` on it. As the Agents list, the Party view is titled "Agents", shows its
+  sections ("Needs you" / "Done" / "Working" / "Idle" and a count, in the status colours; the
+  latest change first, from shared `pokemon-herd-since`, which the strip writes on each status
+  change since terminals()' `status_ms` runs stale) and calls `setAgentOrder` as the list does.
+- **Size** (Settings → Strip): Tiny 0.5, Small 0.75 (the default, also with no `scale` prop),
+  Medium 1, Large 1.25; a row is round(88 × scale) + 24 + 18 px (108 at Small; mod.json's size).
 - **The Party panel** (`renderParty` in `main.js`; a block `pokemon-party`, this mod with props
   `{ view: "party" }`, placed by `placeParty` in `place.js`: the sidebar's lists column above
   needs-you, weight 1, or the right panel under its body; Settings → Strip → "Party panel: Off /

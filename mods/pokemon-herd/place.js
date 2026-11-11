@@ -2,12 +2,27 @@
 // "Place" items. Pure: takes and returns layout trees (layouts/<name>.json), never edits one.
 
 // The places, by the ids Herdr's own layouts use: the sidebar's lists column (above the
-// needs-you block), the work column (above the status bar), the right panel (under its body).
+// needs-you block, else at its end), the work column (above the status bar: "status-row" in a
+// layout with one, "status" in main), the right panel (under its body).
 const PLACES = {
-  sidebar: { parent: "sidebar-lists", before: "needs-you" },
-  bottom: { parent: "work", before: "status-row" },
-  panel: { parent: "panel", after: "panel-body" },
+  sidebar: { parent: "sidebar-lists", before: ["needs-you"] },
+  bottom: { parent: "work", before: ["status-row", "status"] },
+  panel: { parent: "panel", after: ["panel-body"] },
 };
+
+// Where in `kids` a block goes at `spot`: before the first of its `before` ids there is, or
+// after the first of its `after` ids; else at the end.
+function slot(kids, spot) {
+  for (const id of spot.before ?? []) {
+    const i = kids.findIndex((c) => c.id === id);
+    if (i >= 0) return i;
+  }
+  for (const id of spot.after ?? []) {
+    const i = kids.findIndex((c) => c.id === id);
+    if (i >= 0) return i + 1;
+  }
+  return kids.length;
+}
 
 function find(node, test, parent = null) {
   if (!node || typeof node !== "object") return null;
@@ -48,8 +63,7 @@ export function placeBlock(tree, mod, place, rows, px) {
   block.content = { ...block.content, props: { ...(block.content.props ?? {}), rows } };
   block.size = { px };
   const kids = (target.children ??= []);
-  const at = spot.before ? kids.findIndex((c) => c.id === spot.before) : kids.findIndex((c) => c.id === spot.after) + 1;
-  kids.splice(at < 0 || (spot.after && at === 0) ? kids.length : at, 0, block);
+  kids.splice(slot(kids, spot), 0, block);
   return out;
 }
 
@@ -113,7 +127,36 @@ export function placeParty(tree, mod, place) {
   if (!target) return null;
   const block = { id: PARTY_ID, type: "block", content: { mod, props: { view: "party" } }, size: { weight: 1 } };
   const kids = (target.children ??= []);
-  const at = spot.before ? kids.findIndex((c) => c.id === spot.before) : kids.findIndex((c) => c.id === spot.after) + 1;
-  kids.splice(at < 0 || (spot.after && at === 0) ? kids.length : at, 0, block);
+  kids.splice(slot(kids, spot), 0, block);
   return out;
 }
+
+// ---- the cards in place of the sidebar's own Agents list: its block (Herdr's `agents` mod)
+// keeps its id, place and size; only what draws it changes, to this mod with props
+// { view: "party", was: <the block's content> }. Swapped back, the content is as it was.
+const isAgents = (n) => n.type === "block" && n.content?.mod === "agents";
+const isSwapped = (n) => n.type === "block" && n.content?.props?.view === "party" && !!n.content?.props?.was;
+
+export const agentsSwapped = (tree) => !!find(tree, isSwapped);
+export const hasAgentsList = (tree) => !!find(tree, isAgents) || agentsSwapped(tree);
+
+// A copy of the tree with the Agents list drawn as cards (null: no Agents list here).
+export function swapAgents(tree, mod) {
+  const out = JSON.parse(JSON.stringify(tree));
+  if (find(out, isSwapped)) return out;
+  const hit = find(out, isAgents);
+  if (!hit) return null;
+  hit.node.content = { mod, props: { view: "party", was: hit.node.content } };
+  return out;
+}
+
+// A copy of the tree with the Agents list back as it was (unchanged when it wasn't swapped).
+export function unswapAgents(tree) {
+  const out = JSON.parse(JSON.stringify(tree));
+  const hit = find(out, isSwapped);
+  if (hit) hit.node.content = hit.node.content.props.was;
+  return out;
+}
+
+// Whether some block in the layout is drawn by `mod` (e.g. "better-sidebar").
+export const usesMod = (tree, mod) => !!find(tree, (n) => n.type === "block" && n.content?.mod === mod);
