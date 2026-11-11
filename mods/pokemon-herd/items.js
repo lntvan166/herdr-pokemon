@@ -113,3 +113,31 @@ export function badgeGifts(summary, marks) {
   }
   return { gifts, seen };
 }
+
+// How far along each badge is: { ...badge, earned, fraction (0..1), left (what's still to do, in
+// words; "" once earned) }. `best`: the most hearts any Pokémon has now (for the Soul Badge).
+const mins = (ms) => {
+  const m = Math.max(1, Math.ceil(ms / 60000));
+  return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`;
+};
+export function badgeProgress(summary, marks, best = 0) {
+  const jobs = (goal) => ({ fraction: summary.jobs / goal, left: `${goal - summary.jobs} job${goal - summary.jobs === 1 ? "" : "s"} to go` });
+  const how = {
+    boulder: () => jobs(10),
+    cascade: () => jobs(100),
+    thunder: () => ({ fraction: 0, left: "evolve a Pokémon" }),
+    rainbow: () => ({ fraction: summary.ms / (24 * HOUR), left: `${mins(24 * HOUR - summary.ms)} of work to go` }),
+    soul: () => ({ fraction: best / 5, left: `best is ♥${best}: ${5 - best} to go` }),
+    marsh: () => ({ fraction: 0, left: "finish a job between midnight and 5" }),
+    volcano: () => ({ fraction: summary.longest / HOUR, left: summary.longest ? `longest job ${mins(summary.longest)}: ${mins(HOUR - summary.longest)} to go` : "one job over an hour" }),
+    earth: () => jobs(1000),
+  };
+  return badges(summary, marks).map((b) => {
+    if (b.earned) return { ...b, fraction: 1, left: "" };
+    const p = how[b.id]();
+    return { ...b, fraction: Math.max(0, Math.min(0.99, p.fraction)), left: p.left };
+  });
+}
+
+// The badge nearest to earning (the largest fraction), or null when all are earned.
+export const nextBadge = (progress) => progress.filter((b) => !b.earned).sort((x, y) => y.fraction - x.fraction)[0] ?? null;

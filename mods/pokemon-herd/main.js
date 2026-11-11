@@ -17,7 +17,7 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
@@ -1679,7 +1679,10 @@ export default class PokemonHerd extends View {
     const held = heldAll[sel] ?? [];
     const LIST_H = ids.length * 30 + 8; // the items list; the panel beside it is held to the same height
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
-    const all = badges(s, b.marks);
+    // Badges, each with how far along it is (the Soul Badge: the most hearts any Pokémon has).
+    const best = Math.max(0, ...Object.values(savedPicks()).map((p) => p.hearts ?? 0));
+    const all = badgeProgress(s, b.marks, best);
+    const next = nextBadge(all);
     const got = all.filter((x) => x.earned).length;
     const art = (key, size) => this.art[key] === "ready" ? image(artPath(key)).size(size).flex_none() : div().size(size).flex_none();
     const icon = (p, size) => this.icons[entryKey(p)] === "ready" ? image(iconPath(p.dex, p.form)).size(size).flex_none() : div().size(size).flex_none();
@@ -1786,11 +1789,16 @@ export default class PokemonHerd extends View {
         .child(h_flex().justify_between().items_center()
           .child(div().text_size(11.5).text_color(t.muted).child(`Badges ${got} of 8`))
           .child(div().text_size(11.5).text_color(t.muted).truncate()
-            .child(shown ? `${shown.name}: ${shown.how}${shown.earned ? ", earned" : ""}` : "")))
+            // Hovered: what it takes and what's left; else the badge nearest to earning.
+            .child(shown ? `${shown.name}: ${shown.how}${shown.earned ? ", earned" : ` · ${shown.left}`}`
+              : next ? `Next: ${next.name} · ${next.left}` : "All eight earned")))
         .child(h_flex().h(64).px(12).gap(4).items_center().rounded(10).bg(t.raised)
-          .children(all.map((x, i) => div().id(`badge-${x.id}`).w(40).flex_none().flex().justify_center()
+          .children(all.map((x, i) => v_flex().id(`badge-${x.id}`).w(40).flex_none().items_center().gap(4)
             .on_hover((h, cx) => { this.badgeHover = h ? x.id : this.badgeHover === x.id ? null : this.badgeHover; cx.notify(); })
-            .child(div().opacity(x.earned ? 1 : 0.18).child(art(`badges/${i + 1}`, 34)))))
+            .child(div().opacity(x.earned ? 1 : 0.18).child(art(`badges/${i + 1}`, 34)))
+            // Not yet earned: how far along, as a thin bar under it.
+            .child(div().w(28).h(3).rounded_full().bg(x.earned ? "#00000000" : t.border).overflow_hidden()
+              .when(!x.earned, (el) => el.child(div().h_full().w(Math.round(28 * x.fraction)).bg(t.accent))))))
           .child(div().flex_1())
           .child(h_flex().gap(8).items_center().flex_none()
             .child(div().opacity(charm ? 1 : 0.3).child(art(CHARM_ART, 40)))

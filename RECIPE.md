@@ -247,6 +247,12 @@ forms, and Mega Evolution while an agent works.
   latest raised one of that species and form, as it was (the picker's Mega setting kept; the
   pane's own item kept if the boxed one holds none, else back into the Bag), and forgets its
   old pane. Labels: the picker card says "Every Charmeleon: 6 done · 1m" (all of that species).
+- **Badge progress** (`badgeProgress`, `nextBadge` in `items.js`): under each badge not yet
+  earned, a 28×3 px bar (`accent` on `border`) at its fraction (jobs of 10 / 100 / 1000, work of
+  24 h, the longest job of an hour, the most hearts of 5; 0 for Thunder and Marsh, which are
+  earned at once). The line right of "Badges n of 8": hovering one, "<name>: <how> · <left>"
+  ("27 jobs to go", "19h of work to go", "best is ♥3: 2 to go", "longest job 32m: 28m to go");
+  else "Next: <the nearest> · <left>", or "All eight earned".
 - **Visitor gifts:** every visitor shows 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says
