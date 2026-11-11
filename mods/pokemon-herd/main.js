@@ -564,7 +564,9 @@ export default class PokemonHerd extends View {
       const pick = visitorPick(new Set(Object.values(ids).map((p) => p.dex)));
       const dir = Math.random() < 0.5 ? "r" : "l";
       const [from, to] = dir === "r" ? [-OFF, this.width + OFF] : [this.width + OFF, -OFF];
-      v = this.visitor = { pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
+      // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
+      // kept that one's picture: only its 🎁 showed).
+      v = this.visitor = { id: `${now}-${pick.dex}`, pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
       this.want(pick, cx);
     }
     if (!v) return false;
@@ -601,10 +603,10 @@ export default class PokemonHerd extends View {
     const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
     const hovered = this.visitorHover;
     const tagW = 230;
-    root.child(div().id("visitor").absolute().left(0).top(0).w(this.width).h(ground + 4)
+    root.child(div().id(`visitor-${v.id}`).absolute().left(0).top(0).w(this.width).h(ground + 4)
       .child(div().absolute().left(v.x - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030")
         .transition("left", { duration: 300, easing: "linear" }))
-      .child(div().id("visitor-body").absolute().left(left).top(ground - (s.box.y + s.box.h) * scale)
+      .child(div().id(`visitor-body-${v.id}`).absolute().left(left).top(ground - (s.box.y + s.box.h) * scale)
         .transition("left", { duration: 300, easing: "linear" })
         .cursor_pointer()
         .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
