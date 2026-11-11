@@ -274,6 +274,9 @@ forms, and Mega Evolution while an agent works.
   clock wakes now and then (by day every 1.5–4 min, at night every 4–10), plays its wake
   animation and is up 10–30 s (`awakeUntil`: it strolls, reacts to the season, watches visitors),
   then sleeps again. At the campfire it stays in its seat.
+- **Switching keeps the raised one:** choosing another Pokémon for a pane puts the one it was,
+  if raised, in the Box under `box-<when>-<dex>` (`boxOnSwitch`; what it held and its Everstone
+  stay with the pane), where picking that species again finds it.
 - **The Box tab** (the Bag's title: "Bag | Box n", props `tab: "box"` opens on it; `boxList`,
   `renderBox`): raised Pokémon whose agents are gone, latest first, on a 46 px pitch in a
   scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/10 jobs · Everstone",

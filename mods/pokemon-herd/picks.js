@@ -436,3 +436,14 @@ export function electLeader(cur, me, now, ttl = 3000) {
 export function boxList(panes, onScreen) {
   return Object.entries(panes).filter(([slot, p]) => !onScreen.has(slot) && raised(p)).map(([slot, pick]) => ({ slot, pick })).reverse();
 }
+
+// Choosing another Pokémon for a pane: the one it was goes to the Box when raised (its hearts,
+// jobs, shiny…), under a key of its own ("box-<when>-<dex>"), instead of being overwritten. What
+// it held and its Everstone stay with the pane (switchedPick), so the boxed one has neither.
+// Returns { key, pick } to save, or null (not raised, or the same species and form).
+export function boxOnSwitch(cur, entry, now) {
+  if (!cur || (cur.dex === entry.dex && (cur.form ?? null) === (entry.form ?? null))) return null;
+  const { held, stay, evolvedAt, ...rest } = cur;
+  if (!raised(rest)) return null;
+  return { key: `box-${now}-${cur.dex}`, pick: rest };
+}

@@ -17,7 +17,7 @@ const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -2073,7 +2073,9 @@ export default class PokemonHerd extends View {
       if (cur?.held && boxed.pick.held) saveBag(addItem(bag(), cur.held));
       next = { ...boxed.pick, mega: this.megaMode, ...(boxed.pick.held || !cur?.held ? {} : { held: cur.held }), ...(cur?.stay ? { stay: true } : {}) };
     }
-    savePicks({ [p.slot]: next });
+    // The one it was, if raised, waits in the Box (not overwritten).
+    const away = boxOnSwitch(cur, entry, Date.now());
+    savePicks({ ...(away ? { [away.key]: away.pick } : {}), [p.slot]: next });
     if (boxed) forgetPanes([boxed.slot]);
     closeOverlay(p.overlay);
   }

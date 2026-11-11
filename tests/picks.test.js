@@ -455,3 +455,15 @@ test("boxList: raised Pokémon whose agents are gone, the latest first", () => {
   const panes = { old: { dex: 6, friend: 20, hearts: 1 }, live: { dex: 4, jobs: 3 }, plain: { dex: 7, mega: "auto" }, newer: { dex: 25, held: "leftovers" } };
   assert.deepEqual(boxList(panes, new Set(["live"])).map((x) => x.slot), ["newer", "old"]);
 });
+
+import { boxOnSwitch } from "../mods/pokemon-herd/picks.js";
+test("boxOnSwitch: a raised Pokémon switched away goes to the Box, without what stays with the pane", () => {
+  const ala = { dex: 65, friend: 100, hearts: 5, jobs: 3, held: "lucky-egg", stay: true, mega: "auto" };
+  const r = boxOnSwitch(ala, { dex: 6 }, 123);
+  assert.equal(r.key, "box-123-65");
+  assert.deepEqual(r.pick, { dex: 65, friend: 100, hearts: 5, jobs: 3, mega: "auto" });
+  assert.equal(boxOnSwitch({ dex: 65, mega: "auto" }, { dex: 6 }, 1), null); // never raised
+  assert.equal(boxOnSwitch(ala, { dex: 65 }, 1), null); // the same one
+  // In the Box, the next agent (or pick) of that species gets it back.
+  assert.equal(fromBox({ dex: 65 }, { [r.key]: r.pick }, new Set()).slot, "box-123-65");
+});
