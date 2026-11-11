@@ -183,3 +183,24 @@ test("onCombo: both face one way and attack", () => {
   assert.equal(a.lastCombo, 0);
   assert.ok(COMBO_GAP >= 60000);
 });
+
+import { onStir, stirGap, stirFor } from "../mods/pokemon-herd/react.js";
+test("onStir: a sleeper wakes now and then, for a while, on its own clock", () => {
+  const m = { x: 100, dir: "r" };
+  const has = new Set(["Wake"]);
+  const half = () => 0.5;
+  assert.equal(onStir(m, "sleep", 0, false, has, () => 600, half), false); // first: just scheduled
+  assert.equal(m.stirAt, stirGap(false, half));
+  assert.equal(onStir(m, "sleep", m.stirAt - 1, false, has, () => 600, half), false);
+  const t = m.stirAt;
+  assert.equal(onStir(m, "sleep", t, false, has, () => 600, half), true);
+  assert.equal(m.react.anim, "Wake");
+  assert.equal(m.awakeUntil, t + stirFor(half));
+  assert.ok(m.stirAt > t); // the next one
+  // Not asleep: nothing scheduled.
+  assert.equal(onStir(m, "idle", t + 1, false, has, () => 600, half), false);
+  assert.equal(m.stirAt, undefined);
+  // Night: further apart.
+  assert.ok(stirGap(true, half) > stirGap(false, half));
+  assert.ok(stirGap(false, () => 0) >= 90000 && stirGap(true, () => 1) <= 600000);
+});

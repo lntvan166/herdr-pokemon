@@ -270,6 +270,10 @@ forms, and Mega Evolution while an agent works.
   visitor at once (or right after the one walking by). Pickup weights: Honey 4, each held item 1.
   The Bag's rows are 26 px (18 items) in a 672 px dialog. Item marks on the strip (a find, a gift,
   a Berry eaten, a Rare Candy) are the item's sprite, 18 px, once downloaded; its emoji till then.
+- **Stirring** (`onStir`, `stirGap`, `stirFor` in `react.js`): asleep, each Pokémon on its own
+  clock wakes now and then (by day every 1.5–4 min, at night every 4–10), plays its wake
+  animation and is up 10–30 s (`awakeUntil`: it strolls, reacts to the season, watches visitors),
+  then sleeps again. At the campfire it stays in its seat.
 - **Visitor gifts:** every visitor (it sets off 1.5 s after its sprite is in) shows, from a second after it sets off, 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says

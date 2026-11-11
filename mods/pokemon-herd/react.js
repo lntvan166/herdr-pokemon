@@ -135,3 +135,21 @@ export function onCombo(m, dir, now, has, msOf, icon) {
   m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
   m.lastCombo = now;
 }
+
+// Asleep, it stirs now and then: wakes (its wake animation), is up a while (it strolls, reacts,
+// watches visitors), then sleeps again. Each on its own clock, so they don't all wake at once:
+// by day every 1.5 to 4 minutes, at night every 4 to 10; up for 10 to 30 seconds.
+export const stirGap = (night, rnd = Math.random) => (night ? 4 + rnd() * 6 : 1.5 + rnd() * 2.5) * 60000;
+export const stirFor = (rnd = Math.random) => (10 + rnd() * 20) * 1000;
+
+// It's asleep and its time has come: it wakes for a while (awakeUntil, as when you look at it),
+// playing its wake animation. Returns true when it stirred; schedules the next time either way.
+export function onStir(m, mood, now, night, has, msOf, rnd = Math.random) {
+  if (mood !== "sleep") { m.stirAt = undefined; return false; }
+  if (m.stirAt === undefined) { m.stirAt = now + stirGap(night, rnd); return false; }
+  if (now < m.stirAt) return false;
+  m.stirAt = now + stirGap(night, rnd);
+  play(m, "wake", now, has, msOf, false);
+  m.awakeUntil = now + stirFor(rnd);
+  return true;
+}

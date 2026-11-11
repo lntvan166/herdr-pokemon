@@ -22,7 +22,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onSpar, sparPair, onCombo, COMBO_GAP, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onSpar, sparPair, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -846,6 +846,8 @@ export default class PokemonHerd extends View {
         if ((a.status === "blocked" && st.cryBlocked) || (a.status === "done" && st.cryDone)) cry(ids[a.address].dex);
         onStatus(m, m.status, a.status, now, has, msOf); this.count(a, ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
+      // Asleep, it stirs now and then: up a little while, then back to sleep.
+      if (onStir(m, effectiveMood(raw, m, now), now, nightness(date.getHours() + date.getMinutes() / 60) >= 0.5, has, msOf)) changed = true;
       const mood = effectiveMood(raw, m, now);
       if (mood !== m.mood) { m.mood = mood; changed = true; }
       const reacting = !!m.react && now < m.react.until;

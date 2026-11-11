@@ -80,6 +80,9 @@ place, rows and size can be set.
 shiny luck. The next agent to get that species (you pick it, or a new agent is given it) gets
 that very Pokémon back; it moves over, so an item is never doubled.
 
+**Napping, not frozen.** An agent left idle puts its Pokémon to sleep, but now and then it wakes
+up, stretches, wanders a little and dozes off again (less often at night).
+
 **Visitors.** Every few minutes a wild Pokémon nobody has (once in a while a shiny) walks across
 the strip and is gone; idle ones turn to watch it pass. Hover it: "A wild Pidgey". Settings →
 Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the default) or Lots (1–3). Each
