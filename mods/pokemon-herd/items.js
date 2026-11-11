@@ -28,7 +28,7 @@ export function stoneTakers(kind) {
 
 // What an item does, in a sentence.
 export function itemAbout(id) {
-  if (id === "berry") return "Gives a Pokémon a heart. A hungry one eats one by itself when you answer its agent.";
+  if (id === "berry") return "Half a heart for a Pokémon. A hungry one eats one by itself when you answer its agent.";
   if (id === "lucky-egg") return "For a Pokémon to hold: every job its agent finishes counts twice towards evolving.";
   if (id === "soothe-bell") return "For a Pokémon to hold: every heart it gains is two.";
   if (id === "amulet-coin") return "For a Pokémon to hold: it finds items twice as often.";

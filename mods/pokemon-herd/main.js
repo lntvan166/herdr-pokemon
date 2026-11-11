@@ -15,7 +15,7 @@ import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searc
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY } from "./id.js";
 import { loadSettings, withSetting } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -455,7 +455,7 @@ export default class PokemonHerd extends View {
           icons[a.address] = iconPath(p.dex, p.form);
           const rivals = (this.rivals?.[a.address] ?? []).map((x) => list.find((b) => b.address === x)).filter(Boolean);
           const warn = rivals.length ? `⚔ same folder as ${rivals.map((b) => tagOf(b, tabsById())).join(", ")}` : "";
-          if (a.pane) cards[a.address] = { icon: icons[a.address], name: fullName(p.dex, p.form), shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
+          if (a.pane) cards[a.address] = { icon: icons[a.address], name: `${fullName(p.dex, p.form)}${p.held ? ` ${ITEMS[p.held].icon}` : ""}`, shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
           continue;
         }
         if (this.portraits[key]) continue;
@@ -1061,9 +1061,10 @@ export default class PokemonHerd extends View {
       // Hovered: its species' stats too ("Pikachu · api · 128 done · 14h 20m").
       const line = full ? statLine(stats().species[pick.dex]) : "";
       const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : "";
+      const holds = full && pick.held ? ` · holds ${ITEMS[pick.held].icon} ${ITEMS[pick.held].name}` : "";
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       const saying = full && a.status === "working" ? sayings[a.address] : null;
-      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${saying ? ` · “${saying}”` : ""}${hearts}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${saying ? ` · “${saying}”` : ""}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -1376,7 +1377,7 @@ export default class PokemonHerd extends View {
             .child(div().flex_1().min_w(0).truncate().text_size(14.5).font_semibold().text_color(t.foreground).child(tagOf(a, tabs)))
             .child(this.partyStatus(t, a.status)))
           .child(h_flex().gap(6).items_center().text_size(11)
-            .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}`))
+            .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}${pick.held ? ` ${ITEMS[pick.held].icon}` : ""}`))
             .child(h_flex().flex_none().gap(2).items_center()
               .child(div().text_color(c.hearts ? HEART : t.border).child("♥"))
               .child(div().text_color(t.muted).child(String(c.hearts))))
@@ -1461,8 +1462,11 @@ export default class PokemonHerd extends View {
     const ids = Object.keys(ITEMS);
     const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
     // Usable now: an evolution first (that's news), then hearts.
+    const herdBySlot = Object.fromEntries(herd.map((h) => [h.slot, h]));
+    const heldAll = Object.fromEntries(ids.filter((id) => ITEMS[id].kind === "held").map((id) => [id, holdersOf(id, savedPicks())]));
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
+    const held = heldAll[sel] ?? [];
     const LIST_H = ids.length * 30 + 8; // the items list; the panel beside it is held to the same height
     const SHOW = 4; // takers listed; the rest as "and n more"
     const all = badges(s, b.marks);
@@ -1473,7 +1477,8 @@ export default class PokemonHerd extends View {
     const first = usable[0] && takers[usable[0]][0];
     const finding = !first ? "Nothing to use right now"
       : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
-      : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) a heart`;
+      : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
+      : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) half a heart`;
     const use = (id, h) => {
       const r = useItem(savedPicks()[h.slot] ?? h.pick, h.slot, id, { night: isNight() }, Date.now());
       if (!r) return;
@@ -1510,6 +1515,7 @@ export default class PokemonHerd extends View {
               .child(div().opacity(n ? 1 : 0.35).child(art(ITEMS[id].art, 26)))
               .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(n ? t.foreground : t.dim).child(ITEMS[id].name))
               .when(takers[id].length > 0, (el) => el.child(div().size(6).rounded_full().bg(t.accent)))
+              .when((heldAll[id]?.length ?? 0) > 0, (el) => el.child(div().text_size(11).text_color(t.muted).child(`${heldAll[id].length} held`)))
               .child(div().w(22).text_right().text_size(12.5).text_color(n ? t.foreground : t.dim).child(String(n)));
           })))
         // The chosen item: what it does, and who on screen can take it now.
@@ -1522,7 +1528,7 @@ export default class PokemonHerd extends View {
           .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
           .child(div().h(2))
           .child(div().text_size(11.5).text_color(t.muted).child("On screen"))
-          .when(!(b.items[sel] ?? 0), (el) => el.child(div().text_size(12).text_color(t.dim)
+          .when(!(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
             .child(sel === "rare-candy" ? "None yet. A job over 30 minutes earns one; idle Pokémon sometimes find one."
               : "None yet. Idle Pokémon find these now and then.")))
           .when(!!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
@@ -1534,14 +1540,36 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.muted).truncate().child(h.use === "evolve"
                 ? `becomes ${fullName(h.after.dex, h.after.form)}`
                 : h.use === "hold" ? (h.pick.held ? `holds it; its ${ITEMS[h.pick.held].name} comes back` : "holds it")
-                : `♥ ${h.pick.hearts ?? 0} → ${h.after.hearts}`)))
+                : `♥ ${heartsText(friendOf(h.pick))} → ${heartsText(friendOf(h.after))}`)))
             .child(div().id(`use-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
               .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold()
               .cursor_pointer()
               .on_click((_e, cx) => { use(sel, h); cx.notify(); })
               .child(h.use === "hold" ? "Give" : "Use")))))
           .when((b.items[sel] ? takers[sel].length : 0) > SHOW, (el) => el.child(div().text_size(11.5).text_color(t.muted)
-            .child(`and ${takers[sel].length - SHOW} more`)))))
+            .child(`and ${takers[sel].length - SHOW} more`)))
+          // An item to hold: who holds one now, each with a way to take it back into the Bag.
+          .when(held.length > 0, (el) => el
+            .child(div().h(2))
+            .child(div().text_size(11.5).text_color(t.muted).child("Held by"))
+            .child(v_flex().gap(4).children(held.slice(0, 3).map((h) => {
+              const a = herdBySlot[h.slot];
+              return h_flex().id(`holder-${h.slot}`).h(38).gap(10).items_center()
+                .child(icon(h.pick, 32))
+                .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground)
+                  .child(`${fullName(h.pick.dex, h.pick.form)} · ${a ? a.tag : "not on screen"}`))
+                .child(div().id(`take-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
+                  .border_1().border_color(t.border).text_color(t.foreground).text_size(12).cursor_pointer()
+                  .hover((st) => st.bg(t.hover))
+                  .on_click((_e, cx) => {
+                    const r = takeHeld(savedPicks()[h.slot] ?? h.pick);
+                    if (!r) return;
+                    savePicks({ [h.slot]: r.pick });
+                    saveBag(addItem(bag(), r.back));
+                    cx.notify();
+                  })
+                  .child("Take"));
+            }))))))
       // The badge case, and the Shiny Charm.
       .child(v_flex().flex_none().gap(6)
         .child(h_flex().justify_between().items_center()

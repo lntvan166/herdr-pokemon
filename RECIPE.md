@@ -100,7 +100,7 @@ forms, and Mega Evolution while an agent works.
   "Hear one" with a Play pill (the focused agent's species). "Gameplay": switches for Evolution
   (off: jobs still count, nothing evolves), Pickup, Weather, Sparring, Sub-agents (all on by
   default). Footer: "Pokémon herd <version>".
-- **Settings → Updates** (`selfupdate.js`): "Pokémon herd" with the version ("2026.11.11.1, the
+- **Settings → Updates** (`selfupdate.js`): "Pokémon herd" with the version ("1.0.0, the
   latest (checked once a day)", or "<new> is out; you have <v>…") and an "Update now" pill
   (live only when newer): curl the repo's main tarball, copy `mods/pokemon-herd/` over the
   folder (Herdr's jsconfig.json and *.d.ts untouched), Herdr reloads. "Cards in Better Sidebar":
@@ -265,7 +265,10 @@ forms, and Mega Evolution while an agent works.
   the row's edge. Off the right, it appears outside the left of the next row and walks in. Off
   the left, it appears on the row above. The last row wraps to the first. It won't move onto a
   row that already holds its fair share.
-- **Updates:** `id.js` holds `VERSION` (year.month.day). Once a day the strip reads `id.js` from
+- **Updates:** `id.js` holds `VERSION`, semver ("1.0.0"; `update.js` reads only
+  `export const VERSION = "x.y.z"` and never counts a date as newer). Above it, a comment
+  `// VERSION = "2026.11.12"` stays for copies from before 1.0.0 (date versions), which read the
+  first `VERSION = "…"` in the file: it is newer than any of theirs, so they still offer the update. Once a day the strip reads `id.js` from
   the repo on GitHub (`data/pokemon-herd/latest.json`). When that is newer, an accent pill
   "Update <version>" sits in the strip's top-right corner. Clicking it opens the menu, which
   grows to 352 px with how to update.

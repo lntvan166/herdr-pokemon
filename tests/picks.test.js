@@ -361,3 +361,20 @@ test("sayingOf: an agent's status message, one line, cut short", () => {
   assert.equal(sayingOf({ report: {} }), null);
   assert.equal(sayingOf(null), null);
 });
+
+import { heartsText, holdersOf } from "../mods/pokemon-herd/picks.js";
+test("heartsText: hearts in halves", () => {
+  assert.equal(heartsText(0), "0");
+  assert.equal(heartsText(9), "0");
+  assert.equal(heartsText(10), "½");
+  assert.equal(heartsText(20), "1");
+  assert.equal(heartsText(35), "1½");
+  assert.equal(heartsText(100), "5");
+  assert.equal(heartsText(999), "5");
+});
+
+test("holdersOf: the panes whose Pokémon holds an item", () => {
+  const panes = { p1: { dex: 6, held: "lucky-egg" }, p2: { dex: 4 }, p3: { dex: 9, held: "soothe-bell" } };
+  assert.deepEqual(holdersOf("lucky-egg", panes), [{ slot: "p1", pick: panes.p1 }]);
+  assert.deepEqual(holdersOf("amulet-coin", panes), []);
+});

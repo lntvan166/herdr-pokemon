@@ -330,3 +330,14 @@ export function sayingOf(term, max = 48) {
   const one = msg.trim().split("\n")[0];
   return one.length > max ? `${one.slice(0, max - 1)}…` : one;
 }
+
+// Hearts in halves, from friendship points: "0", "½", "1", "1½" … "5". A Berry is half a heart,
+// so the Bag can say "♥ 1 → 1½" rather than "1 → 1".
+export function heartsText(friend) {
+  const halves = Math.floor(Math.max(0, Math.min(FRIEND_MAX, friend)) / (HEART_PTS / 2));
+  const whole = Math.floor(halves / 2);
+  return halves % 2 ? (whole ? `${whole}½` : "½") : String(whole);
+}
+
+// Who holds what: [{ slot, pick }] of the panes whose Pokémon holds `id`.
+export const holdersOf = (id, panes) => Object.entries(panes).filter(([, p]) => p.held === id).map(([slot, pick]) => ({ slot, pick }));

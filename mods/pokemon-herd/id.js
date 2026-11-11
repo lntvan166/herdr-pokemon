@@ -14,7 +14,11 @@ export const FOLDERS_KEY = `${MOD}-folders`;
 export const SINCE_KEY = `${MOD}-since`;
 // The upstream mod's shared-state key: read once to keep agents' Pokémon when switching over.
 export const LEGACY_KEY = "pokemon-agents";
-// This release (year.month.day, then .1, .2 for more releases that day). Bump it with every change worth updating for: copies that are
-// installed compare it with the repo's once a day and offer the update.
-export const VERSION = "2026.11.11.4";
+// For copies from before 1.0.0, which read the first VERSION = "<date>" in this file and compare
+// dates: this one is newer than any of theirs, so they offer the update. Leave it as it is.
+// VERSION = "2026.11.12"
+// This release, semver: patch for fixes, minor for new things, major for what changes how it's
+// used. Bump it with every change worth updating for: installed copies compare it with the
+// repo's once a day and offer the update.
+export const VERSION = "1.0.0";
 export const REPO = "lntvan166/herdr-pokemon";
