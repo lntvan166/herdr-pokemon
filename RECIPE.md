@@ -314,10 +314,10 @@ forms, and Mega Evolution while an agent works.
   working: 1 in 480 per tick, at most every 5 min per pair, both stop where they are, face one
   random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
 - **Favourites** (`favorites.js`, shared `pokemon-herd-favorites` { v: 1, keys: ["25",
-  "37-0001"] }): in the picker, "☆ Mark" (beside Random; "Done" while on, gold edge) makes a
+  "37-0001"] }): in the picker, "Edit ★" (beside Random; "✓ Done" while on, gold edge) makes a
   click on a grid cell star it or not instead of choosing it, the picker staying open (the
-  subtitle then says "Click Pokémon to ★ them (or not), then Done"); a starred cell shows a 12 px `★`
-  (`#f2c94c`) at its top right; the card has "☆ Favorite" / "★ Favorite" (gold edge when on);
+  subtitle then says "Click a Pokémon to ★ or un-★ it, then Done"); a starred cell shows a 12 px `★`
+  (`#f2c94c`) at its top right, and while editing the others show a dim `☆` there; the card has "☆ Favorite" / "★ Favorite" (gold edge when on);
   the filter row starts with a "★ n" chip (only the favourites, read live; with it, 🎲 picks a
   favourite); the subtitle otherwise says "for <tag>". Settings → Gameplay →
   "New agents' Pokémon: Any / Favorites" (`newFrom`): `assign()` takes the favourites as its pool,
