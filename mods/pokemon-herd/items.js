@@ -1,7 +1,8 @@
 // The Bag (items found and earned, shared by every pane) and the badges. Pure.
 import { EVOLVE_HOW, EVOLVES_FROM } from "./species.js";
 import { nameOf } from "./dex.js";
-import { itemUse, useItem, HELD_IDS } from "./picks.js";
+import { itemUse, useItem, HELD_IDS, MAX_HEARTS } from "./picks.js";
+import { duration } from "./stats.js";
 // Kept in shared state as { v: 1, items: { <id>: count }, marks: { evolutions, nightJob, fullHearts } }.
 
 export const STONES = ["fire", "water", "thunder", "leaf", "moon", "sun", "shiny", "dusk", "dawn", "ice"];
@@ -89,17 +90,32 @@ export const shinyOdds = (jobs) => (jobs >= CHARM_JOBS ? 32 : 64);
 
 // The eight badges, in order. `got` reads the stats summary ({ jobs, ms, longest }) and the bag's marks.
 const HOUR = 3600000;
+// Each badge: what earns it (`got`) and how far along it is (`progress`: { fraction, left }),
+// from one goal each. `s`: the stats summary ({ jobs, ms, longest }); `m`: the Bag's marks;
+// `live`: the Pokémon on screen now ({ best: the most hearts, evolve: the closest to evolving,
+// 0..1 }). Times still to go round up a minute, times done round down (stats.js duration).
+const toGo = (ms) => duration(Math.ceil(Math.max(0, ms) / 60000) * 60000);
+const jobsTo = (goal) => ({
+  got: (s) => s.jobs >= goal,
+  progress: (s) => ({ fraction: s.jobs / goal, left: `${goal - s.jobs} job${goal - s.jobs === 1 ? "" : "s"} to go` }),
+});
 export const BADGES = [ // art: PokeAPI's badges/1..8, the Kanto badges in this order
-  { id: "boulder", name: "Boulder Badge", icon: "🪨", how: "10 jobs done", got: (s) => s.jobs >= 10 },
-  { id: "cascade", name: "Cascade Badge", icon: "💧", how: "100 jobs done", got: (s) => s.jobs >= 100 },
-  { id: "thunder", name: "Thunder Badge", icon: "⚡", how: "a Pokémon evolved", got: (_s, m) => m.evolutions >= 1 },
-  { id: "rainbow", name: "Rainbow Badge", icon: "🌈", how: "24 hours of work", got: (s) => s.ms >= 24 * HOUR },
-  { id: "soul", name: "Soul Badge", icon: "💗", how: "a Pokémon with 5 hearts", got: (_s, m) => m.fullHearts },
-  { id: "marsh", name: "Marsh Badge", icon: "🌙", how: "a job finished between midnight and 5", got: (_s, m) => m.nightJob },
-  { id: "volcano", name: "Volcano Badge", icon: "🌋", how: "one job over an hour", got: (s) => s.longest >= HOUR },
-  { id: "earth", name: "Earth Badge", icon: "🌍", how: "1000 jobs done", got: (s) => s.jobs >= 1000 },
+  { id: "boulder", name: "Boulder Badge", icon: "🪨", how: "10 jobs done", ...jobsTo(10) },
+  { id: "cascade", name: "Cascade Badge", icon: "💧", how: "100 jobs done", ...jobsTo(100) },
+  { id: "thunder", name: "Thunder Badge", icon: "⚡", how: "a Pokémon evolved", got: (_s, m) => m.evolutions >= 1,
+    progress: (_s, _m, live) => ({ fraction: live.evolve ?? 0, left: "evolve a Pokémon" }) },
+  { id: "rainbow", name: "Rainbow Badge", icon: "🌈", how: "24 hours of work", got: (s) => s.ms >= 24 * HOUR,
+    progress: (s) => ({ fraction: s.ms / (24 * HOUR), left: `${toGo(24 * HOUR - s.ms)} of work to go` }) },
+  { id: "soul", name: "Soul Badge", icon: "💗", how: `a Pokémon with ${MAX_HEARTS} hearts`,
+    got: (_s, m, live = {}) => m.fullHearts || (live.best ?? 0) >= MAX_HEARTS,
+    progress: (_s, _m, live) => ({ fraction: (live.best ?? 0) / MAX_HEARTS, left: `best now is ♥${live.best ?? 0}: ${MAX_HEARTS - (live.best ?? 0)} to go` }) },
+  { id: "marsh", name: "Marsh Badge", icon: "🌙", how: "a job finished between midnight and 5", got: (_s, m) => m.nightJob,
+    progress: () => ({ fraction: 0, left: "finish a job between midnight and 5" }) },
+  { id: "volcano", name: "Volcano Badge", icon: "🌋", how: "one job over an hour", got: (s) => s.longest >= HOUR,
+    progress: (s) => ({ fraction: s.longest / HOUR, left: s.longest ? `longest job ${duration(s.longest)}: ${toGo(HOUR - s.longest)} to go` : "one job over an hour" }) },
+  { id: "earth", name: "Earth Badge", icon: "🌍", how: "1000 jobs done", ...jobsTo(1000) },
 ];
-export const badges = (summary, marks) => BADGES.map((b) => ({ ...b, earned: !!b.got(summary, marks) }));
+export const badges = (summary, marks, live = {}) => BADGES.map((b) => ({ ...b, earned: !!b.got(summary, marks, live) }));
 
 // Each badge, the first time it is earned, comes with an item to hold (in turn: Lucky Egg,
 // Soothe Bell, Amulet Coin…). Returns the gifts and the badges now seen (for marks.seen).
@@ -114,27 +130,12 @@ export function badgeGifts(summary, marks) {
   return { gifts, seen };
 }
 
-// How far along each badge is: { ...badge, earned, fraction (0..1), left (what's still to do, in
-// words; "" once earned) }. `best`: the most hearts any Pokémon has now (for the Soul Badge).
-const mins = (ms) => {
-  const m = Math.max(1, Math.ceil(ms / 60000));
-  return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`;
-};
-export function badgeProgress(summary, marks, best = 0) {
-  const jobs = (goal) => ({ fraction: summary.jobs / goal, left: `${goal - summary.jobs} job${goal - summary.jobs === 1 ? "" : "s"} to go` });
-  const how = {
-    boulder: () => jobs(10),
-    cascade: () => jobs(100),
-    thunder: () => ({ fraction: 0, left: "evolve a Pokémon" }),
-    rainbow: () => ({ fraction: summary.ms / (24 * HOUR), left: `${mins(24 * HOUR - summary.ms)} of work to go` }),
-    soul: () => ({ fraction: best / 5, left: `best is ♥${best}: ${5 - best} to go` }),
-    marsh: () => ({ fraction: 0, left: "finish a job between midnight and 5" }),
-    volcano: () => ({ fraction: summary.longest / HOUR, left: summary.longest ? `longest job ${mins(summary.longest)}: ${mins(HOUR - summary.longest)} to go` : "one job over an hour" }),
-    earth: () => jobs(1000),
-  };
-  return badges(summary, marks).map((b) => {
+// How far along each badge is: { ...badge, earned, fraction (0..1; under 1 till earned), left
+// (what's still to do, in words; "" once earned) }.
+export function badgeProgress(summary, marks, live = {}) {
+  return badges(summary, marks, live).map((b) => {
     if (b.earned) return { ...b, fraction: 1, left: "" };
-    const p = how[b.id]();
+    const p = b.progress(summary, marks, live);
     return { ...b, fraction: Math.max(0, Math.min(0.99, p.fraction)), left: p.left };
   });
 }

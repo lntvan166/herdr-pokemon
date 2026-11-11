@@ -86,17 +86,29 @@ test("a held item for each badge newly earned, once", () => {
 import { badgeProgress, nextBadge } from "../mods/pokemon-herd/items.js";
 test("badgeProgress: how much is left for each, and the nearest", () => {
   const marks = { evolutions: 0, nightJob: false, fullHearts: false, seen: [] };
-  const p = badgeProgress({ jobs: 73, ms: 5 * 3600000, longest: 32 * 60000 }, marks, 3);
+  const p = badgeProgress({ jobs: 73, ms: 5 * 3600000, longest: 32 * 60000 }, marks, { best: 3, evolve: 0.2 });
   const by = Object.fromEntries(p.map((b) => [b.id, b]));
   assert.equal(by.boulder.earned, true);
   assert.equal(by.boulder.left, "");
   assert.equal(by.cascade.left, "27 jobs to go");
   assert.ok(Math.abs(by.cascade.fraction - 0.73) < 1e-9);
   assert.equal(by.rainbow.left, "19h of work to go");
-  assert.equal(by.soul.left, "best is ♥3: 2 to go");
+  assert.equal(by.soul.left, "best now is ♥3: 2 to go");
   assert.equal(by.volcano.left, "longest job 32m: 28m to go");
-  assert.equal(by.thunder.left, "evolve a Pokémon");
+  assert.equal(by.thunder.fraction, 0.2); // the Pokémon on screen closest to evolving
   assert.equal(by.earth.left, "927 jobs to go");
   assert.equal(nextBadge(p).id, "cascade");
   assert.equal(nextBadge(p.map((b) => ({ ...b, earned: true }))), null);
+});
+
+test("badgeProgress: a Pokémon at full hearts earns the Soul Badge even before its mark; times round the right way", () => {
+  const marks = { evolutions: 0, nightJob: false, fullHearts: false, seen: [] };
+  const p = Object.fromEntries(badgeProgress({ jobs: 0, ms: 0, longest: 59.5 * 60000 }, marks, { best: 5 }).map((b) => [b.id, b]));
+  assert.equal(p.soul.earned, true);
+  assert.equal(p.volcano.left, "longest job 59m: 1m to go"); // not "1h: 1m to go"
+  // Every badge has both what earns it and its progress: the Bag never meets a missing one.
+  for (const b of BADGES) {
+    assert.equal(typeof b.got, "function", b.id);
+    assert.equal(typeof b.progress, "function", b.id);
+  }
 });

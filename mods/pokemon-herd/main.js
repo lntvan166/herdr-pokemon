@@ -81,6 +81,16 @@ function sayingsNow() {
   }
 }
 
+// What the badges read from the Pokémon on screen now: the most hearts, and how close the
+// closest one is to evolving (0..1).
+function liveForBadges(saved = savedPicks()) {
+  const picks = agents().map((a) => a.pane && saved[a.pane]).filter(Boolean);
+  return {
+    best: Math.max(0, ...picks.map((p) => p.hearts ?? 0)),
+    evolve: Math.max(0, ...picks.map((p) => cardOf(p).progress ?? 0)),
+  };
+}
+
 // The favourite Pokémon (the picker's ★), shared by every pane.
 const favs = () => loadFavorites(shared(FAVORITES_KEY));
 const setFavs = (keys) => setShared(FAVORITES_KEY, { v: 1, keys });
@@ -969,7 +979,7 @@ export default class PokemonHerd extends View {
     const t = theme();
     const b = bag();
     const n = Object.values(b.items).reduce((x, y) => x + y, 0);
-    const got = badges(summary(stats(), 0), b.marks).filter((x) => x.earned).length;
+    const got = badges(summary(stats(), 0), b.marks, liveForBadges()).filter((x) => x.earned).length;
     const row = (id, txt, note, on) => h_flex()
       .id(id).h(28).px(8).rounded(6).items_center().justify_between()
       .text_size(12.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
@@ -1643,7 +1653,9 @@ export default class PokemonHerd extends View {
     this.icons = {}; // the herd's portraits: entry key -> "loading" | "ready" | "failed"
     // The herd changes under it (agents finish, Pokémon evolve): redraw, and fetch new portraits.
     cx.timer.every(1000, (cx) => {
-      for (const { pick } of this.herd()) {
+      // The herd's portraits, and those of Pokémon holding an item whose agents are gone ("Held by").
+      const holders = Object.values(savedPicks()).filter((p) => p.held);
+      for (const pick of [...this.herd().map((h) => h.pick), ...holders]) {
         const key = entryKey(pick);
         if (this.icons[key]) continue;
         this.icons[key] = "loading";
@@ -1657,9 +1669,8 @@ export default class PokemonHerd extends View {
   }
 
   // The herd as the Bag sees it: agents with a pane, their saved Pokémon and tags.
-  herd() {
+  herd(saved = savedPicks()) {
     const tabs = tabsById();
-    const saved = savedPicks();
     return agents().filter((a) => a.pane && saved[a.pane]).map((a) => ({ slot: a.pane, tag: tagOf(a, tabs), pick: saved[a.pane] }));
   }
 
@@ -1667,21 +1678,21 @@ export default class PokemonHerd extends View {
     const t = theme();
     const b = bag();
     const s = summary(stats(), 3);
-    const herd = this.herd();
+    const saved = savedPicks(); // read once per frame
+    const herd = this.herd(saved);
     const how = { night: isNight() };
     const ids = Object.keys(ITEMS);
     const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
     // Usable now: an evolution first (that's news), then hearts.
     const herdBySlot = Object.fromEntries(herd.map((h) => [h.slot, h]));
-    const heldAll = Object.fromEntries(ids.filter((id) => ITEMS[id].kind === "held").map((id) => [id, holdersOf(id, savedPicks())]));
+    const heldAll = Object.fromEntries(ids.filter((id) => ITEMS[id].kind === "held").map((id) => [id, holdersOf(id, saved)]));
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
     const LIST_H = ids.length * 30 + 8; // the items list; the panel beside it is held to the same height
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
-    // Badges, each with how far along it is (the Soul Badge: the most hearts any Pokémon has).
-    const best = Math.max(0, ...Object.values(savedPicks()).map((p) => p.hearts ?? 0));
-    const all = badgeProgress(s, b.marks, best);
+    // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
+    const all = badgeProgress(s, b.marks, liveForBadges(saved));
     const next = nextBadge(all);
     const got = all.filter((x) => x.earned).length;
     const art = (key, size) => this.art[key] === "ready" ? image(artPath(key)).size(size).flex_none() : div().size(size).flex_none();
@@ -1796,9 +1807,10 @@ export default class PokemonHerd extends View {
           .children(all.map((x, i) => v_flex().id(`badge-${x.id}`).w(40).flex_none().items_center().gap(4)
             .on_hover((h, cx) => { this.badgeHover = h ? x.id : this.badgeHover === x.id ? null : this.badgeHover; cx.notify(); })
             .child(div().opacity(x.earned ? 1 : 0.18).child(art(`badges/${i + 1}`, 34)))
-            // Not yet earned: how far along, as a thin bar under it.
-            .child(div().w(28).h(3).rounded_full().bg(x.earned ? "#00000000" : t.border).overflow_hidden()
-              .when(!x.earned, (el) => el.child(div().h_full().w(Math.round(28 * x.fraction)).bg(t.accent))))))
+            // Not yet earned: how far along, as a thin bar under it (earned: the same height, empty).
+            .child(div().w(28).h(3)
+              .when(!x.earned, (el) => el.rounded_full().bg(t.border).overflow_hidden()
+                .child(div().h_full().w(Math.round(28 * x.fraction)).bg(t.accent))))))
           .child(div().flex_1())
           .child(h_flex().gap(8).items_center().flex_none()
             .child(div().opacity(charm ? 1 : 0.3).child(art(CHARM_ART, 40)))
