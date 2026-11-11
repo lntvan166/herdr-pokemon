@@ -434,3 +434,10 @@ test("with a Lucky Egg, what's left to evolve counts jobs at two each", () => {
   assert.equal(cardOf({ dex: 5, jobs: 8, held: "lucky-egg" }).note, "8/10 · 🥚×2");
   assert.equal(cardOf({ dex: 5, jobs: 8 }).note, "8/10 jobs");
 });
+
+test("trimPanes never drops the panes to keep (on screen, or just updated)", () => {
+  const panes = { onScreen: { dex: 6, held: "lucky-egg" }, b: { dex: 4 }, c: { dex: 25 }, d: { dex: 1 } };
+  const r = trimPanes(panes, 2, new Set(["onScreen"]));
+  assert.deepEqual(Object.keys(r.panes).sort(), ["d", "onScreen"]);
+  assert.deepEqual(r.returned, []);
+});

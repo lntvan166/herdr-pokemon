@@ -54,7 +54,14 @@ const savedPicks = () => loadPicks(shared(MOD), null).panes;
 
 function savePicks(update) {
   // The newest 300 panes are kept; what a forgotten one's Pokémon held goes back into the Bag.
-  const { panes, returned } = trimPanes({ ...savedPicks(), ...update }, 300);
+  // Saved panes go last (the most recent), so the ones forgotten first are the longest untouched;
+  // panes on screen and those being saved now are never forgotten.
+  const next = { ...savedPicks() };
+  for (const k of Object.keys(update)) delete next[k];
+  Object.assign(next, update);
+  let onScreen = [];
+  try { onScreen = agents().map((a) => a.pane).filter(Boolean); } catch {}
+  const { panes, returned } = trimPanes(next, 300, new Set([...onScreen, ...Object.keys(update)]));
   setShared(MOD, { v: 2, panes });
   if (returned.length) {
     let b = bag();
@@ -476,14 +483,18 @@ export default class PokemonHerd extends View {
       return evolve || cur.stay ? r.pick : p;
     });
     if (evolved) noteEvolved(); // the strip flashes it from its evolvedAt
-    // A badge earned for the first time: an item to hold, in the Bag.
+    if (this.giveBadgeGifts()) this.note(m, "🏅", now, 8000);
+  }
+
+  // A badge earned for the first time: an item to hold, in the Bag. Checked when a job finishes
+  // and every half minute (a badge may come from the Bag: a stone, a Berry). True when one came.
+  giveBadgeGifts() {
     const g = badgeGifts(summary(stats(), 0), bag().marks);
-    if (g.gifts.length) {
-      let b = mark(bag(), { seen: g.seen });
-      for (const id of g.gifts) b = addItem(b, id);
-      saveBag(b);
-      this.note(m, "🏅", now, 8000);
-    }
+    if (!g.gifts.length) return false;
+    let b = mark(bag(), { seen: g.seen });
+    for (const id of g.gifts) b = addItem(b, id);
+    saveBag(b);
+    return true;
   }
 
   // Settings: Pokémon in the sidebar. Each agent's portrait (downloaded once) goes to shared
@@ -609,7 +620,10 @@ export default class PokemonHerd extends View {
   // there is one (a heart back). Idle (its agent not working nor waiting): now and then it finds
   // an item (items.js pickup) for the Bag.
   care(a, m, now) {
-    if (a.status === "blocked") {
+    // Hunger, Berries and quick-answer hearts are for agents with a pane (a sub-agent's Pokémon
+    // is its agent's, younger: it has no friendship of its own to feed).
+    if (!a.pane) { m.blockedAt = undefined; m.hungry = false; }
+    else if (a.status === "blocked") {
       m.blockedAt ??= now;
       if (!m.hungry && now - m.blockedAt >= HUNGRY_MS) {
         m.hungry = true;
@@ -695,6 +709,8 @@ export default class PokemonHerd extends View {
     list.forEach((b, j) => { const r = rowAt(b, j); rowCounts[r] = (rowCounts[r] ?? 0) + 1; });
     const hiFor = (w) => Math.max(EDGE, w - EDGE);
     const walk = (m, target, speed) => {
+      // Already there: no walk (a zero-length walk would divide 0 by 0 and lose the Pokémon).
+      if (!(Math.abs(target - m.x) >= 1)) return;
       if (this.tired) speed *= 0.6;
       m.from = m.x;
       m.target = target;
@@ -735,9 +751,12 @@ export default class PokemonHerd extends View {
       for (const m of Object.values(this.mons)) m.seat = undefined;
       changed = true;
     }
-    if (this.campfire && this.campfire.n !== list.length && hiFor(this.width) > EDGE) {
-      // Seats, per row, given out left to right (again when an agent comes or goes).
+    const unseated = this.campfire && list.some((a) => this.mons[a.address] && this.mons[a.address].seat === undefined);
+    if (this.campfire && (unseated || this.campfire.n !== list.length || this.campfire.w !== this.width) && hiFor(this.width) > EDGE) {
+      // Seats, per row, given out left to right: again when an agent comes or goes, one turns
+      // up without a seat (the strip had just started), or the strip changes width.
       this.campfire.n = list.length;
+      this.campfire.w = this.width;
       const rows = g ? g.rows : 1;
       for (let r = 0; r < rows; r++) {
         const members = list.filter((a, j) => rowAt(a, j) === r && this.mons[a.address]).map((a) => this.mons[a.address]).sort((x, y) => x.x - y.x);
@@ -755,6 +774,8 @@ export default class PokemonHerd extends View {
       const lo = EDGE;
       const hi = Math.max(lo, this.width - EDGE);
       let m = this.mons[a.address];
+      // Never lose one to a bad number: back inside the strip, standing.
+      if (m && !Number.isFinite(m.x)) { m.x = m.from = m.target = clamp(Number.isFinite(m.target) ? m.target : (lo + hi) / 2, lo, hi); m.moving = false; m.dur = 150; }
       if (!m) {
         // Spread over its own row: agent i is the k-th of `inRow` on row i % rows.
         const rows = g ? g.rows : 1;
@@ -803,8 +824,10 @@ export default class PokemonHerd extends View {
       // it steps to one side, so both show.
       const leadM = family[a.address] && this.mons[family[a.address]];
       if (leadM && !m.moving && !leadM.moving && !reacting && Math.abs(m.x - leadM.x) < 30 && hi > lo) {
-        walk(m, clamp(leadM.x + (m.x <= leadM.x ? -44 : 44), lo, hi), SPEED.idle);
-        changed = true;
+        // Its own side, or the other when the edge leaves no room there.
+        const side = m.x <= leadM.x ? -1 : 1;
+        const spot = [side, -side].map((d) => clamp(leadM.x + d * 44, lo, hi)).find((x) => Math.abs(x - m.x) >= 8);
+        if (spot !== undefined) { walk(m, spot, SPEED.idle); changed = true; }
       }
       // At the campfire: walk to its seat (asleep or not), then stay there facing the fire.
       if (this.campfire && m.seat !== undefined && !m.moving && !m.entering && !reacting) {
@@ -937,6 +960,7 @@ export default class PokemonHerd extends View {
       }
     }
     if (this.visit(list, ids, g, now, cx)) changed = true;
+    if (now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
     if (changed || this.snowing) cx.notify();
   }
@@ -1704,7 +1728,9 @@ export default class PokemonHerd extends View {
       : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
       : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) half a heart`;
     const use = (id, h) => {
-      const r = useItem(savedPicks()[h.slot] ?? h.pick, h.slot, id, { night: isNight() }, Date.now());
+      const live = savedPicks()[h.slot]; // as saved now: never a stale copy (it may have moved since)
+      if (!live) return;
+      const r = useItem(live, h.slot, id, { night: isNight() }, Date.now());
       if (!r) return;
       savePicks({ [h.slot]: r.pick });
       saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0)); // what it held goes back in
@@ -1765,7 +1791,8 @@ export default class PokemonHerd extends View {
                   .border_1().border_color(t.border).text_color(t.foreground).text_size(12).cursor_pointer()
                   .hover((st) => st.bg(t.hover))
                   .on_click((_e, cx) => {
-                    const r = takeHeld(savedPicks()[h.slot] ?? h.pick);
+                    const saved1 = savedPicks()[h.slot]; // as saved now, or nothing to take
+                    const r = saved1 && takeHeld(saved1);
                     if (!r) return;
                     savePicks({ [h.slot]: r.pick });
                     saveBag(addItem(bag(), r.back));
@@ -1894,6 +1921,9 @@ export default class PokemonHerd extends View {
 
   choose(entry) { // { dex, form? }: a species, or one of its regional forms
     const p = props();
+    // The one it is already: keep it as it is (choosing it again would start its hearts and jobs over).
+    const was = this.livePick() ?? p.current;
+    if (was && was.dex === entry.dex && (was.form ?? null) === (entry.form ?? null)) return closeOverlay(p.overlay);
     // What it holds and its Everstone stay with the pane; a shiny pane stays shiny; its Mega
     // setting carries over, and X or Y if it stays the same species.
     const cur = this.livePick() ?? p.current;

@@ -239,7 +239,10 @@ forms, and Mega Evolution while an agent works.
 - **Held items never vanish:** choosing another Pokémon in the picker keeps what the pane holds
   and its Everstone (`switchedPick`); a Pokémon a folder gives back to a new pane moves there, the
   old pane forgotten (`fromFolders` → `forget`), so nothing is held twice. Saved picks keep the newest
-  300 panes (`trimPanes`); what a forgotten one held goes back into the Bag. In the Bag, an item to
+  300 panes (`trimPanes`): every saved pane moves to the end, so the least recently saved go
+  first, never one on screen or being saved; what a forgotten one held goes back into the Bag.
+  Choosing in the picker the Pokémon it already is just closes the picker (its hearts and jobs
+  stay). Badge gifts are checked when a job finishes and every 30 s. In the Bag, an item to
   hold shows "Held by" (agent open or "not on screen", with Take) before "On screen".
 - **The Box** (`fromBox`, `raised` in `picks.js`): saved panes not on screen whose Pokémon was
   raised (hearts, jobs, an item, an Everstone, a shiny). Choosing a species in the picker, or a

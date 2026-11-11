@@ -22,5 +22,5 @@ export const LEGACY_KEY = "pokemon-agents";
 // This release, semver: patch for fixes, minor for new things, major for what changes how it's
 // used. Bump it with every change worth updating for: installed copies compare it with the
 // repo's once a day and offer the update.
-export const VERSION = "1.7.0";
+export const VERSION = "1.7.1";
 export const REPO = "lntvan166/herdr-pokemon";
