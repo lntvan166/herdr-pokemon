@@ -373,3 +373,16 @@ export function switchedPick(cur, entry, mega, megaKind) {
     ...(cur?.held ? { held: cur.held } : {}),
   };
 }
+
+// The saved picks kept to the newest `max` panes (the oldest forgotten), and the items those
+// forgotten Pokémon held, to go back into the Bag rather than vanish.
+export function trimPanes(panes, max) {
+  const keys = Object.keys(panes);
+  const out = { ...panes };
+  const returned = [];
+  for (let i = 0; i < keys.length - max; i++) {
+    if (out[keys[i]]?.held) returned.push(out[keys[i]].held);
+    delete out[keys[i]];
+  }
+  return { panes: out, returned };
+}

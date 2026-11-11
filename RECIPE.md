@@ -238,7 +238,8 @@ forms, and Mega Evolution while an agent works.
   <name>" in a 140 px tag under it. Idle ones standing on its row within 220 px face it.
 - **Held items never vanish:** choosing another Pokémon in the picker keeps what the pane holds
   and its Everstone (`switchedPick`); a Pokémon a folder gives back to a new pane moves there, the
-  old pane forgotten (`fromFolders` → `forget`), so nothing is held twice. In the Bag, an item to
+  old pane forgotten (`fromFolders` → `forget`), so nothing is held twice. Saved picks keep the newest
+  300 panes (`trimPanes`); what a forgotten one held goes back into the Bag. In the Bag, an item to
   hold shows "Held by" (agent open or "not on screen", with Take) before "On screen".
 - **Visitor gifts:** every visitor shows 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its

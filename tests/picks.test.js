@@ -398,3 +398,12 @@ test("fromFolders moves a Pokémon to the new pane: the old pane is listed to fo
   assert.deepEqual(r.forget, ["old"]);
   assert.deepEqual(fromFolders([], panes, {}, {}).forget, []);
 });
+
+import { trimPanes } from "../mods/pokemon-herd/picks.js";
+test("trimPanes: the oldest forgotten, what they held handed back", () => {
+  const panes = { a: { dex: 6, held: "lucky-egg" }, b: { dex: 4 }, c: { dex: 25, held: "soothe-bell" }, d: { dex: 1 } };
+  const r = trimPanes(panes, 2);
+  assert.deepEqual(Object.keys(r.panes), ["c", "d"]);
+  assert.deepEqual(r.returned, ["lucky-egg"]);
+  assert.deepEqual(trimPanes(panes, 10), { panes, returned: [] });
+});

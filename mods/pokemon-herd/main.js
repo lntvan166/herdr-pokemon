@@ -16,7 +16,7 @@ import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDE
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -53,10 +53,14 @@ const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.for
 const savedPicks = () => loadPicks(shared(MOD), null).panes;
 
 function savePicks(update) {
-  const next = { ...savedPicks(), ...update };
-  const keys = Object.keys(next);
-  for (let i = 0; i < keys.length - 300; i++) delete next[keys[i]]; // forget the oldest panes
-  setShared(MOD, { v: 2, panes: next });
+  // The newest 300 panes are kept; what a forgotten one's Pokémon held goes back into the Bag.
+  const { panes, returned } = trimPanes({ ...savedPicks(), ...update }, 300);
+  setShared(MOD, { v: 2, panes });
+  if (returned.length) {
+    let b = bag();
+    for (const id of returned) b = addItem(b, id);
+    saveBag(b);
+  }
 }
 
 // Each agent's folder now (its program's working folder, else where its terminal started).
