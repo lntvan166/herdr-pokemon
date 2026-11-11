@@ -16,7 +16,7 @@ import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDE
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -35,6 +35,7 @@ const TAG_LINES = 2; // lines kept under each row for names: fixed, so the groun
 const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
+const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240;
 const COMBO_CHANCE = 1 / 480; // per tick: about every 2 minutes while an agent and its sub-agent both work
@@ -201,7 +202,7 @@ function cry(dex) {
   ensureCry(dex).then((path) => { if (path) playSound(path); }).catch(() => null);
 }
 // The Bag: a dialog of its own (menu, or keys.json "pokemon-herd.bag").
-const openBag = () => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 652, props: { bag: true } });
+const openBag = () => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true } });
 
 function tabsById() {
   const out = {};
@@ -473,9 +474,10 @@ export default class PokemonHerd extends View {
     if (!c.job) return;
     const d = new Date(now);
     if (d.getHours() < 5 && !bag().marks.nightJob) saveBag(mark(bag(), { nightJob: true }));
-    if (c.task >= CANDY_JOB_MS) { saveBag(addItem(bag(), "rare-candy")); this.note(m, "🍬", now); } // a long job: a Rare Candy
+    if (c.task >= CANDY_JOB_MS) { saveBag(addItem(bag(), "rare-candy")); this.note(m, "🍬", now, 5000, "rare-candy"); } // a long job: a Rare Candy
     let evolved = false;
     const evolve = settingsNow().evolve; // off: jobs are still counted, nothing evolves
+    const sharing = savedPicks()[a.pane]?.held === "exp-share";
     updatePick(a.pane, (cur) => {
       const r = gainJob(evolve ? cur : { ...cur, stay: true }, a.pane, { night: isNight(d) }, now);
       evolved = r.evolved;
@@ -483,6 +485,15 @@ export default class PokemonHerd extends View {
       return evolve || cur.stay ? r.pick : p;
     });
     if (evolved) noteEvolved(); // the strip flashes it from its evolvedAt
+    // Exp. Share: the job counts for the Pokémon on screen furthest from evolving too.
+    if (sharing && evolve) {
+      const saved = savedPicks();
+      const onScreen = Object.fromEntries(agents().filter((x) => x.pane && saved[x.pane]).map((x) => [x.pane, saved[x.pane]]));
+      const to = expShareTarget(onScreen, a.pane);
+      let shared2 = false;
+      if (to) updatePick(to, (cur) => { const r = gainJob(cur, to, { night: isNight(d) }, now); shared2 = r.evolved; return r.pick; });
+      if (shared2) noteEvolved();
+    }
     if (this.giveBadgeGifts()) this.note(m, "🏅", now, 8000);
   }
 
@@ -543,6 +554,12 @@ export default class PokemonHerd extends View {
     // The first within 5 minutes; a faster pace chosen since: the next one comes at that pace.
     if (this.visitAt === undefined || this.visitAt > now + every[1] * 60000) this.visitAt = Math.min(next(), now + rand(2, 5) * 60000);
     let v = this.visitor;
+    // Honey (from the Bag): a visitor right away, or right after the one walking by now.
+    const honey = shared(HONEY_KEY) ?? 0;
+    const called = this.honeySeen !== undefined && honey > this.honeySeen; // used since we last looked (not before start)
+    this.honeySeen = honey;
+    if (called && v) this.honeyNext = true;
+    else if (called) this.visitAt = now;
     if (!v && now >= this.visitAt) {
       const pick = visitorPick(new Set(Object.values(ids).map((p) => p.dex)));
       const dir = Math.random() < 0.5 ? "r" : "l";
@@ -559,7 +576,7 @@ export default class PokemonHerd extends View {
       return false;
     }
     const f = (now - v.start) / v.dur;
-    if (f >= 1) { this.visitor = null; this.visitAt = next(); return true; }
+    if (f >= 1) { this.visitor = null; this.visitAt = this.honeyNext ? now : next(); this.honeyNext = false; return true; }
     v.x = v.from + (v.to - v.from) * f;
     // Idle ones on its row, standing within 220 px, turn to watch it.
     list.forEach((a, i) => {
@@ -604,15 +621,27 @@ export default class PokemonHerd extends View {
         .left(v.x - 8).top(ground - s.box.h * scale - 18).text_size(13)
         .transition("left", { duration: 300, easing: "linear" })
         .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
-        .child(v.gift ? ITEMS[v.gift].icon : "🎁")))
+        .child(v.gift ? this.itemMark(v.gift, 18) : "🎁")))
       .when(!!hovered, (el) => el.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
         .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.gift ? ` left you ${ITEMS[v.gift].name.startsWith("A") || ITEMS[v.gift].name.startsWith("O") ? "an" : "a"} ${ITEMS[v.gift].name}` : ": click it"}`))));
   }
 
   // An icon beside its head for a few seconds: a find, a heart, a berry eaten.
-  note(m, icon, now, ms = 5000) {
-    m.note = { icon, until: now + ms };
+  // `item`: an item's id, drawn as its sprite (once downloaded) instead of the emoji.
+  note(m, icon, now, ms = 5000, item = null) {
+    m.note = { icon, until: now + ms, ...(item ? { item } : {}) };
+  }
+
+  // An item's look on the strip: its sprite once it's in, else its emoji (size px).
+  itemMark(id, size) {
+    const art = ITEMS[id]?.art;
+    this.artReady ??= new Set();
+    if (art && !this.artReady.has(art) && !(this.artAsked ??= new Set()).has(art)) {
+      this.artAsked.add(art);
+      ensureArt(art).then(() => this.artReady.add(art)).catch(() => null);
+    }
+    return art && this.artReady.has(art) ? image(artPath(art)).size(size).flex_none() : div().child(ITEMS[id]?.icon ?? "");
   }
 
   // Friendship and Pickup, each tick. Waiting on you: after HUNGRY_MS it's hungry (a heart down);
@@ -625,7 +654,8 @@ export default class PokemonHerd extends View {
     if (!a.pane) { m.blockedAt = undefined; m.hungry = false; }
     else if (a.status === "blocked") {
       m.blockedAt ??= now;
-      if (!m.hungry && now - m.blockedAt >= HUNGRY_MS) {
+      // Leftovers: never hungry, however long its agent waits.
+      if (!m.hungry && now - m.blockedAt >= HUNGRY_MS && savedPicks()[a.pane]?.held !== "leftovers") {
         m.hungry = true;
         updatePick(a.pane, (p) => withFriend(p, FRIEND.hungry));
       }
@@ -634,7 +664,7 @@ export default class PokemonHerd extends View {
         if (bag().items.berry) {
           saveBag(addItem(bag(), "berry", -1));
           updatePick(a.pane, (p) => withFriend(p, FRIEND.berry));
-          this.note(m, ITEMS.berry.icon, now);
+          this.note(m, ITEMS.berry.icon, now, 5000, "berry");
         }
       } else if (now - m.blockedAt < QUICK_MS && now - (petAt[a.pane] ?? 0) > PET_MS / 3) {
         petAt[a.pane] = now;
@@ -651,7 +681,7 @@ export default class PokemonHerd extends View {
       if (a.status !== "working" && a.status !== "blocked" && settingsNow().pickup) {
         const id = pickup();
         saveBag(addItem(bag(), id));
-        this.note(m, ITEMS[id].icon, now, 8000);
+        this.note(m, ITEMS[id].icon, now, 8000, id);
       }
     }
     if (m.note && now >= m.note.until) m.note = null;
@@ -1439,7 +1469,7 @@ export default class PokemonHerd extends View {
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
               .when(!m.note, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 900 }))
-              .child(m.note?.icon ?? "😢")))
+              .child(m.note?.item ? this.itemMark(m.note.item, 18) : (m.note?.icon ?? "😢"))))
           // Tired (the 5-hour limit is near): working ones sweat.
           .when(!!this.tired && mood === "working", (el) =>
             el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
@@ -1713,7 +1743,7 @@ export default class PokemonHerd extends View {
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
-    const LIST_H = ids.length * 30 + 8; // the items list; the panel beside it is held to the same height
+    const LIST_H = ids.length * 26 + 8; // the items list; the panel beside it is held to the same height
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
     // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
     const all = badgeProgress(s, b.marks, liveForBadges(saved));
@@ -1759,10 +1789,10 @@ export default class PokemonHerd extends View {
           .children(ids.map((id) => {
             const n = b.items[id] ?? 0;
             const on = id === sel;
-            return h_flex().id(`item-${id}`).h(30).px(8).gap(8).rounded(7).items_center()
+            return h_flex().id(`item-${id}`).h(26).px(8).gap(8).rounded(7).items_center()
               .bg(on ? t.selected : "#00000000").cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
               .on_click((_e, cx) => { this.sel = id; cx.notify(); })
-              .child(div().opacity(n ? 1 : 0.35).child(art(ITEMS[id].art, 26)))
+              .child(div().opacity(n ? 1 : 0.35).child(art(ITEMS[id].art, 22)))
               .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(n ? t.foreground : t.dim).child(ITEMS[id].name))
               .when(takers[id].length > 0, (el) => el.child(div().size(6).rounded_full().bg(t.accent)))
               .when((heldAll[id]?.length ?? 0) > 0, (el) => el.child(div().text_size(11).text_color(t.muted).child(`${heldAll[id].length} held`)))
@@ -1800,12 +1830,30 @@ export default class PokemonHerd extends View {
                   })
                   .child("Take"));
             }))))
-          .child(div().h(2))
-          .child(div().text_size(11.5).text_color(t.muted).child("On screen"))
-          .when(!(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
+          // An item to use (Honey): one button, no Pokémon to choose.
+          .when(ITEMS[sel].kind === "use", (el) => {
+            const off = settingsNow().visitors === "off";
+            return el.child(div().h(2)).child(h_flex().gap(10).items_center()
+              .child((() => {
+                const on = !!b.items[sel] && !off;
+                return div().id("use-honey").h(26).px(14).rounded_full().flex().items_center().flex_none()
+                  .text_size(12).font_semibold().bg(on ? t.solid : t.border).text_color(on ? t.solid_foreground : t.dim)
+                  .when(on, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
+                    saveBag(addItem(bag(), sel, -1));
+                    setShared(HONEY_KEY, Date.now());
+                    cx.notify();
+                  }))
+                  .child("Call one now");
+              })())
+              .child(div().text_size(11.5).text_color(t.dim)
+                .child(off ? "Visitors are off (Settings)." : !b.items[sel] ? "None in the Bag yet." : "It walks across within a few seconds.")));
+          })
+          .when(ITEMS[sel].kind !== "use", (el) => el.child(div().h(2))
+          .child(div().text_size(11.5).text_color(t.muted).child("On screen")))
+          .when(ITEMS[sel].kind !== "use" && !(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
             .child(sel === "rare-candy" ? "None yet. A job over 30 minutes earns one; idle Pokémon sometimes find one."
               : "None yet. Idle Pokémon find these now and then.")))
-          .when(!!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
+          .when(ITEMS[sel].kind !== "use" && !!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
             .child(herd.length ? "No one here can use it now." : "No agents on screen.")))
           .child(v_flex().gap(4).children((b.items[sel] ? takers[sel] : []).slice(0, SHOW).map((h) => h_flex().id(`taker-${h.slot}`).h(38).gap(10).items_center()
             .child(icon(h.pick, 32))

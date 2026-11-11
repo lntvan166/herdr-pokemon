@@ -90,8 +90,9 @@ export function randomEntry(entries, current, taken, rnd = Math.random) {
 }
 
 // What a Pokémon can hold, and what each does: Lucky Egg, every job counts twice towards
-// evolving; Soothe Bell, every heart it gains is two; Amulet Coin, it finds items twice as often.
-export const HELD_IDS = ["lucky-egg", "soothe-bell", "amulet-coin"];
+// evolving; Soothe Bell, every heart it gains is two; Amulet Coin, it finds items twice as often;
+// Leftovers, it never goes hungry; Exp. Share, each job its agent finishes counts for another too.
+export const HELD_IDS = ["lucky-egg", "soothe-bell", "amulet-coin", "leftovers", "exp-share"];
 
 // Jobs its agent finishes before a Pokémon evolves (by levelling up); hearts for friendship.
 export const EVOLVE_JOBS = 10;
@@ -404,4 +405,19 @@ export function fromBox(entry, panes, onScreen, except = null) {
   if (!hits.length) return null;
   const [slot, pick] = hits[hits.length - 1];
   return { slot, pick };
+}
+
+// Exp. Share: which other Pokémon on screen gets a job too when its holder's agent finishes one:
+// one that evolves by jobs (no Everstone), the furthest from it. `picks`: { <pane>: pick } of
+// those on screen; `giver`: the holder's pane. Null when none can use it.
+export function expShareTarget(picks, giver) {
+  let best = null, least = Infinity;
+  for (const [pane, p] of Object.entries(picks)) {
+    if (pane === giver) continue;
+    const c = cardOf(p);
+    if (c.progress === null || c.progress >= least) continue;
+    best = pane;
+    least = c.progress;
+  }
+  return best;
 }

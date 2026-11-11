@@ -256,6 +256,14 @@ forms, and Mega Evolution while an agent works.
   earned at once). The line right of "Badges n of 8": hovering one, "<name>: <how> · <left>"
   ("27 jobs to go", "19h of work to go", "best is ♥3: 2 to go", "longest job 32m: 28m to go");
   else "Next: <the nearest> · <left>", or "All eight earned".
+- **Leftovers, Exp. Share, Honey:** Leftovers (held): never hungry, whatever the wait. Exp. Share
+  (held): when its agent finishes a job, `gainJob` also runs for the Pokémon on screen that
+  evolves by jobs and is furthest from it (`expShareTarget`), unless Evolution is off. Honey
+  (`kind: "use"`): the Bag shows "Call one now" (dim with no Honey or with Visitors off) instead
+  of "On screen"; it writes shared `pokemon-herd-honey` = now, and the strip's next tick calls a
+  visitor at once (or right after the one walking by). Pickup weights: Honey 4, each held item 1.
+  The Bag's rows are 26 px (18 items) in a 672 px dialog. Item marks on the strip (a find, a gift,
+  a Berry eaten, a Rare Candy) are the item's sprite, 18 px, once downloaded; its emoji till then.
 - **Visitor gifts:** every visitor shows 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says

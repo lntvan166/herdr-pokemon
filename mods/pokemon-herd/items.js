@@ -17,6 +17,9 @@ export const ITEMS = {
   "lucky-egg": { name: "Lucky Egg", icon: "🥚", art: "items/lucky-egg", kind: "held" },
   "soothe-bell": { name: "Soothe Bell", icon: "🔔", art: "items/soothe-bell", kind: "held" },
   "amulet-coin": { name: "Amulet Coin", icon: "🪙", art: "items/amulet-coin", kind: "held" },
+  leftovers: { name: "Leftovers", icon: "🍎", art: "items/leftovers", kind: "held" },
+  "exp-share": { name: "Exp. Share", icon: "📡", art: "items/exp-share", kind: "held" },
+  honey: { name: "Honey", icon: "🍯", art: "items/honey", kind: "use" },
 };
 export const HELD = HELD_IDS;
 export const CHARM_ART = "items/shiny-charm";
@@ -33,6 +36,9 @@ export function itemAbout(id) {
   if (id === "lucky-egg") return "For a Pokémon to hold: every job its agent finishes counts twice towards evolving.";
   if (id === "soothe-bell") return "For a Pokémon to hold: every heart it gains is two.";
   if (id === "amulet-coin") return "For a Pokémon to hold: it finds items twice as often.";
+  if (id === "leftovers") return "For a Pokémon to hold: it never goes hungry, however long its agent waits on you.";
+  if (id === "exp-share") return "For a Pokémon to hold: each job its agent finishes also counts for the Pokémon on screen furthest from evolving.";
+  if (id === "honey") return "Calls a wild Pokémon over right away, with its gift.";
   if (id === "rare-candy") return "Evolves a Pokémon now, if it evolves by jobs or by friendship (with its hearts full).";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");
@@ -50,7 +56,7 @@ export function takersOf(id, herd, how = {}) {
 export const MAX_ITEM = 99;
 
 // Pickup: what an idle Pokémon digs up. Berries mostly, a stone now and then, rarely a Rare Candy.
-const PICKUP = [["berry", 70], ...STONES.map((k) => [`${k}-stone`, 2]), ["rare-candy", 10], ...HELD_IDS.map((id) => [id, 1])];
+const PICKUP = [["berry", 70], ...STONES.map((k) => [`${k}-stone`, 2]), ["rare-candy", 10], ["honey", 4], ...HELD_IDS.map((id) => [id, 1])];
 export function pickup(rnd = Math.random) {
   let r = rnd() * PICKUP.reduce((t, [, w]) => t + w, 0);
   for (const [id, w] of PICKUP) if ((r -= w) < 0) return id;

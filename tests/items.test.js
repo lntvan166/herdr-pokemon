@@ -22,7 +22,7 @@ test("addItem counts up and down within limits", () => {
 
 test("pickup always finds a real item, mostly berries", () => {
   assert.equal(pickup(() => 0), "berry");
-  assert.equal(pickup(() => 0.9999), "amulet-coin"); // the last, and rarest
+  assert.equal(pickup(() => 0.9999), "exp-share"); // the last, and among the rarest
   const seen = new Set(Array.from({ length: 2000 }, (_, i) => pickup(() => (i + 0.5) / 2000)));
   for (const id of seen) assert.ok(ITEMS[id], id);
   assert.ok(seen.has("thunder-stone"));
@@ -111,4 +111,27 @@ test("badgeProgress: a Pokémon at full hearts earns the Soul Badge even before 
     assert.equal(typeof b.got, "function", b.id);
     assert.equal(typeof b.progress, "function", b.id);
   }
+});
+
+import { expShareTarget } from "../mods/pokemon-herd/picks.js";
+test("new items: Leftovers and Exp. Share to hold, Honey to use", () => {
+  assert.equal(ITEMS.leftovers.kind, "held");
+  assert.equal(ITEMS["exp-share"].kind, "held");
+  assert.equal(ITEMS.honey.kind, "use");
+  for (const id of ["leftovers", "exp-share", "honey"]) assert.ok(itemAbout(id).length > 10, id);
+  const seen = new Set(Array.from({ length: 4000 }, (_, i) => pickup(() => (i + 0.5) / 4000)));
+  assert.ok(seen.has("honey") && seen.has("leftovers") && seen.has("exp-share"));
+});
+
+test("expShareTarget: another Pokémon on screen that evolves by jobs, the furthest from it", () => {
+  const picks = {
+    giver: { dex: 4, jobs: 2, held: "exp-share" },
+    near: { dex: 1, jobs: 8 },
+    far: { dex: 7, jobs: 1 },
+    done: { dex: 6, jobs: 0 }, // nothing to become
+    stone: { dex: 25, jobs: 0 }, // a stone, not jobs
+    stay: { dex: 152, jobs: 0, stay: true }, // an Everstone
+  };
+  assert.equal(expShareTarget(picks, "giver"), "far");
+  assert.equal(expShareTarget({ giver: picks.giver, done: picks.done }, "giver"), null);
 });

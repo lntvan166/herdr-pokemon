@@ -55,7 +55,9 @@ one to switch) and what it takes to evolve. The Bag also holds the **8 badges**
 (10 jobs, 100, a first evolution, 24 hours of work, 5 hearts, a job finished after midnight, a job
 over an hour, 1000 jobs); each badge, the first time, comes with an item to hold: a **Lucky Egg**
 (jobs count twice towards evolving), a **Soothe Bell** (hearts come twice as fast) or an **Amulet
-Coin** (it finds things twice as often). At 500 jobs you get the **Shiny Charm**: shinies twice as
+Coin** (it finds things twice as often), **Leftovers** (it never goes hungry) or an **Exp. Share**
+(each job its agent finishes also counts for the Pokémon furthest from evolving). **Honey**, used
+from the Bag, calls a visitor over at once. At 500 jobs you get the **Shiny Charm**: shinies twice as
 often.
 
 **Agent cards.** Settings → Agent cards → **Sidebar**, and every agent is its Pokémon's card: the
