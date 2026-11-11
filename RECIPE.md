@@ -100,6 +100,12 @@ forms, and Mega Evolution while an agent works.
   "Hear one" with a Play pill (the focused agent's species). "Gameplay": switches for Evolution
   (off: jobs still count, nothing evolves), Pickup, Weather, Sparring, Sub-agents (all on by
   default). Footer: "Pokémon herd <version>".
+- **Where an update goes** (`updateScript` in `update.js`): the release's `mods/pokemon-herd` is
+  copied over every folder under `mods/` whose `id.js` names this repo and runs this VERSION (an
+  agent may have installed it under another name), else over every folder of this repo; each
+  keeps its own `export const MOD` line. It prints "<folder> <version>" per folder, and Settings
+  says "Updated mods/<folder> to <version>. It reloads by itself; if this still says <old>,
+  restart Herdr." No folder found: "this mod's folder wasn't found under mods/".
 - **Settings → Updates** (`selfupdate.js`): "Pokémon herd" with the version ("1.0.0, the
   latest (checked once a day)", or "<new> is out; you have <v>…") and an "Update now" pill
   (live only when newer): curl the repo's main tarball, copy `mods/pokemon-herd/` over the

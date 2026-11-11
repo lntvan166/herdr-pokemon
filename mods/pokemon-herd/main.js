@@ -1206,14 +1206,18 @@ export default class PokemonHerd extends View {
       .child(heading("Updates"))
       .child(panel(
         line("Pokémon herd", this.updating === "running" ? "Downloading…"
-          : this.updating === "done" ? "Updated. It reloads by itself."
+          : this.updating === "done" ? `Updated ${(this.updated ?? []).map((u) => `mods/${u.dir.split("/").pop()} to ${u.version}`).join(", ")}. It reloads by itself; if this still says ${VERSION}, restart Herdr.`
           : this.updating ? `Couldn't update: ${this.updating}`
           : props()?.update ? `${props().update} is out; you have ${VERSION}. Your Pokémon, Bag and badges stay.`
           : `${VERSION}, the latest (checked once a day).`,
           button("update-now", "Update now", !!props()?.update && this.updating !== "running" && this.updating !== "done", (cx) => {
             this.updating = "running";
             cx.spawn(async (cx) => {
-              try { await updateNow(); this.updating = "done"; } catch (e) { this.updating = String(e?.message ?? e); }
+              try {
+                const done = await updateNow();
+                this.updated = done; // shown: which folder, to which version
+                this.updating = "done";
+              } catch (e) { this.updating = String(e?.message ?? e); }
               cx.notify();
             });
           })),

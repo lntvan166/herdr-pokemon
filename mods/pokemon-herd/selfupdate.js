@@ -1,7 +1,8 @@
 // Updating this mod in place, and patching Better Sidebar to draw the agent cards. Both run
 // shell tools (curl, tar, patch) with the user's environment; each throws a short message.
 import { exec, appHome } from "herdr";
-import { MOD, REPO } from "./id.js";
+import { MOD, REPO, VERSION } from "./id.js";
+import { updateScript } from "./update.js";
 
 const MOD_DIR = `${appHome()}/mods/${MOD}`;
 const SIDEBAR_DIR = `${appHome()}/mods/better-sidebar`;
@@ -9,19 +10,17 @@ const PATCH = `${MOD_DIR}/extras/better-sidebar-cards.patch`;
 const sh = (script, timeout = 120000) => exec("sh", ["-c", script], { timeout });
 const lastLine = (r) => (r.stderr || r.stdout).trim().split("\n").pop() || `exit ${r.code}`;
 
-// Downloads the repo's main branch and copies its mods/<MOD> over this folder; Herdr reloads
-// the mod by itself. Herdr's own jsconfig.json and *.d.ts in the folder are left alone, and
-// files the release dropped stay (harmless). Picks, stats and the Bag live in shared state,
-// not here, so nothing is lost.
+// Downloads the repo's main branch and copies its mods/pokemon-herd over this mod's folder,
+// wherever it is installed and whatever it is called (update.js updateScript finds it by its
+// repo and running version); Herdr reloads it by itself. Picks, stats and the Bag live in
+// shared state, not there, so nothing is lost. Returns [{ dir, version }] of what was updated.
 export async function updateNow() {
-  const r = await sh(`set -e
-d=$(mktemp -d)
-trap 'rm -rf "$d"' EXIT
-curl -sfL --retry 2 --connect-timeout 10 "https://codeload.github.com/${REPO}/tar.gz/refs/heads/main" | tar -xz -C "$d"
-src=$(echo "$d"/*/mods/${MOD})
-test -f "$src/main.js" || { echo "the download has no mods/${MOD}" >&2; exit 1; }
-cp -R "$src"/. "${MOD_DIR}"/`);
+  const r = await sh(updateScript({ app: appHome(), repo: REPO, running: VERSION }));
   if (r.code !== 0) throw new Error(lastLine(r));
+  return r.stdout.trim().split("\n").filter(Boolean).map((l) => {
+    const at = l.lastIndexOf(" ");
+    return { dir: l.slice(0, at), version: l.slice(at + 1) };
+  });
 }
 
 // Better Sidebar: "missing" (not installed), "patched" (draws the cards) or "unpatched".
