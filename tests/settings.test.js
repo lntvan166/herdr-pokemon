@@ -33,3 +33,9 @@ test("visitors: a pace, often by default; the old switch still read", () => {
   assert.equal(VISIT_EVERY.off, null);
   assert.deepEqual(VISIT_EVERY.often, [3, 8]);
 });
+
+test("new agents: any species by default, or the favourites", () => {
+  assert.equal(loadSettings(null).newFrom, "any");
+  assert.equal(loadSettings({ v: 1, newFrom: "favorites" }).newFrom, "favorites");
+  assert.equal(loadSettings({ v: 1, newFrom: "junk" }).newFrom, "any");
+});

@@ -53,7 +53,10 @@ const slotOf = (a) => a.pane || a.address;
 // Saved picks first; a new agent gets a Pokémon nobody on screen has yet, and a 1 in 64 chance
 // of a shiny. Deterministic per pane. Agents without a pane (sub-agents) aren't saved; `memo`
 // (kept by the caller, in memory) holds theirs so they keep it even when a pane takes the same one.
-export function assign(list, panes, memo = {}, odds = SHINY_ODDS) {
+// `pool` (Settings → New agents: Favorites): new agents' Pokémon come from these entries
+// ({ dex, form? }) instead of every walking species.
+export function assign(list, panes, memo = {}, odds = SHINY_ODDS, pool = null) {
+  const choices = pool?.length ? pool : WALKABLE.map((dex) => ({ dex }));
   const ids = {};
   const fresh = {};
   const used = new Set();
@@ -64,10 +67,10 @@ export function assign(list, panes, memo = {}, odds = SHINY_ODDS) {
   for (const a of list) {
     if (ids[a.address]) continue;
     const slot = slotOf(a);
-    let k = hash(slot) % WALKABLE.length;
-    for (let i = 0; i < WALKABLE.length && used.has(WALKABLE[k]); i++) k = (k + 1) % WALKABLE.length;
-    const dex = WALKABLE[k];
-    const pick = { dex, shiny: hash(`${slot}:shiny`) % odds === 0 && hasShiny(dex), mega: "auto" };
+    let k = hash(slot) % choices.length;
+    for (let i = 0; i < choices.length && used.has(choices[k].dex); i++) k = (k + 1) % choices.length;
+    const { dex, form } = choices[k];
+    const pick = { dex, shiny: hash(`${slot}:shiny`) % odds === 0 && hasShiny(dex, form), mega: "auto", ...(form ? { form } : {}) };
     ids[a.address] = pick;
     if (a.pane) fresh[a.pane] = pick; // saved: agents with a pane
     else memo[a.address] = pick; // in memory: sub-agents

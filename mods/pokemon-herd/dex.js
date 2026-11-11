@@ -80,7 +80,8 @@ export function regionOf(e) {
 }
 
 // search() over species and forms: name, number, or a form's region ("alola") matches.
-// `only`: { region } (one of REGIONS) and/or { mega: true } (species that can Mega Evolve here).
+// `only`: { region } (one of REGIONS), { mega: true } (species that can Mega Evolve here) and/or
+// { keys } (a Set of "<dex>" / "<dex>-<form>": the favourites).
 export function searchEntries(query, limit, only = {}) {
   const f = fold(query.trim()).replace(/^#/, "");
   const num = f.replace(/^0+/, "");
@@ -89,6 +90,7 @@ export function searchEntries(query, limit, only = {}) {
   for (const e of ENTRIES) {
     if (only.region && regionOf(e) !== only.region) continue;
     if (only.mega && (e.form || !megaForm(e.dex))) continue;
+    if (only.keys && !only.keys.has(`${e.dex}${e.form ? `-${e.form}` : ""}`)) continue;
     const label = e.form ? fold(formsOf(e.dex).find((x) => x.form === e.form).label) : "";
     const hit = !f || FOLDED.get(e.dex).includes(f) || label.includes(f) || String(e.dex) === num || String(e.dex).padStart(3, "0").startsWith(f);
     if (!hit) continue;

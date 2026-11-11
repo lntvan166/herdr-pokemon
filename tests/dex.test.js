@@ -97,3 +97,9 @@ test("evolutions: next stages and the whole line", () => {
   assert.deepEqual(chainOf(133)[0], [133]);
   assert.deepEqual(chainOf(132), [[132]]); // Ditto: alone
 });
+
+test("searchEntries: only the favourites", () => {
+  const keys = new Set(["25", "37-0001"]);
+  assert.deepEqual(searchEntries("", Infinity, { keys }).entries, [{ dex: 25 }, { dex: 37, form: "0001" }]);
+  assert.deepEqual(searchEntries("vulpix", 9, { keys }).entries, [{ dex: 37, form: "0001" }]);
+});

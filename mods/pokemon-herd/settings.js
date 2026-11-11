@@ -12,6 +12,7 @@ export const DEFAULTS = {
   campfire: true, // at night with every agent resting, the herd sleeps round a fire
   tired: true, // near the 5-hour limit (Usage Limits) the herd sweats and walks slower
   visitors: "often", // how often a wild Pokémon walks across the strip: VISIT_EVERY
+  newFrom: "any", // new agents' Pokémon: from every species ("any") or from the favourites ("favorites")
   sidebar: false, // publish shared "agent-icons" / "agent-cards" for Better Sidebar (opt-in: it needs a patch)
 };
 
@@ -23,6 +24,7 @@ export function loadSettings(raw) {
   if (raw?.v !== 1) return out;
   for (const k of Object.keys(DEFAULTS)) if (typeof DEFAULTS[k] === "boolean" && typeof raw[k] === "boolean") out[k] = raw[k];
   // Visitors was a switch before it had a pace: on is the default pace, off stays off.
+  if (raw.newFrom === "favorites") out.newFrom = "favorites";
   if (raw.visitors === false) out.visitors = "off";
   else if (typeof raw.visitors === "string" && raw.visitors in VISIT_EVERY) out.visitors = raw.visitors;
   return out;

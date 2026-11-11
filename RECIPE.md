@@ -255,6 +255,14 @@ forms, and Mega Evolution while an agent works.
 - **Combo** (`onCombo`, `COMBO_GAP` in `react.js`): an agent and its sub-agent (`family`) both
   working: 1 in 480 per tick, at most every 5 min per pair, both stop where they are, face one
   random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
+- **Favourites** (`favorites.js`, shared `pokemon-herd-favorites` { v: 1, keys: ["25",
+  "37-0001"] }): in the picker, a right-click on a grid cell stars it or not (the row under the
+  pointer and its x give the cell) and the picker stays open; a starred cell shows a 12 px `★`
+  (`#f2c94c`) at its top right; the card has "☆ Favorite" / "★ Favorite" (gold edge when on);
+  the filter row starts with a "★ n" chip (only the favourites, read live; with it, 🎲 picks a
+  favourite); the subtitle says "for <tag> · right-click one to ★ it". Settings → Gameplay →
+  "New agents' Pokémon: Any / Favorites" (`newFrom`): `assign()` takes the favourites as its pool,
+  still one each while there are enough.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

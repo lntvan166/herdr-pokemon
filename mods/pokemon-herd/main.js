@@ -12,7 +12,8 @@ import { statusChange, record, loadStats, summary, duration, statLine } from "./
 const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
 import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
-import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY } from "./id.js";
+import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
+import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
@@ -76,6 +77,10 @@ function sayingsNow() {
   }
 }
 
+// The favourite Pokémon (the picker's ★), shared by every pane.
+const favs = () => loadFavorites(shared(FAVORITES_KEY));
+const setFavs = (keys) => setShared(FAVORITES_KEY, { v: 1, keys });
+
 // Every agent on the strip: herdr's agents, and (Settings: Sub-agents) the sub-agents it leaves out.
 function herdAgents() {
   const list = agents();
@@ -102,7 +107,9 @@ const assignAll = (list) => {
     for (let i = 0; i < keys.length - 300; i++) delete back.folders[keys[i]]; // forget the oldest folders
     setShared(FOLDERS_KEY, { v: 1, folders: back.folders });
   }
-  const r = assign(list, savedPicks(), paneless, charmOdds());
+  // Settings → New agents: Favorites: a new agent's Pokémon is one of the favourites.
+  const pool = loadSettings(shared(SETTINGS_KEY)).newFrom === "favorites" ? favoriteEntries(favs()) : null;
+  const r = assign(list, savedPicks(), paneless, charmOdds(), pool);
   // Sub-agents (Settings: on): their agent's Pokémon, younger. `family`: child -> parent address.
   r.family = {};
   if (loadSettings(shared(SETTINGS_KEY)).family) {
@@ -1099,6 +1106,8 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
+        line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: right-click one in the picker to ★ it." : "Any species, or one of your favourites (★ in the picker).",
+          choices("new-from", [["any", "Any"], ["favorites", "Favorites"]], st.newFrom, () => true, (v) => setSetting("newFrom", v))),
         line("Campfire", "At night, with every agent resting, the herd sleeps round a fire.", toggle("campfire")),
         line("Visitors", "A wild Pokémon walks across, and the herd watches it go by. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
           choices("visitors", [["off", "Off"], ["rare", "Rare"], ["often", "Often"], ["lots", "Lots"]], st.visitors, () => true, (v) => setSetting("visitors", v))),
@@ -1781,7 +1790,7 @@ export default class PokemonHerd extends View {
       cx.notify();
     });
     this.input.on("submit", () => {
-      const { entries, total } = searchEntries(this.input.value(), 2, this.only);
+      const { entries, total } = searchEntries(this.input.value(), 2, this.searchOnly());
       if (total === 1) this.choose(entries[0]);
     });
     this.input.focus();
@@ -1790,6 +1799,12 @@ export default class PokemonHerd extends View {
     this.pickX = 0; // the pointer's x over the list: which column a click was in
     // The list's renderer can't start downloads; this picks up what scrolled into view.
     cx.timer.every(250, (cx) => this.fetchIcons(cx));
+  }
+
+  // The filter chips as searchEntries takes them: the ★ chip is the favourites' keys, read live.
+  searchOnly() {
+    const { fav, ...rest } = this.only;
+    return fav ? { ...rest, keys: new Set(favs()) } : rest;
   }
 
   // Icons for what the picker shows, downloaded on demand, a few at a time.
@@ -1887,6 +1902,15 @@ export default class PokemonHerd extends View {
                   div().w(80).h(5).rounded_full().bg(t.border).overflow_hidden()
                     .child(div().h_full().w(80 * Math.min(1, (cur.jobs ?? 0) / EVOLVE_JOBS)).bg(t.accent))))),
           )
+          // A favourite (★): the picker's ★ chip lists them; new agents can be given one.
+          .child((() => {
+            const on = isFavorite(favs(), cur);
+            return div().id("favorite").h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
+              .border_color(on ? "#f2c94c" : t.border).bg(on ? t.selected : "#00000000")
+              .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+              .on_click((_e, cx) => { setFavs(toggleFavorite(favs(), cur.form ? { dex: cur.dex, form: cur.form } : { dex: cur.dex })); cx.notify(); })
+              .child(on ? "★ Favorite" : "☆ Favorite");
+          })())
           // The Everstone: its Pokémon stays as it is.
           .when(chain.length > 1, (el) => el.child(div()
             .id("everstone").h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
@@ -1962,8 +1986,9 @@ export default class PokemonHerd extends View {
   renderPicker(cx) {
     const t = theme();
     const p = props() ?? {};
-    const all = searchEntries(this.filter, Infinity, this.only).entries; // every match: scroll to browse them all
-    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega);
+    const all = searchEntries(this.filter, Infinity, this.searchOnly()).entries; // every match: scroll to browse them all
+    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav);
+    const favKeys = favs();
     // A small toggle: the filter row's chips.
     const chip = (id, label, on, flip) => div()
       .id(id).h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11).border_1()
@@ -1985,7 +2010,7 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().min_w(0).gap(2)
               .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Choose a Pokémon"))
-              .child(div().text_size(11.5).text_color(t.muted).truncate().child(`for ${p.tag ?? "this agent"}`)),
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(`for ${p.tag ?? "this agent"} · right-click one to ★ it`)),
           )
           .child(
             h_flex().gap(10).items_center().flex_none()
@@ -2041,6 +2066,7 @@ export default class PokemonHerd extends View {
       // Filters, on top of the search: species that can Mega Evolve, and one region (click again: all).
       .child(
         h_flex().gap(4).items_center().flex_none()
+          .child(chip("only-fav", favKeys.length ? `★ ${favKeys.length}` : "★", !!this.only.fav, () => { this.only = { ...this.only, fav: !this.only.fav }; }))
           .child(chip("only-mega", "Mega", !!this.only.mega, () => { this.only = { ...this.only, mega: !this.only.mega }; }))
           .child(div().w(1).h(14).mx(3).bg(t.border))
           .children(REGIONS.map((r) => chip(`only-${r}`, r, this.only.region === r, () => {
@@ -2056,9 +2082,12 @@ export default class PokemonHerd extends View {
             this.visible = all.slice(range.start * PICK_COLS, range.end * PICK_COLS);
             const rows = [];
             for (let r = range.start; r < range.end; r++) {
-              rows.push(h_flex().h(PICK_ROW).gap(PICK_GAP).children(all.slice(r * PICK_COLS, (r + 1) * PICK_COLS).map((e) => {
+              rows.push(h_flex().id(`pick-row-${r}`).h(PICK_ROW).gap(PICK_GAP)
+                .on_hover((h) => { if (h) this.pickRow = r; })
+                .children(all.slice(r * PICK_COLS, (r + 1) * PICK_COLS).map((e) => {
                 const current = e.dex === p.current?.dex && (e.form ?? null) === (p.current?.form ?? null);
                 return v_flex()
+                  .relative()
                   .w(PICK_W).h(96).flex_none()
                   .items_center().justify_center().gap(2)
                   .rounded(8).border_1()
@@ -2066,11 +2095,21 @@ export default class PokemonHerd extends View {
                   .bg(current ? t.selected : "#00000000")
                   .child(this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(56).flex_none() : div().size(56).flex_none())
                   .child(div().text_size(9.5).text_color(t.dim).child(dexNo(e.dex)))
-                  .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)));
+                  .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)))
+                  .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")));
               })));
             }
             return rows;
-          }).size_full().cursor_pointer().on_item_click((key) => {
+          }).size_full().cursor_pointer()
+          // Right-click: ★ that one (or not), and the picker stays open.
+          .on_mouse_down("right", (_e, cx) => {
+            const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
+            const e = this.pickRow !== undefined && col >= 0 && col < PICK_COLS ? all[this.pickRow * PICK_COLS + col] : null;
+            if (!e) return;
+            setFavs(toggleFavorite(favs(), e));
+            cx.notify();
+          })
+          .on_item_click((key) => {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
             if (col >= 0 && col < PICK_COLS && e) this.choose(e);
