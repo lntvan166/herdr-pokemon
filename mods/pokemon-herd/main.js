@@ -16,7 +16,7 @@ import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDE
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -90,6 +90,14 @@ function herdAgents() {
   return [...list, ...subAgents(list, terms)];
 }
 
+// Takes panes out of the saved picks (a Pokémon that moved to a new pane of its folder).
+function forgetPanes(keys) {
+  if (!keys.length) return;
+  const next = { ...savedPicks() };
+  for (const k of keys) delete next[k];
+  setShared(MOD, { v: 2, panes: next });
+}
+
 const paneless = {}; // sub-agents' picks: not saved, only kept while the app runs
 const assignAll = (list) => {
   const keys = Object.keys(paneless);
@@ -101,7 +109,7 @@ const assignAll = (list) => {
   const folders = raw?.v === 1 && raw.folders && typeof raw.folders === "object" ? raw.folders : {};
   const cwdOf = Object.fromEntries(terms.filter((t) => t?.address && typeof t.cwd === "string").map((t) => [t.address, t.cwd]));
   const back = fromFolders(list, savedPicks(), folders, cwdOf);
-  if (Object.keys(back.inherit).length) savePicks(back.inherit);
+  if (Object.keys(back.inherit).length) { savePicks(back.inherit); forgetPanes(back.forget); }
   if (JSON.stringify(back.folders) !== JSON.stringify(folders)) {
     const keys = Object.keys(back.folders);
     for (let i = 0; i < keys.length - 300; i++) delete back.folders[keys[i]]; // forget the oldest folders
@@ -1106,7 +1114,7 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
-        line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: right-click one in the picker to ★ it." : "Any species, or one of your favourites (★ in the picker).",
+        line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: ☆ Mark in the picker, then click the ones you like." : "Any species, or one of your favourites (★ in the picker).",
           choices("new-from", [["any", "Any"], ["favorites", "Favorites"]], st.newFrom, () => true, (v) => setSetting("newFrom", v))),
         line("Campfire", "At night, with every agent resting, the herd sleeps round a fire.", toggle("campfire")),
         line("Visitors", "A wild Pokémon walks across, and the herd watches it go by. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
@@ -1653,7 +1661,7 @@ export default class PokemonHerd extends View {
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
     const LIST_H = ids.length * 30 + 8; // the items list; the panel beside it is held to the same height
-    const SHOW = 4; // takers listed; the rest as "and n more"
+    const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
     const all = badges(s, b.marks);
     const got = all.filter((x) => x.earned).length;
     const art = (key, size) => this.art[key] === "ready" ? image(artPath(key)).size(size).flex_none() : div().size(size).flex_none();
@@ -1711,6 +1719,29 @@ export default class PokemonHerd extends View {
               .child(div().text_size(14).font_semibold().text_color(t.foreground).child(ITEMS[sel].name))
               .child(div().text_size(12).text_color(t.muted).child(`${b.items[sel] ?? 0} in the Bag`))))
           .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
+          // An item to hold: first who holds one now (their agent open or not), each with a way to
+          // take it back into the Bag; then who on screen could be given one.
+          .when(held.length > 0, (el) => el
+            .child(div().h(2))
+            .child(div().text_size(11.5).text_color(t.muted).child("Held by"))
+            .child(v_flex().gap(4).children(held.slice(0, 3).map((h) => {
+              const a = herdBySlot[h.slot];
+              return h_flex().id(`holder-${h.slot}`).h(38).gap(10).items_center()
+                .child(icon(h.pick, 32))
+                .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground)
+                  .child(`${fullName(h.pick.dex, h.pick.form)} · ${a ? a.tag : "not on screen"}`))
+                .child(div().id(`take-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
+                  .border_1().border_color(t.border).text_color(t.foreground).text_size(12).cursor_pointer()
+                  .hover((st) => st.bg(t.hover))
+                  .on_click((_e, cx) => {
+                    const r = takeHeld(savedPicks()[h.slot] ?? h.pick);
+                    if (!r) return;
+                    savePicks({ [h.slot]: r.pick });
+                    saveBag(addItem(bag(), r.back));
+                    cx.notify();
+                  })
+                  .child("Take"));
+            }))))
           .child(div().h(2))
           .child(div().text_size(11.5).text_color(t.muted).child("On screen"))
           .when(!(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
@@ -1732,29 +1763,7 @@ export default class PokemonHerd extends View {
               .on_click((_e, cx) => { use(sel, h); cx.notify(); })
               .child(h.use === "hold" ? "Give" : "Use")))))
           .when((b.items[sel] ? takers[sel].length : 0) > SHOW, (el) => el.child(div().text_size(11.5).text_color(t.muted)
-            .child(`and ${takers[sel].length - SHOW} more`)))
-          // An item to hold: who holds one now, each with a way to take it back into the Bag.
-          .when(held.length > 0, (el) => el
-            .child(div().h(2))
-            .child(div().text_size(11.5).text_color(t.muted).child("Held by"))
-            .child(v_flex().gap(4).children(held.slice(0, 3).map((h) => {
-              const a = herdBySlot[h.slot];
-              return h_flex().id(`holder-${h.slot}`).h(38).gap(10).items_center()
-                .child(icon(h.pick, 32))
-                .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground)
-                  .child(`${fullName(h.pick.dex, h.pick.form)} · ${a ? a.tag : "not on screen"}`))
-                .child(div().id(`take-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
-                  .border_1().border_color(t.border).text_color(t.foreground).text_size(12).cursor_pointer()
-                  .hover((st) => st.bg(t.hover))
-                  .on_click((_e, cx) => {
-                    const r = takeHeld(savedPicks()[h.slot] ?? h.pick);
-                    if (!r) return;
-                    savePicks({ [h.slot]: r.pick });
-                    saveBag(addItem(bag(), r.back));
-                    cx.notify();
-                  })
-                  .child("Take"));
-            }))))))
+            .child(`and ${takers[sel].length - SHOW} more`)))))
       // The badge case, and the Shiny Charm.
       .child(v_flex().flex_none().gap(6)
         .child(h_flex().justify_between().items_center()
@@ -1848,11 +1857,9 @@ export default class PokemonHerd extends View {
 
   choose(entry) { // { dex, form? }: a species, or one of its regional forms
     const p = props();
-    const stay = this.livePick()?.stay ? { stay: true } : {}; // the Everstone stays with the pane
-    // A shiny pane stays shiny; its Mega setting carries over, and X or Y if it stays the same species.
-    const { dex, form } = entry;
-    const megaKind = dex === p.current?.dex && this.megaKind ? { megaKind: this.megaKind } : {};
-    savePicks({ [p.slot]: { dex, shiny: p.current?.shiny === true && hasShiny(dex, form), mega: this.megaMode, ...(form ? { form } : {}), ...megaKind, ...stay } });
+    // What it holds and its Everstone stay with the pane; a shiny pane stays shiny; its Mega
+    // setting carries over, and X or Y if it stays the same species.
+    savePicks({ [p.slot]: switchedPick(this.livePick() ?? p.current, entry, this.megaMode, this.megaKind) });
     closeOverlay(p.overlay);
   }
 
@@ -2010,10 +2017,17 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().min_w(0).gap(2)
               .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Choose a Pokémon"))
-              .child(div().text_size(11.5).text_color(t.muted).truncate().child(`for ${p.tag ?? "this agent"} · right-click one to ★ it`)),
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(this.marking ? "Click Pokémon to ★ them (or not), then Done" : `for ${p.tag ?? "this agent"}`)),
           )
           .child(
             h_flex().gap(10).items_center().flex_none()
+              // Mark mode: clicks ★ Pokémon (or not) instead of choosing one; Done ends it.
+              .child(div()
+                .id("pick-mark").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
+                .border_color(this.marking ? "#f2c94c" : t.border).bg(this.marking ? t.selected : "#00000000")
+                .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+                .on_click((_e, cx) => { this.marking = !this.marking; cx.notify(); })
+                .child(this.marking ? "Done" : "☆ Mark"))
               // Any Pokémon (of those the search shows), preferring one nobody else on screen has.
               .child(div()
                 .id("pick-random").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
@@ -2082,8 +2096,10 @@ export default class PokemonHerd extends View {
             this.visible = all.slice(range.start * PICK_COLS, range.end * PICK_COLS);
             const rows = [];
             for (let r = range.start; r < range.end; r++) {
-              rows.push(h_flex().id(`pick-row-${r}`).h(PICK_ROW).gap(PICK_GAP)
-                .on_hover((h) => { if (h) this.pickRow = r; })
+              // No ids or handlers on these rows or cells: the list draws them in a pass of its own,
+              // and a row with an on_hover left the whole grid empty (1.6.0). Clicks come through
+              // on_item_click, with the pointer's x for the column.
+              rows.push(h_flex().h(PICK_ROW).gap(PICK_GAP)
                 .children(all.slice(r * PICK_COLS, (r + 1) * PICK_COLS).map((e) => {
                 const current = e.dex === p.current?.dex && (e.form ?? null) === (p.current?.form ?? null);
                 return v_flex()
@@ -2100,19 +2116,12 @@ export default class PokemonHerd extends View {
               })));
             }
             return rows;
-          }).size_full().cursor_pointer()
-          // Right-click: ★ that one (or not), and the picker stays open.
-          .on_mouse_down("right", (_e, cx) => {
-            const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
-            const e = this.pickRow !== undefined && col >= 0 && col < PICK_COLS ? all[this.pickRow * PICK_COLS + col] : null;
-            if (!e) return;
-            setFavs(toggleFavorite(favs(), e));
-            cx.notify();
-          })
-          .on_item_click((key) => {
+          }).size_full().cursor_pointer().on_item_click((key, cx) => {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
-            if (col >= 0 && col < PICK_COLS && e) this.choose(e);
+            if (!(col >= 0 && col < PICK_COLS && e)) return;
+            if (this.marking) { setFavs(toggleFavorite(favs(), e)); cx.notify(); } // stays open, ★ shown at once
+            else this.choose(e);
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )

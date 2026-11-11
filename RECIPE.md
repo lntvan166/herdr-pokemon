@@ -236,6 +236,10 @@ forms, and Mega Evolution while an agent works.
   from just past one edge to past the other at 45 px/s, starting once its sprite is in (given
   up after a minute). Drawn like the herd with its shadow, no tag; hovering shows "A wild
   <name>" in a 140 px tag under it. Idle ones standing on its row within 220 px face it.
+- **Held items never vanish:** choosing another Pokémon in the picker keeps what the pane holds
+  and its Everstone (`switchedPick`); a Pokémon a folder gives back to a new pane moves there, the
+  old pane forgotten (`fromFolders` → `forget`), so nothing is held twice. In the Bag, an item to
+  hold shows "Held by" (agent open or "not on screen", with Take) before "On screen".
 - **Visitor gifts:** every visitor shows 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says
@@ -256,11 +260,12 @@ forms, and Mega Evolution while an agent works.
   working: 1 in 480 per tick, at most every 5 min per pair, both stop where they are, face one
   random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
 - **Favourites** (`favorites.js`, shared `pokemon-herd-favorites` { v: 1, keys: ["25",
-  "37-0001"] }): in the picker, a right-click on a grid cell stars it or not (the row under the
-  pointer and its x give the cell) and the picker stays open; a starred cell shows a 12 px `★`
+  "37-0001"] }): in the picker, "☆ Mark" (beside Random; "Done" while on, gold edge) makes a
+  click on a grid cell star it or not instead of choosing it, the picker staying open (the
+  subtitle then says "Click Pokémon to ★ them (or not), then Done"); a starred cell shows a 12 px `★`
   (`#f2c94c`) at its top right; the card has "☆ Favorite" / "★ Favorite" (gold edge when on);
   the filter row starts with a "★ n" chip (only the favourites, read live; with it, 🎲 picks a
-  favourite); the subtitle says "for <tag> · right-click one to ★ it". Settings → Gameplay →
+  favourite); the subtitle otherwise says "for <tag>". Settings → Gameplay →
   "New agents' Pokémon: Any / Favorites" (`newFrom`): `assign()` takes the favourites as its pool,
   still one each while there are enough.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,

@@ -25,3 +25,21 @@ test("assign: new agents from a pool (favorites), each its own while there are e
   // No pool: any walking species, as before.
   assert.ok(assign([{ address: "t1", pane: "p1" }], {}, {}, 64, []).ids.t1.dex >= 1);
 });
+
+import { switchedPick } from "../mods/pokemon-herd/picks.js";
+test("switchedPick: choosing another Pokémon keeps what the pane holds and its Everstone", () => {
+  const before = { dex: 6, shiny: true, mega: "on", held: "lucky-egg", stay: true, friend: 60, hearts: 3, jobs: 4, megaKind: "Y" };
+  const after = switchedPick(before, { dex: 25 }, "auto", null);
+  assert.equal(after.dex, 25);
+  assert.equal(after.held, "lucky-egg");
+  assert.equal(after.stay, true);
+  assert.equal(after.jobs, undefined); // a new Pokémon starts its count
+  assert.equal(after.friend, undefined); // and its friendship
+  assert.equal(after.mega, "auto");
+  // The same species again: Mega X/Y kept.
+  assert.equal(switchedPick(before, { dex: 6 }, "on", "Y").megaKind, "Y");
+  // Nothing held, no Everstone: none added.
+  const plain = switchedPick({ dex: 6 }, { dex: 25 }, "auto", null);
+  assert.equal("held" in plain, false);
+  assert.equal("stay" in plain, false);
+});

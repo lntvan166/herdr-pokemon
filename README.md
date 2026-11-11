@@ -29,8 +29,8 @@ one and it turns to you, and its name shows what its species has done: "Pikachu 
 walking animation, and keeps it. Close an agent and open a new one in the same folder, and it
 gets that folder's Pokémon back, hearts, jobs and all (each folder its own; a subfolder is another). Now and then one is **shiny** (1 in 64). Right-click one, or
 press `alt-shift-p` for the focused agent, to pick another: search by name, number or region,
-or scroll through them all. Right-click any of them to make it a **favourite** (★); the ★ chip
-lists your favourites, and Settings → New agents' Pokémon → Favorites gives each new agent one
+or scroll through them all. **☆ Mark**, then click any of them, makes it a **favourite** (★) (or
+the card's ☆ Favorite, for the one it is now); the ★ chip lists your favourites, and Settings → New agents' Pokémon → Favorites gives each new agent one
 of them. Narrow it to the ones that can **Mega** Evolve, or to one **region**
 (Kanto to Paldea, forms included), or roll **🎲 Random** among what's shown (it prefers a
 Pokémon nobody else on screen has). The **regional forms** (Alola, Galar, Hisui, Paldea) are there too.

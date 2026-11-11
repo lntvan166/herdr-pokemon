@@ -262,10 +262,13 @@ export function cardOf(pick) {
 // a subfolder is a folder of its own). An agent whose pane has no Pokémon yet, opened in a
 // folder whose last pane is gone from the screen, gets that pane's Pokémon back as it was
 // (hearts, jobs, held item, Everstone). Two new agents in one folder: the first gets it.
-// Returns { inherit: { <pane>: pick }, folders } (folders: who each folder has now).
+// Returns { inherit: { <pane>: pick }, forget: [old panes], folders } (folders: who each folder
+// has now). A Pokémon moves, it isn't copied: the old panes are to be forgotten, or an item it
+// holds would be held twice.
 export function fromFolders(list, panes, folders, cwdOf) {
   const onScreen = new Set(list.map((a) => a.pane).filter(Boolean));
   const inherit = {};
+  const forget = [];
   const taken = new Set();
   const next = { ...folders };
   for (const a of list) {
@@ -274,12 +277,13 @@ export function fromFolders(list, panes, folders, cwdOf) {
     const prev = folders[cwd];
     if (!panes[a.pane] && prev && prev !== a.pane && panes[prev] && !onScreen.has(prev) && !taken.has(prev)) {
       inherit[a.pane] = panes[prev];
+      forget.push(prev);
       taken.add(prev);
     }
     // The folder now has this agent's Pokémon, unless another agent on screen holds it already.
     if (!next[cwd] || next[cwd] === prev && !onScreen.has(prev) || next[cwd] === a.pane) next[cwd] = a.pane;
   }
-  return { inherit, folders: next };
+  return { inherit, forget, folders: next };
 }
 
 // Rivals: agents working in the same folder at once, who may edit each other's files. `cwdOf`:
@@ -351,4 +355,21 @@ export function visitorPick(taken, rnd = Math.random) {
   const pool = free.length ? free : WALKABLE;
   const dex = pool[Math.floor(rnd() * pool.length)];
   return { dex, shiny: rnd() * SHINY_ODDS < 1 && hasShiny(dex), mega: "off" };
+}
+
+// The pick after choosing another Pokémon in the picker (`entry`: { dex, form? }): what the pane
+// holds and its Everstone stay with it (an item must never just vanish); its shiny luck stays if
+// the new one has a shiny; the job count and friendship start over; Mega X/Y only for the same
+// species. `mega`: the picker's Mega setting.
+export function switchedPick(cur, entry, mega, megaKind) {
+  const { dex, form } = entry;
+  return {
+    dex,
+    shiny: cur?.shiny === true && hasShiny(dex, form),
+    mega,
+    ...(form ? { form } : {}),
+    ...(dex === cur?.dex && megaKind ? { megaKind } : {}),
+    ...(cur?.stay ? { stay: true } : {}),
+    ...(cur?.held ? { held: cur.held } : {}),
+  };
 }

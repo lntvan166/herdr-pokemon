@@ -390,3 +390,11 @@ test("visitorPick: a walking species nobody on screen has, sometimes shiny", () 
   assert.ok(shiny > 5 && shiny < 90, String(shiny));
   assert.equal(visitorPick(new Set()).mega, "off");
 });
+
+test("fromFolders moves a Pokémon to the new pane: the old pane is listed to forget, so nothing held is doubled", () => {
+  const panes = { old: { dex: 6, held: "lucky-egg" } };
+  const r = fromFolders([{ address: "t9", pane: "new" }], panes, { "/src/tms": "old" }, { t9: "/src/tms" });
+  assert.deepEqual(r.inherit, { new: panes.old });
+  assert.deepEqual(r.forget, ["old"]);
+  assert.deepEqual(fromFolders([], panes, {}, {}).forget, []);
+});
