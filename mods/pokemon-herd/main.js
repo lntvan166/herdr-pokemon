@@ -6,7 +6,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast } from "./place.js";
-import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning } from "./scene.js";
+import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning, sunAt } from "./scene.js";
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
 
 const stats = () => loadStats(shared(STATS_KEY));
@@ -282,7 +282,9 @@ export default class PokemonHerd extends View {
   scenery(top, ground, row) {
     const now = new Date();
     const light = isLight(theme().chrome);
-    const p = palette(nightness(now.getHours() + now.getMinutes() / 60), light, seasonAt(now));
+    const hour = now.getHours() + now.getMinutes() / 60;
+    const bright = props()?.sky === "bright"; // Settings → Sky
+    const p = palette(nightness(hour), light, seasonAt(now), bright ? "bright" : "muted");
     const weather = this.weather ?? "clear";
     const storm = weather === "storm";
     // The tick redraws four times a second, so snow, leaves and rain fall.
@@ -297,7 +299,16 @@ export default class PokemonHerd extends View {
     const f = (this.sceneCache[key] ??= features(Math.round(this.width), ground, row));
     const line = ground + 4; // the ground line, as the plain background draws it
     const box = div().absolute().left(0).top(top).w(this.width).h(line + 6).overflow_hidden().bg(p.sky);
+    // Bright: the sky in four flat bands down to the horizon, and the sun on its arc by the clock.
+    const bandH = Math.ceil(line / 4);
+    const sun = bright && sunAt(hour);
+    const sunX = sun ? Math.round(sun.x * (this.width - 16)) : 0;
+    const sunY = sun ? Math.round(4 + sun.y * Math.max(1, line - 34)) : 0;
     return box
+      .when(!!p.bands, (el) => el.children(p.bands.map((c, i) => div().absolute().left(0).top(i * bandH).w(this.width).h(bandH + 1).bg(c))))
+      .when(!!sun && p.clouds > 0.05, (el) => el
+        .child(div().absolute().left(sunX - 3).top(sunY - 3).size(20).rounded_full().bg("#fff6c8").opacity(0.35 * p.clouds * fade({ x: sunX, y: sunY, w: 14, h: 14 })))
+        .child(div().absolute().left(sunX).top(sunY).size(14).rounded_full().bg("#ffe27a").opacity(p.clouds * fade({ x: sunX, y: sunY, w: 14, h: 14 }))))
       .when(p.stars > 0.05, (el) => el
         .children(f.stars.filter((s) => s.y < line - 20).map((s) => div().absolute().left(s.x).top(s.y).size(s.bright ? 2 : 1).bg(s.bright ? "#ffeebb" : "#cfd8ff").opacity(p.stars * p.starAlpha)))
         .child(div().absolute().left(f.moon.x).top(f.moon.y).size(10).rounded_full().bg("#e9e5c8").opacity(p.stars * 0.85 * fade({ x: f.moon.x, y: f.moon.y, w: 10, h: 10 }))))
@@ -901,6 +912,12 @@ export default class PokemonHerd extends View {
           choices("place", ["sidebar", "bottom", "panel"].map((p) => [p, NAMES[p]]), place, (p) => have.includes(p) && !shipped, (p) => this.applyLayout(p, rows, false))),
         line("Size", null, choices("size", SIZES, scaleIn(blockProps(tree, MOD)), () => movable, (v) => this.applySize(v))),
         line("Rows", null, choices("rows", [[1, "1"], [2, "2"], [3, "3"]], rows, () => movable, (n) => this.applyLayout(place, n, false))),
+        line("Sky", "Muted sits quietly in a dark app; Bright is a real day, a sunset, and the sun.",
+          choices("sky", [["muted", "Muted"], ["bright", "Bright"]], blockProps(tree, MOD).sky === "bright" ? "bright" : "muted",
+            () => movable && background === "scenery", (v) => {
+              const next = setBlockProps(layout(), MOD, { sky: v });
+              if (next) run("layout.set", { layout: next });
+            })),
         line("Background", null, choices("bg", [["plain", "Plain"], ["scenery", "Scenery"]], background, () => movable, (v) => {
           const next = setBlockProps(layout(), MOD, { background: v });
           if (next) run("layout.set", { layout: next });

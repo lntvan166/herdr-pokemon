@@ -220,6 +220,13 @@ forms, and Mega Evolution while an agent works.
   working ones show 💦 (11 px, pulsing) beside the head.
 - **Sayings** (`sayingOf`): terminals()' `report.msg`, first line, 48 characters at most; in the
   hover label as “…” after the tag and on the Party card under the Pokémon, while working.
+- **Sky** (Settings → Strip → "Sky: Muted / Bright", block prop `sky`, Muted by default; Scenery
+  only): Bright is `palette(n, light, season, "bright")`: the sky in four flat bands (top to
+  horizon `#5aa8e6 #78bbec #98cdf1 #b9def5` by day, `#0b1330 … #1d2b52` by night), mixed 85%
+  toward a dusk set (`#3c3f7c #7d5a92 #d77f73 #f2b06a`) halfway through dawn and dusk; fresher
+  hills, grass and trees; clouds at 90%. The sun (`sunAt`): 6:30–17:30, x across the strip, on
+  an arc highest at noon; a 14 px `#ffe27a` disc in a 20 px `#fff6c8` halo at 35%, fading as the
+  clouds do and over a head, as the moon does.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

@@ -157,3 +157,39 @@ test("rain falls inside the sky, a storm has more", () => {
   const flashes = Array.from({ length: 400 }, (_, i) => lightning(i / 4)).filter(Boolean).length;
   assert.ok(flashes >= 10 && flashes <= 12, String(flashes));
 });
+
+import { sunAt } from "../mods/pokemon-herd/scene.js";
+test("bright sky: four bands, blue by day, warm at dusk, deep at night; muted unchanged", () => {
+  const lum = (c) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)); return 0.299 * r + 0.587 * g + 0.114 * b; };
+  const day = palette(0, false, null, "bright");
+  assert.equal(day.bands.length, 4);
+  assert.ok(day.bands.every((c) => lum(c) > 120), "a bright day");
+  assert.ok(lum(day.bands[0]) < lum(day.bands[3]), "lighter toward the horizon");
+  const [r, , b] = [1, 3, 5].map((i) => parseInt(day.bands[0].slice(i, i + 2), 16));
+  assert.ok(b > r, "blue");
+  const dusk = palette(0.5, false, null, "bright");
+  const [dr, , db] = [1, 3, 5].map((i) => parseInt(dusk.bands[3].slice(i, i + 2), 16));
+  assert.ok(dr > db, "a warm horizon at dusk");
+  const night = palette(1, false, null, "bright");
+  assert.ok(night.bands.every((c) => lum(c) < 60), "deep at night");
+  assert.equal(palette(0).bands, undefined); // muted: one flat sky, as before
+  assert.equal(palette(0).sky, "#22383c");
+  assert.equal(day.sky, day.bands[0]);
+});
+
+test("sunAt: rises left at 6:30, highest at noon, sets right at 17:30, none at night", () => {
+  assert.equal(sunAt(3), null);
+  assert.equal(sunAt(20), null);
+  const rise = sunAt(6.5), noon = sunAt(12), set = sunAt(17.5);
+  assert.ok(rise.x < 0.05 && set.x > 0.95);
+  assert.ok(Math.abs(noon.x - 0.5) < 0.01);
+  assert.ok(noon.y < rise.y && noon.y < set.y, "higher at noon");
+});
+
+test("bright sky keeps its bands through the seasons", () => {
+  for (const a of [0, 1, 2, 3]) {
+    const p = palette(0, false, { a, b: (a + 1) % 4, t: 0.5 }, "bright");
+    assert.equal(p.bands.length, 4);
+    for (const c of [...p.bands, p.grass, p.tree]) assert.match(c, /^#[0-9a-f]{6}$/);
+  }
+});

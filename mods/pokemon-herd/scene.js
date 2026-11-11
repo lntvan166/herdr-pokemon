@@ -11,6 +11,30 @@ const NIGHT = { sky: "#141b2c", hill: "#1b2637", grass: "#27472f", dark: "#1a322
 const LIGHT_DAY = { sky: "#d9e6e4", hill: "#c6d9c4", grass: "#8fb878", dark: "#6f9a5c", tree: "#86b673", treeDark: "#6f9d5f", trunk: "#8f7558" };
 const LIGHT_NIGHT = { sky: "#c8cddb", hill: "#b6bece", grass: "#7f9e85", dark: "#62806a", tree: "#8aa293", treeDark: "#748b7d", trunk: "#7f7480" };
 
+// Bright (Settings → Sky: Bright): a real daylight sky in four flat bands, darker at the top,
+// lighter at the horizon (pixel-art banding, not a gradient); fresher grass and hills; a warm
+// dusk and dawn; a deep blue night. Same in a light or a dark theme.
+const BRIGHT_DAY = { bands: ["#5aa8e6", "#78bbec", "#98cdf1", "#b9def5"], hill: "#5d9c5c", grass: "#6dbf4b", dark: "#4b9237", tree: "#3f8e46", treeDark: "#2e7237", trunk: "#7a5a3a" };
+const BRIGHT_NIGHT = { bands: ["#0b1330", "#101a3b", "#162246", "#1d2b52"], hill: "#1c2a44", grass: "#29503a", dark: "#1d3b2a", tree: "#21402f", treeDark: "#183225", trunk: "#3a2e23" };
+const DUSK = ["#3c3f7c", "#7d5a92", "#d77f73", "#f2b06a"]; // top to horizon, at the turn of day and night
+
+function brightPalette(n) {
+  const p = {};
+  for (const k of Object.keys(BRIGHT_DAY)) if (k !== "bands") p[k] = mix(BRIGHT_DAY[k], BRIGHT_NIGHT[k], n);
+  const warm = Math.max(0, 1 - Math.abs(2 * n - 1)); // 0 by day and by night, 1 halfway through dawn or dusk
+  p.bands = BRIGHT_DAY.bands.map((c, i) => mix(mix(c, BRIGHT_NIGHT.bands[i], n), DUSK[i], warm * 0.85));
+  p.sky = p.bands[0];
+  return p;
+}
+
+// Where the sun is at `hour` (0–24): x from 0 (rising, left) to 1 (setting, right), y from 0
+// (the top) to 1 (the horizon), on an arc that peaks at noon. Null outside 6:30–17:30.
+export function sunAt(hour) {
+  const t = (hour - 6.5) / 11;
+  if (t < 0 || t > 1) return null;
+  return { x: t, y: 1 - Math.sin(Math.PI * t) * 0.85 };
+}
+
 // 0 by day (6:30–17:30), 1 by night (18:30–5:30), in between at dawn and dusk. `hour` is 0–24.
 export function nightness(hour) {
   const h = ((hour % 24) + 24) % 24;
@@ -64,20 +88,22 @@ export const isLight = (c) => {
 // The colours at a given nightness, for a dark theme or a light one (`light`), in a season
 // (seasonAt; none: summer), and how much the clouds (day), stars and moon (night), spring's
 // flowers, autumn's falling leaves and winter's snow show.
-export function palette(n, light = false, season = null) {
+export function palette(n, light = false, season = null, sky = "muted") {
+  const bright = sky === "bright";
   const [day, night] = light ? [LIGHT_DAY, LIGHT_NIGHT] : [DAY, NIGHT];
   let p = {};
-  for (const k of Object.keys(day)) p[k] = mix(day[k], night[k], n);
+  if (bright) p = brightPalette(n);
+  else for (const k of Object.keys(day)) p[k] = mix(day[k], night[k], n);
   let flowers = 0, leaves = 0, snow = 0;
   if (season) {
     const [a, b] = [inSeason(p, season.a, n, light), inSeason(p, season.b, n, light)];
-    for (const k of Object.keys(p)) p[k] = mix(a[k], b[k], season.t);
+    for (const k of Object.keys(p)) if (typeof p[k] === "string") p[k] = mix(a[k], b[k], season.t); // the bright sky's bands stay as they are
     const weight = (s) => (season.a === s ? 1 - season.t : 0) + (season.b === s ? season.t : 0);
     [flowers, leaves, snow] = [weight(0), weight(2), weight(3)];
   }
   p = { ...p, flowers, leaves, snow };
-  // On a pale sky white clouds and stars need more weight to show at all.
-  return { ...p, clouds: 1 - n, stars: n, cloudAlpha: light ? 0.75 : 0.14, starAlpha: light ? 0.95 : 0.7 };
+  // On a pale sky white clouds and stars need more weight to show at all; a bright day's clouds are white.
+  return { ...p, clouds: 1 - n, stars: n, cloudAlpha: bright ? 0.9 : light ? 0.75 : 0.14, starAlpha: bright ? 0.95 : light ? 0.95 : 0.7 };
 }
 
 // A small seeded random, so a row's scene is the same on every frame.

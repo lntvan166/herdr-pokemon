@@ -108,6 +108,8 @@ Mega X / Y: pick one in the picker once both are drawn.
   It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring
   blossom, summer green, gold autumn with falling leaves, then snow, a step further on each day.
 
+  **Sky: Bright** (Settings) makes it a real day instead: a blue sky in pixel bands, white clouds,
+  the sun crossing it by your clock, an orange and violet sunset and sunrise, a deep blue night.
   Switch it to **Plain** in Settings.
 - **Stats:** each species counts the jobs its agents finished and the time they spent working.
   Two agents that are both Pikachu add to Pikachu's. The Bag shows the totals and the three
