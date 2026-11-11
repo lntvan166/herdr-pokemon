@@ -72,6 +72,13 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
+**Notifications, rivals, and a tired herd.** Settings → "Pokémon in notifications" (needs a layout
+of your own) draws Herdr's notifications with the agent's Pokémon: "review · Gengar · needs you".
+Two agents working in the same folder at once may edit each other's files: their Pokémon show
+⚔️, and their cards say "⚔ same folder as …". With the Usage Limits mod, from 90% of the 5-hour
+window the herd sweats 💦 and walks slower. Hover a working Pokémon (or look at its card) to see
+what its agent says it's doing.
+
 **Weather, sparring, sub-agents, cries.** The sky rains while an agent waits on you, and storms
 when three do or one has waited 10 minutes. Two idle Pokémon standing close now and then spar
 (a heart each). A sub-agent shows as its agent's Pokémon, younger and smaller (Alakazam's helper

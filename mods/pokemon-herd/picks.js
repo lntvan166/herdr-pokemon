@@ -278,3 +278,55 @@ export function fromFolders(list, panes, folders, cwdOf) {
   }
   return { inherit, folders: next };
 }
+
+// Rivals: agents working in the same folder at once, who may edit each other's files. `cwdOf`:
+// { <address>: <folder> }. Returns { <address>: [the other addresses working there] }.
+export function rivalsOf(list, cwdOf) {
+  const byFolder = new Map();
+  for (const a of list) {
+    const cwd = a.pane && a.status === "working" && cwdOf[a.address];
+    if (!cwd) continue;
+    if (!byFolder.has(cwd)) byFolder.set(cwd, []);
+    byFolder.get(cwd).push(a.address);
+  }
+  const out = {};
+  for (const group of byFolder.values()) {
+    if (group.length < 2) continue;
+    for (const addr of group) out[addr] = group.filter((x) => x !== addr);
+  }
+  return out;
+}
+
+// Which agent a notification is about: its action's pane or terminal, else an agent whose tab's
+// name is in its title. Null when it's about none.
+export function agentOfToast(p, list) {
+  const args = p?.action?.args ?? {};
+  const byArg = list.find((a) => (args.pane && a.pane === args.pane) || (args.terminal && a.address === args.terminal));
+  if (byArg) return byArg;
+  const title = String(p?.title ?? "");
+  return list.find((a) => a.tab_name && title.includes(a.tab_name)) ?? null;
+}
+
+// Tired: the Usage Limits mod's shared "usage-limits.state" says how much of each provider's
+// 5-hour window is used. From TIRED_AT percent the herd is tired (sweats, walks slower): a nudge
+// before the limit. Returns the highest percent used, or null when there's no such mod.
+export const TIRED_AT = 90;
+export function sessionUsed(state) {
+  if (!state || typeof state !== "object") return null;
+  let top = null;
+  for (const p of Object.values(state)) {
+    const report = p?.report ?? p?.lastGood;
+    for (const w of report?.windows ?? []) {
+      if (w?.id === "session" && Number.isFinite(w.percent)) top = Math.max(top ?? 0, w.percent);
+    }
+  }
+  return top;
+}
+
+// What an agent says it's doing (its status report's message: "Running the tests"), cut to `max`.
+export function sayingOf(term, max = 48) {
+  const msg = term?.report?.msg ?? term?.report?.message ?? (typeof term?.status === "object" ? term.status?.msg : null);
+  if (typeof msg !== "string" || !msg.trim()) return null;
+  const one = msg.trim().split("\n")[0];
+  return one.length > max ? `${one.slice(0, max - 1)}…` : one;
+}

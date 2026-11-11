@@ -205,6 +205,21 @@ forms, and Mega Evolution while an agent works.
   with the line to itself but the compact status (and fold / pin); then, at 11 px, "✨ Name",
   "♥ n", the machine, the time since it changed; then a 3 px accent bar and the note, or the
   note alone. Sub-agent rows get the portrait as their icon.
+- **Notifications** (`renderToast`; Settings → Sounds and notifications → "Pokémon in
+  notifications" sets the layout root's `"toast": "pokemon-herd"`, greyed in a built-in layout):
+  the toast's props `{ title, body, level, icon, action }`; its agent by `agentOfToast` (the
+  action's pane / terminal, else a tab name in the title). With one: its portrait 40 px (radius
+  8), the title 13 px semibold, then "✨ Name · body" 12 px muted; else Herdr's own look (its icon
+  18 px, or a dot in the level's colour). Click runs the action and closes it.
+- **Rivals** (`rivalsOf` in `picks.js`): agents with a pane working in the same folder
+  (terminals()' foreground cwd, else cwd). On the strip ⚔️ 13 px pulsing over the head; hover
+  label "⚔ same folder as <tags>"; Party card and `agent-cards.warn` the same line in `working`
+  colour.
+- **Tired** (Settings → Gameplay → "Tired near the limit", on; `sessionUsed` in `picks.js`):
+  the highest "session" window percent in shared `usage-limits.state` ≥ 90: walks at 60% speed,
+  working ones show 💦 (11 px, pulsing) beside the head.
+- **Sayings** (`sayingOf`): terminals()' `report.msg`, first line, 48 characters at most; in the
+  hover label as “…” after the tag and on the Party card under the Pokémon, while working.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

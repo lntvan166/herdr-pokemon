@@ -5,7 +5,7 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder } from "herdr";
-import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod } from "./place.js";
+import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast } from "./place.js";
 import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning } from "./scene.js";
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
 
@@ -15,7 +15,7 @@ import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searc
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY } from "./id.js";
 import { loadSettings, withSetting } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -53,6 +53,24 @@ function savePicks(update) {
   const keys = Object.keys(next);
   for (let i = 0; i < keys.length - 300; i++) delete next[keys[i]]; // forget the oldest panes
   setShared(MOD, { v: 2, panes: next });
+}
+
+// Each agent's folder now (its program's working folder, else where its terminal started).
+function foldersNow() {
+  try {
+    return Object.fromEntries(terminals().filter((x) => x?.address).map((x) => [x.address, x.foreground?.cwd ?? x.cwd]).filter(([, c]) => typeof c === "string"));
+  } catch {
+    return {};
+  }
+}
+
+// What each agent says it's doing now (its status message), by address.
+function sayingsNow() {
+  try {
+    return Object.fromEntries(terminals().filter((x) => x?.address).map((x) => [x.address, sayingOf(x)]).filter(([, m]) => m));
+  } catch {
+    return {};
+  }
 }
 
 // Every agent on the strip: herdr's agents, and (Settings: Sub-agents) the sub-agents it leaves out.
@@ -189,6 +207,9 @@ const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * L
 
 export default class PokemonHerd extends View {
   init(_p, cx) {
+    // A notification (the layout root's "toast" is this mod): props { title, body, level, icon, action }.
+    this.toastView = !!props() && "title" in props() && !props().view;
+    if (this.toastView) return this.initToast(cx);
     this.picker = !!props()?.picker;
     this.menu = !!props()?.menu;
     this.bagView = !!props()?.bag;
@@ -432,7 +453,9 @@ export default class PokemonHerd extends View {
         const key = entryKey(p);
         if (this.portraits[key] === "ready") {
           icons[a.address] = iconPath(p.dex, p.form);
-          if (a.pane) cards[a.address] = { icon: icons[a.address], name: fullName(p.dex, p.form), shiny: !!p.shiny, ...cardOf(p) };
+          const rivals = (this.rivals?.[a.address] ?? []).map((x) => list.find((b) => b.address === x)).filter(Boolean);
+          const warn = rivals.length ? `⚔ same folder as ${rivals.map((b) => tagOf(b, tabsById())).join(", ")}` : "";
+          if (a.pane) cards[a.address] = { icon: icons[a.address], name: fullName(p.dex, p.form), shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
           continue;
         }
         if (this.portraits[key]) continue;
@@ -531,6 +554,7 @@ export default class PokemonHerd extends View {
     const rowCounts = [];
     list.forEach((b, j) => { const r = rowAt(b, j); rowCounts[r] = (rowCounts[r] ?? 0) + 1; });
     const walk = (m, target, speed) => {
+      if (this.tired) speed *= 0.6;
       m.from = m.x;
       m.target = target;
       m.dir = target > m.x ? "r" : "l";
@@ -548,6 +572,12 @@ export default class PokemonHerd extends View {
     const waits = list.filter((a) => a.status === "blocked").map((a) => now - (this.mons[a.address]?.blockedAt ?? now));
     const weather = season !== null && settingsNow().weather ? weatherOf(waits) : "clear";
     if (weather !== this.weather) { this.weather = weather; changed = true; }
+    // Rivals: agents working in one folder at once (they may edit each other's files): ⚔️ over them.
+    const rivals = rivalsOf(list, foldersNow());
+    this.rivals = rivals;
+    // Tired: the 5-hour window nearly used up (Usage Limits): slower steps, and working ones sweat.
+    const tired = settingsNow().tired && (sessionUsed(shared("usage-limits.state")) ?? 0) >= TIRED_AT;
+    if (tired !== !!this.tired) { this.tired = tired; changed = true; }
     // Whose agent you just focused: that Pokémon wakes up and looks at you.
     const focus = focusEdge(this.lastFocus, list);
     this.lastFocus = focus.addr;
@@ -578,6 +608,8 @@ export default class PokemonHerd extends View {
       const evolvedAt = ids[a.address]?.evolvedAt ?? 0;
       if (now - evolvedAt < 3000 && (m.flashUntil ?? 0) < evolvedAt + 3000) { m.flashUntil = evolvedAt + 3000; changed = true; }
       if (m.flashUntil && now >= m.flashUntil) { m.flashUntil = 0; changed = true; }
+      const rival = !!rivals[a.address];
+      if (rival !== !!m.rival) { m.rival = rival; changed = true; }
       const noted = !!m.note;
       this.care(a, m, now);
       if (noted !== !!m.note) changed = true;
@@ -884,8 +916,16 @@ export default class PokemonHerd extends View {
             (v) => !shipped && (v === "off" || (v === "sidebar" ? hasAgentsList(tree) || betterHere || have.includes("sidebar") : have.includes("panel"))),
             (v) => this.setCards(v, tree, betterHere))),
       ))
-      .child(heading("Sounds"))
+      .child(heading("Sounds and notifications"))
       .child(panel(
+        line("Pokémon in notifications", shipped ? `Needs a layout of your own (Make it mine, above).` : "An agent's notification leads with its Pokémon.",
+          (() => {
+            const on = toastMod(tree) === MOD;
+            return div().id("set-toast").w(34).h(20).rounded_full().flex_none().relative()
+              .bg(on ? t.accent : t.border).opacity(shipped ? 0.4 : 1)
+              .when(!shipped, (el) => el.cursor_pointer().on_click((_e, cx) => { run("layout.set", { layout: setToast(layout(), on ? null : MOD) }); cx.notify(); }))
+              .child(div().absolute().top(2).left(on ? 16 : 2).size(16).rounded_full().bg(on ? t.accent_foreground : t.foreground));
+          })()),
         line("Cry when an agent needs you", null, toggle("cryBlocked")),
         line("Cry when an agent finishes", "Herdr's own sound plays too; it can be turned off in Herdr's settings.", toggle("cryDone")),
         line("Hear one", `${fullName(sample.dex)}'s cry`, div().id("cry-test").h(26).px(12).rounded_full().flex().items_center().flex_none()
@@ -900,6 +940,7 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
+        line("Tired near the limit", "With Usage Limits: from 90% of the 5-hour window the herd sweats and walks slower.", toggle("tired")),
       ))
       .child(heading("Updates"))
       .child(panel(
@@ -941,6 +982,7 @@ export default class PokemonHerd extends View {
   }
 
   render(cx) {
+    if (this.toastView) return this.renderToast();
     if (this.menu) return this.renderMenu();
     if (this.bagView) return this.renderBagDialog();
     if (this.settingsView) return this.renderSettings();
@@ -1013,12 +1055,15 @@ export default class PokemonHerd extends View {
     const rank = (a) => (a.status === "blocked" ? 1 : a.status === "done" ? 2 : a.focused ? 3 : 4);
     // A dragged Pokémon keeps the row it was dropped on; the others take turns.
     const rowOf = (a) => (g ? Math.min(this.mons[a.address]?.row ?? list.indexOf(a) % g.rows, g.rows - 1) : 0);
+    const sayings = this.hover ? sayingsNow() : {};
     const label = (a, full) => {
       const pick = ids[a.address];
       // Hovered: its species' stats too ("Pikachu · api · 128 done · 14h 20m").
       const line = full ? statLine(stats().species[pick.dex]) : "";
       const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : "";
-      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${hearts}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
+      const saying = full && a.status === "working" ? sayings[a.address] : null;
+      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${saying ? ` · “${saying}”` : ""}${hearts}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -1151,6 +1196,14 @@ export default class PokemonHerd extends View {
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
               .when(!m.note, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 900 }))
               .child(m.note?.icon ?? "😢")))
+          // Tired (the 5-hour limit is near): working ones sweat.
+          .when(!!this.tired && mood === "working", (el) =>
+            el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
+              .loop("opacity", { from: 0.3, to: 1, period: 1100 }).child("💦")))
+          // Working in the same folder as another agent: crossed swords, pulsing, over its head.
+          .when(!!m.rival, (el) =>
+            el.child(div().absolute().left(sw / 2 - 8).top(Math.max(2, headY - 30)).text_size(13)
+              .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("⚔️")))
           // A shiny shows off when it first turns up.
           .when((m.sparkleUntil > now && this.showsShiny(pick)) || m.flashUntil > now, (el) =>
             el.child(div().absolute().left(sw / 2 + 10).top(Math.max(2, headY - 10)).text_size(13)
@@ -1194,6 +1247,44 @@ export default class PokemonHerd extends View {
         .child(`Update ${update}`));
     }
     return root;
+  }
+
+  // ---- notifications (Settings → "Pokémon in notifications": the layout root's toast) ----
+  // Herdr's own (an agent needs you, finished) and every notify(): about an agent, its Pokémon's
+  // portrait and name lead; anything else looks as Herdr's own toast does. Click: its action.
+
+  initToast(cx) {
+    this.portraitReady = false;
+    const a = agentOfToast(props(), agents());
+    const pick = a && assignAll(agents()).ids[a.address];
+    if (!pick) return;
+    cx.spawn(async (cx) => {
+      try { await ensureIcon(pick.dex, pick.form); this.portraitReady = true; } catch {}
+      cx.notify();
+    });
+  }
+
+  renderToast() {
+    const t = theme();
+    const p = props() ?? {};
+    const list = agents();
+    const a = agentOfToast(p, list);
+    const pick = a && assignAll(list).ids[a.address];
+    const DOT = { error: "blocked", warning: "working", success: "done", info: "accent" };
+    const lead = pick && this.portraitReady
+      ? div().size(40).flex_none().rounded(8).overflow_hidden().child(image(iconPath(pick.dex, pick.form)).size(40))
+      : p.icon ? image(p.icon).w(18).h(18).flex_none() : div().size(8).rounded(4).flex_none().bg(t[DOT[p.level] ?? "accent"]);
+    return h_flex().id("toast").size_full().px(14).gap(12).items_center().bg(t.popover).cursor_pointer()
+      .hover((st) => st.bg(t.hover))
+      .on_click(() => {
+        if (p.action?.name) run(p.action.name, p.action.args ?? {});
+        closeOverlay(p.overlay);
+      })
+      .child(lead)
+      .child(v_flex().flex_1().min_w(0).gap(1)
+        .child(div().truncate().font_semibold().text_size(13).text_color(t.foreground).child(p.title ?? ""))
+        .when(!!pick || !!p.body, (el) => el.child(div().truncate().text_size(12).text_color(t.muted)
+          .child(pick ? `${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}${p.body ? ` · ${p.body}` : ""}` : p.body))));
   }
 
   // ---- the Party panel (a block with props { view: "party" }; Settings → Party panel) ----
@@ -1245,6 +1336,9 @@ export default class PokemonHerd extends View {
     const tabs = tabsById();
     const { ids } = assignAll(list);
     const now = Date.now();
+    const rivals = rivalsOf(list, foldersNow());
+    const sayings = sayingsNow();
+    const warnOf = (a) => (rivals[a.address] ?? []).map((x) => list.find((b) => b.address === x)).filter(Boolean).map((b) => tagOf(b, tabs));
     // Narrow (a collapsed sidebar): just each portrait, framed in its status colour.
     const narrow = (this.partyWidth ?? 300) < 120;
     const mini = (a) => {
@@ -1291,7 +1385,11 @@ export default class PokemonHerd extends View {
             .child(div().flex_1().h(3).rounded_full().bg(t.border).overflow_hidden()
               .child(div().h_full().w(`${Math.round(c.progress * 100)}%`).bg(t.accent)))
             .child(div().flex_none().text_size(11).text_color(t.dim).child(c.note))))
-          .when(!bar && !!c.note, (el) => el.child(div().truncate().text_size(11).text_color(t.dim).child(c.note)))));
+          .when(!bar && !!c.note, (el) => el.child(div().truncate().text_size(11).text_color(t.dim).child(c.note)))
+          // What it says it's doing, while it works.
+          .when(a.status === "working" && !!sayings[a.address], (el) => el.child(div().truncate().text_size(11).text_color(t.muted).child(`“${sayings[a.address]}”`)))
+          // Working in the same folder as another agent: they may edit each other's files.
+          .when(warnOf(a).length > 0, (el) => el.child(div().truncate().text_size(11).text_color(t.working).child(`⚔ same folder as ${warnOf(a).join(", ")}`)))));
     };
     return v_flex().id("pokemon-party").size_full().min_h(0).bg(t.chrome)
       .on_size_change((size, cx) => {

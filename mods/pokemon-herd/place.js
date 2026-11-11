@@ -160,3 +160,14 @@ export function unswapAgents(tree) {
 
 // Whether some block in the layout is drawn by `mod` (e.g. "better-sidebar").
 export const usesMod = (tree, mod) => !!find(tree, (n) => n.type === "block" && n.content?.mod === mod);
+
+// ---- notifications: the layout root's "toast" names the mod that draws every notification
+// (Herdr's own and every notify()). This mod draws them with the agent's Pokémon.
+export const toastMod = (tree) => (typeof tree?.toast === "string" ? tree.toast : null);
+// A copy of the tree with notifications drawn by `mod` (null: by Herdr's own toast again).
+export function setToast(tree, mod) {
+  const out = JSON.parse(JSON.stringify(tree));
+  if (mod) out.toast = mod;
+  else delete out.toast;
+  return out;
+}

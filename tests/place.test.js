@@ -183,3 +183,12 @@ test("the Agents list drawn as cards: same block, same place and size; swapped b
   assert.deepEqual(unswapAgents(swapped), tree);
   assert.equal(swapAgents({ id: "root", type: "row", children: [] }, "pokemon-herd"), null);
 });
+
+import { toastMod, setToast } from "../mods/pokemon-herd/place.js";
+test("notifications: the layout root's toast", () => {
+  const tree = { id: "root", type: "row", children: [] };
+  assert.equal(toastMod(tree), null);
+  const on = setToast(tree, "pokemon-herd");
+  assert.equal(toastMod(on), "pokemon-herd");
+  assert.deepEqual(setToast(on, null), tree);
+});

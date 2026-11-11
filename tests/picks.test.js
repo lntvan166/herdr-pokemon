@@ -324,3 +324,40 @@ test("fromFolders: not while the old one is on screen, not for a subfolder, only
   // Sub-agents (no pane) take no part.
   assert.deepEqual(fromFolders([{ address: "t9", pane: "" }], panes, folders, { t9: "/src/tms" }).inherit, {});
 });
+
+import { rivalsOf, agentOfToast } from "../mods/pokemon-herd/picks.js";
+test("rivalsOf: two agents working in one folder", () => {
+  const list = [
+    { address: "a", pane: "pa", status: "working" }, { address: "b", pane: "pb", status: "working" },
+    { address: "c", pane: "pc", status: "idle" }, { address: "d", pane: "pd", status: "working" }, { address: "e", pane: "", status: "working" },
+  ];
+  const cwd = { a: "/src/tms", b: "/src/tms", c: "/src/tms", d: "/src/other", e: "/src/tms" };
+  assert.deepEqual(rivalsOf(list, cwd), { a: ["b"], b: ["a"] }); // idle ones and sub-agents don't count
+  assert.deepEqual(rivalsOf(list, {}), {});
+});
+
+test("agentOfToast: by its action, else by the tab named in its title", () => {
+  const list = [{ address: "t1", pane: "p1", tab_name: "api" }, { address: "t2", pane: "p2", tab_name: "review" }];
+  assert.equal(agentOfToast({ action: { name: "pane.focus", args: { pane: "p2" } } }, list).address, "t2");
+  assert.equal(agentOfToast({ action: { name: "agent.focus", args: { terminal: "t1" } } }, list).address, "t1");
+  assert.equal(agentOfToast({ title: "review needs you" }, list).address, "t2");
+  assert.equal(agentOfToast({ title: "Update ready" }, list), null);
+});
+
+import { sessionUsed, sayingOf, TIRED_AT } from "../mods/pokemon-herd/picks.js";
+test("sessionUsed: the highest 5-hour window used, from Usage Limits' state", () => {
+  const state = { claude: { report: { windows: [{ id: "session", percent: 52 }, { id: "weekly_all", percent: 97 }] } },
+    codex: { report: null, lastGood: { windows: [{ id: "session", percent: 91 }] } } };
+  assert.equal(sessionUsed(state), 91);
+  assert.ok(sessionUsed(state) >= TIRED_AT);
+  assert.equal(sessionUsed(null), null);
+  assert.equal(sessionUsed({ claude: { report: null, lastGood: null } }), null);
+});
+
+test("sayingOf: an agent's status message, one line, cut short", () => {
+  assert.equal(sayingOf({ report: { msg: "Running the tests\nmore" } }), "Running the tests");
+  assert.equal(sayingOf({ status: { msg: "Reading files" } }), "Reading files");
+  assert.equal(sayingOf({ report: { msg: "x".repeat(60) } }).length, 48);
+  assert.equal(sayingOf({ report: {} }), null);
+  assert.equal(sayingOf(null), null);
+});

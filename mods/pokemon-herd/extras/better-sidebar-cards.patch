@@ -35,7 +35,7 @@
      const hovered = this.hovered === a.address;
      const when = this.since(a);
      // An agent on another machine (`vps/t7`) says which.
-@@ -647,6 +657,97 @@
+@@ -647,6 +657,101 @@
      return div().flex_1().min_w(0).truncate().text_size(TEXT.caption).text_color(t.dim).child(prog);
    }
  
@@ -126,6 +126,10 @@
 +          )
 +          .when(!bar && Boolean(card.note), (el) =>
 +            el.child(div().truncate().text_size(TEXT.caption).text_color(t.dim).child(card.note)),
++          )
++          // A warning from the mod (two agents working in one folder).
++          .when(Boolean(card.warn), (el) =>
++            el.child(div().truncate().text_size(TEXT.caption).text_color(t.working).child(card.warn)),
 +          ),
 +      ));
 +  }
