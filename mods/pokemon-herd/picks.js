@@ -180,8 +180,10 @@ export const evolveNeeds = (pick) => evolutionsOf(pick.dex).map((dex) => ({ dex,
 export function needsText(pick) {
   const ways = new Set(evolveNeeds(pick).flatMap((n) => n.ways));
   if (!ways.size) return null;
-  const left = Math.max(1, EVOLVE_JOBS - (pick.jobs ?? 0));
-  const jobs = `after ${left} more job${left === 1 ? "" : "s"}`;
+  // A Lucky Egg counts each job twice: what's left is in real jobs, and says why.
+  const egg = pick.held === "lucky-egg";
+  const left = Math.max(1, Math.ceil((EVOLVE_JOBS - (pick.jobs ?? 0)) / (egg ? 2 : 1)));
+  const jobs = `after ${left} more job${left === 1 ? "" : "s"}${egg ? " (Lucky Egg: each counts twice)" : ""}`;
   const stones = [...ways].filter((w) => w.startsWith("stone:")).map((w) => w.slice(6));
   const cap = (k) => `${k[0].toUpperCase()}${k.slice(1)}`;
   const parts = [];
@@ -250,7 +252,7 @@ export function cardOf(pick) {
   const stone = [...ways].find((w) => w.startsWith("stone:"));
   const note = pick.stay ? "Everstone"
     : !ways.size ? "" // nothing to become: nothing to say
-    : byJobs ? `${Math.min(jobs, EVOLVE_JOBS)}/${EVOLVE_JOBS} jobs`
+    : byJobs ? `${Math.min(jobs, EVOLVE_JOBS)}/${EVOLVE_JOBS}${pick.held === "lucky-egg" ? " · 🥚×2" : " jobs"}`
     : ways.has("friend") || ways.has("friend:day") || ways.has("friend:night") ? `evolves at ${MAX_HEARTS} ♥`
     : stone ? `needs a ${stone.slice(6)[0].toUpperCase()}${stone.slice(7)} Stone`
     : "";
@@ -385,4 +387,17 @@ export function trimPanes(panes, max) {
     delete out[keys[i]];
   }
   return { panes: out, returned };
+}
+
+// The Box: Pokémon you raised whose agents are gone. A saved pane not on screen whose Pokémon is
+// of `entry`'s species (and form) and was raised (hearts, jobs, an item, an Everstone, a shiny):
+// the latest such, as { slot, pick }, or null. Whoever gets that species next takes this one
+// (moved, not copied: the caller forgets `slot`).
+export const raised = (p) => !!(p && (p.held || p.stay || p.shiny || (p.friend ?? 0) > 0 || (p.hearts ?? 0) > 0 || (p.jobs ?? 0) > 0));
+export function fromBox(entry, panes, onScreen, except = null) {
+  const hits = Object.entries(panes).filter(([slot, p]) => slot !== except && !onScreen.has(slot)
+    && p.dex === entry.dex && (p.form ?? null) === (entry.form ?? null) && raised(p));
+  if (!hits.length) return null;
+  const [slot, pick] = hits[hits.length - 1];
+  return { slot, pick };
 }

@@ -16,7 +16,7 @@ import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDE
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -646,7 +646,21 @@ export default class PokemonHerd extends View {
     const list = herdAgents();
     const tabs = tabsById();
     const { ids, fresh, family } = assignAll(list);
-    if (Object.keys(fresh).length) savePicks(fresh);
+    if (Object.keys(fresh).length) {
+      // A new agent given a species raised before (the Box): that very Pokémon, moved over.
+      const onScreen = new Set(list.map((a) => a.pane).filter(Boolean));
+      const saved = savedPicks();
+      const forget = [];
+      for (const [pane, p] of Object.entries(fresh)) {
+        const boxed = fromBox(p, saved, onScreen, pane);
+        if (!boxed || forget.includes(boxed.slot)) continue;
+        fresh[pane] = boxed.pick;
+        ids[list.find((a) => a.pane === pane)?.address] = boxed.pick;
+        forget.push(boxed.slot);
+      }
+      savePicks(fresh); // keeps new agents' Pokémon stable
+      forgetPanes(forget);
+    }
     this.publishIcons(list, ids, cx); // keeps new agents' Pokémon stable
     if (this.magick) {
       for (const a of list) {
@@ -1251,16 +1265,15 @@ export default class PokemonHerd extends View {
     const rank = (a) => (a.status === "blocked" ? 1 : a.status === "done" ? 2 : a.focused ? 3 : 4);
     // A dragged Pokémon keeps the row it was dropped on; the others take turns.
     const rowOf = (a) => (g ? Math.min(this.mons[a.address]?.row ?? list.indexOf(a) % g.rows, g.rows - 1) : 0);
-    const sayings = this.hover ? sayingsNow() : {};
     const label = (a, full) => {
       const pick = ids[a.address];
       // Hovered: its species' stats too ("Pikachu · api · 128 done · 14h 20m").
       const line = full ? statLine(stats().species[pick.dex]) : "";
       const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : "";
-      const holds = full && pick.held ? ` · holds ${ITEMS[pick.held].icon} ${ITEMS[pick.held].name}` : "";
+      const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
-      const saying = full && a.status === "working" ? sayings[a.address] : null;
-      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${saying ? ` · “${saying}”` : ""}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      // What it says it's doing stays on the cards: here it ran across the whole strip.
+      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -1863,7 +1876,18 @@ export default class PokemonHerd extends View {
     const p = props();
     // What it holds and its Everstone stay with the pane; a shiny pane stays shiny; its Mega
     // setting carries over, and X or Y if it stays the same species.
-    savePicks({ [p.slot]: switchedPick(this.livePick() ?? p.current, entry, this.megaMode, this.megaKind) });
+    const cur = this.livePick() ?? p.current;
+    let next = switchedPick(cur, entry, this.megaMode, this.megaKind);
+    // The Box: that species raised before by an agent now gone comes back as it was (its hearts,
+    // jobs, item, shiny); if both hold something, this pane's item goes back into the Bag.
+    const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
+    const boxed = fromBox(entry, savedPicks(), onScreen, p.slot);
+    if (boxed) {
+      if (cur?.held && boxed.pick.held) saveBag(addItem(bag(), cur.held));
+      next = { ...boxed.pick, mega: this.megaMode, ...(boxed.pick.held || !cur?.held ? {} : { held: cur.held }), ...(cur?.stay ? { stay: true } : {}) };
+    }
+    savePicks({ [p.slot]: next });
+    if (boxed) forgetPanes([boxed.slot]);
     closeOverlay(p.overlay);
   }
 
@@ -1906,7 +1930,7 @@ export default class PokemonHerd extends View {
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
               .child(h_flex().gap(1).items_center()
                 .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
-                .child(div().ml(8).text_size(11.5).text_color(t.muted).child(line ? `Its species: ${line}` : "Its species hasn't finished a job yet")))
+                .child(div().ml(8).text_size(11.5).text_color(t.muted).child(line ? `Every ${nameOf(cur.dex)}: ${line}` : `No ${nameOf(cur.dex)} has finished a job yet`)))
               .child(h_flex().gap(8).items_center()
                 .child(div().min_w(0).text_size(11.5).text_color(t.foreground).child(progress))
                 .when(byJobs, (el) => el.child(

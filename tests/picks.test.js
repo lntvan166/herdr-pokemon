@@ -407,3 +407,30 @@ test("trimPanes: the oldest forgotten, what they held handed back", () => {
   assert.deepEqual(r.returned, ["lucky-egg"]);
   assert.deepEqual(trimPanes(panes, 10), { panes, returned: [] });
 });
+
+import { fromBox, raised } from "../mods/pokemon-herd/picks.js";
+test("fromBox: the raised Pokémon of that species whose agent is gone, the latest", () => {
+  const panes = {
+    old1: { dex: 6, friend: 40, hearts: 2 },
+    live: { dex: 6, held: "soothe-bell" },
+    fresh: { dex: 6, mega: "auto" }, // never raised: not in the Box
+    old2: { dex: 6, held: "lucky-egg", jobs: 3 },
+    vulpixA: { dex: 37, form: "0001", friend: 20 },
+  };
+  const onScreen = new Set(["live"]);
+  assert.deepEqual(fromBox({ dex: 6 }, panes, onScreen), { slot: "old2", pick: panes.old2 });
+  assert.equal(fromBox({ dex: 6 }, panes, onScreen, "old2").slot, "old1"); // not its own pane
+  assert.equal(fromBox({ dex: 37 }, panes, onScreen), null); // the species, not its Alolan form
+  assert.equal(fromBox({ dex: 37, form: "0001" }, panes, onScreen).slot, "vulpixA");
+  assert.equal(fromBox({ dex: 25 }, panes, onScreen), null);
+  assert.equal(raised({ dex: 6, mega: "auto" }), false);
+  assert.equal(raised({ dex: 6, shiny: true }), true);
+});
+
+test("with a Lucky Egg, what's left to evolve counts jobs at two each", () => {
+  assert.equal(needsText({ dex: 5, jobs: 8, held: "lucky-egg" }), "after 1 more job (Lucky Egg: each counts twice)");
+  assert.equal(needsText({ dex: 5, jobs: 5, held: "lucky-egg" }), "after 3 more jobs (Lucky Egg: each counts twice)");
+  assert.equal(needsText({ dex: 5, jobs: 8 }), "after 2 more jobs");
+  assert.equal(cardOf({ dex: 5, jobs: 8, held: "lucky-egg" }).note, "8/10 · 🥚×2");
+  assert.equal(cardOf({ dex: 5, jobs: 8 }).note, "8/10 jobs");
+});

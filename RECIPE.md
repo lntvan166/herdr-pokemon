@@ -218,8 +218,8 @@ forms, and Mega Evolution while an agent works.
 - **Tired** (Settings → Gameplay → "Tired near the limit", on; `sessionUsed` in `picks.js`):
   the highest "session" window percent in shared `usage-limits.state` ≥ 90: walks at 60% speed,
   working ones show 💦 (11 px, pulsing) beside the head.
-- **Sayings** (`sayingOf`): terminals()' `report.msg`, first line, 48 characters at most; in the
-  hover label as “…” after the tag and on the Party card under the Pokémon, while working.
+- **Sayings** (`sayingOf`): terminals()' `report.msg`, first line, 48 characters at most; on the
+  Party card under the Pokémon, while working (not in the strip's hover label: too long there).
 - **Sky** (Settings → Strip → "Sky: Muted / Bright", block prop `sky`, Muted by default; Scenery
   only): Bright is `palette(n, light, season, "bright")`: the sky in four flat bands (top to
   horizon `#5aa8e6 #78bbec #98cdf1 #b9def5` by day, `#0b1330 … #1d2b52` by night), mixed 85%
@@ -241,6 +241,12 @@ forms, and Mega Evolution while an agent works.
   old pane forgotten (`fromFolders` → `forget`), so nothing is held twice. Saved picks keep the newest
   300 panes (`trimPanes`); what a forgotten one held goes back into the Bag. In the Bag, an item to
   hold shows "Held by" (agent open or "not on screen", with Take) before "On screen".
+- **The Box** (`fromBox`, `raised` in `picks.js`): saved panes not on screen whose Pokémon was
+  raised (hearts, jobs, an item, an Everstone, a shiny). Choosing a species in the picker, or a
+  new agent being given one (in the strip's tick, before its fresh picks are saved), takes the
+  latest raised one of that species and form, as it was (the picker's Mega setting kept; the
+  pane's own item kept if the boxed one holds none, else back into the Bag), and forgets its
+  old pane. Labels: the picker card says "Every Charmeleon: 6 done · 1m" (all of that species).
 - **Visitor gifts:** every visitor shows 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says

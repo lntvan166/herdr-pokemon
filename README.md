@@ -74,6 +74,10 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
+**The Box.** Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
+shiny luck. The next agent to get that species (you pick it, or a new agent is given it) gets
+that very Pokémon back; it moves over, so an item is never doubled.
+
 **Visitors.** Every few minutes a wild Pokémon nobody has (once in a while a shiny) walks across
 the strip and is gone; idle ones turn to watch it pass. Hover it: "A wild Pidgey". Settings →
 Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the default) or Lots (1–3). Each
@@ -88,8 +92,7 @@ sub-agent, both working, now and then attack together, side by side (⚡).
 of your own) draws Herdr's notifications with the agent's Pokémon: "review · Gengar · needs you".
 Two agents working in the same folder at once may edit each other's files: their Pokémon show
 ⚔️, and their cards say "⚔ same folder as …". With the Usage Limits mod, from 90% of the 5-hour
-window the herd sweats 💦 and walks slower. Hover a working Pokémon (or look at its card) to see
-what its agent says it's doing.
+window the herd sweats 💦 and walks slower. An agent's card says what it's doing while it works.
 
 **Weather, sparring, sub-agents, cries.** The sky rains while an agent waits on you, and storms
 when three do or one has waited 10 minutes; when the last one is answered, a rainbow. Two idle Pokémon standing close now and then spar
