@@ -13,7 +13,7 @@ const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
 import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY } from "./id.js";
-import { loadSettings, withSetting } from "./settings.js";
+import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
@@ -34,8 +34,6 @@ const TAG_LINES = 2; // lines kept under each row for names: fixed, so the groun
 const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
-const VISIT_MIN = 10 * 60000; // a wild Pokémon walks across every 10 to 25 minutes (the first, 2 to 5 after start)
-const VISIT_MAX = 25 * 60000;
 const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240; // per tick (4 a second): about once a minute while a pair is ready // idle, about to stroll: how often it reacts to the season instead
 // props.rows (> 1): agents take turns across that many rows; each roams its whole row, passing
@@ -490,8 +488,11 @@ export default class PokemonHerd extends View {
   // Visitors (Settings → Visitors): now and then a wild Pokémon nobody has walks across a row,
   // edge to edge, and is gone. Idle ones near it turn to watch it go by. Returns whether to redraw.
   visit(list, ids, g, now, cx) {
-    if (!settingsNow().visitors || !this.sized || this.width < 200) { this.visitor = null; return false; }
-    this.visitAt ??= now + rand(2, 5) * 60000;
+    const every = VISIT_EVERY[settingsNow().visitors]; // [from, to] minutes; null: off
+    if (!every || !this.sized || this.width < 200) { this.visitor = null; return false; }
+    const next = () => now + rand(every[0], every[1]) * 60000;
+    // The first within 5 minutes; a faster pace chosen since: the next one comes at that pace.
+    if (this.visitAt === undefined || this.visitAt > now + every[1] * 60000) this.visitAt = Math.min(next(), now + rand(2, 5) * 60000);
     let v = this.visitor;
     if (!v && now >= this.visitAt) {
       const pick = visitorPick(new Set(Object.values(ids).map((p) => p.dex)));
@@ -505,11 +506,11 @@ export default class PokemonHerd extends View {
     if (!v.start) {
       // It sets off once its sprite is in; one that can't be had in a minute doesn't come.
       if (meta?.walkR) v.start = now;
-      else if (now - v.asked > 60000) { this.visitor = null; this.visitAt = now + rand(VISIT_MIN, VISIT_MAX); }
+      else if (now - v.asked > 60000) { this.visitor = null; this.visitAt = next(); }
       return false;
     }
     const f = (now - v.start) / v.dur;
-    if (f >= 1) { this.visitor = null; this.visitAt = now + rand(VISIT_MIN, VISIT_MAX); return true; }
+    if (f >= 1) { this.visitor = null; this.visitAt = next(); return true; }
     v.x = v.from + (v.to - v.from) * f;
     // Idle ones on its row, standing within 220 px, turn to watch it.
     list.forEach((a, i) => {
@@ -1017,7 +1018,8 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
-        line("Visitors", "Now and then a wild Pokémon walks across, and the herd watches it go by.", toggle("visitors")),
+        line("Visitors", "A wild Pokémon walks across, and the herd watches it go by. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
+          choices("visitors", [["off", "Off"], ["rare", "Rare"], ["often", "Often"], ["lots", "Lots"]], st.visitors, () => true, (v) => setSetting("visitors", v))),
         line("Tired near the limit", "With Usage Limits: from 90% of the 5-hour window the herd sweats and walks slower.", toggle("tired")),
       ))
       .child(heading("Updates"))

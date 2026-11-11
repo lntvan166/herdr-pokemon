@@ -22,3 +22,14 @@ test("the sidebar cards are off by default (opt-in), and can be turned on", () =
   assert.equal(loadSettings(null).sidebar, false);
   assert.equal(loadSettings({ v: 1, sidebar: true }).sidebar, true);
 });
+
+import { VISIT_EVERY } from "../mods/pokemon-herd/settings.js";
+test("visitors: a pace, often by default; the old switch still read", () => {
+  assert.equal(loadSettings(null).visitors, "often");
+  assert.equal(loadSettings({ v: 1, visitors: "lots" }).visitors, "lots");
+  assert.equal(loadSettings({ v: 1, visitors: "junk" }).visitors, "often");
+  assert.equal(loadSettings({ v: 1, visitors: false }).visitors, "off");
+  assert.equal(loadSettings({ v: 1, visitors: true }).visitors, "often");
+  assert.equal(VISIT_EVERY.off, null);
+  assert.deepEqual(VISIT_EVERY.often, [3, 8]);
+});

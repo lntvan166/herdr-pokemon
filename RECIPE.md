@@ -228,7 +228,10 @@ forms, and Mega Evolution while an agent works.
   an arc highest at noon; a 14 px `#ffe27a` disc in a 20 px `#fff6c8` halo at 35%, fading as the
   clouds do and over a head, as the moon does.
 - **Visitors** (`visit`, `renderVisitor` in `main.js`; `visitorPick` in `picks.js`; Settings →
-  Gameplay → Visitors, on): the first 2–5 min after start, then every 10–25 min, on a strip at
+  Gameplay → "Visitors: Off / Rare / Often / Lots", `VISIT_EVERY` in `settings.js`: 10–25, 3–8
+  (default), 1–3 minutes; a saved `true` from before reads as Often, `false` as Off): the first
+  within 2–5 min of start (sooner if the pace is), then at a random time in the pace's range; a
+  faster pace chosen meanwhile reschedules the next. On a strip at
   least 200 px wide: a walking species no agent has (shiny 1 in 64, never Mega), on a random row,
   from just past one edge to past the other at 45 px/s, starting once its sprite is in (given
   up after a minute). Drawn like the herd with its shadow, no tag; hovering shows "A wild

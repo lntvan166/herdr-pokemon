@@ -72,9 +72,9 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
-**Visitors.** Every 10 to 25 minutes a wild Pokémon nobody has (once in a while a shiny) walks
-across the strip and is gone; idle ones turn to watch it pass. Hover it: "A wild Pidgey". Off in
-Settings → Visitors.
+**Visitors.** Every few minutes a wild Pokémon nobody has (once in a while a shiny) walks across
+the strip and is gone; idle ones turn to watch it pass. Hover it: "A wild Pidgey". Settings →
+Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the default) or Lots (1–3).
 
 **Notifications, rivals, and a tired herd.** Settings → "Pokémon in notifications" (needs a layout
 of your own) draws Herdr's notifications with the agent's Pokémon: "review · Gengar · needs you".
