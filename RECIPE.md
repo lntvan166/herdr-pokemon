@@ -236,6 +236,15 @@ forms, and Mega Evolution while an agent works.
   from just past one edge to past the other at 45 px/s, starting once its sprite is in (given
   up after a minute). Drawn like the herd with its shadow, no tag; hovering shows "A wild
   <name>" in a 140 px tag under it. Idle ones standing on its row within 220 px face it.
+- **Visitor gifts:** every visitor shows 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
+  clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
+  icon replaces the 🎁 for 4 s; its hover tag (230 px) says
+  "A wild <name>: click it", then "… left you a Fire Stone".
+- **Rainbow** (`rainbowArcs`, `rainbowFade`, `RAINBOW_MS` in `scene.js`): when the weather goes
+  from rain or storm to clear, for 3 min (fading in over the first tenth, out over the last third),
+  by day: six 2 px rings (`#e8574f #f39a45 #f2d14b #62c463 #4f9be0 #8a63d2`, outside in) centred
+  on the horizon at a random 25–75% of the width, outer radius min(sky − 6, 12% of the width),
+  at 80%, drawn before the hills so its feet are behind them.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

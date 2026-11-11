@@ -215,3 +215,21 @@ export const rainAt = (drops, sec, line, storm) => drops.filter((_, i) => storm 
 
 // A storm's lightning: a quarter-second flash every 9 seconds or so (the strip redraws four times a second).
 export const lightning = (sec) => Math.floor(sec * 4) % 37 === 0;
+
+// A rainbow after the rain (the weather clears): RAINBOW_MS long, fading in for the first tenth
+// and out for the last third. Its bands, outside in: circles centred on the horizon at `cx`,
+// `r` the outer radius, each band 2 px narrower; only their top halves show above the hills.
+export const RAINBOW_MS = 3 * 60000;
+const RAINBOW = ["#e8574f", "#f39a45", "#f2d14b", "#62c463", "#4f9be0", "#8a63d2"];
+export function rainbowArcs(cx, horizon, r) {
+  return RAINBOW.map((color, i) => {
+    const rr = r - i * 2;
+    return { x: Math.round(cx - rr), y: Math.round(horizon - rr), size: 2 * rr, color };
+  });
+}
+// How strongly it shows `ms` after it began: 0 → 1 → 0.
+export function rainbowFade(ms) {
+  if (ms < 0 || ms >= RAINBOW_MS) return 0;
+  const t = ms / RAINBOW_MS;
+  return t < 0.1 ? t / 0.1 : t > 2 / 3 ? (1 - t) * 3 : 1;
+}

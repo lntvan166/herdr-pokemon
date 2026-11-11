@@ -74,7 +74,9 @@ place, rows and size can be set.
 
 **Visitors.** Every few minutes a wild Pokémon nobody has (once in a while a shiny) walks across
 the strip and is gone; idle ones turn to watch it pass. Hover it: "A wild Pidgey". Settings →
-Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the default) or Lots (1–3).
+Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the default) or Lots (1–3). Each
+carries a gift (🎁 over its head): click it as it passes and it leaves you something for the Bag
+(a Berry mostly, now and then a stone).
 
 **Notifications, rivals, and a tired herd.** Settings → "Pokémon in notifications" (needs a layout
 of your own) draws Herdr's notifications with the agent's Pokémon: "review · Gengar · needs you".
@@ -84,7 +86,7 @@ window the herd sweats 💦 and walks slower. Hover a working Pokémon (or look 
 what its agent says it's doing.
 
 **Weather, sparring, sub-agents, cries.** The sky rains while an agent waits on you, and storms
-when three do or one has waited 10 minutes. Two idle Pokémon standing close now and then spar
+when three do or one has waited 10 minutes; when the last one is answered, a rainbow. Two idle Pokémon standing close now and then spar
 (a heart each). A sub-agent shows as its agent's Pokémon, younger and smaller (Alakazam's helper
 is an Abra), tagged "↳ tab", and follows it. Each Pokémon can cry, its real cry, when its agent
 needs you or finishes: off by default, in **Settings** (needs `ffmpeg`).

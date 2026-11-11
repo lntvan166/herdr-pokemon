@@ -193,3 +193,16 @@ test("bright sky keeps its bands through the seasons", () => {
     for (const c of [...p.bands, p.grass, p.tree]) assert.match(c, /^#[0-9a-f]{6}$/);
   }
 });
+
+import { rainbowArcs, rainbowFade, RAINBOW_MS } from "../mods/pokemon-herd/scene.js";
+test("a rainbow: six bands on the horizon, fading in and out", () => {
+  const arcs = rainbowArcs(300, 80, 60);
+  assert.equal(arcs.length, 6);
+  assert.deepEqual(arcs[0], { x: 240, y: 20, size: 120, color: "#e8574f" });
+  assert.ok(arcs.every((a, i) => a.x + a.size / 2 === 300 && a.y + a.size / 2 === 80 && (i === 0 || a.size < arcs[i - 1].size)));
+  assert.equal(rainbowFade(-1), 0);
+  assert.equal(rainbowFade(0), 0);
+  assert.equal(rainbowFade(RAINBOW_MS / 2), 1);
+  assert.ok(rainbowFade(RAINBOW_MS * 0.9) < 0.5);
+  assert.equal(rainbowFade(RAINBOW_MS), 0);
+});

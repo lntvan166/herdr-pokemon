@@ -6,7 +6,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast } from "./place.js";
-import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning, sunAt } from "./scene.js";
+import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning, sunAt, rainbowArcs, rainbowFade, RAINBOW_MS } from "./scene.js";
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
 
 const stats = () => loadStats(shared(STATS_KEY));
@@ -317,6 +317,13 @@ export default class PokemonHerd extends View {
         .absolute().left(c.x).top(c.y).w(c.w).h(12).opacity(p.clouds * p.cloudAlpha * fade({ x: c.x, y: c.y, w: c.w, h: 12 }))
         .child(div().absolute().left(0).top(4).w(c.w).h(8).rounded(4).bg("#ffffff"))
         .child(div().absolute().left(Math.round(c.w * 0.25)).top(0).w(Math.round(c.w * 0.45)).h(9).rounded(5).bg("#ffffff")))))
+      // A rainbow after the rain, by day, its feet behind the hills.
+      .when(!!this.rainbow && p.clouds > 0.05, (el) => {
+        const strength = rainbowFade(now.getTime() - this.rainbow.at) * p.clouds * 0.8;
+        const r = Math.round(Math.max(20, Math.min(line - 6, this.width * 0.12)));
+        return el.children(rainbowArcs(Math.round(this.rainbow.x * this.width), line, r).map((a) => div()
+          .absolute().left(a.x).top(a.y).size(a.size).rounded_full().border_2().border_color(a.color).opacity(strength)));
+      })
       .children(f.hills.map((h) => div().absolute().left(Math.round(h.cx - h.rx)).top(line - h.ry).w(Math.round(2 * h.rx)).h(Math.round(2 * h.ry)).rounded_full().bg(p.hill)))
       .children(f.trees.flatMap((t) => treeParts(t, line - 3).map(([x, y, w, h, c, round]) => {
         const el = div().absolute().left(x).top(y).w(w).h(h).bg(p[c]);
@@ -532,16 +539,33 @@ export default class PokemonHerd extends View {
     const left = v.x - (s.box.x + s.box.w / 2) * scale;
     const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
     const hovered = this.visitorHover;
+    const tagW = 230;
     root.child(div().id("visitor").absolute().left(0).top(0).w(this.width).h(ground + 4)
       .child(div().absolute().left(v.x - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030")
         .transition("left", { duration: 300, easing: "linear" }))
       .child(div().id("visitor-body").absolute().left(left).top(ground - (s.box.y + s.box.h) * scale)
         .transition("left", { duration: 300, easing: "linear" })
+        .cursor_pointer()
         .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
+        // A click: it leaves you something for the Bag (as Pickup finds things), once.
+        .on_click((_e, cx) => {
+          if (v.gift) return;
+          v.gift = pickup();
+          v.giftAt = Date.now();
+          saveBag(addItem(bag(), v.gift));
+          cx.notify();
+        })
         .child(image(s.path).w(s.w * scale).h(s.h * scale)))
-      .when(!!hovered, (el) => el.child(div().absolute().left(Math.max(4, Math.min(this.width - 150, v.x - 70))).top(ground + 6).w(140).h(LABEL_H)
+      // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it
+      // left, for a few seconds.
+      .when(!v.gift || Date.now() - v.giftAt < 4000, (el) => el.child(div().absolute()
+        .left(v.x - 8).top(ground - s.box.h * scale - 18).text_size(13)
+        .transition("left", { duration: 300, easing: "linear" })
+        .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
+        .child(v.gift ? ITEMS[v.gift].icon : "🎁")))
+      .when(!!hovered, (el) => el.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-        .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`))));
+        .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.gift ? ` left you ${ITEMS[v.gift].name.startsWith("A") || ITEMS[v.gift].name.startsWith("O") ? "an" : "a"} ${ITEMS[v.gift].name}` : ": click it"}`))));
   }
 
   // An icon beside its head for a few seconds: a find, a heart, a berry eaten.
@@ -642,7 +666,14 @@ export default class PokemonHerd extends View {
     // The weather: how long each agent waiting on you has waited (care() notes when it started).
     const waits = list.filter((a) => a.status === "blocked").map((a) => now - (this.mons[a.address]?.blockedAt ?? now));
     const weather = season !== null && settingsNow().weather ? weatherOf(waits) : "clear";
-    if (weather !== this.weather) { this.weather = weather; changed = true; }
+    if (weather !== this.weather) {
+      // The rain stops (nobody waits on you any more): a rainbow, somewhere in the middle of the sky.
+      if ((this.weather === "rain" || this.weather === "storm") && weather === "clear") this.rainbow = { at: now, x: rand(0.25, 0.75) };
+      this.weather = weather;
+      changed = true;
+    }
+    if (this.rainbow && now - this.rainbow.at >= RAINBOW_MS) { this.rainbow = null; changed = true; }
+    if (this.rainbow) changed = true; // it fades in and out
     // Rivals: agents working in one folder at once (they may edit each other's files): ⚔️ over them.
     const rivals = rivalsOf(list, foldersNow());
     this.rivals = rivals;
