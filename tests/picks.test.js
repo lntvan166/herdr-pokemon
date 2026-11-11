@@ -467,3 +467,20 @@ test("boxOnSwitch: a raised Pokémon switched away goes to the Box, without what
   // In the Box, the next agent (or pick) of that species gets it back.
   assert.equal(fromBox({ dex: 65 }, { [r.key]: r.pick }, new Set()).slot, "box-123-65");
 });
+
+import { nameFor, cleanNick, switchedPick as switched } from "../mods/pokemon-herd/picks.js";
+test("nicknames: kept short and clean, shown with the species, carried through evolution and the Box", () => {
+  assert.equal(cleanNick("  Blaze  "), "Blaze");
+  assert.equal(cleanNick("A very long nickname here"), "A very long nick");
+  assert.equal(cleanNick("   "), null);
+  assert.equal(cleanNick(42), null);
+  assert.equal(nameFor({ dex: 6, nick: "Blaze" }), "Blaze (Charizard)");
+  assert.equal(nameFor({ dex: 6 }), "Charizard");
+  assert.equal(nameFor({ dex: 37, form: "0001", nick: "Snow" }), "Snow (Vulpix (Alola))");
+  const r = loadPicks({ panes: { a: { dex: 6, nick: "Blaze" }, b: { dex: 6, nick: 7 } } }, null).panes;
+  assert.equal(r.a.nick, "Blaze");
+  assert.equal(r.b.nick, undefined);
+  assert.equal(gainJob({ dex: 4, mega: "auto", jobs: EVOLVE_JOBS - 1, nick: "Ember" }, "p").pick.nick, "Ember"); // evolved, still Ember
+  assert.equal(boxOnSwitch({ dex: 6, hearts: 2, friend: 40, nick: "Blaze" }, { dex: 25 }, 1).pick.nick, "Blaze");
+  assert.equal(switched({ dex: 6, nick: "Blaze" }, { dex: 25 }, "auto", null).nick, undefined); // another Pokémon: no name yet
+});

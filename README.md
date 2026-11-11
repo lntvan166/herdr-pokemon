@@ -76,7 +76,7 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
-**The Box.** (Its tab in the Bag lists them; Take what one holds, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
+**The Box.** (Its tab in the Bag lists the ones with agents and the ones waiting; Take what one holds, Rename it, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
 shiny luck. The next agent to get that species (you pick it, or a new agent is given it) gets
 that very Pokémon back; it moves over, so an item is never doubled.
 

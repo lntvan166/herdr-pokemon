@@ -240,8 +240,11 @@ forms, and Mega Evolution while an agent works.
   faster pace chosen meanwhile reschedules the next. On a strip at
   least 200 px wide: a walking species no agent has (shiny 1 in 64, never Mega), on a random row,
   from just past one edge to past the other at 45 px/s, starting once its sprite is in (given
-  up after a minute). Drawn like the herd with its shadow, no tag; hovering shows "A wild
-  <name>" in a 140 px tag under it. Idle ones standing on its row within 220 px face it.
+  up after a minute). Drawn like the herd: a box 128 px wide spanning the strip (its own id per
+  visitor), shadow and picture placed inside it, no tag; the box is drawn first at the start
+  point, then sent to the far edge under one `transition("left")` lasting the rest of the walk
+  (a short transition re-aimed every tick drew nothing, or only the 🎁). Hovering shows "A wild
+  <name>" in a 230 px tag under it. Idle ones standing on its row within 220 px face it.
 - **Held items never vanish:** choosing another Pokémon in the picker keeps what the pane holds
   and its Everstone (`switchedPick`); a Pokémon a folder gives back to a new pane moves there, the
   old pane forgotten (`fromFolders` → `forget`), so nothing is held twice. Saved picks keep the newest
@@ -278,16 +281,20 @@ forms, and Mega Evolution while an agent works.
   if raised, in the Box under `box-<when>-<dex>` (`boxOnSwitch`; what it held and its Everstone
   stay with the pane), where picking that species again finds it.
 - **The Box tab** (the Bag's title: "Bag | Box n", props `tab: "box"` opens on it; `boxList`,
-  `renderBox`): raised Pokémon whose agents are gone, latest first, on a 46 px pitch in a
+  `renderBox`): two parts, "With agents n" (raised Pokémon on screen now; no Release) and
+  "Waiting n" (raised ones whose agents are gone, latest first), on a 46 px pitch in a
   scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/10 jobs · Everstone",
-  what it holds (its sprite, and Take: back into the Bag), and Release (asks "Sure?"; what it
-  held goes back into the Bag; the pane is forgotten).
+  what it holds (its sprite, and Take: back into the Bag), Rename, and Release (asks "Sure?";
+  what it held goes back into the Bag; the pane is forgotten).
+- **Nicknames** (`cleanNick`, `nameFor` in `picks.js`; a pick's `nick`): Rename in the Box
+  opens a text field (Enter saves; empty clears). The nickname replaces the species name on the
+  strip's hover tag, the sidebar cards, the Party, the Bag's rows and the picker.
 - **One strip counts** (`electLeader` in `picks.js`, shared `pokemon-herd-leader` { id, at }):
   each strip elects itself unless another wrote within 3 s; the leader rewrites it every second.
   Only the leader writes: job stats, evolution counts, hunger, Berries, Pickup, Rare Candy, badge
   gifts, sparring hearts, "since" times, cries, sidebar cards, new agents' Pokémon and the
   folders' (assignAll `write`). Dialogs and other strips read the same answers.
-- **Visitor gifts:** every visitor (it sets off 1.5 s after its sprite is in) shows, from a second after it sets off, 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
+- **Visitor gifts:** every visitor (it sets off 0.5 s after its sprite is in) shows, from a second after it sets off, 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says
   "A wild <name>: click it", then "… left you a Fire Stone".

@@ -17,7 +17,7 @@ const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -536,7 +536,7 @@ export default class PokemonHerd extends View {
           icons[a.address] = iconPath(p.dex, p.form);
           const rivals = (this.rivals?.[a.address] ?? []).map((x) => list.find((b) => b.address === x)).filter(Boolean);
           const warn = rivals.length ? `⚔ same folder as ${rivals.map((b) => tagOf(b, tabsById())).join(", ")}` : "";
-          if (a.pane) cards[a.address] = { icon: icons[a.address], name: `${fullName(p.dex, p.form)}${p.held ? ` ${ITEMS[p.held].icon}` : ""}`, shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
+          if (a.pane) cards[a.address] = { icon: icons[a.address], name: `${nameFor(p)}${p.held ? ` ${ITEMS[p.held].icon}` : ""}`, shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
           continue;
         }
         if (this.portraits[key]) continue;
@@ -571,7 +571,7 @@ export default class PokemonHerd extends View {
     else if (called) this.visitAt = now;
     if (!v && now >= this.visitAt) {
       const pick = visitorPick(new Set(Object.values(ids).map((p) => p.dex)));
-      const dir = Math.random() < 0.5 ? "r" : "l";
+      const dir = (Math.random() < 0.5 ? "r" : "l");
       const [from, to] = dir === "r" ? [-OFF, this.width + OFF] : [this.width + OFF, -OFF];
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
       // kept that one's picture: only its 🎁 showed).
@@ -582,9 +582,8 @@ export default class PokemonHerd extends View {
     const meta = this.spriteFor(v.pick, "idle");
     if (!v.start) {
       // It sets off once its sprite is in; one that can't be had in a minute doesn't come.
-      // A moment after its sprite is in, so the picture is up when it shows (a first-time species
-      // was once seen as a lone 🎁 crossing the sky).
-      if (meta?.walkR) { v.ready ??= now; if (now - v.ready >= 1500) v.start = now; }
+      // A moment after its sprite is in, so the picture is up when it shows.
+      if (meta?.walkR) { v.ready ??= now; if (now - v.ready >= 500) v.start = now; }
       else if (now - v.asked > 60000) { this.visitor = null; this.visitAt = next(); }
       return false;
     }
@@ -608,36 +607,47 @@ export default class PokemonHerd extends View {
     const t = theme();
     const s = meta[v.dir === "r" ? "walkR" : "walkL"];
     const ground = grounds[Math.min(v.row, grounds.length - 1)];
-    const left = v.x - (s.box.x + s.box.w / 2) * scale;
+    // Drawn as the herd is (a box SLOT wide that slides to it, its picture placed inside): a
+    // picture inside a box that sized itself by it sometimes never showed (a lone 🎁 crossing).
+    const sw = SLOT, mid = sw / 2;
+    const imgLeft = mid - (s.box.x + s.box.w / 2) * scale;
+    const imgTop = ground - (s.box.y + s.box.h) * scale;
     const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
-    const hovered = this.visitorHover;
-    const tagW = 230;
-    root.child(div().id(`visitor-${v.id}`).absolute().left(0).top(0).w(this.width).h(ground + 4)
-      .child(div().absolute().left(v.x - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030")
-        .transition("left", { duration: 300, easing: "linear" }))
-      .child(div().id(`visitor-body-${v.id}`).absolute().left(left).top(ground - (s.box.y + s.box.h) * scale)
-        .transition("left", { duration: 300, easing: "linear" })
-        .cursor_pointer()
+    const headY = ground - s.box.h * scale;
+    const hit = { left: mid - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
+    const showGift = (!v.gift && Date.now() - v.start > 1000) || (v.gift && Date.now() - v.giftAt < 4000);
+    // It walks as the herd does: drawn first where it sets off, then sent to the far edge under one
+    // transition lasting the rest of its walk. A short transition re-aimed every tick drew nothing
+    // at all, or only its 🎁 (a lone gift crossing the sky).
+    const now = Date.now();
+    const placed = v.walkFrom !== undefined;
+    v.walkFrom ??= now;
+    const left = placed ? v.to : v.from;
+    root.child(div().id(`visitor-${v.id}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
+      .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
+      .child(div()
+        .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
+        .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)))
+      // Hover: what it is; a click: it leaves you something for the Bag (as Pickup finds things), once.
+      .child(div().id(`visitor-hit-${v.id}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
         .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
-        // A click: it leaves you something for the Bag (as Pickup finds things), once.
         .on_click((_e, cx) => {
           if (v.gift) return;
           v.gift = pickup();
           v.giftAt = Date.now();
           saveBag(addItem(bag(), v.gift));
           cx.notify();
-        })
-        .child(image(s.path).w(s.w * scale).h(s.h * scale)))
-      // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it
-      // left, for a few seconds.
-      .when((!v.gift && Date.now() - v.start > 1000) || (v.gift && Date.now() - v.giftAt < 4000), (el) => el.child(div().absolute()
-        .left(v.x - 8).top(ground - s.box.h * scale - 18).text_size(13)
-        .transition("left", { duration: 300, easing: "linear" })
+        }))
+      // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it left.
+      .when(showGift, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18)).text_size(13)
         .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
-        .child(v.gift ? this.itemMark(v.gift, 18) : "🎁")))
-      .when(!!hovered, (el) => el.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+        .child(v.gift ? this.itemMark(v.gift, 18) : "🎁"))));
+    if (this.visitorHover) {
+      const tagW = 230;
+      root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-        .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.gift ? ` left you ${ITEMS[v.gift].name.startsWith("A") || ITEMS[v.gift].name.startsWith("O") ? "an" : "a"} ${ITEMS[v.gift].name}` : ": click it"}`))));
+        .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.gift ? ` left you ${ITEMS[v.gift].name.startsWith("A") || ITEMS[v.gift].name.startsWith("O") ? "an" : "a"} ${ITEMS[v.gift].name}` : ": click it"}`));
+    }
   }
 
   // An icon beside its head for a few seconds: a find, a heart, a berry eaten.
@@ -1365,7 +1375,7 @@ export default class PokemonHerd extends View {
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       // What it says it's doing stays on the cards: here it ran across the whole strip.
-      const text = full ? `${fullName(pick.dex, pick.form)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const text = full ? `${nameFor(pick)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -1679,7 +1689,7 @@ export default class PokemonHerd extends View {
             .child(div().flex_1().min_w(0).truncate().text_size(14.5).font_semibold().text_color(t.foreground).child(tagOf(a, tabs)))
             .child(this.partyStatus(t, a.status)))
           .child(h_flex().gap(6).items_center().text_size(11)
-            .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}${pick.held ? ` ${ITEMS[pick.held].icon}` : ""}`))
+            .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.held ? ` ${ITEMS[pick.held].icon}` : ""}`))
             .child(h_flex().flex_none().gap(2).items_center()
               .child(div().text_color(c.hearts ? HEART : t.border).child("♥"))
               .child(div().text_color(t.muted).child(String(c.hearts))))
@@ -1723,6 +1733,16 @@ export default class PokemonHerd extends View {
 
   initBag(cx) {
     this.bagTab = props()?.tab === "box" ? "box" : "items";
+    // Renaming one in the Box: its slot, and the field (Enter saves; empty clears the name).
+    this.renaming = null;
+    this.nickInput = InputState.new({ placeholder: "Nickname (16 letters)" });
+    this.nickInput.on("submit", (_e, cx) => {
+      const slot = this.renaming;
+      const nick = cleanNick(this.nickInput.value());
+      if (slot) updatePick(slot, (p) => { const { nick: _n, ...rest } = p; return nick ? { ...rest, nick } : rest; });
+      this.renaming = null;
+      cx.notify();
+    });
     this.sel = null; // the chosen item, or null: the first one usable now (else the first owned)
     this.badgeHover = null;
     this.art = {}; // art key -> "ready" | "failed"
@@ -1821,7 +1841,7 @@ export default class PokemonHerd extends View {
           // Who did the most: the three species with the most jobs.
           .when(s.top.length > 0, (el) => el.child(div().text_size(11.5).text_color(t.muted)
             .child(`Most jobs: ${s.top.map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(" · ")}`)))))
-      .when(tab === "box", (el) => el.child(this.renderBox(boxed, LIST_H, t, icon)))
+      .when(tab === "box", (el) => el.child(this.renderBox(boxed, LIST_H, t, icon, herd)))
       .when(tab !== "box", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
         .child(v_flex().w(218).flex_none().p(4).gap(0).rounded(10).bg(t.raised)
@@ -1897,7 +1917,7 @@ export default class PokemonHerd extends View {
           .child(v_flex().gap(4).children((b.items[sel] ? takers[sel] : []).slice(0, SHOW).map((h) => h_flex().id(`taker-${h.slot}`).h(38).gap(10).items_center()
             .child(icon(h.pick, 32))
             .child(v_flex().flex_1().min_w(0).gap(1)
-              .child(div().text_size(12.5).text_color(t.foreground).truncate().child(`${fullName(h.pick.dex, h.pick.form)} · ${h.tag}`))
+              .child(div().text_size(12.5).text_color(t.foreground).truncate().child(`${nameFor(h.pick)} · ${h.tag}`))
               .child(div().text_size(11.5).text_color(t.muted).truncate().child(h.use === "evolve"
                 ? `becomes ${fullName(h.after.dex, h.after.form)}`
                 : h.use === "hold" ? (h.pick.held ? `holds it; its ${ITEMS[h.pick.held].name} comes back` : "holds it")
@@ -1936,14 +1956,17 @@ export default class PokemonHerd extends View {
   // The Bag's Box tab: each raised Pokémon whose agent is gone (the latest first), its hearts and
   // how close it is to evolving, what it holds (Take: back into the Bag), and Release (twice: it
   // asks "Sure?"; what it held goes back into the Bag). An agent that gets its species takes it.
-  renderBox(boxed, h, t, icon) {
-    const row = ({ slot, pick }) => {
+  renderBox(boxed, h, t, icon, herd = []) {
+    // `tag`: the agent it's with (on screen: no Release, it's in use); none: waiting in the Box.
+    const row = ({ slot, pick, tag }) => {
       const c = cardOf(pick);
       const sure = this.releasing === slot;
       return h_flex().id(`box-${slot}`).h(46).px(10).gap(10).items_center().flex_none().rounded(8).hover((st) => st.bg(t.hover))
         .child(icon(pick, 34))
         .child(v_flex().flex_1().min_w(0).gap(1)
-          .child(div().text_size(12.5).text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}`))
+          .child(this.renaming === slot
+            ? Input.new(this.nickInput).h(24).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12).text_color(t.foreground)
+            : div().text_size(12.5).text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${tag ? ` · ${tag}` : ""}`))
           .child(div().text_size(11).text_color(t.muted).truncate()
             .child([`♥ ${heartsText(friendOf(pick))}`, c.note, pick.stay ? "Everstone" : ""].filter(Boolean).join(" · "))))
         .when(!!pick.held, (el) => el.child(h_flex().gap(6).items_center().flex_none()
@@ -1959,7 +1982,18 @@ export default class PokemonHerd extends View {
               cx.notify();
             })
             .child("Take"))))
-        .child(div().id(`box-release-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+        // Rename: a field in place of its name; Enter saves (empty: no nickname).
+        .child(div().id(`box-rename-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+          .border_color(t.border).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+          .on_click((_e, cx) => {
+            if (this.renaming === slot) { this.renaming = null; cx.notify(); return; }
+            this.renaming = slot;
+            this.nickInput.set_value(pick.nick ?? "");
+            this.nickInput.focus();
+            cx.notify();
+          })
+          .child(this.renaming === slot ? "Cancel" : "Rename"))
+        .when(!tag, (el) => el.child(div().id(`box-release-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
           .border_color(sure ? t.blocked : t.border).text_color(sure ? t.blocked : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
           .on_click((_e, cx) => {
             if (!sure) { this.releasing = slot; cx.notify(); return; }
@@ -1969,11 +2003,16 @@ export default class PokemonHerd extends View {
             this.releasing = null;
             cx.notify();
           })
-          .child(sure ? "Sure?" : "Release"));
+          .child(sure ? "Sure?" : "Release")));
     };
+    // With agents now: the raised ones on screen, to see the whole herd in one place.
+    const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
+    const head = (txt) => div().px(10).pt(6).pb(2).text_size(11.5).text_color(t.muted).child(txt);
     return v_flex().id("bag-box").flex_none().h(h).p(6).gap(2).rounded(10).bg(t.raised).overflow_y_scrollbar()
-      .when(!boxed.length, (el) => el.child(div().p(10).text_size(12).text_color(t.dim)
-        .child("Empty. Close an agent whose Pokémon you raised (hearts, jobs, an item) and it waits here for the next agent to get its species.")))
+      .when(active.length > 0, (el) => el.child(head(`With agents ${active.length}`)).children(active.map(row)))
+      .child(head(`Waiting ${boxed.length}`))
+      .when(!boxed.length, (el) => el.child(div().px(10).py(6).text_size(12).text_color(t.dim)
+        .child("None. Close an agent whose Pokémon you raised (hearts, jobs, an item), or pick another for it, and it waits here for the next agent to get its species.")))
       .children(boxed.map(row));
   }
 
@@ -2114,7 +2153,7 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().flex_1().min_w(0).gap(2)
               .child(h_flex().gap(6).items_center()
-                .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${cur.shiny ? "✨ " : ""}${fullName(cur.dex, cur.form)}`))
+                .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`))
                 .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
               .child(h_flex().gap(1).items_center()

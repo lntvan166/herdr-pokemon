@@ -3,8 +3,8 @@
 // jobs: jobs finished since it became this Pokémon; stay: holds an Everstone (never evolves);
 // friend: friendship points, 0..FRIEND_MAX, and hearts: how many hearts those make;
 // evolvedAt: when it last evolved (each view flashes it);
-// held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin).
-import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf } from "./dex.js";
+// held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin…); nick: the name you gave it.
+import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf, fullName } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
 
 const EVOLVES_FROM_MAP = new Map(Object.entries(EVOLVES_FROM).map(([to, from]) => [Number(to), from]));
@@ -37,7 +37,8 @@ export function loadPicks(current, legacy) {
       const hearts = friend ? Math.floor(friend / HEART_PTS) : undefined;
       const evolvedAt = Number.isFinite(p.evolvedAt) && p.evolvedAt > 0 ? p.evolvedAt : undefined;
       const held = HELD_IDS.includes(p.held) ? p.held : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}) };
+      const nick = cleanNick(p.nick) ?? undefined;
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }
@@ -447,3 +448,13 @@ export function boxOnSwitch(cur, entry, now) {
   if (!raised(rest)) return null;
   return { key: `box-${now}-${cur.dex}`, pick: rest };
 }
+
+// A nickname (the Box's Rename): trimmed, 16 characters at most; null when empty or not text.
+export function cleanNick(v) {
+  if (typeof v !== "string") return null;
+  const t = v.trim().slice(0, 16).trim();
+  return t || null;
+}
+
+// What to call it: "Blaze (Charizard)" with a nickname, else "Charizard" (a form: "Vulpix (Alola)").
+export const nameFor = (p) => (p?.nick ? `${p.nick} (${fullName(p.dex, p.form)})` : fullName(p.dex, p.form));
