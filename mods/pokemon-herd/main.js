@@ -15,7 +15,7 @@ import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searc
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY } from "./id.js";
 import { loadSettings, withSetting } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -34,6 +34,9 @@ const TAG_LINES = 2; // lines kept under each row for names: fixed, so the groun
 const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
+const VISIT_MIN = 10 * 60000; // a wild Pokémon walks across every 10 to 25 minutes (the first, 2 to 5 after start)
+const VISIT_MAX = 25 * 60000;
+const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240; // per tick (4 a second): about once a minute while a pair is ready // idle, about to stroll: how often it reacts to the season instead
 // props.rows (> 1): agents take turns across that many rows; each roams its whole row, passing
 // the others, and the block grows to fit the rows.
@@ -484,6 +487,62 @@ export default class PokemonHerd extends View {
     }
   }
 
+  // Visitors (Settings → Visitors): now and then a wild Pokémon nobody has walks across a row,
+  // edge to edge, and is gone. Idle ones near it turn to watch it go by. Returns whether to redraw.
+  visit(list, ids, g, now, cx) {
+    if (!settingsNow().visitors || !this.sized || this.width < 200) { this.visitor = null; return false; }
+    this.visitAt ??= now + rand(2, 5) * 60000;
+    let v = this.visitor;
+    if (!v && now >= this.visitAt) {
+      const pick = visitorPick(new Set(Object.values(ids).map((p) => p.dex)));
+      const dir = Math.random() < 0.5 ? "r" : "l";
+      const [from, to] = dir === "r" ? [-OFF, this.width + OFF] : [this.width + OFF, -OFF];
+      v = this.visitor = { pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
+      this.want(pick, cx);
+    }
+    if (!v) return false;
+    const meta = this.spriteFor(v.pick, "idle");
+    if (!v.start) {
+      // It sets off once its sprite is in; one that can't be had in a minute doesn't come.
+      if (meta?.walkR) v.start = now;
+      else if (now - v.asked > 60000) { this.visitor = null; this.visitAt = now + rand(VISIT_MIN, VISIT_MAX); }
+      return false;
+    }
+    const f = (now - v.start) / v.dur;
+    if (f >= 1) { this.visitor = null; this.visitAt = now + rand(VISIT_MIN, VISIT_MAX); return true; }
+    v.x = v.from + (v.to - v.from) * f;
+    // Idle ones on its row, standing within 220 px, turn to watch it.
+    list.forEach((a, i) => {
+      const m = this.mons[a.address];
+      const row = g ? Math.min(m?.row ?? i % g.rows, g.rows - 1) : 0;
+      if (m && !m.moving && m.mood === "idle" && row === v.row && Math.abs(m.x - v.x) < 220) m.dir = v.x > m.x ? "r" : "l";
+    });
+    return true;
+  }
+
+  // The visitor, drawn as the herd is but with no name: hovering it says what it is.
+  renderVisitor(root, grounds, scale) {
+    const v = this.visitor;
+    const meta = v?.start && this.spriteFor(v.pick, "idle");
+    if (!meta?.walkR) return;
+    const t = theme();
+    const s = meta[v.dir === "r" ? "walkR" : "walkL"];
+    const ground = grounds[Math.min(v.row, grounds.length - 1)];
+    const left = v.x - (s.box.x + s.box.w / 2) * scale;
+    const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
+    const hovered = this.visitorHover;
+    root.child(div().id("visitor").absolute().left(0).top(0).w(this.width).h(ground + 4)
+      .child(div().absolute().left(v.x - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030")
+        .transition("left", { duration: 300, easing: "linear" }))
+      .child(div().id("visitor-body").absolute().left(left).top(ground - (s.box.y + s.box.h) * scale)
+        .transition("left", { duration: 300, easing: "linear" })
+        .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
+        .child(image(s.path).w(s.w * scale).h(s.h * scale)))
+      .when(!!hovered, (el) => el.child(div().absolute().left(Math.max(4, Math.min(this.width - 150, v.x - 70))).top(ground + 6).w(140).h(LABEL_H)
+        .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
+        .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`))));
+  }
+
   // An icon beside its head for a few seconds: a find, a heart, a berry eaten.
   note(m, icon, now, ms = 5000) {
     m.note = { icon, until: now + ms };
@@ -752,6 +811,7 @@ export default class PokemonHerd extends View {
         changed = true;
       }
     }
+    if (this.visit(list, ids, g, now, cx)) changed = true;
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
     if (changed || this.snowing) cx.notify();
   }
@@ -957,6 +1017,7 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
+        line("Visitors", "Now and then a wild Pokémon walks across, and the herd watches it go by.", toggle("visitors")),
         line("Tired near the limit", "With Usage Limits: from 90% of the 5-hour window the herd sweats and walks slower.", toggle("tired")),
       ))
       .child(heading("Updates"))
@@ -1264,6 +1325,7 @@ export default class PokemonHerd extends View {
         .cursor_pointer().on_click(() => this.openMenu())
         .child(`Update ${update}`));
     }
+    this.renderVisitor(root, grounds, scale);
     return root;
   }
 

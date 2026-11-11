@@ -378,3 +378,15 @@ test("holdersOf: the panes whose Pokémon holds an item", () => {
   assert.deepEqual(holdersOf("lucky-egg", panes), [{ slot: "p1", pick: panes.p1 }]);
   assert.deepEqual(holdersOf("amulet-coin", panes), []);
 });
+
+import { visitorPick } from "../mods/pokemon-herd/picks.js";
+import { WALKABLE as WALK } from "../mods/pokemon-herd/dex.js";
+test("visitorPick: a walking species nobody on screen has, sometimes shiny", () => {
+  const taken = new Set(WALK.slice(1)); // all but the first
+  assert.equal(visitorPick(taken, () => 0.5).dex, WALK[0]);
+  assert.equal(visitorPick(new Set(WALK), () => 0).dex, WALK[0]); // all taken: anyone
+  let shiny = 0;
+  for (let i = 0; i < 2000; i++) if (visitorPick(new Set()).shiny) shiny++;
+  assert.ok(shiny > 5 && shiny < 90, String(shiny));
+  assert.equal(visitorPick(new Set()).mega, "off");
+});

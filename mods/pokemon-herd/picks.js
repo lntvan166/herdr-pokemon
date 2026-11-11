@@ -341,3 +341,11 @@ export function heartsText(friend) {
 
 // Who holds what: [{ slot, pick }] of the panes whose Pokémon holds `id`.
 export const holdersOf = (id, panes) => Object.entries(panes).filter(([, p]) => p.held === id).map(([slot, pick]) => ({ slot, pick }));
+
+// A wild Pokémon passing by: any walking species nobody on screen has, shiny 1 in SHINY_ODDS.
+export function visitorPick(taken, rnd = Math.random) {
+  const free = WALKABLE.filter((dex) => !taken.has(dex));
+  const pool = free.length ? free : WALKABLE;
+  const dex = pool[Math.floor(rnd() * pool.length)];
+  return { dex, shiny: rnd() * SHINY_ODDS < 1 && hasShiny(dex), mega: "off" };
+}
