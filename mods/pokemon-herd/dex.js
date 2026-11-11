@@ -1,5 +1,5 @@
 // Which Pokémon exist here and what they're called (from the generated species.js).
-import { SPECIES, MEGA, REGIONAL } from "./species.js";
+import { SPECIES, MEGA, REGIONAL, EVOLVES_FROM } from "./species.js";
 
 const NAME = new Map(SPECIES.map(([dex, name]) => [dex, name]));
 const SHINY = new Set(SPECIES.filter((s) => s[2]).map((s) => s[0]));
@@ -70,13 +70,25 @@ export const megaForm = (dex, kind) => {
 // Every species, each followed by its regional forms: what the picker lists.
 const ENTRIES = WALKABLE.flatMap((dex) => [{ dex }, ...formsOf(dex).map((f) => ({ dex, form: f.form }))]);
 
+// The picker's region filter. A species belongs to the region it was introduced in (by dex
+// number); a regional form to its own region ("Paldea Blaze" -> Paldea).
+export const REGIONS = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Hisui", "Paldea"];
+const LAST_DEX = [151, 251, 386, 493, 649, 721, 809, 898, 905, Infinity];
+export function regionOf(e) {
+  if (e.form) return formsOf(e.dex).find((f) => f.form === e.form)?.label.split(" ")[0] ?? null;
+  return REGIONS[LAST_DEX.findIndex((last) => e.dex <= last)];
+}
+
 // search() over species and forms: name, number, or a form's region ("alola") matches.
-export function searchEntries(query, limit) {
+// `only`: { region } (one of REGIONS) and/or { mega: true } (species that can Mega Evolve here).
+export function searchEntries(query, limit, only = {}) {
   const f = fold(query.trim()).replace(/^#/, "");
   const num = f.replace(/^0+/, "");
   const entries = [];
   let total = 0;
   for (const e of ENTRIES) {
+    if (only.region && regionOf(e) !== only.region) continue;
+    if (only.mega && (e.form || !megaForm(e.dex))) continue;
     const label = e.form ? fold(formsOf(e.dex).find((x) => x.form === e.form).label) : "";
     const hit = !f || FOLDED.get(e.dex).includes(f) || label.includes(f) || String(e.dex) === num || String(e.dex).padStart(3, "0").startsWith(f);
     if (!hit) continue;
@@ -84,4 +96,21 @@ export function searchEntries(query, limit) {
     if (entries.length < limit) entries.push(e);
   }
   return { entries, total };
+}
+
+// Evolutions (both stages walk). What a species evolves into, in dex order (several for Eevee).
+const FROM = new Map(Object.entries(EVOLVES_FROM).map(([to, from]) => [Number(to), from]));
+const INTO = new Map();
+for (const [to, from] of [...FROM].sort((a, b) => a[0] - b[0])) {
+  if (!INTO.has(from)) INTO.set(from, []);
+  INTO.get(from).push(to);
+}
+export const evolutionsOf = (dex) => INTO.get(dex) ?? [];
+// Its whole line, stage by stage from the first: [[4], [5], [6]]; [[133], [134, 135, …]].
+export function chainOf(dex) {
+  let root = dex;
+  for (let i = 0; i < 9 && FROM.has(root); i++) root = FROM.get(root);
+  const stages = [];
+  for (let stage = [root]; stage.length && stages.length < 9; stage = stage.flatMap(evolutionsOf)) stages.push(stage);
+  return stages;
 }

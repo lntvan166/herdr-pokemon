@@ -70,7 +70,19 @@ forms, and Mega Evolution while an agent works.
   - Asleep: grey "z / zZ / zZz / zZ", cycling every 700 ms.
   - A ✨ flashes beside a shiny when it first appears, and for 1.5 s when a Pokémon Mega
     Evolves or turns back.
-- **The picker:** a 640×560 dialog titled "Choose a Pokémon", "for <tag> · now <name>".
+- **The picker:** a 640×700 dialog titled "Choose a Pokémon", "for <tag>".
+  - A card for the Pokémon it is now (read live, so it shows an evolution that happened while open):
+    its icon, "✨ Name #dex · Region", "Its species: 12 done · 3h", then "Evolves after 7 more
+    jobs" with a thin progress bar, or "Fully evolved", "Doesn't evolve", "Holds an Everstone:
+    won't evolve". On the right, a "🪨 Everstone" toggle (only for species in a line). Under it,
+    the evolution line, stage by stage with "›" between: icon and name each, icons only when a
+    stage branches (Eevee). Click one to become it; the current one is outlined.
+  - A "🎲 Random" button beside "Esc" ("🎲 Random match" while searching): any of the matches
+    but the current one, preferring a species no other pane has (`randomEntry` in `picks.js`).
+  - Under the search box, a row of small toggle chips: "Mega" (species that can Mega Evolve), then
+    one region of Kanto, Johto, Hoenn, Sinnoh, Unova, Kalos, Alola, Galar, Hisui, Paldea (click
+    the lit one again for all). A species' region is where its dex number was introduced; a
+    regional form's is its own (`regionOf` in `dex.js`). They combine with the search and Random.
   - An optional row "Mega: Off / On / Auto: while working", only for species with a Mega.
   - An optional row "Form: Mega X / Mega Y", only when both are drawn. Mega X is the default, and
     a choice of Y falls back to X until Y is drawn.
@@ -81,6 +93,13 @@ forms, and Mega Evolution while an agent works.
   Right panel (with Files)". The current choices carry an accent border or a ✓. Under them,
   "Stats": "All: 128 done · 14h 20m" and the three species with the most jobs (52 px plus 20 px
   a species taller).
+- **Evolution** (`gainJob` in `picks.js`, data `EVOLVES_FROM` from PokeAPI's
+  pokemon_species.csv in `species.js`): each pane's pick counts `jobs` finished since it became
+  that Pokémon; at `EVOLVE_JOBS` (10) it evolves and the count restarts. Sub-agents don't evolve.
+  A branch is chosen by hash of pane and dex; a regional form evolves into the same region's form
+  when one walks. Shiny (if the new one has a shiny sprite), Mega mode, X/Y and `stay` (the
+  Everstone) carry over. Choosing a Pokémon in the picker restarts the count and keeps `stay`.
+  The strip flashes ✨ beside it for 3 s.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked

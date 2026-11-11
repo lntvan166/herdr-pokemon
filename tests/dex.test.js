@@ -44,7 +44,7 @@ test("megaForm: the walking Mega's folder, and whether it has a shiny", () => {
   assert.equal(megaForm(25), null);
 });
 
-import { formsOf, fullName, searchEntries, hasForm } from "../mods/pokemon-herd/dex.js";
+import { formsOf, fullName, searchEntries, hasForm, regionOf, REGIONS } from "../mods/pokemon-herd/dex.js";
 test("regional forms", () => {
   assert.deepEqual(formsOf(37), [{ form: "0001", label: "Alola", shiny: true }]);
   assert.deepEqual(formsOf(25), []);
@@ -64,4 +64,36 @@ test("searchEntries: species and their forms, by name, number or region", () => 
   assert.deepEqual(searchEntries("#037", 99).entries.map((e) => e.form ?? null), [null, "0001"]);
   const all = searchEntries("", Infinity);
   assert.equal(all.total, WALKABLE.length + all.entries.filter((e) => e.form).length);
+});
+
+test("regionOf: by dex number, or a form's own region", () => {
+  assert.equal(regionOf({ dex: 25 }), "Kanto");
+  assert.equal(regionOf({ dex: 152 }), "Johto");
+  assert.equal(regionOf({ dex: 493 }), "Sinnoh");
+  assert.equal(regionOf({ dex: 899 }), "Hisui");
+  assert.equal(regionOf({ dex: 906 }), "Paldea");
+  assert.equal(regionOf({ dex: 37, form: "0001" }), "Alola");
+  for (const e of searchEntries("", Infinity).entries) assert.ok(REGIONS.includes(regionOf(e)), JSON.stringify(e));
+});
+
+test("searchEntries filters by region and by Mega", () => {
+  const kanto = searchEntries("", Infinity, { region: "Kanto" }).entries;
+  assert.ok(kanto.length > 100 && kanto.every((e) => e.dex <= 151 && !e.form));
+  const alola = searchEntries("vulpix", 99, { region: "Alola" }).entries;
+  assert.deepEqual(alola, [{ dex: 37, form: "0001" }]);
+  const megas = searchEntries("", Infinity, { mega: true }).entries;
+  assert.ok(megas.some((e) => e.dex === 6) && megas.every((e) => !e.form && megaForm(e.dex)));
+  assert.deepEqual(searchEntries("pikachu", 9, { mega: true }).entries, []);
+  // Both together: Kanto Megas only.
+  assert.ok(searchEntries("", Infinity, { region: "Kanto", mega: true }).entries.every((e) => e.dex <= 151));
+});
+
+import { evolutionsOf, chainOf } from "../mods/pokemon-herd/dex.js";
+test("evolutions: next stages and the whole line", () => {
+  assert.deepEqual(evolutionsOf(4), [5]);
+  assert.deepEqual(evolutionsOf(6), []);
+  assert.ok(evolutionsOf(133).length >= 5 && evolutionsOf(133).includes(134)); // Eevee branches
+  assert.deepEqual(chainOf(5), [[4], [5], [6]]); // from anywhere in the line
+  assert.deepEqual(chainOf(133)[0], [133]);
+  assert.deepEqual(chainOf(132), [[132]]); // Ditto: alone
 });

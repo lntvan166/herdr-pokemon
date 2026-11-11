@@ -11,9 +11,9 @@ import { statusChange, record, loadStats, summary, duration, statLine } from "./
 
 const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
-import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries } from "./dex.js";
+import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, searchEntries, REGIONS, regionOf, chainOf, formsOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY } from "./id.js";
-import { loadPicks, assign } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS } from "./picks.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt } from "./rest.js";
@@ -274,11 +274,17 @@ export default class PokemonHerd extends View {
     cx.notify();
   }
 
-  // Its agent changed status: the work it did goes to its species' stats.
-  count(pick, m, next, now) {
+  // Its agent changed status: the work it did goes to its species' stats, and a finished job
+  // to its pane's count towards evolving (sub-agents' Pokémon don't evolve).
+  count(a, pick, m, next, now) {
     const c = statusChange(m.run, m.status, next, now);
     m.run = c.run;
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
+    const saved = c.job && a.pane ? savedPicks()[a.pane] : null;
+    if (!saved) return;
+    const { pick: next2, evolved } = gainJob(saved, a.pane);
+    savePicks({ [a.pane]: next2 });
+    if (evolved) m.flashUntil = now + 3000; // ✨ while it turns into the next one
   }
 
   // Rows: grows or shrinks this block to hold them (props.block names it, default the mod id).
@@ -360,7 +366,7 @@ export default class PokemonHerd extends View {
       const has = new Set(Object.keys(meta?.react ?? {}));
       const msOf = (name) => meta.react[name].ms;
       const raw = moodOf(a, tabs, now, after);
-      if (m.status !== a.status) { onStatus(m, m.status, a.status, now, has, msOf); this.count(ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
+      if (m.status !== a.status) { onStatus(m, m.status, a.status, now, has, msOf); this.count(a, ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
       const mood = effectiveMood(raw, m, now);
       if (mood !== m.mood) { m.mood = mood; changed = true; }
@@ -559,7 +565,7 @@ export default class PokemonHerd extends View {
       mod: MOD,
       kind: "dialog",
       width: 640,
-      height: 560,
+      height: 700,
       props: { picker: true, slot: slotOf(a), current: pick, tag },
     });
   }
@@ -806,6 +812,7 @@ export default class PokemonHerd extends View {
 
   initPicker(cx) {
     this.filter = "";
+    this.only = {}; // the filter chips: { region?, mega? }
     this.megaMode = props()?.current?.mega ?? "auto";
     this.megaKind = props()?.current?.megaKind ?? null; // "X" | "Y", for a species with both
     this.icons = {}; // dex -> "loading" | "ready" | "failed"
@@ -818,7 +825,7 @@ export default class PokemonHerd extends View {
       cx.notify();
     });
     this.input.on("submit", () => {
-      const { entries, total } = searchEntries(this.input.value(), 2);
+      const { entries, total } = searchEntries(this.input.value(), 2, this.only);
       if (total === 1) this.choose(entries[0]);
     });
     this.input.focus();
@@ -831,7 +838,7 @@ export default class PokemonHerd extends View {
 
   // Icons for what the picker shows, downloaded on demand, a few at a time.
   fetchIcons(cx) {
-    this.iconQueue = this.visible.filter((e) => !this.icons[entryKey(e)]);
+    this.iconQueue = [...this.chainEntries().flat(), ...this.visible].filter((e) => !this.icons[entryKey(e)]);
     while (this.iconActive < ICON_JOBS && this.iconQueue.length) {
       const e = this.iconQueue.shift();
       const key = entryKey(e);
@@ -851,25 +858,117 @@ export default class PokemonHerd extends View {
     }
   }
 
+  // The pick as saved now (it may have evolved since the picker opened), else as it was then.
+  livePick() {
+    const p = props() ?? {};
+    return savedPicks()[p.slot] ?? p.current ?? null;
+  }
+
+  // Its evolution line as picker entries, stage by stage; a regional form's line stays in its region.
+  chainEntries() {
+    const cur = this.livePick();
+    if (!cur?.dex) return [];
+    const label = cur.form && formsOf(cur.dex).find((f) => f.form === cur.form)?.label;
+    return chainOf(cur.dex).map((stage) => stage.map((dex) => {
+      const form = label ? formsOf(dex).find((f) => f.label === label)?.form : undefined;
+      return form ? { dex, form } : { dex };
+    }));
+  }
+
   choose(entry) { // { dex, form? }: a species, or one of its regional forms
     const p = props();
+    const stay = this.livePick()?.stay ? { stay: true } : {}; // the Everstone stays with the pane
     // A shiny pane stays shiny; its Mega setting carries over, and X or Y if it stays the same species.
     const { dex, form } = entry;
     const megaKind = dex === p.current?.dex && this.megaKind ? { megaKind: this.megaKind } : {};
-    savePicks({ [p.slot]: { dex, shiny: p.current?.shiny === true && hasShiny(dex, form), mega: this.megaMode, ...(form ? { form } : {}), ...megaKind } });
+    savePicks({ [p.slot]: { dex, shiny: p.current?.shiny === true && hasShiny(dex, form), mega: this.megaMode, ...(form ? { form } : {}), ...megaKind, ...stay } });
     closeOverlay(p.overlay);
+  }
+
+  chooseRandom(entries) {
+    const p = props();
+    const taken = new Set(Object.entries(savedPicks()).filter(([slot]) => slot !== p.slot).map(([, x]) => x.dex));
+    const e = randomEntry(entries, p.current, taken);
+    if (e) this.choose(e);
   }
 
   // Saves the picker's Mega mode and X/Y on the current pick, together (one never drops the other).
   saveMega(p) {
-    savePicks({ [p.slot]: { ...p.current, mega: this.megaMode, ...(this.megaKind ? { megaKind: this.megaKind } : {}) } });
+    savePicks({ [p.slot]: { ...this.livePick(), mega: this.megaMode, ...(this.megaKind ? { megaKind: this.megaKind } : {}) } });
+  }
+
+  // The card on top of the picker: who it is now, what its species has done, its evolution line
+  // (click one to switch) and how close it is to evolving, with the Everstone to stop that.
+  renderCurrent(cur, t) {
+    const chain = this.chainEntries();
+    const isCur = (e) => e.dex === cur.dex && (e.form ?? null) === (cur.form ?? null);
+    const stage = chain.findIndex((st) => st.some(isCur));
+    const last = stage === chain.length - 1;
+    const left = Math.max(1, EVOLVE_JOBS - (cur.jobs ?? 0));
+    const progress = cur.stay ? "Holds an Everstone: won't evolve"
+      : last ? (chain.length > 1 ? "Fully evolved" : "Doesn't evolve")
+      : `Evolves after ${left} more job${left === 1 ? "" : "s"}`;
+    const line = statLine(stats().species[cur.dex]);
+    const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
+    const branchy = chain.some((st) => st.length > 2);
+    return v_flex().gap(8).p(10).rounded(8).border_1().border_color(t.border).flex_none()
+      .child(
+        h_flex().gap(12).items_center()
+          .child(icon(cur, 56))
+          .child(
+            v_flex().flex_1().min_w(0).gap(2)
+              .child(h_flex().gap(6).items_center()
+                .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${cur.shiny ? "✨ " : ""}${fullName(cur.dex, cur.form)}`))
+                .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
+              .child(div().text_size(11.5).text_color(t.muted).child(line ? `Its species: ${line}` : "Its species hasn't finished a job yet"))
+              .child(h_flex().gap(8).items_center()
+                .child(div().text_size(11.5).text_color(t.foreground).child(progress))
+                .when(!cur.stay && !last, (el) => el.child(
+                  div().w(80).h(5).rounded_full().bg(t.border).overflow_hidden()
+                    .child(div().h_full().w(80 * Math.min(1, (cur.jobs ?? 0) / EVOLVE_JOBS)).bg(t.accent))))),
+          )
+          // The Everstone: its Pokémon stays as it is.
+          .when(chain.length > 1, (el) => el.child(div()
+            .id("everstone").h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
+            .border_color(cur.stay ? t.accent : t.border).bg(cur.stay ? t.selected : "#00000000")
+            .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click((_e, cx) => {
+              const { stay, ...rest } = this.livePick();
+              savePicks({ [props().slot]: cur.stay ? rest : { ...rest, stay: true } });
+              cx.notify();
+            })
+            .child(cur.stay ? "🪨 Everstone: on" : "🪨 Everstone"))),
+      )
+      // The evolution line: click one to become it.
+      .when(chain.length > 1, (el) => el.child(
+        h_flex().gap(4).items_center().overflow_hidden()
+          .children(chain.flatMap((st, i) => [
+            ...(i ? [div().text_size(12).text_color(t.dim).px(2).child("›")] : []),
+            ...st.map((e) => v_flex()
+              .id(`evo-${entryKey(e)}`).items_center().flex_none().rounded(6).px(branchy ? 0 : 4).py(2)
+              .border_1().border_color(isCur(e) ? t.accent : "#00000000").bg(isCur(e) ? t.selected : "#00000000")
+              .cursor_pointer().hover((s2) => s2.bg(t.hover))
+              .on_click(() => { if (!isCur(e)) this.choose(e); })
+              .child(icon(e, branchy ? 30 : 36))
+              .when(!branchy, (el2) => el2.child(div().text_size(10.5).text_color(t.muted).child(fullName(e.dex, e.form))))),
+          ])),
+      ));
   }
 
   renderPicker(cx) {
     const t = theme();
     const p = props() ?? {};
-    const all = searchEntries(this.filter, Infinity).entries; // every match: scroll to browse them all
-    const now = p.current?.dex ? `${p.current.shiny ? "✨ " : ""}${fullName(p.current.dex, p.current.form)}` : "?";
+    const all = searchEntries(this.filter, Infinity, this.only).entries; // every match: scroll to browse them all
+    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega);
+    // A small toggle: the filter row's chips.
+    const chip = (id, label, on, flip) => div()
+      .id(id).h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11).border_1()
+      .border_color(on ? t.accent : t.border)
+      .bg(on ? t.selected : "#00000000")
+      .text_color(on ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click((_e, cx) => { flip(); this.fetchIcons(cx); cx.notify(); })
+      .child(label);
+    const cur = this.livePick();
     return v_flex()
       .id("pokemon-picker")
       .size_full()
@@ -882,10 +981,20 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().min_w(0).gap(2)
               .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Choose a Pokémon"))
-              .child(div().text_size(11.5).text_color(t.muted).truncate().child(`for ${p.tag ?? "this agent"} · now ${now}`)),
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(`for ${p.tag ?? "this agent"}`)),
           )
-          .child(div().text_size(11).text_color(t.dim).child("Esc")),
+          .child(
+            h_flex().gap(10).items_center().flex_none()
+              // Any Pokémon (of those the search shows), preferring one nobody else on screen has.
+              .child(div()
+                .id("pick-random").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
+                .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+                .on_click(() => this.chooseRandom(all))
+                .child(narrowed ? "🎲 Random match" : "🎲 Random"))
+              .child(div().text_size(11).text_color(t.dim).child("Esc")),
+          ),
       )
+      .when(!!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
       // Mega: Off / On / Auto (Mega while its agent works), for a Pokémon that has one.
       .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
@@ -925,6 +1034,15 @@ export default class PokemonHerd extends View {
         Input.new(this.input).h(34).flex_none().px(10).rounded(8).border_1().border_color(t.accent)
           .bg(t.background).text_size(12.5).text_color(t.foreground),
       )
+      // Filters, on top of the search: species that can Mega Evolve, and one region (click again: all).
+      .child(
+        h_flex().gap(4).items_center().flex_none()
+          .child(chip("only-mega", "Mega", !!this.only.mega, () => { this.only = { ...this.only, mega: !this.only.mega }; }))
+          .child(div().w(1).h(14).mx(3).bg(t.border))
+          .children(REGIONS.map((r) => chip(`only-${r}`, r, this.only.region === r, () => {
+            this.only = { ...this.only, region: this.only.region === r ? undefined : r };
+          }))),
+      )
       // A virtual list of grid rows: only what's on screen is drawn, so all ~974 scroll smoothly.
       // It reports only the row clicked; the pointer's x says which cell.
       .child(
@@ -955,6 +1073,6 @@ export default class PokemonHerd extends View {
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
-      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child("No Pokémon by that name or number.")));
+      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega ? "No Pokémon matches the search and filters." : "No Pokémon by that name or number.")));
   }
 }

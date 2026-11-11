@@ -28,9 +28,17 @@ one and it turns to you, and its name shows what its species has done: "Pikachu 
 **974 Pokémon, a few surprises.** Every agent gets a random Pokémon from all those with a
 walking animation, and keeps it. Now and then one is **shiny** (1 in 64). Right-click one, or
 press `alt-shift-p` for the focused agent, to pick another: search by name, number or region,
-or scroll through them all. The **regional forms** (Alola, Galar, Hisui, Paldea) are there too.
+or scroll through them all. Narrow it to the ones that can **Mega** Evolve, or to one **region**
+(Kanto to Paldea, forms included), or roll **🎲 Random** among what's shown (it prefers a
+Pokémon nobody else on screen has). The **regional forms** (Alola, Galar, Hisui, Paldea) are there too.
 
 <p align="center"><img src="docs/demo/variety.gif" alt="Pikachu, a shiny Pikachu, Alolan Vulpix and Mega Charizard X" width="440"></p>
+
+**Evolution.** Every 10 jobs its agent finishes, a Pokémon evolves (Charmander, then
+Charmeleon, then Charizard), with a sparkle. Eevee picks one of its branches; an Alolan Vulpix
+becomes an Alolan Ninetales. Give it an **Everstone** in its picker to keep it as it is. The
+picker shows who it is now, what its species has done, its evolution line (click one to switch)
+and how many jobs are left before it evolves.
 
 **Mega Evolution.** About 40 species can Mega Evolve. Each one's picker has a Mega setting: Off,
 On, or Auto. On Auto, it Mega Evolves while its agent works and turns back when the agent is
