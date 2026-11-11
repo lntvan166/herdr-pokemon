@@ -441,3 +441,17 @@ test("trimPanes never drops the panes to keep (on screen, or just updated)", () 
   assert.deepEqual(Object.keys(r.panes).sort(), ["d", "onScreen"]);
   assert.deepEqual(r.returned, []);
 });
+
+import { electLeader, boxList } from "../mods/pokemon-herd/picks.js";
+test("electLeader: one strip counts; another takes over when it goes quiet", () => {
+  assert.deepEqual(electLeader(null, "a", 1000), { leader: true, write: { id: "a", at: 1000 } });
+  assert.deepEqual(electLeader({ id: "a", at: 1000 }, "b", 2000), { leader: false, write: null });
+  assert.deepEqual(electLeader({ id: "a", at: 1000 }, "a", 2000), { leader: true, write: { id: "a", at: 2000 } });
+  assert.equal(electLeader({ id: "a", at: 1000 }, "b", 4001).leader, true); // a went quiet
+  assert.equal(electLeader({ junk: 1 }, "b", 10).leader, true);
+});
+
+test("boxList: raised Pokémon whose agents are gone, the latest first", () => {
+  const panes = { old: { dex: 6, friend: 20, hearts: 1 }, live: { dex: 4, jobs: 3 }, plain: { dex: 7, mega: "auto" }, newer: { dex: 25, held: "leftovers" } };
+  assert.deepEqual(boxList(panes, new Set(["live"])).map((x) => x.slot), ["newer", "old"]);
+});

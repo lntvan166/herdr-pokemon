@@ -421,3 +421,18 @@ export function expShareTarget(picks, giver) {
   }
   return best;
 }
+
+// One strip counts. Several may run at once (two windows, or the mod installed twice under one
+// name); each would count every job, Berry and find again. They elect one through shared state
+// `cur` ({ id, at }): the leader writes `at` each tick; another takes over once it's quiet for
+// `ttl`. Returns { leader, write } (write: what to save, or null).
+export function electLeader(cur, me, now, ttl = 3000) {
+  const free = !cur || typeof cur.id !== "string" || !(now - cur.at < ttl);
+  if (free || cur.id === me) return { leader: true, write: { id: me, at: now } };
+  return { leader: false, write: null };
+}
+
+// The Box, for the Bag's Box tab: raised Pokémon whose agents are gone, the latest first.
+export function boxList(panes, onScreen) {
+  return Object.entries(panes).filter(([slot, p]) => !onScreen.has(slot) && raised(p)).map(([slot, pick]) => ({ slot, pick })).reverse();
+}

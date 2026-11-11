@@ -274,6 +274,16 @@ forms, and Mega Evolution while an agent works.
   clock wakes now and then (by day every 1.5–4 min, at night every 4–10), plays its wake
   animation and is up 10–30 s (`awakeUntil`: it strolls, reacts to the season, watches visitors),
   then sleeps again. At the campfire it stays in its seat.
+- **The Box tab** (the Bag's title: "Bag | Box n", props `tab: "box"` opens on it; `boxList`,
+  `renderBox`): raised Pokémon whose agents are gone, latest first, on a 46 px pitch in a
+  scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/10 jobs · Everstone",
+  what it holds (its sprite, and Take: back into the Bag), and Release (asks "Sure?"; what it
+  held goes back into the Bag; the pane is forgotten).
+- **One strip counts** (`electLeader` in `picks.js`, shared `pokemon-herd-leader` { id, at }):
+  each strip elects itself unless another wrote within 3 s; the leader rewrites it every second.
+  Only the leader writes: job stats, evolution counts, hunger, Berries, Pickup, Rare Candy, badge
+  gifts, sparring hearts, "since" times, cries, sidebar cards, new agents' Pokémon and the
+  folders' (assignAll `write`). Dialogs and other strips read the same answers.
 - **Visitor gifts:** every visitor (it sets off 1.5 s after its sprite is in) shows, from a second after it sets off, 🎁 (13 px, pulsing 0.45–1 over 800 ms) over its head;
   clicking it (pointer cursor): once per visitor, an item from `pickup()` goes to the Bag, and its
   icon replaces the 🎁 for 4 s; its hover tag (230 px) says

@@ -13,10 +13,11 @@ const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
 import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
+const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -121,7 +122,10 @@ function forgetPanes(keys) {
 }
 
 const paneless = {}; // sub-agents' picks: not saved, only kept while the app runs
-const assignAll = (list) => {
+// Who is which Pokémon. Only the counting strip (`write`, its leader: see electLeader) saves what
+// this decides (a folder's Pokémon given back, who each folder has); everyone else (dialogs,
+// other strips) reads the same answer without writing.
+const assignAll = (list, { write = false } = {}) => {
   const keys = Object.keys(paneless);
   for (let i = 0; i < keys.length - 200; i++) delete paneless[keys[i]]; // forget the oldest
   let terms = [];
@@ -131,15 +135,19 @@ const assignAll = (list) => {
   const folders = raw?.v === 1 && raw.folders && typeof raw.folders === "object" ? raw.folders : {};
   const cwdOf = Object.fromEntries(terms.filter((t) => t?.address && typeof t.cwd === "string").map((t) => [t.address, t.cwd]));
   const back = fromFolders(list, savedPicks(), folders, cwdOf);
-  if (Object.keys(back.inherit).length) { savePicks(back.inherit); forgetPanes(back.forget); }
-  if (JSON.stringify(back.folders) !== JSON.stringify(folders)) {
+  let panesNow = savedPicks();
+  if (Object.keys(back.inherit).length) {
+    if (write) { savePicks(back.inherit); forgetPanes(back.forget); }
+    panesNow = { ...panesNow, ...back.inherit };
+  }
+  if (write && JSON.stringify(back.folders) !== JSON.stringify(folders)) {
     const keys = Object.keys(back.folders);
     for (let i = 0; i < keys.length - 300; i++) delete back.folders[keys[i]]; // forget the oldest folders
     setShared(FOLDERS_KEY, { v: 1, folders: back.folders });
   }
   // Settings → New agents: Favorites: a new agent's Pokémon is one of the favourites.
   const pool = loadSettings(shared(SETTINGS_KEY)).newFrom === "favorites" ? favoriteEntries(favs()) : null;
-  const r = assign(list, savedPicks(), paneless, charmOdds(), pool);
+  const r = assign(list, write ? savedPicks() : panesNow, paneless, charmOdds(), pool);
   // Sub-agents (Settings: on): their agent's Pokémon, younger. `family`: child -> parent address.
   r.family = {};
   if (loadSettings(shared(SETTINGS_KEY)).family) {
@@ -470,6 +478,7 @@ export default class PokemonHerd extends View {
   count(a, pick, m, next, now) {
     const c = statusChange(m.run, m.status, next, now);
     m.run = c.run;
+    if (!this.leader) return; // another strip counts
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
     if (!c.job) return;
     const d = new Date(now);
@@ -653,6 +662,7 @@ export default class PokemonHerd extends View {
   // there is one (a heart back). Idle (its agent not working nor waiting): now and then it finds
   // an item (items.js pickup) for the Bag.
   care(a, m, now) {
+    if (!this.leader) { if (m.note && now >= m.note.until) m.note = null; return; } // another strip counts
     // Hunger, Berries and quick-answer hearts are for agents with a pane (a sub-agent's Pokémon
     // is its agent's, younger: it has no friendship of its own to feed).
     if (!a.pane) { m.blockedAt = undefined; m.hungry = false; }
@@ -703,8 +713,13 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const list = herdAgents();
     const tabs = tabsById();
-    const { ids, fresh, family } = assignAll(list);
-    if (Object.keys(fresh).length) {
+    // One strip counts (jobs, finds, hunger, Berries, gifts, new agents' Pokémon): the leader.
+    this.me ??= `${now}-${Math.random().toString(36).slice(2, 8)}`;
+    const el = electLeader(shared(LEADER_KEY), this.me, now);
+    this.leader = el.leader;
+    if (el.write && now - (this.leaderWrote ?? 0) >= 1000) { this.leaderWrote = now; setShared(LEADER_KEY, el.write); }
+    const { ids, fresh, family } = assignAll(list, { write: this.leader });
+    if (this.leader && Object.keys(fresh).length) {
       // A new agent given a species raised before (the Box): that very Pokémon, moved over.
       const onScreen = new Set(list.map((a) => a.pane).filter(Boolean));
       const saved = savedPicks();
@@ -719,7 +734,7 @@ export default class PokemonHerd extends View {
       savePicks(fresh); // keeps new agents' Pokémon stable
       forgetPanes(forget);
     }
-    this.publishIcons(list, ids, cx); // keeps new agents' Pokémon stable
+    if (this.leader) this.publishIcons(list, ids, cx); // agent-icons / agent-cards for the sidebar
     if (this.magick) {
       for (const a of list) {
         const p = ids[a.address];
@@ -840,12 +855,15 @@ export default class PokemonHerd extends View {
       const raw = moodOf(a, tabs, now, after);
       if (m.status !== a.status) {
         // When it changed, for the Party list's "3m" (200 agents at most, the oldest forgotten).
-        const since = { ...(shared(SINCE_KEY) ?? {}), [a.address]: now };
-        const keys = Object.keys(since);
-        for (let k = 0; k < keys.length - 200; k++) delete since[keys[k]];
-        setShared(SINCE_KEY, since);
-        const st = settingsNow();
-        if ((a.status === "blocked" && st.cryBlocked) || (a.status === "done" && st.cryDone)) cry(ids[a.address].dex);
+        if (this.leader) {
+          const since = { ...(shared(SINCE_KEY) ?? {}), [a.address]: now };
+          const keys = Object.keys(since);
+          for (let k = 0; k < keys.length - 200; k++) delete since[keys[k]];
+          setShared(SINCE_KEY, since);
+          // One cry, from the counting strip only.
+          const st = settingsNow();
+          if ((a.status === "blocked" && st.cryBlocked) || (a.status === "done" && st.cryDone)) cry(ids[a.address].dex);
+        }
         onStatus(m, m.status, a.status, now, has, msOf); this.count(a, ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
       // Asleep, it stirs now and then: up a little while, then back to sleep.
@@ -990,13 +1008,13 @@ export default class PokemonHerd extends View {
           const has = new Set(Object.keys(meta?.react ?? {}));
           onSpar(m, pair[1 - k].x, now, has, (name) => meta.react[name].ms, k === 0 ? "💥" : null);
           m.pauseUntil = m.react.until + rand(2000, 5000);
-          updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
+          if (this.leader) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
         });
         changed = true;
       }
     }
     if (this.visit(list, ids, g, now, cx)) changed = true;
-    if (now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
+    if (this.leader && now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
     if (changed || this.snowing) cx.notify();
   }
@@ -1704,6 +1722,7 @@ export default class PokemonHerd extends View {
   // lightness step up (raised), no borders; the one primary control is ink on paper (solid).
 
   initBag(cx) {
+    this.bagTab = props()?.tab === "box" ? "box" : "items";
     this.sel = null; // the chosen item, or null: the first one usable now (else the first owned)
     this.badgeHover = null;
     this.art = {}; // art key -> "ready" | "failed"
@@ -1718,7 +1737,8 @@ export default class PokemonHerd extends View {
     // The herd changes under it (agents finish, Pokémon evolve): redraw, and fetch new portraits.
     cx.timer.every(1000, (cx) => {
       // The herd's portraits, and those of Pokémon holding an item whose agents are gone ("Held by").
-      const holders = Object.values(savedPicks()).filter((p) => p.held);
+      const holders = boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean))).map((x) => x.pick)
+        .concat(Object.values(savedPicks()).filter((p) => p.held));
       for (const pick of [...this.herd().map((h) => h.pick), ...holders]) {
         const key = entryKey(pick);
         if (this.icons[key]) continue;
@@ -1744,6 +1764,8 @@ export default class PokemonHerd extends View {
     const s = summary(stats(), 3);
     const saved = savedPicks(); // read once per frame
     const herd = this.herd(saved);
+    const tab = this.bagTab ?? "items";
+    const boxed = boxList(saved, new Set(agents().map((a) => a.pane).filter(Boolean)));
     const how = { night: isNight() };
     const ids = Object.keys(ITEMS);
     const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
@@ -1784,7 +1806,13 @@ export default class PokemonHerd extends View {
       // Title row: the name, the finding under it; the trainer's totals at the right.
       .child(h_flex().items_start().justify_between().gap(12).flex_none()
         .child(v_flex().min_w(0).gap(3)
-          .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Bag"))
+          // Items | Box: what's in the Bag, or the Pokémon raised whose agents are gone.
+          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`]].map(([k, txt]) => div()
+            .id(`bag-tab-${k}`).text_size(15).cursor_pointer()
+            .when(tab === k, (el) => el.font_semibold().text_color(t.foreground))
+            .when(tab !== k, (el) => el.text_color(t.dim).hover((st) => st.text_color(t.muted)))
+            .on_click((_e, cx) => { this.bagTab = k; this.releasing = null; cx.notify(); })
+            .child(txt))))
           .child(div().text_size(12).text_color(first ? t.foreground : t.muted).truncate().child(finding)))
         .child(v_flex().gap(3).items_end().flex_none()
           .child(h_flex().gap(12).items_center()
@@ -1793,7 +1821,8 @@ export default class PokemonHerd extends View {
           // Who did the most: the three species with the most jobs.
           .when(s.top.length > 0, (el) => el.child(div().text_size(11.5).text_color(t.muted)
             .child(`Most jobs: ${s.top.map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(" · ")}`)))))
-      .child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
+      .when(tab === "box", (el) => el.child(this.renderBox(boxed, LIST_H, t, icon)))
+      .when(tab !== "box", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
         .child(v_flex().w(218).flex_none().p(4).gap(0).rounded(10).bg(t.raised)
           .children(ids.map((id) => {
@@ -1879,7 +1908,7 @@ export default class PokemonHerd extends View {
               .on_click((_e, cx) => { use(sel, h); cx.notify(); })
               .child(h.use === "hold" ? "Give" : "Use")))))
           .when((b.items[sel] ? takers[sel].length : 0) > SHOW, (el) => el.child(div().text_size(11.5).text_color(t.muted)
-            .child(`and ${takers[sel].length - SHOW} more`)))))
+            .child(`and ${takers[sel].length - SHOW} more`))))))
       // The badge case, and the Shiny Charm.
       .child(v_flex().flex_none().gap(6)
         .child(h_flex().justify_between().items_center()
@@ -1902,6 +1931,56 @@ export default class PokemonHerd extends View {
             .child(v_flex().gap(1)
               .child(div().text_size(12).text_color(charm ? t.foreground : t.muted).child("Shiny Charm"))
               .child(div().text_size(11).text_color(t.muted).child(charm ? "Shinies 1 in 32" : `At ${CHARM_JOBS} jobs · ${s.jobs} so far`))))));
+  }
+
+  // The Bag's Box tab: each raised Pokémon whose agent is gone (the latest first), its hearts and
+  // how close it is to evolving, what it holds (Take: back into the Bag), and Release (twice: it
+  // asks "Sure?"; what it held goes back into the Bag). An agent that gets its species takes it.
+  renderBox(boxed, h, t, icon) {
+    const row = ({ slot, pick }) => {
+      const c = cardOf(pick);
+      const sure = this.releasing === slot;
+      return h_flex().id(`box-${slot}`).h(46).px(10).gap(10).items_center().flex_none().rounded(8).hover((st) => st.bg(t.hover))
+        .child(icon(pick, 34))
+        .child(v_flex().flex_1().min_w(0).gap(1)
+          .child(div().text_size(12.5).text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}`))
+          .child(div().text_size(11).text_color(t.muted).truncate()
+            .child([`♥ ${heartsText(friendOf(pick))}`, c.note, pick.stay ? "Everstone" : ""].filter(Boolean).join(" · "))))
+        .when(!!pick.held, (el) => el.child(h_flex().gap(6).items_center().flex_none()
+          .child(this.itemArt(pick.held, 20))
+          .child(div().id(`box-take-${slot}`).h(24).px(10).rounded_full().flex().items_center().text_size(11.5).border_1()
+            .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click((_e, cx) => {
+              const now = savedPicks()[slot];
+              const r = now && takeHeld(now);
+              if (!r) return;
+              savePicks({ [slot]: r.pick });
+              saveBag(addItem(bag(), r.back));
+              cx.notify();
+            })
+            .child("Take"))))
+        .child(div().id(`box-release-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+          .border_color(sure ? t.blocked : t.border).text_color(sure ? t.blocked : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+          .on_click((_e, cx) => {
+            if (!sure) { this.releasing = slot; cx.notify(); return; }
+            const now = savedPicks()[slot];
+            if (now?.held) saveBag(addItem(bag(), now.held));
+            forgetPanes([slot]);
+            this.releasing = null;
+            cx.notify();
+          })
+          .child(sure ? "Sure?" : "Release"));
+    };
+    return v_flex().id("bag-box").flex_none().h(h).p(6).gap(2).rounded(10).bg(t.raised).overflow_y_scrollbar()
+      .when(!boxed.length, (el) => el.child(div().p(10).text_size(12).text_color(t.dim)
+        .child("Empty. Close an agent whose Pokémon you raised (hearts, jobs, an item) and it waits here for the next agent to get its species.")))
+      .children(boxed.map(row));
+  }
+
+  // An item's sprite in the Bag (its emoji till it's in).
+  itemArt(id, size) {
+    const art = ITEMS[id]?.art;
+    return art && this.art?.[art] === "ready" ? image(artPath(art)).size(size).flex_none() : div().text_size(size * 0.7).child(ITEMS[id]?.icon ?? "");
   }
 
   // ---- the picker (opened as a dialog with props { picker, slot, current, tag }) ----
