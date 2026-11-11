@@ -138,3 +138,22 @@ test("features: flowers on the grass and snowflakes that fall and wrap", async (
   assert.notDeepEqual(a, b);
   assert.ok([...a, ...b].every((p) => p.y >= 0 && p.y < 80 && p.x >= 0 && p.x < 800));
 });
+
+import { weatherOf, rainAt, lightning, STORM_MS, features as featuresW } from "../mods/pokemon-herd/scene.js";
+test("weather: clear, rain, storm", () => {
+  assert.equal(weatherOf([]), "clear");
+  assert.equal(weatherOf([60000]), "rain");
+  assert.equal(weatherOf([1, 2, 3]), "storm");
+  assert.equal(weatherOf([STORM_MS]), "storm");
+});
+
+test("rain falls inside the sky, a storm has more", () => {
+  const f = featuresW(900, 80, 0);
+  const rain = rainAt(f.drops, 12.3, 80, false);
+  const storm = rainAt(f.drops, 12.3, 80, true);
+  assert.ok(storm.length > rain.length && rain.length > 10);
+  assert.ok(storm.every((d) => d.y >= 0 && d.y < 80));
+  // 100 s at four frames a second: a flash about every 9 s.
+  const flashes = Array.from({ length: 400 }, (_, i) => lightning(i / 4)).filter(Boolean).length;
+  assert.ok(flashes >= 10 && flashes <= 12, String(flashes));
+});

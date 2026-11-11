@@ -131,7 +131,10 @@ export function features(width, ground, row) {
     const drift = 2 + r() * 4;
     flakes.push({ x: drift + r() * (width - 2 * drift), y: r() * ground, speed: 5 + r() * 7, drift, phase: r() * 6.28 });
   }
-  return { hills, clouds, stars, tufts, trees, moon, flowers, flakes };
+  // Raindrops (weather): spread over the width, each its own speed and start.
+  const drops = [];
+  for (let i = 0; i < Math.round(width / 12); i++) drops.push({ x: r() * width, y: r() * ground, speed: 160 + r() * 80 });
+  return { hills, clouds, stars, tufts, trees, moon, flowers, flakes, drops };
 }
 
 // Where the snowflakes are `sec` seconds on: falling, swaying, back at the top under `line`
@@ -168,3 +171,21 @@ export function treeParts(t, base) {
 export const overHead = (box, heads) =>
   heads.some((h) => box.x < h.x1 && box.x + box.w > h.x0 && box.y + box.h > h.top - 4);
 
+
+// The weather, from how long each agent waiting on you has waited (ms): clear when none waits,
+// rain while any does, a storm when three or more wait or one has waited STORM_MS.
+export const STORM_MS = 10 * 60000;
+export function weatherOf(waits) {
+  if (!waits.length) return "clear";
+  return waits.length >= 3 || Math.max(...waits) >= STORM_MS ? "storm" : "rain";
+}
+
+// Where the raindrops are `sec` seconds on: straight down, slanting a little, back at the top
+// under `line`. A storm has twice the drops (every one; rain every other) and a wind.
+export const rainAt = (drops, sec, line, storm) => drops.filter((_, i) => storm || i % 2 === 0).map((d) => {
+  const y = (d.y + d.speed * sec) % line;
+  return { x: Math.floor(d.x - y * (storm ? 0.35 : 0.15)), y: Math.floor(y) };
+});
+
+// A storm's lightning: a quarter-second flash every 9 seconds or so (the strip redraws four times a second).
+export const lightning = (sec) => Math.floor(sec * 4) % 37 === 0;

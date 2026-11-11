@@ -13,7 +13,7 @@ test("reactionAnim fallbacks", () => {
 
 test("REACTIONS lists every animation sprites must cut", () => {
   assert.deepEqual([...new Set(Object.values(REACTIONS).flat())].sort(),
-    ["Charge", "Cringe", "Dance", "DeepBreath", "Eat", "Hop", "Hurt", "Laying", "LookUp", "Nod", "Rotate", "Shake", "Sit", "Wake"]);
+    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Eat", "Hop", "Hurt", "Laying", "LookUp", "Nod", "Rotate", "Shake", "Shoot", "Sit", "Strike", "Swing", "Wake"]);
 });
 
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, LOOK_MS, AWAKE_MS } from "../mods/pokemon-herd/react.js";
@@ -147,4 +147,25 @@ test("sleepAfter: idle 3 minutes to fall asleep by day, 1 by night", () => {
   assert.equal(sleepAfter(1), 60000);
   assert.equal(sleepAfter(0.4), 180000);
   assert.equal(sleepAfter(0.6), 60000);
+});
+
+import { sparPair, onSpar, SPAR_GAP } from "../mods/pokemon-herd/react.js";
+test("sparPair: close, same row, rested", () => {
+  const now = 1e9;
+  assert.equal(sparPair([{ addr: "a", x: 100, row: 0 }, { addr: "b", x: 400, row: 0 }], now), null); // too far
+  assert.equal(sparPair([{ addr: "a", x: 100, row: 0 }, { addr: "b", x: 110, row: 0 }], now), null); // on top
+  assert.equal(sparPair([{ addr: "a", x: 100, row: 0 }, { addr: "b", x: 180, row: 1 }], now), null); // rows apart
+  assert.deepEqual(sparPair([{ addr: "a", x: 100, row: 0 }, { addr: "b", x: 180, row: 0 }], now).map((c) => c.addr), ["a", "b"]);
+  assert.equal(sparPair([{ addr: "a", x: 100, row: 0, lastSpar: now - 1000 }, { addr: "b", x: 180, row: 0 }], now), null);
+  assert.ok(sparPair([{ addr: "a", x: 100, row: 0, lastSpar: now - SPAR_GAP }, { addr: "b", x: 180, row: 0 }], now));
+});
+
+test("onSpar faces the partner and attacks", () => {
+  const m = { x: 100, dir: "l" };
+  onSpar(m, 180, 0, new Set(["Attack"]), () => 500, "💥");
+  assert.equal(m.dir, "r");
+  assert.equal(m.react.anim, "Attack");
+  assert.equal(m.react.until, 2000);
+  assert.equal(m.react.icon, "💥");
+  assert.equal(m.lastSpar, 0);
 });

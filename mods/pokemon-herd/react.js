@@ -14,6 +14,7 @@ export const REACTIONS = {
   bask: ["Laying", "Sit", "DeepBreath", "Hop"], // summer: the sun
   lookUp: ["LookUp", "Rotate"], // autumn: the falling leaves
   shiver: ["Shake", "Cringe", "Hurt"], // winter: the cold
+  spar: ["Attack", "Strike", "Swing", "Shoot", "Hop"], // two idle ones spar
 };
 
 // Spring, summer, autumn, winter (scene.js's seasons): the reaction, and an icon over its head
@@ -96,3 +97,29 @@ export function pose(m, mood, now, hovered, side) {
 
 // Whether it shows its Mega form now: On always, Auto while its agent works, Off never.
 export const megaShown = (pick, status) => !pick.form && !!megaForm(pick.dex) && (pick.mega === "on" || (pick.mega !== "off" && status === "working"));
+
+// Sparring: two idle Pokémon standing still on one row, close but not on top of each other, and
+// neither sparred in the last SPAR_GAP. `cands`: [{ addr, x, row, lastSpar }]. The first such
+// pair, or null.
+export const SPAR_GAP = 10 * 60000;
+export function sparPair(cands, now) {
+  const ready = cands.filter((c) => now - (c.lastSpar ?? -Infinity) >= SPAR_GAP);
+  for (let i = 0; i < ready.length; i++) {
+    for (let j = i + 1; j < ready.length; j++) {
+      const [a, b] = [ready[i], ready[j]];
+      const dx = Math.abs(a.x - b.x);
+      if (a.row === b.row && dx >= 30 && dx <= 160) return [a, b];
+    }
+  }
+  return null;
+}
+
+// It spars: turns to its partner and plays its attack for about two seconds (💥 over one of them).
+export function onSpar(m, partnerX, now, has, msOf, icon) {
+  m.dir = partnerX > m.x ? "r" : "l";
+  const anim = reactionAnim("spar", has);
+  const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
+  const until = now + ms * Math.max(1, Math.ceil(2000 / ms));
+  m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
+  m.lastSpar = now;
+}

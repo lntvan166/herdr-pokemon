@@ -1,7 +1,7 @@
 // The Bag (items found and earned, shared by every pane) and the badges. Pure.
 import { EVOLVE_HOW, EVOLVES_FROM } from "./species.js";
 import { nameOf } from "./dex.js";
-import { itemUse, useItem } from "./picks.js";
+import { itemUse, useItem, HELD_IDS } from "./picks.js";
 // Kept in shared state as { v: 1, items: { <id>: count }, marks: { evolutions, nightJob, fullHearts } }.
 
 export const STONES = ["fire", "water", "thunder", "leaf", "moon", "sun", "shiny", "dusk", "dawn", "ice"];
@@ -13,7 +13,11 @@ export const ITEMS = {
   berry: { name: "Oran Berry", icon: "🍓", art: "items/oran-berry" },
   "rare-candy": { name: "Rare Candy", icon: "🍬", art: "items/rare-candy" },
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, { name: `${k[0].toUpperCase()}${k.slice(1)} Stone`, icon: STONE_ICON[k], art: `items/${k}-stone` }])),
+  "lucky-egg": { name: "Lucky Egg", icon: "🥚", art: "items/lucky-egg", kind: "held" },
+  "soothe-bell": { name: "Soothe Bell", icon: "🔔", art: "items/soothe-bell", kind: "held" },
+  "amulet-coin": { name: "Amulet Coin", icon: "🪙", art: "items/amulet-coin", kind: "held" },
 };
+export const HELD = HELD_IDS;
 export const CHARM_ART = "items/shiny-charm";
 
 // The species a stone evolves (by name, dex order): "Pikachu, Eevee, Eelektrik…".
@@ -25,6 +29,9 @@ export function stoneTakers(kind) {
 // What an item does, in a sentence.
 export function itemAbout(id) {
   if (id === "berry") return "Gives a Pokémon a heart. A hungry one eats one by itself when you answer its agent.";
+  if (id === "lucky-egg") return "For a Pokémon to hold: every job its agent finishes counts twice towards evolving.";
+  if (id === "soothe-bell") return "For a Pokémon to hold: every heart it gains is two.";
+  if (id === "amulet-coin") return "For a Pokémon to hold: it finds items twice as often.";
   if (id === "rare-candy") return "Evolves a Pokémon now, if it evolves by jobs or by friendship (with its hearts full).";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");
@@ -42,7 +49,7 @@ export function takersOf(id, herd, how = {}) {
 export const MAX_ITEM = 99;
 
 // Pickup: what an idle Pokémon digs up. Berries mostly, a stone now and then, rarely a Rare Candy.
-const PICKUP = [["berry", 70], ...STONES.map((k) => [`${k}-stone`, 2]), ["rare-candy", 10]];
+const PICKUP = [["berry", 70], ...STONES.map((k) => [`${k}-stone`, 2]), ["rare-candy", 10], ...HELD_IDS.map((id) => [id, 1])];
 export function pickup(rnd = Math.random) {
   let r = rnd() * PICKUP.reduce((t, [, w]) => t + w, 0);
   for (const [id, w] of PICKUP) if ((r -= w) < 0) return id;
@@ -63,7 +70,8 @@ export function loadBag(raw) {
     for (const id of Object.keys(ITEMS)) if (count(raw.items[id])) items[id] = count(raw.items[id]);
   }
   const m = raw?.v === 1 && raw.marks && typeof raw.marks === "object" ? raw.marks : {};
-  return { v: 1, items, marks: { evolutions: Number.isInteger(m.evolutions) && m.evolutions > 0 ? m.evolutions : 0, nightJob: m.nightJob === true, fullHearts: m.fullHearts === true } };
+  const seen = Array.isArray(m.seen) ? m.seen.filter((id) => BADGES.some((b) => b.id === id)) : [];
+  return { v: 1, items, marks: { evolutions: Number.isInteger(m.evolutions) && m.evolutions > 0 ? m.evolutions : 0, nightJob: m.nightJob === true, fullHearts: m.fullHearts === true, seen } };
 }
 
 // The bag with `n` more (or fewer) of an item, kept within 0..MAX_ITEM.
@@ -92,3 +100,16 @@ export const BADGES = [ // art: PokeAPI's badges/1..8, the Kanto badges in this 
   { id: "earth", name: "Earth Badge", icon: "🌍", how: "1000 jobs done", got: (s) => s.jobs >= 1000 },
 ];
 export const badges = (summary, marks) => BADGES.map((b) => ({ ...b, earned: !!b.got(summary, marks) }));
+
+// Each badge, the first time it is earned, comes with an item to hold (in turn: Lucky Egg,
+// Soothe Bell, Amulet Coin…). Returns the gifts and the badges now seen (for marks.seen).
+export function badgeGifts(summary, marks) {
+  const seen = [...(marks.seen ?? [])];
+  const gifts = [];
+  for (const b of badges(summary, marks)) {
+    if (!b.earned || seen.includes(b.id)) continue;
+    gifts.push(HELD_IDS[BADGES.indexOf(BADGES.find((x) => x.id === b.id)) % HELD_IDS.length]);
+    seen.push(b.id);
+  }
+  return { gifts, seen };
+}

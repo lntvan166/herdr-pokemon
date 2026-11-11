@@ -116,3 +116,36 @@ test("setBlockProps: merges props where it is, size untouched", () => {
   assert.deepEqual(n.size, { px: 180 });
   assert.equal(setBlockProps({ id: "root", children: [] }, "pokemon-herd", { background: "plain" }), null);
 });
+
+import { partyPlace, placeParty, PARTY_ID } from "../mods/pokemon-herd/place.js";
+test("the Party panel: in the sidebar or the right panel, never taken for the strip", () => {
+  const tree = {
+    id: "root", type: "row", children: [
+      { id: "sidebar", type: "column", children: [{ id: "sidebar-lists", type: "column", children: [
+        { id: "spaces", type: "block", content: { mod: "better-sidebar" }, size: { weight: 1 } },
+        { id: "needs-you", type: "block", content: { mod: "needs-you" } },
+      ] }] },
+      { id: "work", type: "column", children: [
+        { id: "work-body", type: "row", children: [{ id: "panel", type: "column", children: [{ id: "panel-body", type: "stack", children: [] }] }] },
+        { id: "pokemon-herd", type: "block", content: { mod: "pokemon-herd", props: { rows: 2 } } },
+        { id: "status-row", type: "row", children: [] },
+      ] },
+    ],
+  };
+  assert.equal(partyPlace(tree), null);
+  const side = placeParty(tree, "pokemon-herd", "sidebar");
+  assert.equal(partyPlace(side), "sidebar");
+  const lists = side.children[0].children[0].children.map((c) => c.id);
+  assert.deepEqual(lists, ["spaces", PARTY_ID, "needs-you"]);
+  // The strip is still the strip: rows, place.
+  assert.equal(rowsOf(side, "pokemon-herd"), 2);
+  assert.equal(placeOf(side, "pokemon-herd"), "bottom");
+  // Moving it: one copy only.
+  const moved = placeParty(side, "pokemon-herd", "panel");
+  assert.equal(partyPlace(moved), "panel");
+  assert.equal(JSON.stringify(moved).split(PARTY_ID).length - 1, 1);
+  // Off.
+  assert.equal(partyPlace(placeParty(moved, "pokemon-herd", null)), null);
+  // A layout without that place.
+  assert.equal(placeParty({ id: "root", type: "row", children: [] }, "pokemon-herd", "sidebar"), null);
+});

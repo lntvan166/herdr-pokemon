@@ -26,7 +26,8 @@ one and it turns to you, and its name shows what its species has done: "Pikachu 
 </p>
 
 **974 Pokémon, a few surprises.** Every agent gets a random Pokémon from all those with a
-walking animation, and keeps it. Now and then one is **shiny** (1 in 64). Right-click one, or
+walking animation, and keeps it. Close an agent and open a new one in the same folder, and it
+gets that folder's Pokémon back, hearts, jobs and all (each folder its own; a subfolder is another). Now and then one is **shiny** (1 in 64). Right-click one, or
 press `alt-shift-p` for the focused agent, to pick another: search by name, number or region,
 or scroll through them all. Narrow it to the ones that can **Mega** Evolve, or to one **region**
 (Kanto to Paldea, forms included), or roll **🎲 Random** among what's shown (it prefers a
@@ -41,15 +42,38 @@ games: a **stone** (Pikachu takes a Thunder Stone; Eevee becomes whichever its s
 Espeon by day and Umbreon at night; Gligar evolves at night). Give one an **Everstone** to keep it
 as it is. Deerling and Sawsbuck change coats with the season.
 
-**Hearts, and the Bag.** A Pokémon likes you more when you click it, or answer its agent within a
-minute; leave its agent waiting over 5 minutes and it gets hungry (😢, a heart down) until you
-answer, when it eats a Berry if you have one. Idle Pokémon now and then dig something up: Berries,
+**Hearts, and the Bag.** Friendship is points, 20 to a heart, 5 hearts at most, and it comes
+slowly: a click on a Pokémon (+3, every 30 minutes at most), an answer to its agent within a
+minute (+4, every 10 minutes at most), sparring (+3), a Berry (+10). Leave its agent waiting over
+5 minutes and it gets hungry (😢, −10) until you answer, when it eats a Berry if you have one. Idle Pokémon now and then dig something up: Berries,
 stones, a Rare Candy. A job over 30 minutes earns a Rare Candy too (it evolves one now). Use them in
-the picker or in the **Bag** (right-click menu, "Open the Bag"): pick an item and it lists who on
+the picker or in the **Bag** (right-click the strip, "Bag"): pick an item and it lists who on
 screen can take it now and what each would become, with a Use button. The picker shows who it is, its hearts, what its species has done, its evolution line (click
 one to switch) and what it takes to evolve. The Bag also holds the **8 badges**
 (10 jobs, 100, a first evolution, 24 hours of work, 5 hearts, a job finished after midnight, a job
-over an hour, 1000 jobs). At 500 jobs you get the **Shiny Charm**: shinies twice as often.
+over an hour, 1000 jobs); each badge, the first time, comes with an item to hold: a **Lucky Egg**
+(jobs count twice towards evolving), a **Soothe Bell** (hearts come twice as fast) or an **Amulet
+Coin** (it finds things twice as often). At 500 jobs you get the **Shiny Charm**: shinies twice as
+often.
+
+**A party of cards.** Turn on the **Party panel** (Settings → Strip → Party panel: Sidebar or
+Right panel) and every agent is its Pokémon's card: the agent's name, large; the card's edge in
+its status colour (working, done, pulsing red while it needs you); its Pokémon, hearts and how
+close it is to evolving. Click one to focus that agent. In a collapsed sidebar it shrinks to a
+column of portraits. It works with any layout you own.
+
+<p align="center"><img src="docs/demo/party.gif" alt="Five agents as Pokémon cards: auth working (Charmander, 6 of 10 jobs), review needing you (Gengar, its edge pulsing red), api working (Pikachu, needs a Thunder Stone), docs done (Eevee), tests idle (Lucario)" width="280"></p>
+
+With [Better Sidebar](https://herdr.dev/mods), the same cards can replace its own agent rows
+instead (off by default): turn on Settings → Gameplay → "Pokémon in the sidebar", then Settings →
+Updates → **Patch** (Better Sidebar 3.2.0 needs a small patch to draw them; reinstalling it undoes
+the patch, press Patch again). The mod publishes them as shared `agent-icons` and `agent-cards`.
+
+**Weather, sparring, sub-agents, cries.** The sky rains while an agent waits on you, and storms
+when three do or one has waited 10 minutes. Two idle Pokémon standing close now and then spar
+(a heart each). A sub-agent shows as its agent's Pokémon, younger and smaller (Alakazam's helper
+is an Abra), tagged "↳ tab", and follows it. Each Pokémon can cry, its real cry, when its agent
+needs you or finishes: off by default, in **Settings** (needs `ffmpeg`).
 
 **Mega Evolution.** About 40 species can Mega Evolve. Each one's picker has a Mega setting: Off,
 On, or Auto. On Auto, it Mega Evolves while its agent works and turns back when the agent is
@@ -65,16 +89,18 @@ Mega X / Y: pick one in the picker once both are drawn.
 - The ground lines stay put: the strip never jumps up and down.
 
 **Yours to arrange.**
-- Right-click the strip's ground to choose 1–3 rows, and where the strip sits: the sidebar, the
-  bottom of the window, or the right panel.
+- Right-click the strip's ground for the **Bag** and **Settings**. Settings (it stays open while
+  you change things) has where the strip sits (sidebar, bottom of the window, right panel), 1–3
+  rows, the background, the cries, and a switch for each of evolution, Pickup, weather, sparring
+  and sub-agents.
 - The background is **Scenery** by default: sky, hills, trees and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
   It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring
   blossom, summer green, gold autumn with falling leaves, then snow, a step further on each day.
 
-  Switch it to **Plain** in the same menu.
+  Switch it to **Plain** in Settings.
 - **Stats:** each species counts the jobs its agents finished and the time they spent working.
-  Two agents that are both Pikachu add to Pikachu's. The same menu shows the totals and the three
+  Two agents that are both Pikachu add to Pikachu's. The Bag shows the totals and the three
   busiest species.
 - The rows form one track: walk off the right edge of one and you turn up on the left of the next.
 - Drag a Pokémon to move it, or to change its row.
@@ -95,7 +121,7 @@ scripts/install.sh   # copies mods/pokemon-herd into ~/.config/herdr-app/mods/ a
 ```
 
 Herdr docks a strip at the bottom of the window the first time it sees the mod. Right-click
-its ground to give it more rows or move it to the sidebar. Built-in layouts must be cloned
+its ground, then Settings, to give it more rows or move it to the sidebar. Built-in layouts must be cloned
 first (`layout.clone`). To place it yourself instead, add a block to a layout you own:
 
 ```json
@@ -110,17 +136,18 @@ If you are coming from the upstream `pokemon-agents` mod, your agents keep their
 
 ## Updating
 
-An installed copy doesn't update by itself. Once a day the strip checks this repo, and when a
-newer version is out it shows a small **Update** pill in its corner (right-click the ground for
-the details). To update:
+Once a day the strip checks this repo, and when a newer version is out it shows a small
+**Update** pill in its corner. Right-click the ground → **Settings** → Updates → **Update now**:
+it downloads the release and copies it over the mod's folder, and Herdr reloads it (it needs
+`curl` and `tar`). Or by hand:
 
 - **Installed by your agent:** delete `~/.config/herdr-app/mods/pokemon-herd/`, then ask it to
   add `herdr.dev/mods/lntvan166/herdr-pokemon` again. Without the delete it adds a second copy
   under another name.
 - **Cloned by hand:** `git pull && scripts/install.sh`.
 
-Your agents keep their Pokémon, shinies and Mega settings, since those live in Herdr's shared
-state and not in the mod's folder. New Megas need no update: the mod picks them up as
+Your agents keep their Pokémon, shinies, Mega settings, hearts, Bag and badges, since those live
+in Herdr's shared state and not in the mod's folder. New Megas need no update: the mod picks them up as
 SpriteCollab draws them.
 
 ## Art and names

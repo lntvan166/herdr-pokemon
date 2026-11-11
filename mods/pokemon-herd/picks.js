@@ -1,8 +1,13 @@
 // Who is which Pokémon. Saved per pane in shared state as
 // { v: 2, panes: { <pane>: { dex, shiny, mega, form?, megaKind?, jobs?, stay? } } }.
 // jobs: jobs finished since it became this Pokémon; stay: holds an Everstone (never evolves);
-// hearts: friendship, 0..MAX_HEARTS; evolvedAt: when it last evolved (each view flashes it).
+// friend: friendship points, 0..FRIEND_MAX, and hearts: how many hearts those make;
+// evolvedAt: when it last evolved (each view flashes it);
+// held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin).
 import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf } from "./dex.js";
+import { EVOLVES_FROM } from "./species.js";
+
+const EVOLVES_FROM_MAP = new Map(Object.entries(EVOLVES_FROM).map(([to, from]) => [Number(to), from]));
 
 const SHINY_ODDS = 64;
 
@@ -27,9 +32,12 @@ export function loadPicks(current, legacy) {
       const form = hasForm(p.dex, p.form) ? p.form : undefined; // a regional form, if it still exists
       const megaKind = p.megaKind === "X" || p.megaKind === "Y" ? p.megaKind : undefined; // Mega X or Y
       const jobs = Number.isInteger(p.jobs) && p.jobs > 0 ? p.jobs : undefined;
-      const hearts = Number.isInteger(p.hearts) && p.hearts > 0 ? Math.min(p.hearts, MAX_HEARTS) : undefined;
+      const friend = Number.isInteger(p.friend) && p.friend >= 0 ? Math.min(p.friend, FRIEND_MAX)
+        : Number.isInteger(p.hearts) && p.hearts > 0 ? Math.min(p.hearts, MAX_HEARTS) * HEART_PTS : undefined;
+      const hearts = friend ? Math.floor(friend / HEART_PTS) : undefined;
       const evolvedAt = Number.isFinite(p.evolvedAt) && p.evolvedAt > 0 ? p.evolvedAt : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}) };
+      const held = HELD_IDS.includes(p.held) ? p.held : undefined;
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }
@@ -78,6 +86,10 @@ export function randomEntry(entries, current, taken, rnd = Math.random) {
   return pool.length ? pool[Math.floor(rnd() * pool.length)] : null;
 }
 
+// What a Pokémon can hold, and what each does: Lucky Egg, every job counts twice towards
+// evolving; Soothe Bell, every heart it gains is two; Amulet Coin, it finds items twice as often.
+export const HELD_IDS = ["lucky-egg", "soothe-bell", "amulet-coin"];
+
 // Jobs its agent finishes before a Pokémon evolves (by levelling up); hearts for friendship.
 export const EVOLVE_JOBS = 10;
 export const MAX_HEARTS = 5;
@@ -116,26 +128,41 @@ export function evolveInto(pick, dex, at) {
 
 // Its agent finished a job: one more on its count, and it evolves if it can. Returns { pick, evolved }.
 export function gainJob(pick, slot, how = {}, at = 0) {
-  const counted = { ...pick, jobs: (pick.jobs ?? 0) + 1 };
+  const counted = { ...pick, jobs: (pick.jobs ?? 0) + (pick.held === "lucky-egg" ? 2 : 1) };
   const dex = evolveTarget(counted, slot, { night: how.night });
   return dex ? { pick: evolveInto(counted, dex, at), evolved: true } : { pick: counted, evolved: false };
 }
 
 // Hearts up (or down), within 0..MAX_HEARTS.
-export const withHearts = (pick, n) => ({ ...pick, hearts: Math.max(0, Math.min(MAX_HEARTS, (pick.hearts ?? 0) + n)) });
+// A Soothe Bell doubles what it gains (not what it loses).
+// Friendship is points, 0..FRIEND_MAX; every HEART_PTS make a heart (`hearts`, kept beside it
+// for everything that reads hearts). What each thing is worth: FRIEND. A Soothe Bell doubles
+// what it gains (not what it loses). A pick saved before points had only hearts: those count.
+export const HEART_PTS = 20;
+export const FRIEND_MAX = MAX_HEARTS * HEART_PTS;
+export const FRIEND = { pat: 3, quick: 4, spar: 3, berry: 10, hungry: -10 };
+export const friendOf = (pick) => (Number.isInteger(pick.friend) ? pick.friend : (pick.hearts ?? 0) * HEART_PTS);
+export function withFriend(pick, pts) {
+  const friend = Math.max(0, Math.min(FRIEND_MAX, friendOf(pick) + (pts > 0 && pick.held === "soothe-bell" ? 2 * pts : pts)));
+  return { ...pick, friend, hearts: Math.floor(friend / HEART_PTS) };
+}
+export const withHearts = (pick, n) => withFriend(pick, n * HEART_PTS);
 
-// What an item from the Bag would do for it: "evolve", "hearts", or null (no use now).
+// What an item from the Bag would do for it: "evolve", "hearts", "hold", or null (no use now).
 export function itemUse(pick, slot, id, how = {}) {
-  if (id === "berry") return (pick.hearts ?? 0) < MAX_HEARTS ? "hearts" : null;
+  if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
+  if (id === "berry") return friendOf(pick) < FRIEND_MAX ? "hearts" : null;
   if (id === "rare-candy") return evolveTarget(pick, slot, { night: how.night, candy: true }) ? "evolve" : null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   return stone && evolveTarget(pick, slot, { stone }) ? "evolve" : null;
 }
 
-// Uses an item on it: { pick, evolved } or null when it does nothing now.
+// Uses an item on it: { pick, evolved, back? } or null when it does nothing now. Giving it an
+// item to hold hands back what it held (`back`, for the Bag).
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
-  if (use === "hearts") return { pick: withHearts(pick, 1), evolved: false };
+  if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
+  if (use === "hearts") return { pick: withFriend(pick, FRIEND.berry), evolved: false };
   if (use !== "evolve") return null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   const dex = evolveTarget(pick, slot, stone ? { stone } : { night: how.night, candy: true });
@@ -163,4 +190,91 @@ export function needsText(pick) {
   if (ways.has("friend:day")) parts.push(`at ${MAX_HEARTS} ♥, by day`);
   if (ways.has("friend:night")) parts.push(`at ${MAX_HEARTS} ♥, at night`);
   return parts.length > 1 ? `${parts.slice(0, -1).join("; ")}; or ${parts.at(-1)}` : parts[0];
+}
+
+// Takes back what it holds: { pick, back } (the item, for the Bag), or null.
+export function takeHeld(pick) {
+  if (!pick.held) return null;
+  const { held, ...rest } = pick;
+  return { pick: rest, back: held };
+}
+
+// Sub-agents: which agents (by address) were started by another agent on screen. `terms`:
+// herdr's terminals() ({ address, parent }); parents on this computer are bare terminal IDs,
+// as agents' addresses are. Only agents without a pane (sub-agents) count: one with a pane
+// keeps its own Pokémon.
+export function familyOf(list, terms) {
+  const agents = new Set(list.map((a) => a.address));
+  const parentOf = new Map((terms ?? []).filter((t) => t && t.parent).map((t) => [t.address, t.parent]));
+  const out = {};
+  for (const a of list) {
+    const p = parentOf.get(a.address);
+    if (!a.pane && p && p !== a.address && agents.has(p)) out[a.address] = p;
+  }
+  return out;
+}
+
+// A sub-agent's Pokémon: its parent's, younger (the first stage of its line; a regional form
+// stays in its region), shiny if the parent is, never Mega.
+export function youngOf(pick) {
+  let dex = pick.dex;
+  for (let i = 0; i < 9 && EVOLVES_FROM_MAP.has(dex); i++) dex = EVOLVES_FROM_MAP.get(dex);
+  const label = pick.form && formsOf(pick.dex).find((f) => f.form === pick.form)?.label;
+  const form = label ? formsOf(dex).find((f) => f.label === label)?.form : undefined;
+  return { dex, shiny: !!pick.shiny && hasShiny(dex, form), mega: "off", ...(form ? { form } : {}), young: true };
+}
+
+// Sub-agents as agents: herdr's agents() leaves out those without a pane, but terminals() has
+// them with their parent. Each live one with a status whose parent is on screen becomes an
+// agent like the others (no pane; its parent's space and tab, so its tag reads like its parent's).
+const STATUSES = new Set(["working", "blocked", "done", "idle"]);
+export function subAgents(list, terms) {
+  const byAddr = new Map(list.map((a) => [a.address, a]));
+  return (terms ?? []).filter((t) => t && t.state === "live" && STATUSES.has(t.status) && t.parent && byAddr.has(t.parent) && !byAddr.has(t.address))
+    .map((t) => {
+      const p = byAddr.get(t.parent);
+      // Its "done" is for its parent to pick up, not for you to look at: it shows as idle.
+      return { address: t.address, pane: "", space: p.space, space_name: p.space_name, tab: p.tab, tab_index: p.tab_index, tab_name: p.tab_name, status: t.status === "done" ? "idle" : t.status, app: t.report?.app ?? null, program: t.program, title: t.title ?? "", seq: 0, pinned: false, focused: false };
+    });
+}
+
+// What another mod shows for an agent (Better Sidebar's card): its Pokémon's hearts and how
+// close it is to evolving. `progress`: 0..1 when jobs are the way, else null; `note`: in words.
+export function cardOf(pick) {
+  const ways = new Set(evolveNeeds(pick).flatMap((n) => n.ways));
+  const jobs = pick.jobs ?? 0;
+  const byJobs = !pick.stay && (ways.has("jobs") || ways.has("day") || ways.has("night"));
+  const stone = [...ways].find((w) => w.startsWith("stone:"));
+  const note = pick.stay ? "Everstone"
+    : !ways.size ? "" // nothing to become: nothing to say
+    : byJobs ? `${Math.min(jobs, EVOLVE_JOBS)}/${EVOLVE_JOBS} jobs`
+    : ways.has("friend") || ways.has("friend:day") || ways.has("friend:night") ? `evolves at ${MAX_HEARTS} ♥`
+    : stone ? `needs a ${stone.slice(6)[0].toUpperCase()}${stone.slice(7)} Stone`
+    : "";
+  return { hearts: pick.hearts ?? 0, maxHearts: MAX_HEARTS, progress: byJobs ? Math.min(1, jobs / EVOLVE_JOBS) : null, note };
+}
+
+// Folders remember their Pokémon. `folders`: { <folder>: <pane> }, the pane whose Pokémon that
+// folder last had; `cwdOf`: { <address>: <folder> } (each terminal's starting folder, exactly:
+// a subfolder is a folder of its own). An agent whose pane has no Pokémon yet, opened in a
+// folder whose last pane is gone from the screen, gets that pane's Pokémon back as it was
+// (hearts, jobs, held item, Everstone). Two new agents in one folder: the first gets it.
+// Returns { inherit: { <pane>: pick }, folders } (folders: who each folder has now).
+export function fromFolders(list, panes, folders, cwdOf) {
+  const onScreen = new Set(list.map((a) => a.pane).filter(Boolean));
+  const inherit = {};
+  const taken = new Set();
+  const next = { ...folders };
+  for (const a of list) {
+    const cwd = a.pane && cwdOf[a.address];
+    if (!cwd) continue;
+    const prev = folders[cwd];
+    if (!panes[a.pane] && prev && prev !== a.pane && panes[prev] && !onScreen.has(prev) && !taken.has(prev)) {
+      inherit[a.pane] = panes[prev];
+      taken.add(prev);
+    }
+    // The folder now has this agent's Pokémon, unless another agent on screen holds it already.
+    if (!next[cwd] || next[cwd] === prev && !onScreen.has(prev) || next[cwd] === a.pane) next[cwd] = a.pane;
+  }
+  return { inherit, folders: next };
 }

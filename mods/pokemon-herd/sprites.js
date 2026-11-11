@@ -14,7 +14,7 @@ const DATA = `${appHome()}/${DATA_REL}`;
 const PMD = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/sprite";
 const PORTRAITS = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait";
 // Bump when the GIF recipe changes, so old caches are rebuilt.
-const VERSION = 3; // 3: the seasonal reactions' animations
+const VERSION = 4; // 3: the seasonal reactions' animations; 4: sparring's
 
 // PMD sheets have one row per facing: 0 down, 1 down-right, 2 right, 3 up-right,
 // 4 up, 5 up-left, 6 left, 7 down-left. Walk sideways, stand half-facing the viewer
@@ -192,6 +192,25 @@ export async function ensureArt(key) {
   if (key.startsWith("items/") && (await imageMagick())) await im("mogrify", ["-scale", "200%", tmp]).catch(() => null);
   const r = await exec("mv", ["-f", tmp, file]);
   if (r.code !== 0) throw new Error("art move failed");
+}
+
+// A species' cry (PokeAPI's cries, Ogg Vorbis), turned into an MP3 for playSound with ffmpeg.
+// Null when it can't be had (no ffmpeg, no network): the caller stays quiet.
+const CRIES = "https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest";
+export const cryPath = (dex) => `${DATA_REL}/cries/${dex}.mp3`;
+let ffmpeg = null; // null: not checked yet
+export async function ensureCry(dex) {
+  const dir = `${DATA}/cries`;
+  const file = `${dir}/${dex}.mp3`;
+  if (await fs.exists(file).catch(() => false)) return cryPath(dex);
+  ffmpeg ??= (await exec("ffmpeg", ["-version"]).catch(() => null))?.code === 0;
+  if (!ffmpeg) return null;
+  await fs.mkdir(dir, { recursive: true });
+  const ogg = `${dir}/${dex}.ogg`;
+  await curl([[ogg, `${CRIES}/${dex}.ogg`]]);
+  const r = await exec("ffmpeg", ["-loglevel", "error", "-y", "-i", ogg, "-q:a", "5", file]);
+  await exec("rm", ["-f", ogg]).catch(() => null);
+  return r.code === 0 ? cryPath(dex) : null;
 }
 
 // The Megas drawn since this release: SpriteCollab's tracker, read at most once a day and boiled

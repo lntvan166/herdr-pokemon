@@ -1,0 +1,135 @@
+--- a/views/agents.js
++++ b/views/agents.js
+@@ -120,6 +120,13 @@
+     : image(p.icon).w(size).h(size).flex_none();
+ }
+ 
++// An agent's own picture, when another mod gives it one (Pokémon herd: its Pokémon), in shared
++// state "agent-icons": { <terminal address>: <image path in the home folder> }. Else its program's.
++function agentIcon(address, p, size, color) {
++  const own = shared("agent-icons")?.[address];
++  return own ? image(own).w(size + 2).h(size + 2).flex_none() : icon(p, size, color);
++}
++
+ // What a row calls an agent: its tab's title, or failing that its own.
+ function agentLabel() {
+   const tabs = spaces().flatMap((s) => s.tabs);
+@@ -267,7 +274,7 @@
+   subRow(t, s, shown, compact) {
+     const k = s.t;
+     const st = kidStatus(k, this.listed);
+-    const pic = icon(k.program, 14, t.foreground);
++    const pic = agentIcon(k.address, k.program, 14, t.foreground);
+     const on = k.address === shown;
+     return h_flex()
+       .id(`sub-${k.address}`)
+@@ -564,7 +571,10 @@
+   }
+ 
+   agentRow(a, subs, view, t) {
+-    const pic = icon(a.program, 16, t.foreground);
++    // Another mod (Pokémon herd) may give this agent a card: drawn in place of the row.
++    const card = shared("agent-cards")?.[a.address];
++    if (card?.icon) return this.agentCard(a, subs, view, t, card);
++    const pic = agentIcon(a.address, a.program, 16, t.foreground);
+     const hovered = this.hovered === a.address;
+     const when = this.since(a);
+     // An agent on another machine (`vps/t7`) says which.
+@@ -647,6 +657,97 @@
+     return div().flex_1().min_w(0).truncate().text_size(TEXT.caption).text_color(t.dim).child(prog);
+   }
+ 
++  // An agent's card (shared "agent-cards", from Pokémon herd). Read at a glance: the agent's
++  // name, large; the card's edge in its status colour (pulsing while it needs you), so the
++  // state shows before a word is read; its Pokémon's portrait; then the Pokémon, its hearts, and how close
++  // it is to evolving. One lightness step up from the sidebar; the focused one on `selected`.
++  // Clicks, hover, pin and folding work as on a row.
++  agentCard(a, subs, view, t, card) {
++    const hovered = this.hovered === a.address;
++    const when = this.since(a);
++    const HEART = "#e5484d";
++    const hearts = Math.max(0, Math.min(card.maxHearts ?? 5, card.hearts ?? 0));
++    // The card's edge says its state: working, needs you (pulsing), done; idle has none.
++    const ring = a.status === "idle" ? null : t[a.status] ?? null;
++    const name = a.tab_name || view.label(a);
++    const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
++    const pic = div().size(40).flex_none().rounded(8).overflow_hidden().child(image(card.icon).size(40));
++    const bar = card.progress !== null && card.progress !== undefined;
++    return div().py(2).flex_none().child(h_flex()
++      .id(`ag-${a.address}`)
++      .px(8)
++      .py(7)
++      .flex_none()
++      .rounded(10)
++      .items_center()
++      .gap(10)
++      .relative()
++      .border_2()
++      .border_color(a.status === "blocked" ? t.blocked + "55" : ring ?? "#00000000")
++      // Needs you: a full-colour edge over the faint one, pulsing (motion animates opacity only).
++      .when(a.status === "blocked", (el) => el.child(
++        div().absolute().top(-2).left(-2).right(-2).bottom(-2).rounded(10).border_2().border_color(t.blocked)
++          .loop("opacity", { from: 0.15, to: 1, period: 900 }),
++      ))
++      .bg(a.focused ? t.selected : t.raised)
++      .cursor_pointer()
++      .hover((s) => s.bg(a.focused ? t.selected : t.hover))
++      .on_hover((on, cx) => {
++        if (on) this.hovered = a.address;
++        else if (hovered) this.hovered = null;
++        cx.notify();
++      })
++      .on_click(() => run("pane.focus", { pane: a.pane }))
++      .child(this.agentIcon(a, pic, subs))
++      .child(
++        v_flex()
++          .flex_1()
++          .min_w(0)
++          .gap(2)
++          // The agent: its name, large, with the whole line to itself but its status (and the
++          // fold or pin buttons when there are sub-agents or on hover).
++          .child(
++            h_flex()
++              .gap(6)
++              .items_center()
++              .child(div().flex_1().min_w(0).truncate().text_size(14.5).font_semibold().text_color(t.foreground).child(name))
++              .when(subs.length > 0, (el) => el.child(this.foldButton(a, subs, t)))
++              .when(hovered, (el) => el.child(this.pinButton(a, t)))
++              // Compact: the card's edge already says it needs you, the name keeps its room.
++              .child(this.status(t, a, true)),
++          )
++          // Quietly: its Pokémon, its hearts ("♥ 4"), its machine and how long since it changed.
++          .child(
++            h_flex()
++              .gap(6)
++              .items_center()
++              .text_size(TEXT.caption)
++              .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${card.shiny ? "✨ " : ""}${card.name ?? ""}`))
++              .child(h_flex().flex_none().gap(2).items_center()
++                .child(div().text_color(hearts ? HEART : t.border).child("♥"))
++                .child(div().text_color(t.muted).child(String(hearts))))
++              .when(Boolean(machine), (el) => el.child(div().flex_none().text_color(t.dim).child(machine)))
++              .when(Boolean(when), (el) => el.child(div().flex_none().text_color(t.dim).child(duration(view.now - when)))),
++          )
++          // How close it is to evolving: a bar and a count, or a few words.
++          .when(bar, (el) =>
++            el.child(
++              h_flex()
++                .gap(6)
++                .items_center()
++                .child(
++                  div().flex_1().h(3).rounded_full().bg(t.border).overflow_hidden()
++                    .child(div().h_full().w(`${Math.round(Math.max(0, Math.min(1, card.progress)) * 100)}%`).bg(t.accent)),
++                )
++                .child(div().flex_none().text_size(TEXT.caption).text_color(t.dim).child(card.note ?? "")),
++            ),
++          )
++          .when(!bar && Boolean(card.note), (el) =>
++            el.child(div().truncate().text_size(TEXT.caption).text_color(t.dim).child(card.note)),
++          ),
++      ));
++  }
++
+   // With sub-agents, clicking the icon folds them.
+   agentIcon(a, pic, subs) {
+     return div()

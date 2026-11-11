@@ -19,7 +19,9 @@ function find(node, test, parent = null) {
   return null;
 }
 const byId = (id) => (n) => n.id === id;
-const isMod = (mod) => (n) => n.type === "block" && n.content?.mod === mod;
+// The strip's block: this mod's block without a `view` (the Party panel is this mod too, with
+// props { view: "party" }, and must never be taken for the strip).
+const isMod = (mod) => (n) => n.type === "block" && n.content?.mod === mod && !n.content?.props?.view;
 
 // The places this layout has, in menu order.
 export const placesIn = (tree) => Object.keys(PLACES).filter((p) => find(tree, byId(PLACES[p].parent)));
@@ -84,5 +86,34 @@ export function setBlockProps(tree, mod, patch) {
   const hit = find(out, isMod(mod));
   if (!hit) return null;
   hit.node.content = { ...hit.node.content, props: { ...(hit.node.content.props ?? {}), ...patch } };
+  return out;
+}
+
+// ---- the Party panel: a block of its own (id PARTY_ID, this mod with props { view: "party" }),
+// in the sidebar's lists column (above needs-you, sharing the height with the list beside it) or
+// in the right panel (under its body). Settings → Party panel.
+export const PARTY_ID = "pokemon-party";
+export const PARTY_PLACES = ["sidebar", "panel"];
+
+// Where the Party panel is (null: not in this layout).
+export function partyPlace(tree) {
+  const hit = find(tree, byId(PARTY_ID));
+  return PARTY_PLACES.find((p) => hit?.parent?.id === PLACES[p].parent) ?? (hit ? "elsewhere" : null);
+}
+
+// A copy of the tree with the Party panel at `place` ("sidebar" | "panel"), or taken out (null).
+// Null when the layout has no such place.
+export function placeParty(tree, mod, place) {
+  const out = JSON.parse(JSON.stringify(tree));
+  const hit = find(out, byId(PARTY_ID));
+  if (hit) hit.parent.children = hit.parent.children.filter((c) => c !== hit.node);
+  if (!place) return out;
+  const spot = PLACES[place];
+  const target = spot && find(out, byId(spot.parent))?.node;
+  if (!target) return null;
+  const block = { id: PARTY_ID, type: "block", content: { mod, props: { view: "party" } }, size: { weight: 1 } };
+  const kids = (target.children ??= []);
+  const at = spot.before ? kids.findIndex((c) => c.id === spot.before) : kids.findIndex((c) => c.id === spot.after) + 1;
+  kids.splice(at < 0 || (spot.after && at === 0) ? kids.length : at, 0, block);
   return out;
 }

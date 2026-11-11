@@ -181,7 +181,8 @@ test("Rare Candy evolves a levelling one now; berries add hearts", () => {
   assert.equal(useItem({ dex: 4, mega: "auto" }, "p", "rare-candy", {}, 99).pick.evolvedAt, 99);
   assert.equal(itemUse({ dex: 6 }, "p", "rare-candy"), null); // nothing to become
   assert.equal(itemUse({ dex: 25 }, "p", "rare-candy"), null); // needs a stone
-  assert.equal(useItem({ dex: 4, hearts: 2 }, "p", "berry").pick.hearts, 3);
+  assert.equal(useItem({ dex: 4, hearts: 2 }, "p", "berry").pick.friend, 50); // half a heart
+  assert.equal(useItem({ dex: 4, friend: 50 }, "p", "berry").pick.hearts, 3);
   assert.equal(itemUse({ dex: 4, hearts: MAX_HEARTS }, "p", "berry"), null);
   assert.equal(withHearts({ dex: 4, hearts: 1 }, -5).hearts, 0);
 });
@@ -208,4 +209,118 @@ test("needsText says what it takes", () => {
   assert.equal(needsText({ dex: 207, jobs: 9 }), "after 1 more job, at night");
   assert.equal(needsText({ dex: 6 }), null);
   assert.match(needsText({ dex: 133 }), /^with a Water, Thunder, Fire, Leaf or Ice Stone; .*at 5 ♥, by day.*at 5 ♥, at night$/);
+});
+
+import { takeHeld } from "../mods/pokemon-herd/picks.js";
+test("held items: Lucky Egg doubles jobs, Soothe Bell doubles hearts gained", () => {
+  assert.equal(gainJob({ dex: 4, mega: "auto", held: "lucky-egg" }, "p").pick.jobs, 2);
+  assert.equal(gainJob({ dex: 4, mega: "auto", held: "lucky-egg", jobs: EVOLVE_JOBS - 2 }, "p").pick.dex, 5);
+  assert.equal(withHearts({ dex: 4, hearts: 1, held: "soothe-bell" }, 1).hearts, 3);
+  assert.equal(withHearts({ dex: 4, hearts: 3, held: "soothe-bell" }, -1).hearts, 2); // losing isn't doubled
+  // Evolving keeps what it holds.
+  assert.equal(gainJob({ dex: 4, mega: "auto", held: "amulet-coin", jobs: EVOLVE_JOBS - 1 }, "p").pick.held, "amulet-coin");
+});
+
+test("held items: give, swap, take back", () => {
+  assert.equal(itemUse({ dex: 6 }, "p", "lucky-egg"), "hold");
+  assert.equal(itemUse({ dex: 6, held: "lucky-egg" }, "p", "lucky-egg"), null); // holds one already
+  const r = useItem({ dex: 6, held: "soothe-bell" }, "p", "lucky-egg");
+  assert.equal(r.pick.held, "lucky-egg");
+  assert.equal(r.back, "soothe-bell"); // goes back to the Bag
+  assert.deepEqual(takeHeld({ dex: 6, held: "lucky-egg" }), { pick: { dex: 6 }, back: "lucky-egg" });
+  assert.equal(takeHeld({ dex: 6 }), null);
+  const loaded = loadPicks({ panes: { a: { dex: 6, held: "amulet-coin" }, b: { dex: 6, held: "junk" } } }, null).panes;
+  assert.equal(loaded.a.held, "amulet-coin");
+  assert.equal(loaded.b.held, undefined);
+});
+
+import { familyOf, youngOf } from "../mods/pokemon-herd/picks.js";
+test("familyOf: sub-agents without a pane, whose parent is on screen", () => {
+  const list = [{ address: "t1", pane: "p1" }, { address: "t2", pane: "" }, { address: "t3", pane: "p3" }, { address: "t4", pane: "" }];
+  const terms = [{ address: "t2", parent: "t1" }, { address: "t3", parent: "t1" }, { address: "t4", parent: "t9" }, { address: "t1", parent: null }];
+  assert.deepEqual(familyOf(list, terms), { t2: "t1" });
+  assert.deepEqual(familyOf(list, null), {});
+});
+
+test("youngOf: the first stage, same region, shiny kept, never Mega", () => {
+  assert.deepEqual(youngOf({ dex: 6, shiny: true, mega: "on" }), { dex: 4, shiny: true, mega: "off", young: true });
+  assert.equal(youngOf({ dex: 38, form: "0001" }).form, "0001"); // Alolan Ninetales -> Alolan Vulpix
+  assert.equal(youngOf({ dex: 38, form: "0001" }).dex, 37);
+  assert.equal(youngOf({ dex: 132 }).dex, 132); // Ditto: itself
+});
+
+import { subAgents } from "../mods/pokemon-herd/picks.js";
+test("subAgents: live paneless children of agents on screen, as agents", () => {
+  const list = [{ address: "t2t", pane: "p1", tab: "tb", tab_name: "poke", space: "s", space_name: "personal", tab_index: 0, status: "working" }];
+  const terms = [
+    { address: "t2t", parent: null, state: "live", status: "working" },
+    { address: "t2w", parent: "t2t", state: "live", status: "done", title: "Reply", report: { app: "claude-code" } },
+    { address: "t2x", parent: "t2t", state: "finished", status: "done" },
+    { address: "t2y", parent: "t9", state: "live", status: "idle" },
+    { address: "t2z", parent: "t2t", state: "live", status: null }, // a shell, no status
+  ];
+  const subs = subAgents(list, terms);
+  assert.deepEqual(subs.map((a) => [a.address, a.pane, a.status, a.tab_name]), [["t2w", "", "idle", "poke"]]); // its done is its parent's business
+  assert.deepEqual(familyOf([...list, ...subs], terms), { t2w: "t2t" });
+});
+
+import { cardOf } from "../mods/pokemon-herd/picks.js";
+test("cardOf: hearts and the way to evolve, for the sidebar's card", () => {
+  assert.deepEqual(cardOf({ dex: 4, jobs: 6, hearts: 3 }), { hearts: 3, maxHearts: 5, progress: 0.6, note: "6/10 jobs" });
+  assert.deepEqual(cardOf({ dex: 25 }), { hearts: 0, maxHearts: 5, progress: null, note: "needs a Thunder Stone" });
+  assert.equal(cardOf({ dex: 172 }).note, "evolves at 5 ♥");
+  assert.equal(cardOf({ dex: 6 }).note, ""); // a last stage: the card says nothing
+  assert.deepEqual(cardOf({ dex: 4, stay: true, jobs: 3 }), { hearts: 0, maxHearts: 5, progress: null, note: "Everstone" });
+});
+
+import { withFriend, friendOf, FRIEND, FRIEND_MAX, HEART_PTS } from "../mods/pokemon-herd/picks.js";
+test("friendship points: hearts come slowly", () => {
+  let p = { dex: 4 };
+  for (let i = 0; i < 4; i++) p = withFriend(p, FRIEND.quick);
+  assert.equal(p.friend, 16);
+  assert.equal(p.hearts, 0); // four quick answers: not a heart yet
+  p = withFriend(p, FRIEND.pat);
+  assert.equal(p.hearts, 0);
+  p = withFriend(p, FRIEND.pat);
+  assert.equal(p.hearts, 1);
+  assert.equal(withFriend({ dex: 4, friend: 99 }, 50).friend, FRIEND_MAX);
+  assert.equal(withFriend({ dex: 4, friend: 5 }, FRIEND.hungry).friend, 0);
+  assert.equal(friendOf({ dex: 4, hearts: 3 }), 3 * HEART_PTS); // saved before points: its hearts count
+  // Five hearts is a long way: about 25 quick answers.
+  assert.ok(FRIEND_MAX / FRIEND.quick >= 25);
+});
+
+test("loadPicks: points kept; old hearts become points", () => {
+  const r = loadPicks({ panes: { a: { dex: 4, friend: 47 }, b: { dex: 4, hearts: 2 } } }, null).panes;
+  assert.equal(r.a.friend, 47);
+  assert.equal(r.a.hearts, 2);
+  assert.equal(r.b.friend, 40);
+  assert.equal(r.b.hearts, 2);
+});
+
+import { fromFolders } from "../mods/pokemon-herd/picks.js";
+test("fromFolders: a new agent in an old folder gets its Pokémon back", () => {
+  const panes = { old: { dex: 25, friend: 60, hearts: 3, jobs: 4, held: "lucky-egg" } };
+  const folders = { "/src/tms": "old" };
+  const list = [{ address: "t9", pane: "new" }];
+  const r = fromFolders(list, panes, folders, { t9: "/src/tms" });
+  assert.deepEqual(r.inherit, { new: panes.old });
+  assert.deepEqual(r.folders, { "/src/tms": "new" });
+});
+
+test("fromFolders: not while the old one is on screen, not for a subfolder, only once", () => {
+  const panes = { old: { dex: 25 } };
+  const folders = { "/src/tms": "old" };
+  // The old agent is still open: the new one gets its own.
+  assert.deepEqual(fromFolders([{ address: "t1", pane: "old" }, { address: "t9", pane: "new" }], panes, folders, { t1: "/src/tms", t9: "/src/tms" }).inherit, {});
+  // A subfolder is another folder.
+  assert.deepEqual(fromFolders([{ address: "t9", pane: "new" }], panes, folders, { t9: "/src/tms/manager" }).inherit, {});
+  // Two new ones in the folder: the first gets it, and keeps the folder.
+  const two = fromFolders([{ address: "t8", pane: "a" }, { address: "t9", pane: "b" }], panes, folders, { t8: "/src/tms", t9: "/src/tms" });
+  assert.deepEqual(Object.keys(two.inherit), ["a"]);
+  assert.equal(two.folders["/src/tms"], "a");
+  // A pane that already has its Pokémon keeps it.
+  assert.deepEqual(fromFolders([{ address: "t9", pane: "new" }], { ...panes, new: { dex: 4 } }, folders, { t9: "/src/tms" }).inherit, {});
+  // Sub-agents (no pane) take no part.
+  assert.deepEqual(fromFolders([{ address: "t9", pane: "" }], panes, folders, { t9: "/src/tms" }).inherit, {});
 });

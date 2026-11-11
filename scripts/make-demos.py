@@ -425,6 +425,73 @@ def seasons(tmp):
     s.save()
 
 
+def party(tmp):
+    """party.gif: the Party panel (and Better Sidebar's cards): each agent as its Pokémon's card,
+    the name large, the edge in its status colour, "review" pulsing because it needs you."""
+    icons = os.path.expanduser("~/.config/herdr-app/data/pokemon-herd/icons")
+    bold = FONT.replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf")
+    raised, border, heart = "#24262c", "#3a3d45", "#e5484d"
+    # tag, dex, Pokémon, status, hearts, progress (None: no bar), note: as cardOf() would say.
+    cards = [
+        ("auth", 4, "Charmander", "working", 2, 0.6, "6/10 jobs"),
+        ("review", 94, "Gengar", "blocked", 1, None, ""),
+        ("api", 25, "Pikachu", "working", 3, None, "needs a Thunder Stone"),
+        ("docs", 133, "Eevee", "done", 5, 0.3, "3/10 jobs"),
+        ("tests", 448, "Lucario", "idle", 4, None, ""),
+    ]
+    W, CH, GAP, TOP = 280, 60, 6, 34
+    H = TOP + len(cards) * (CH + GAP) + 8
+    frames = []
+    n = 16
+    for f in range(n):
+        pulse = 0.5 - 0.5 * math.cos(2 * math.pi * f / n)  # 0 → 1 → 0 over the loop
+        args = ["-size", f"{W}x{H}", f"xc:{BG}", "-font", FONT, "-gravity", "none",
+                "-fill", MUTED, "-pointsize", "11.5", "-annotate", "+16+21", "Party",
+                "-fill", "#6b7080", "-annotate", f"+{W - 22}+21", str(len(cards))]
+        for i, (tag, dex, name, status, hearts, prog, note) in enumerate(cards):
+            x0, y0 = 8, TOP + i * (CH + GAP)
+            x1, y1 = W - 8, y0 + CH
+            edge = None if status == "idle" else DOT[status]
+            if status == "blocked":  # a faint edge with the full one pulsing over it
+                a = round(0x55 + (0xff - 0x55) * pulse)
+                edge = DOT["blocked"] + f"{a:02x}"
+            args += ["-fill", raised, "-stroke", edge or raised, "-strokewidth", "2",
+                     "-draw", f"roundrectangle {x0},{y0} {x1},{y1} 10,10", "-stroke", "none"]
+            args += [os.path.join(icons, f"{dex}.png"), "-geometry", f"40x40+{x0 + 10}+{y0 + 10}", "-composite"]
+            tx = x0 + 60
+            args += ["-font", bold, "-fill", FG, "-pointsize", "14", "-annotate", f"+{tx}+{y0 + 22}", tag, "-font", FONT]
+            # Its status at the end of the name's line.
+            sx = x1 - 16
+            if status == "working":
+                op = 0.35 + 0.65 * (0.5 - 0.5 * math.cos(2 * math.pi * f / n))
+                args += ["-fill", DOT["working"] + f"{round(op * 255):02x}", "-draw", f"circle {sx},{y0 + 17} {sx + 4},{y0 + 17}"]
+            elif status == "blocked":
+                args += ["-fill", DOT["blocked"] + "40", "-draw", f"roundrectangle {sx - 7},{y0 + 10} {sx + 7},{y0 + 24} 4,4",
+                         "-fill", DOT["blocked"], "-font", bold, "-pointsize", "10.5", "-annotate", f"+{sx - 2}+{y0 + 21}", "!", "-font", FONT]
+            elif status == "done":
+                args += ["-fill", DOT["done"], "-font", bold, "-pointsize", "12", "-annotate", f"+{sx - 4}+{y0 + 22}", "✓", "-font", FONT]
+            else:
+                args += ["-fill", border, "-draw", f"circle {sx},{y0 + 17} {sx + 3},{y0 + 17}"]
+            # Its Pokémon, and hearts.
+            args += ["-fill", MUTED, "-pointsize", "11", "-annotate", f"+{tx}+{y0 + 39}", name,
+                     "-fill", heart if hearts else border, "-annotate", f"+{x1 - 34}+{y0 + 39}", "♥",
+                     "-fill", MUTED, "-annotate", f"+{x1 - 22}+{y0 + 39}", str(hearts)]
+            if prog is not None:
+                bw = x1 - 12 - tx - 70
+                args += ["-fill", border, "-draw", f"roundrectangle {tx},{y0 + 47} {tx + bw},{y0 + 50} 1,1",
+                         "-fill", ACCENT, "-draw", f"roundrectangle {tx},{y0 + 47} {tx + round(bw * prog)},{y0 + 50} 1,1",
+                         "-fill", "#6b7080", "-pointsize", "10.5", "-annotate", f"+{tx + bw + 8}+{y0 + 52}", note]
+            elif note:
+                args += ["-fill", "#6b7080", "-pointsize", "10.5", "-annotate", f"+{tx}+{y0 + 53}", note]
+        p = os.path.join(tmp, f"party-{f:04d}.png")
+        magick(*args, p)
+        frames.append(p)
+    os.makedirs(OUT, exist_ok=True)
+    out = os.path.join(OUT, "party.gif")
+    magick("-delay", "6", "-loop", "0", *frames, "-layers", "Optimize", out)
+    print(f"{os.path.relpath(out)}: {len(frames)} frames, {os.path.getsize(out) // 1024} KB")
+
+
 def preview(tmp):
     """preview.png at the repo root (the herdr.dev gallery card, 1600x900): the herd, big, with
     the mod's name."""
@@ -454,10 +521,10 @@ def preview(tmp):
     print(f"{os.path.relpath(out)}: {os.path.getsize(out) // 1024} KB")
 
 
-SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview}
+SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party}
 NEEDS = {"herd": ["0025", "0445", "0003", "0493", "0009", "0006-0001"], "focus": ["0025", "0003", "0493"],
          "reactions": ["0003", "0445"], "variety": ["0025", "0025s", "0037-0001", "0006-0001"],
-         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0009", "0445", "0003", "0006-0001", "0493"]}
+         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0009", "0445", "0003", "0006-0001", "0493"], "party": []}
 
 
 def main():

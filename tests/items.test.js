@@ -4,7 +4,7 @@ import { ITEMS, loadBag, addItem, mark, pickup, badges, BADGES, shinyOdds, MAX_I
 import { coatOf, waysOf } from "../mods/pokemon-herd/dex.js";
 
 test("loadBag tolerates junk and keeps known items", () => {
-  for (const junk of [null, 5, "x", { v: 2 }, { v: 1, items: 3 }]) assert.deepEqual(loadBag(junk), { v: 1, items: {}, marks: { evolutions: 0, nightJob: false, fullHearts: false } });
+  for (const junk of [null, 5, "x", { v: 2 }, { v: 1, items: 3 }]) assert.deepEqual(loadBag(junk), { v: 1, items: {}, marks: { evolutions: 0, nightJob: false, fullHearts: false, seen: [] } });
   const b = loadBag({ v: 1, items: { berry: 3, "fire-stone": 1, junk: 4, "rare-candy": -1 }, marks: { evolutions: 2, nightJob: true } });
   assert.deepEqual(b.items, { berry: 3, "fire-stone": 1 });
   assert.equal(b.marks.evolutions, 2);
@@ -22,7 +22,7 @@ test("addItem counts up and down within limits", () => {
 
 test("pickup always finds a real item, mostly berries", () => {
   assert.equal(pickup(() => 0), "berry");
-  assert.equal(pickup(() => 0.9999), "rare-candy");
+  assert.equal(pickup(() => 0.9999), "amulet-coin"); // the last, and rarest
   const seen = new Set(Array.from({ length: 2000 }, (_, i) => pickup(() => (i + 0.5) / 2000)));
   for (const id of seen) assert.ok(ITEMS[id], id);
   assert.ok(seen.has("thunder-stone"));
@@ -68,4 +68,17 @@ test("takersOf: who an item would help now, and into what", () => {
   assert.deepEqual(t.map((x) => [x.tag, x.use, x.after.dex]), [["api", "evolve", 26]]);
   assert.deepEqual(takersOf("berry", herd).map((x) => x.tag), ["api", "db"]);
   assert.deepEqual(takersOf("rare-candy", herd).map((x) => [x.tag, x.after.dex]), [["web", 5]]);
+});
+
+import { badgeGifts, HELD } from "../mods/pokemon-herd/items.js";
+test("a held item for each badge newly earned, once", () => {
+  const marks = loadBag(null).marks;
+  const s = { jobs: 120, ms: 0, longest: 0 };
+  const g = badgeGifts(s, marks);
+  assert.deepEqual(g.seen, ["boulder", "cascade"]);
+  assert.equal(g.gifts.length, 2);
+  assert.ok(g.gifts.every((id) => HELD.includes(id)));
+  assert.deepEqual(badgeGifts(s, { ...marks, seen: g.seen }).gifts, []);
+  assert.deepEqual(loadBag({ v: 1, items: {}, marks: { seen: ["boulder", "junk"] } }).marks.seen, ["boulder"]);
+  assert.ok(ITEMS["lucky-egg"] && ITEMS["lucky-egg"].kind === "held");
 });

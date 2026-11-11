@@ -89,10 +89,46 @@ forms, and Mega Evolution while an agent works.
   - A search box, then a grid of every match: 6 columns of 92×96 cells, each with a 56 px
     portrait, its dex number "#025" and its name. Regional forms follow their species as
     "Vulpix (Alola)".
-- **The menu:** a 236×272 popup with "Rows: 1 2 3", "Background: Plain / Scenery", and "Place: Sidebar / Bottom of the window /
-  Right panel (with Files)". The current choices carry an accent border or a ✓. Under them,
-  "Stats": "All: 128 done · 14h 20m" and the three species with the most jobs (52 px plus 20 px
-  a species taller).
+- **The menu:** a 236 px popup, two rows: "Bag" (right: "n items · g/8 badges") and "Settings";
+  under them, when a newer release is out, how to update. Each row closes the menu and opens its
+  dialog.
+- **Settings** (`settings.js`, shared state `pokemon-herd-settings`; dialog 520×740, props
+  `{ settings }`, command `pokemon-herd.settings`): stays open, every change applies at once.
+  "Strip" panel: Place (Sidebar / Bottom / Right panel), Rows (1 2 3), Background (Plain /
+  Scenery), as accent-bordered choices (greyed in a built-in layout, with the clone hint).
+  "Sounds": "Cry when an agent needs you", "Cry when an agent finishes" (both off by default),
+  "Hear one" with a Play pill (the focused agent's species). "Gameplay": switches for Evolution
+  (off: jobs still count, nothing evolves), Pickup, Weather, Sparring, Sub-agents (all on by
+  default). Footer: "Pokémon herd <version>".
+- **Settings → Updates** (`selfupdate.js`): "Pokémon herd" with the version ("2026.11.11.1, the
+  latest (checked once a day)", or "<new> is out; you have <v>…") and an "Update now" pill
+  (live only when newer): curl the repo's main tarball, copy `mods/pokemon-herd/` over the
+  folder (Herdr's jsconfig.json and *.d.ts untouched), Herdr reloads. "Cards in Better Sidebar":
+  missing / patched / not patched, with a "Patch" pill: a dry run of
+  `extras/better-sidebar-cards.patch`, then the patch; on a version it doesn't fit, nothing
+  changes and it says so.
+- **Cries** (`ensureCry` in `sprites.js`): PokeAPI's cries (`cries/pokemon/latest/<dex>.ogg`),
+  converted once to MP3 with ffmpeg into `data/pokemon-herd/cries/`, played with `playSound`
+  when an agent turns blocked or done (per the settings), at most one every 2 s.
+- **Weather** (`weatherOf`, `rainAt`, `lightning` in `scene.js`; Scenery only): clear while no
+  agent waits on you; rain (sky darkened 18%, 1×5 px drops, every other one of the row's drops)
+  while any does; a storm (32%, 1×7 px slanting drops, all of them, a 35% white flash about
+  every 9 s) when three or more wait or one has waited 10 min.
+- **Sparring** (`sparPair`, `onSpar` in `react.js`): about once a minute while two idle Pokémon
+  stand still on one row 30–160 px apart and neither sparred in 10 min, both turn to each other
+  and play an attack (Attack, Strike, Swing, Shoot, else Hop) for about 2 s, 💥 over one; a heart
+  each. Sprite cache v4 cuts those animations.
+- **Sub-agents** (`subAgents`, `familyOf`, `youngOf` in `picks.js`): herdr's agents() leaves out
+  terminals with no pane; terminals() has them with `parent`. A live one with a status whose
+  parent is on screen joins the strip: its parent's Pokémon at the first stage of its line (same
+  region, shiny kept, never Mega), drawn at 75%, tagged "↳ <parent's tag>", its "done" shown as
+  idle (its parent picks the result up, nothing for you to look at). It walks to just beside its
+  parent and steps aside when on top of it.
+- **Held items** (`HELD_IDS` in `picks.js`; `held` on a pick): Lucky Egg (+2 jobs per job),
+  Soothe Bell (hearts gained doubled), Amulet Coin (Pickup twice as often). From Pickup (weight 1
+  each) and one per badge the first time it is earned (`badgeGifts`, marks.seen; 🏅 over the
+  Pokémon whose job earned it). Given in the Bag ("Give"; what it held comes back) or the
+  picker's Bag row; taken back with the picker's "Holds … · take" chip. Evolving keeps it.
 - **Evolution** (`picks.js`; data from PokeAPI in `species.js`: `EVOLVES_FROM`, and `EVOLVE_HOW`
   from pokemon_evolution.csv). Each species it can become has its ways ("jobs", "stone:<kind>"
   for the ten common stones, "friend", "friend:day", "friend:night", "day", "night"); any one will
@@ -106,10 +142,10 @@ forms, and Mega Evolution while an agent works.
   keeps `stay`. Sub-agents don't evolve.
 - **Seasonal coats** (`SEASONAL`, `coatOf` in `dex.js`): Deerling and Sawsbuck's sprites use their
   Summer, Autumn or Winter form folder in those seasons (names and picks unchanged).
-- **Hearts** (`hearts` on a pane's pick, 0..5): +1 for a click on it (at most every 30 min), +1
-  when its agent is answered within a minute of asking (at most every 10 min); waiting over 5 min
-  makes it hungry (😢 pulsing beside its head, −1); answered while hungry, it eats a Berry from the
-  Bag if there is one (+1, 🍓). Picker: red ♥ for each, grey for the rest.
+- **Hearts** (`hearts` on a pane's pick, 0..5, from its friendship points below): a click on it
+  (at most every 30 min), its agent answered within a minute of asking (at most every 10 min);
+  waiting over 5 min makes it hungry (😢 pulsing beside its head); answered while hungry, it eats
+  a Berry from the Bag if there is one (🍓). Picker: red ♥ for each, grey for the rest.
 - **The Bag** (`items.js`, shared state `pokemon-herd-bag`, `{ v: 1, items: { <id>: count },
   marks: { evolutions, nightJob, fullHearts } }`, up to 99 each): Berry, Rare Candy and the ten
   stones. Pickup: every 1 to 2 hours per Pokémon, if its agent is idle then, it finds one (Berry
@@ -134,6 +170,28 @@ forms, and Mega Evolution while an agent works.
 - **Badges and the Shiny Charm**: 🪨 10 jobs, 💧 100, ⚡ a first evolution, 🌈 24 h of work, 💗 5
   hearts, 🌙 a job finished 0:00–5:00, 🌋 a job over an hour, 🌍 1000 jobs; Shiny Charm from 500
   jobs (new agents' shinies 1 in 32). The emoji are only names here: the Bag draws the sprites.
+- **The Party panel** (`renderParty` in `main.js`; a block `pokemon-party`, this mod with props
+  `{ view: "party" }`, placed by `placeParty` in `place.js`: the sidebar's lists column above
+  needs-you, weight 1, or the right panel under its body; Settings → Strip → "Party panel: Off /
+  Sidebar / Right panel"; never taken for the strip, whose helpers skip blocks with a `view`).
+  On `chrome`: "Party" and the count (11.5 / 11 px), then a scrolling list of cards as Better
+  Sidebar's patched ones (name 14.5 px semibold, the tab's tag; a 2 px edge in the status colour,
+  blocked pulsing; portrait 40 px; "Name", "♥ n"; a bar and note), a small status at the end of
+  the name (working: a pulsing dot; needs you: "!" on a tint; done: "✓"; idle: a grey dot).
+  Click focuses the agent. Under 120 px wide: only the portraits, 36 px, framed in the status
+  colour. `docs/demo/party.gif` (make-demos.py `party`) shows it with sample tags.
+- **The sidebar** (Settings: "Pokémon in the sidebar", off by default; `publishIcons` in
+  `main.js`, `cardOf` in `picks.js`): each tick, shared `agent-icons` { address: portrait path }
+  and `agent-cards` { address: { icon, name, shiny, hearts, maxHearts, progress (0..1 or null),
+  note } } (agents with a pane), written only when they change; `{}` when off. Notes: "6/10
+  jobs" (with a bar), "needs a Thunder Stone", "evolves at 5 ♥", "Everstone", or nothing for a
+  last stage. `extras/better-sidebar-cards.patch` (in the mod's folder) makes Better Sidebar 3.2.0 draw them: the card
+  on `raised` (`selected` when focused), radius 10, 4 px apart, its 2 px edge in the status
+  colour (working, done; needs you: a faint edge with a full one over it pulsing in opacity;
+  idle: none). Inside: the portrait at 40 px (radius 8); the agent's name at 14.5 px semibold
+  with the line to itself but the compact status (and fold / pin); then, at 11 px, "✨ Name",
+  "♥ n", the machine, the time since it changed; then a 3 px accent bar and the note, or the
+  note alone. Sub-agent rows get the portrait as their icon.
 - **Stats** (`stats.js`, shared state `pokemon-herd-stats`, `{ v: 1, species: { <dex>: { jobs, ms,
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked
