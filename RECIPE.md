@@ -313,6 +313,12 @@ forms, and Mega Evolution while an agent works.
 - **Combo** (`onCombo`, `COMBO_GAP` in `react.js`): an agent and its sub-agent (`family`) both
   working: 1 in 480 per tick, at most every 5 min per pair, both stop where they are, face one
   random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
+- **Preview** (`showPreview`, `renderPreview`): right-clicking a grid cell (the list's
+  `on_item_secondary_click`, the column from the pointer's x) shows that Pokémon in the card's
+  place: name, dex and region, "✨ Shiny" (if it has one), Choose (as a left click) and ✕; its
+  Standing (`idleD`), Walking (`walkR`) and Asleep (`sleep`) animations, each on a 150×104
+  stage with a strip of grass (loaded with `want`, "Loading…" pulsing meanwhile), and its line
+  as 30 px icons (click one to preview it).
 - **Favourites** (`favorites.js`, shared `pokemon-herd-favorites` { v: 1, keys: ["25",
   "37-0001"] }): in the picker, "Edit ★" (beside Random; "✓ Done" while on, gold edge) makes a
   click on a grid cell star it or not instead of choosing it, the picker staying open (the

@@ -2046,6 +2046,8 @@ export default class PokemonHerd extends View {
     cx.timer.after(300, () => this.input.focus());
     this.visible = searchEntries("", PICK_COLS * 6).entries; // what the list shows; updated as it scrolls
     this.pickX = 0; // the pointer's x over the list: which column a click was in
+    this.sprites ??= {}; // the preview's animations (want / spriteFor)
+    this.preview = null; // right-clicked in the list: { dex, form?, shiny }, shown in the card's place
     // The list's renderer can't start downloads; this picks up what scrolled into view.
     cx.timer.every(250, (cx) => this.fetchIcons(cx));
   }
@@ -2058,7 +2060,7 @@ export default class PokemonHerd extends View {
 
   // Icons for what the picker shows, downloaded on demand, a few at a time.
   fetchIcons(cx) {
-    this.iconQueue = [...this.chainEntries().flat(), ...this.visible].filter((e) => !this.icons[entryKey(e)]);
+    this.iconQueue = [...this.chainEntries().flat(), ...(this.preview ? this.lineOf(this.preview).flat() : []), ...this.visible].filter((e) => !this.icons[entryKey(e)]);
     while (this.iconActive < ICON_JOBS && this.iconQueue.length) {
       const e = this.iconQueue.shift();
       const key = entryKey(e);
@@ -2086,7 +2088,10 @@ export default class PokemonHerd extends View {
 
   // Its evolution line as picker entries, stage by stage; a regional form's line stays in its region.
   chainEntries() {
-    const cur = this.livePick();
+    return this.lineOf(this.livePick());
+  }
+
+  lineOf(cur) {
     if (!cur?.dex) return [];
     const label = cur.form && formsOf(cur.dex).find((f) => f.form === cur.form)?.label;
     return chainOf(cur.dex).map((stage) => stage.map((dex) => {
@@ -2203,6 +2208,73 @@ export default class PokemonHerd extends View {
       .child(this.renderBagRow(cur, t));
   }
 
+  // Shows `e` ({ dex, form? }) in the preview, loading its animations.
+  showPreview(e, cx, shiny = false) {
+    this.preview = { dex: e.dex, ...(e.form ? { form: e.form } : {}), shiny: shiny && hasShiny(e.dex, e.form) };
+    this.want({ ...this.preview, mega: "off" }, cx);
+    this.fetchIcons(cx);
+    cx.notify();
+  }
+
+  // The preview card: its idle, walk and sleep animations on a bit of ground, its line (click one
+  // to preview it), the shiny look, and Choose (as a left click in the list) or ✕ (back to the card).
+  renderPreview(t, cx) {
+    const pv = this.preview;
+    const meta = this.sprites[spriteKey(dressed(pv))];
+    const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
+    const isPv = (e) => e.dex === pv.dex && (e.form ?? null) === (pv.form ?? null);
+    const line = this.lineOf(pv);
+    const STAGE_W = 150, STAGE_H = 104, GROUND = 88;
+    const stage = (key, label) => {
+      const s = meta?.[key];
+      let art = null;
+      if (s) {
+        const sc = Math.min(meta.scale >= 2 ? 1.5 : 1, (GROUND - 8) / Math.max(1, s.box.h), (STAGE_W - 10) / Math.max(1, s.box.w));
+        art = image(s.path).absolute()
+          .left(STAGE_W / 2 - (s.box.x + s.box.w / 2) * sc).top(GROUND - (s.box.y + s.box.h) * sc)
+          .w(s.w * sc).h(s.h * sc);
+      }
+      return v_flex().items_center().gap(3).flex_none()
+        .child(div().relative().w(STAGE_W).h(STAGE_H).rounded(6).overflow_hidden().bg(t.background)
+          .child(div().absolute().left(0).top(GROUND).w(STAGE_W).h(STAGE_H - GROUND).bg("#3f8f3a40"))
+          .when(!!art, (el) => el.child(art))
+          .when(!art, (el) => el.child(div().absolute().left(0).top(GROUND / 2 - 8).w(STAGE_W).text_center().text_size(11).text_color(t.muted)
+            .child(meta?.error ? "Can't be had" : "Loading…").when(!meta?.error, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 1000 })))))
+        .child(div().text_size(10.5).text_color(t.muted).child(label));
+    };
+    const button = (id, label, on, click) => div()
+      .id(id).h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
+      .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")
+      .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click(click).child(label);
+    return v_flex().gap(8).p(10).rounded(8).border_1().border_color(t.accent).flex_none()
+      .child(h_flex().gap(10).items_center()
+        .child(v_flex().flex_1().min_w(0).gap(2)
+          .child(h_flex().gap(6).items_center()
+            .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`))
+            .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
+          .child(div().text_size(11.5).text_color(t.muted).child("Preview: right-click another to see it")))
+        .when(hasShiny(pv.dex, pv.form), (el) => el.child(button("preview-shiny", "✨ Shiny", pv.shiny, (_e, cx) => this.showPreview(pv, cx, !pv.shiny))))
+        .child(button("preview-choose", "Choose", false, () => { const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) }; this.preview = null; this.choose(e); }))
+        .child(button("preview-close", "✕", false, (_e, cx) => { this.preview = null; cx.notify(); })))
+      .child(h_flex().gap(8).items_start()
+        .child(stage("idleD", "Standing"))
+        .child(stage("walkR", "Walking"))
+        .child(stage("sleep", "Asleep")))
+      .when(line.length > 1, (el) => el.child(
+        h_flex().gap(4).items_center().overflow_hidden()
+          .children(line.flatMap((st, i) => [
+            ...(i ? [div().text_size(12).text_color(t.dim).px(2).child("›")] : []),
+            ...st.map((e) => v_flex()
+              .id(`pv-evo-${entryKey(e)}`).items_center().flex_none().rounded(6).px(2).py(1)
+              .border_1().border_color(isPv(e) ? t.accent : "#00000000").bg(isPv(e) ? t.selected : "#00000000")
+              .cursor_pointer().hover((s2) => s2.bg(t.hover))
+              .on_click((_e, cx) => { if (!isPv(e)) this.showPreview(e, cx, pv.shiny); })
+              .child(icon(e, 30))),
+          ])),
+      ));
+  }
+
   // The Bag, for this Pokémon: Berries (a heart), Rare Candy (evolve now) and the stones it can
   // take. What does nothing for it now is greyed out.
   renderBagRow(cur, t) {
@@ -2294,7 +2366,8 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11).text_color(t.dim).child("Esc")),
           ),
       )
-      .when(!!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
+      .when(!!this.preview, (el) => el.child(this.renderPreview(t, cx)))
+      .when(!this.preview && !!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
       // Mega: Off / On / Auto (Mega while its agent works), for a Pokémon that has one.
       .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
@@ -2375,7 +2448,14 @@ export default class PokemonHerd extends View {
               })));
             }
             return rows;
-          }).size_full().cursor_pointer().on_item_click((key, cx) => {
+          }).size_full().cursor_pointer()
+          // Right-click: a preview of that one (how it stands, walks and sleeps) in the card's place.
+          .on_item_secondary_click((key, _e, cx) => {
+            const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
+            const e = all[Number(key.slice(1)) * PICK_COLS + col];
+            if (col >= 0 && col < PICK_COLS && e) this.showPreview(e, cx);
+          })
+          .on_item_click((key, cx) => {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
             if (!(col >= 0 && col < PICK_COLS && e)) return;
