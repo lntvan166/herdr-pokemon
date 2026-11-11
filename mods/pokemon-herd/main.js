@@ -571,7 +571,9 @@ export default class PokemonHerd extends View {
     const meta = this.spriteFor(v.pick, "idle");
     if (!v.start) {
       // It sets off once its sprite is in; one that can't be had in a minute doesn't come.
-      if (meta?.walkR) v.start = now;
+      // A moment after its sprite is in, so the picture is up when it shows (a first-time species
+      // was once seen as a lone 🎁 crossing the sky).
+      if (meta?.walkR) { v.ready ??= now; if (now - v.ready >= 1500) v.start = now; }
       else if (now - v.asked > 60000) { this.visitor = null; this.visitAt = next(); }
       return false;
     }
@@ -617,7 +619,7 @@ export default class PokemonHerd extends View {
         .child(image(s.path).w(s.w * scale).h(s.h * scale)))
       // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it
       // left, for a few seconds.
-      .when(!v.gift || Date.now() - v.giftAt < 4000, (el) => el.child(div().absolute()
+      .when((!v.gift && Date.now() - v.start > 1000) || (v.gift && Date.now() - v.giftAt < 4000), (el) => el.child(div().absolute()
         .left(v.x - 8).top(ground - s.box.h * scale - 18).text_size(13)
         .transition("left", { duration: 300, easing: "linear" })
         .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
