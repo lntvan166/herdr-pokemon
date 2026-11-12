@@ -2204,9 +2204,9 @@ export default class PokemonHerd extends View {
                 .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`))
                 .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
-              .child(h_flex().gap(1).items_center()
-                .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
-                .child(div().ml(8).text_size(11.5).text_color(t.muted).child(line ? `All ${nameOf(cur.dex)} so far: ${line}` : `No ${nameOf(cur.dex)} has finished a job yet`)))
+              .child(h_flex().min_w(0).gap(1).items_center()
+                .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().flex_none().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
+                .child(div().ml(8).min_w(0).truncate().text_size(11.5).text_color(t.muted).child(line ? `All ${nameOf(cur.dex)} so far: ${line}` : `No ${nameOf(cur.dex)} has finished a job yet`)))
               .child(h_flex().gap(8).items_center()
                 .child(div().min_w(0).text_size(11.5).text_color(t.foreground).child(progress))
                 .when(byJobs, (el) => el.child(
@@ -2347,10 +2347,11 @@ export default class PokemonHerd extends View {
     const night = isNight();
     const mine = new Set(evolveNeeds(cur).flatMap((n) => n.ways).filter((w) => w.startsWith("stone:")).map((w) => `${w.slice(6)}-stone`));
     const ids = ["berry", "rare-candy", ...STONES.map((k) => `${k}-stone`).filter((id) => mine.has(id)), ...HELD_IDS].filter((id) => b.items[id]);
-    return h_flex().gap(6).items_center().flex_none()
+    // Wraps onto a second line when there are many (a long Bag ran past the card's edge).
+    return h_flex().flex_wrap().w_full().gap(6).items_center().flex_none()
       // What it holds: click to take it back into the Bag.
       .when(!!cur.held, (el) => el.child(div()
-        .id("take-held").h(24).px(8).rounded(6).flex().items_center().text_size(11.5).border_1()
+        .id("take-held").h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
         .border_color(t.accent).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
         .on_click((_e, cx) => {
           const r = takeHeld(this.livePick());
@@ -2366,7 +2367,7 @@ export default class PokemonHerd extends View {
       .children(ids.map((id) => {
         const use = itemUse(cur, slot, id, { night });
         return div()
-          .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().gap(4).text_size(11.5).border_1()
+          .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().flex_none().gap(4).text_size(11.5).border_1()
           .border_color(t.border).text_color(use ? t.foreground : t.dim)
           .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
             const r = useItem(this.livePick(), slot, id, { night: isNight() }, Date.now());
