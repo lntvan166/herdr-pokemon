@@ -6,6 +6,7 @@
 // held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin…); nick: the name you gave it.
 import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf, fullName } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
+import { NATURES } from "./trainer.js";
 
 const EVOLVES_FROM_MAP = new Map(Object.entries(EVOLVES_FROM).map(([to, from]) => [Number(to), from]));
 
@@ -38,7 +39,9 @@ export function loadPicks(current, legacy) {
       const evolvedAt = Number.isFinite(p.evolvedAt) && p.evolvedAt > 0 ? p.evolvedAt : undefined;
       const held = HELD_IDS.includes(p.held) ? p.held : undefined;
       const nick = cleanNick(p.nick) ?? undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}) };
+      const caught = Number.isFinite(p.caught) && p.caught > 0 ? p.caught : undefined; // caught in a ball (trainer.js)
+      const nature = p.nature in NATURES ? p.nature : undefined;
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }
@@ -145,7 +148,7 @@ export function gainJob(pick, slot, how = {}, at = 0) {
 // what it gains (not what it loses). A pick saved before points had only hearts: those count.
 export const HEART_PTS = 20;
 export const FRIEND_MAX = MAX_HEARTS * HEART_PTS;
-export const FRIEND = { pat: 3, quick: 4, spar: 3, berry: 10, hungry: -10 };
+export const FRIEND = { pat: 3, quick: 4, spar: 3, berry: 10, sitrus: 20, hungry: -10 };
 export const friendOf = (pick) => (Number.isInteger(pick.friend) ? pick.friend : (pick.hearts ?? 0) * HEART_PTS);
 export function withFriend(pick, pts) {
   const friend = Math.max(0, Math.min(FRIEND_MAX, friendOf(pick) + (pts > 0 && pick.held === "soothe-bell" ? 2 * pts : pts)));
@@ -156,7 +159,7 @@ export const withHearts = (pick, n) => withFriend(pick, n * HEART_PTS);
 // What an item from the Bag would do for it: "evolve", "hearts", "hold", or null (no use now).
 export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
-  if (id === "berry") return friendOf(pick) < FRIEND_MAX ? "hearts" : null;
+  if (id === "berry" || id === "sitrus-berry") return friendOf(pick) < FRIEND_MAX ? "hearts" : null;
   if (id === "rare-candy") return evolveTarget(pick, slot, { night: how.night, candy: true }) ? "evolve" : null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   return stone && evolveTarget(pick, slot, { stone }) ? "evolve" : null;
@@ -167,7 +170,7 @@ export function itemUse(pick, slot, id, how = {}) {
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
-  if (use === "hearts") return { pick: withFriend(pick, FRIEND.berry), evolved: false };
+  if (use === "hearts") return { pick: withFriend(pick, id === "sitrus-berry" ? FRIEND.sitrus : FRIEND.berry), evolved: false };
   if (use !== "evolve") return null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   const dex = evolveTarget(pick, slot, stone ? { stone } : { night: how.night, candy: true });
@@ -403,7 +406,7 @@ export const rollShiny = (entry, odds, rnd = Math.random) => rnd() * odds < 1 &&
 // of `entry`'s species (and form) and was raised (hearts, jobs, an item, an Everstone, a shiny):
 // the latest such, as { slot, pick }, or null. Whoever gets that species next takes this one
 // (moved, not copied: the caller forgets `slot`).
-export const raised = (p) => !!(p && (p.held || p.stay || p.shiny || (p.friend ?? 0) > 0 || (p.hearts ?? 0) > 0 || (p.jobs ?? 0) > 0));
+export const raised = (p) => !!(p && (p.caught || p.held || p.stay || p.shiny || (p.friend ?? 0) > 0 || (p.hearts ?? 0) > 0 || (p.jobs ?? 0) > 0));
 export function fromBox(entry, panes, onScreen, except = null) {
   const hits = Object.entries(panes).filter(([slot, p]) => slot !== except && !onScreen.has(slot)
     && p.dex === entry.dex && (p.form ?? null) === (entry.form ?? null) && raised(p));

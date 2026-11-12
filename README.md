@@ -47,8 +47,8 @@ as it is. Deerling and Sawsbuck change coats with the season.
 
 **Hearts, and the Bag.** Friendship is points, 20 to a heart, 5 hearts at most, and it comes
 slowly: a click on a Pokémon (+3, every 30 minutes at most), an answer to its agent within a
-minute (+4, every 10 minutes at most), sparring (+3), a Berry (+10). Leave its agent waiting over
-5 minutes and it gets hungry (😢, −10) until you answer, when it eats a Berry if you have one. Idle Pokémon now and then dig something up: Berries,
+minute (+4, every 10 minutes at most), sparring (+3), an Oran Berry (+10), a Sitrus Berry (+20). Leave its agent waiting over
+5 minutes and it gets hungry (😢, −10) until you answer, when it eats a Berry if you have one. Idle Pokémon now and then dig something up: Poké Balls, Berries,
 stones, a Rare Candy. A job over 30 minutes earns a Rare Candy too (it evolves one now). Use them in
 the picker or in the **Bag** (right-click the strip, "Bag"): pick an item and it lists who on
 screen can take it now and what each would become, with a Use button. The picker shows who it is, its hearts, what its species has done, its evolution line (click
@@ -85,16 +85,45 @@ which copies the layout you're on into one you own (and shows it) so the cards a
 place, rows and size can be set.
 
 **Pokédollars and the Shop.** Every job an agent finishes pays: ₽5 and ₽2 a minute it took
-(₽150 at most), twice for a Pokémon holding an Amulet Coin, with "+₽25" over its head. The Bag's
-**Shop** tab sells every item (Oran Berry ₽30, Honey ₽200, stones ₽500, Rare Candy ₽800, items to
-hold ₽1,500) and five for the whole herd: **X Speed** (₽200, 10 min: faster, hardly stopping),
-**Poké Flute** (₽150: wakes everyone and keeps them up 10 min), **X Attack** (₽300, 10 min:
-sparring and teasing again and again), **Soda Pop** (₽150, 10 min: three times the fidgets, and
-dancing) and the **Festival Ticket** (₽250: fireworks, and everyone celebrates). Boosts on now show
-as small pills in the strip's corner with the minutes left. A Bag from before Pokédollars was
-paid once for the jobs already done.
+(₽150 at most), twice for a Pokémon holding an Amulet Coin, with "+₽25" over its head. Prices
+are set from a working day (8 hours of agents' work pays about ₽3,200, the day's Research about
+₽400 more). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
+₽150, Master Ball ₽25,000; Oran Berry ₽20, Sitrus Berry ₽80, Razz and Pinap Berries ₽40,
+Silver Pinap ₽200, Golden Razz ₽300; Honey ₽150, the **Azure Flute** ₽1,800 (it calls a
+legendary over: two a working day); stones ₽400, Rare Candy ₽600, items to hold ₽2,000; and five
+for the whole herd: **X Speed** (₽150, 10 min: faster, hardly stopping), **Poké Flute** (₽100:
+wakes everyone and keeps them up 10 min), **X Attack** (₽200, 10 min: sparring and teasing again
+and again), **Soda Pop** (₽100, 10 min: three times the fidgets, and dancing) and the **Festival
+Ticket** (₽250: fireworks, and everyone celebrates). Boosts on now show as small pills in the
+strip's corner with the minutes left.
 
-**The Box.** (Its tab in the Bag lists the ones with agents and the ones waiting; Take what one holds, Rename it, Bring one out for an agent you choose, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
+**Catching, and the Pokédex.** Click a wild Pokémon walking by for its gift, then again, with a
+ball over its head, to throw a Poké Ball (the cheapest you have; the best for a shiny; a Master
+Ball only for a legendary). It stops, the ball shakes, and "Gotcha!", or it breaks free and walks
+on. A caught Pokémon goes to the Box with a heart and a **nature** of its own: Hasty (walks
+faster), Lazy (naps sooner), Calm (stays up longer), Brave (spars more), Jolly (fidgets and dances
+more). Berries for catching, as in Pokémon GO, set in the Bag to be fed before each ball: **Razz**
+(×1.5), **Golden Razz** (×2.5), **Pinap** (twice the gift when it's caught), **Silver Pinap**
+(both). The Bag's **Pokédex** tab counts the species seen and caught, by region, and pays as it
+fills: ₽500 at 5, Ultra Balls at 15, a Master Ball at 30, 60, 100 and 200.
+
+Catching is what opens things up. **Legendary Pokémon** (Mewtwo, Rayquaza…) can't be chosen in
+the picker (🔒) nor come to new agents until you catch one; one walks by 1 visitor in 150, the
+day's Research calls one, and so does the Azure Flute. They're hard: about 15 balls before one
+flees, and it may get away (over those 15, Poké Balls catch it 4 times in 10, Ultra Balls 6,
+Ultra Balls with Golden Razz Berries 9). Settings → Trainer → Legendary Pokémon → **Unlock all**
+(it asks "Sure?") opens them to everyone. **A shiny caught** lets you choose that species shiny on
+purpose (the picker's preview: ✨ Shiny, then Choose ✨). **Trainer mode** (Settings → Trainer,
+off by default): only what you caught, and the three Kanto starters, can be chosen or come to new
+agents, each a caught one from the Box with its hearts and nature.
+
+**The day's Research.** The Bag's **Today** tab: three tasks a day drawn from your work (finish
+10 jobs, Fire-type Pokémon finish 3 jobs, answer an agent within a minute, catch one, take
+visitors' gifts, feed Berries, watch spars, work 2 hours…), each paying Pokédollars or balls the
+moment it's done. All three: an Ultra Ball, and a legendary Pokémon walks by. Yesterday sums up
+in a line at the top ("Yesterday: 23 jobs · 2 caught · Research 3/3 · busiest Pikachu").
+
+**The Box.** (Right-click the strip → Box. A grid of every Pokémon you have, with agents or waiting, to narrow down: search, Waiting, With agents, Caught, Shiny, Legendary. Click one to see it, then Rename it, Take what it holds, Bring it out for an agent you choose, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
 shiny luck. The next agent to get that species (you pick it, or a new agent is given it) gets
 that very Pokémon back; it moves over, so an item is never doubled. In the picker, **📦 Box it**
 puts the current one in the Box and makes your next pick a new one (1 in 64 shiny: hunt for one,
@@ -142,10 +171,11 @@ Mega X / Y: pick one in the picker once both are drawn.
 - The ground lines stay put: the strip never jumps up and down.
 
 **Yours to arrange.**
-- Right-click the strip's ground for the **Bag** and **Settings**. Settings (it stays open while
-  you change things) has where the strip sits (sidebar, bottom of the window, right panel), its
-  size (Tiny, Small, Medium, Large; Small by default), 1–3 rows, the background, agent cards,
-  the cries, and a switch for each of evolution, Pickup, weather, sparring and sub-agents.
+- Right-click the strip's ground for the **Box** (with the Bag, the Shop, Today and the Pokédex)
+  and **Settings**. Settings (it stays open while you change things) is in tabs: **Strip** (where
+  it sits, its size, 1–3 rows, the background, agent cards), **Herd** (a switch for each of
+  evolution, Pickup, sparring, sub-agents, weather, the campfire; visitors; new agents'
+  Pokémon), **Trainer** (Trainer mode, legendaries, the Pokédex), **Sound** and **Updates**.
 - The background is **Scenery** by default: sky, hills, trees and grass. It shows day or night by your
   clock, with clouds by day and stars and moon by night, and it never draws behind the names.
   It is muted in a dark theme and pale in a light one. The seasons turn every 3 hours: spring

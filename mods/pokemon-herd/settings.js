@@ -13,6 +13,8 @@ export const DEFAULTS = {
   tired: true, // near the 5-hour limit (Usage Limits) the herd sweats and walks slower
   visitors: "often", // how often a wild Pokémon walks across the strip: VISIT_EVERY
   newFrom: "any", // new agents' Pokémon: from every species ("any") or from the favourites ("favorites")
+  trainer: false, // Trainer mode: only Pokémon you caught (and the starters) can be chosen or come to new agents
+  legendsOpen: false, // legendary Pokémon open to everyone, without catching one first
   sidebar: false, // publish shared "agent-icons" / "agent-cards" for Better Sidebar (opt-in: it needs a patch)
 };
 

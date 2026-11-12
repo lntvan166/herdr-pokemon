@@ -23,6 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
+import { BAIT, LEGEND_THROWS, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -45,6 +46,10 @@ const BOOSTS_KEY = `${MOD}-boosts`; // Shop boosts on now: { <item id>: until }
 const FESTIVAL_KEY = `${MOD}-festival`; // when a Festival Ticket was last used
 const FESTIVAL_MS = 6000; // its fireworks
 const BOOST_GAP = 30000; // with X Attack: how soon one may spar again
+const DEX_KEY = `${MOD}-dex`; // the Pokédex (trainer.js loadDex)
+const DAILY_KEY = `${MOD}-daily`; // the day's Research (trainer.js loadDaily)
+const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
+const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240;
@@ -157,7 +162,14 @@ const assignAll = (list, { write = false } = {}) => {
     setShared(FOLDERS_KEY, { v: 1, folders: back.folders });
   }
   // Settings → New agents: Favorites: a new agent's Pokémon is one of the favourites.
-  const pool = loadSettings(shared(SETTINGS_KEY)).newFrom === "favorites" ? favoriteEntries(favs()) : null;
+  // Trainer mode: what you caught (and the starters); otherwise any species but the legendaries
+  // not caught yet (unless Settings opened them).
+  const st = loadSettings(shared(SETTINGS_KEY));
+  const d = pokedex();
+  const open = (e) => !isLocked(e.dex, d, st.legendsOpen);
+  const pool = st.trainer ? trainerEntries(d)
+    : st.newFrom === "favorites" ? favoriteEntries(favs()).filter(open)
+    : st.legendsOpen ? null : openEntries(d);
   const r = assign(list, write ? savedPicks() : panesNow, paneless, charmOdds(), pool);
   // Sub-agents (Settings: on): their agent's Pokémon, younger. `family`: child -> parent address.
   r.family = {};
@@ -205,6 +217,42 @@ function updatePick(slot, f) {
   if ((next.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
   return next;
 }
+// The Pokédex and the day's Research (trainer.js), shared by every window.
+const pokedex = () => loadDex(shared(DEX_KEY));
+const saveDex = (d) => setShared(DEX_KEY, d);
+// The types of the Pokémon on screen (the Research's type task names one of them).
+function typesOnScreen() {
+  try {
+    const saved = savedPicks();
+    return [...new Set(agents().map((a) => a.pane && saved[a.pane]).filter(Boolean).map((p) => typeOf(p.dex)))];
+  } catch { return []; }
+}
+const dailyNow = (now = Date.now()) => loadDaily(shared(DAILY_KEY), now, { wild: settingsNow().visitors !== "off", types: typesOnScreen() });
+// What a task, a Pokédex goal or the bonus pays: Pokédollars or items, into the Bag.
+function payOut(p) {
+  let b = bag();
+  if (p.money) b = addMoney(b, p.money);
+  if (p.item) b = addItem(b, p.item, p.count ?? 1);
+  saveBag(b);
+}
+// Something the Research counts happened (`ev`: job, type, work, quick, pet, catch, gift, berry,
+// spar; `dex`: whose). Pays each task as it is done; all three call a legendary over. Returns
+// what was finished, for a note on the strip.
+function research(ev, n = 1, dex = null) {
+  const r = progress(dailyNow(), ev, n, dex);
+  setShared(DAILY_KEY, r.daily);
+  for (const t of r.done) payOut(taskPay(t));
+  if (r.bonus) { payOut(BONUS); setShared(LEGEND_KEY, Date.now()); }
+  return r;
+}
+// The Pokédex's goals reached: paid, once each.
+function payDexGoals() {
+  const d = pokedex();
+  const due = dueGoals(d);
+  if (!due.length) return;
+  for (const g of due) payOut(g);
+  saveDex({ ...d, goals: [...d.goals, ...due.map((g) => g.n)] });
+}
 const noteEvolved = () => { const b = bag(); saveBag(mark(b, { evolutions: b.marks.evolutions + 1 })); };
 // Deerling and Sawsbuck wear this season's coat (sprites only; its name and pick stay as they are).
 const dressed = (pick) => {
@@ -238,7 +286,9 @@ function cry(dex) {
   ensureCry(dex).then((path) => { if (path) playSound(path); }).catch(() => null);
 }
 // The Bag: a dialog of its own (menu, or keys.json "pokemon-herd.bag").
-const openBag = () => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true } });
+// How many Pokémon wait in the Box (the right-click menu's count).
+const boxCount = () => { try { return boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean))).length; } catch { return 0; } };
+const openBag = (tab) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}) } });
 
 function tabsById() {
   const out = {};
@@ -520,7 +570,9 @@ export default class PokemonHerd extends View {
     m.run = c.run;
     if (!this.leader) return; // another strip counts
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
+    if (c.ms && a.pane) research("work", c.ms / 60000);
     if (!c.job) return;
+    if (a.pane) research("job", 1, pick?.dex); // the day's Research: a job, and its Pokémon's type
     // Paid for the job, by how long it took (twice with an Amulet Coin): "+₽25" over its head.
     const pay = jobPay(c.task, savedPicks()[a.pane]?.held === "amulet-coin");
     saveBag(addMoney(bag(), pay));
@@ -620,8 +672,15 @@ export default class PokemonHerd extends View {
     this.honeySeen = honey;
     if (called && v) this.honeyNext = true;
     else if (called) this.visitAt = now;
+    // The day's Research all done: a legendary Pokémon comes next (once per call).
+    const legend = shared(LEGEND_KEY) ?? 0;
+    if (this.legendSeen !== undefined && legend > this.legendSeen) { this.legendNext = true; if (!v) this.visitAt = now; }
+    this.legendSeen = legend;
     if (!v && now >= this.visitAt) {
-      const pick = visitorPick(new Set(Object.values(ids).map((p) => p.dex)));
+      const pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds() });
+      this.legendNext = false;
+      const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
+      if (seen) saveDex(seen);
       const dir = (Math.random() < 0.5 ? "r" : "l");
       const [from, to] = dir === "r" ? [-OFF, this.width + OFF] : [this.width + OFF, -OFF];
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
@@ -630,6 +689,27 @@ export default class PokemonHerd extends View {
       this.want(pick, cx);
     }
     if (!v) return false;
+    // A ball thrown: it holds still while the ball shakes; then caught (gone in a moment), or it
+    // breaks out and walks on from there.
+    if (v.throw) {
+      const th = v.throw;
+      const end = th.at + 600 + th.shakes * 700;
+      if (now < end) return true;
+      // A legendary after its last ball: it flees.
+      if (!th.caught && v.pick.legend && (v.throws ?? 0) >= LEGEND_THROWS) th.fled = true;
+      if (th.caught || th.fled) {
+        if (th.caught && !th.saved) { th.saved = true; this.caught(v); }
+        if (now >= end + 2500) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : this.visitAt > now ? this.visitAt : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
+        return true;
+      }
+      v.from = th.x;
+      v.start = now;
+      v.dur = (Math.abs(v.to - v.from) / VISIT_SPEED) * 1000;
+      v.walkFrom = undefined;
+      v.leg = (v.leg ?? 0) + 1;
+      v.broke = now;
+      v.throw = null;
+    }
     const meta = this.spriteFor(v.pick, "idle");
     if (!v.start) {
       // It sets off once its sprite is in; one that can't be had in a minute doesn't come.
@@ -639,7 +719,7 @@ export default class PokemonHerd extends View {
       return false;
     }
     const f = (now - v.start) / v.dur;
-    if (f >= 1) { this.visitor = null; this.visitAt = this.honeyNext ? now : next(); this.honeyNext = false; return true; }
+    if (f >= 1) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : next(); this.honeyNext = false; return true; }
     v.x = v.from + (v.to - v.from) * f;
     // Idle ones on its row, standing within 220 px, turn to watch it.
     list.forEach((a, i) => {
@@ -648,6 +728,35 @@ export default class PokemonHerd extends View {
       if (m && !m.moving && m.mood === "idle" && row === v.row && Math.abs(m.x - v.x) < 220) m.dir = v.x > m.x ? "r" : "l";
     });
     return true;
+  }
+
+  // A wild Pokémon caught: into the Box (a heart, a nature), the Pokédex, the day's Research, and
+  // the Pokédex's goals paid.
+  caught(v) {
+    const now = Date.now();
+    const pick = caughtPick(v.pick, now);
+    v.nature = pick.nature;
+    savePicks({ [`box-${now}-${pick.dex}`]: pick });
+    saveDex(withCaught(pokedex(), pick));
+    research("catch");
+    payDexGoals();
+    // A Pinap Berry: it brings a second gift.
+    if (BAIT[v.throw?.bait]?.double) { v.extra = pickup(); saveBag(addItem(bag(), v.extra)); }
+  }
+
+  // A ball thrown at the visitor (the best one for it in the Bag): it stops, the ball shakes.
+  throwAt(v) {
+    if (v.throw || !v.start) return;
+    const ball = ballFor(bag().items, v.pick);
+    if (!ball) return;
+    // The Berry set in the Bag goes first, while there are some (none for a Master Ball: no need).
+    const b0 = bag();
+    const bait = ball !== "master-ball" && BAIT[shared(BAIT_KEY)] && b0.items[shared(BAIT_KEY)] ? shared(BAIT_KEY) : null;
+    saveBag(addItem(bait ? addItem(b0, bait, -1) : b0, ball, -1));
+    v.throws = (v.throws ?? 0) + 1;
+    const now = Date.now();
+    const f = clamp((now - v.start) / v.dur, 0, 1);
+    v.throw = { ball, bait, at: now, x: v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait) };
   }
 
   // The visitor, drawn as the herd is but with no name: hovering it says what it is.
@@ -666,38 +775,83 @@ export default class PokemonHerd extends View {
     const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
     const headY = ground - s.box.h * scale;
     const hit = { left: mid - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
-    const showGift = (!v.gift && Date.now() - v.start > 1000) || (v.gift && Date.now() - v.giftAt < 4000);
+    const now = Date.now();
+    const th = v.throw;
+    // Its gift first; then, with a ball in the Bag, a ball over its head: click to throw it.
+    const ball = !th && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick) : null;
+    const showGift = !th && ((!v.gift && now - v.start > 1000) || (v.gift && now - v.giftAt < 2500));
+    if (th) {
+      // Held in the ball where it stood: it shakes (left and right) up to three times, then
+      // clicks shut ("Gotcha!") or opens. Before its first shake, the Pokémon flashes into it.
+      const x = th.x;
+      const settled = now >= th.at + 600 + th.shakes * 700;
+      const size = Math.round(20 * Math.max(0.8, scale));
+      const shaking = now >= th.at + 600 && !settled;
+      const ballEl = this.itemMark(th.ball, size);
+      root.child(div().id(`visitor-ball-${v.id}-${v.leg ?? 0}`).absolute().left(x - size / 2).top(ground - size)
+        .when(shaking, (el) => el.loop("left", { from: x - size / 2 - 3, to: x - size / 2 + 3, period: 350 }))
+        .child(ballEl));
+      if (now < th.at + 600) {
+        root.child(div().id(`visitor-flash-${v.id}`).absolute().left(x - mid).top(0).w(sw).h(ground + 10)
+          .loop("opacity", { from: 0.2, to: 0.9, period: 200 })
+          .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)));
+      }
+      if (settled && (th.caught || th.fled)) {
+        const tagW = 260;
+        root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
+          .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
+          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} fled!` : `✨ Gotcha! ${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+      }
+      return;
+    }
     // It walks as the herd does: drawn first where it sets off, then sent to the far edge under one
     // transition lasting the rest of its walk. A short transition re-aimed every tick drew nothing
-    // at all, or only its 🎁 (a lone gift crossing the sky).
-    const now = Date.now();
+    // at all, or only its 🎁 (a lone gift crossing the sky). (A new leg after a ball: new ids.)
     const placed = v.walkFrom !== undefined;
     v.walkFrom ??= now;
     const left = placed ? v.to : v.from;
-    root.child(div().id(`visitor-${v.id}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
+    const leg = v.leg ?? 0;
+    const baitNow = ball && ball !== "master-ball" && BAIT[shared(BAIT_KEY)] && bag().items[shared(BAIT_KEY)] ? shared(BAIT_KEY) : null;
+    const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow));
+    root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
       .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
       .child(div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)))
-      // Hover: what it is; a click: it leaves you something for the Bag (as Pickup finds things), once.
-      .child(div().id(`visitor-hit-${v.id}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
+      // Hover: what it is; a click: its gift (once), then a ball, if you have one.
+      .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
         .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
         .on_click((_e, cx) => {
-          if (v.gift) return;
-          v.gift = pickup();
-          v.giftAt = Date.now();
-          saveBag(addItem(bag(), v.gift));
+          if (!v.gift) {
+            v.gift = pickup();
+            v.giftAt = Date.now();
+            saveBag(addItem(bag(), v.gift));
+            research("gift");
+          } else if (Date.now() - v.giftAt > 800) this.throwAt(v);
           cx.notify();
         }))
-      // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it left.
+      // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it
+      // left; then a ball to throw. A legendary one glows.
+      .when(!!v.pick.legend, (el) => el.child(div().absolute().left(mid - 9).top(Math.max(2, headY - 34)).text_size(12)
+        .loop("opacity", { from: 0.3, to: 1, period: 600 }).child("✦")))
       .when(showGift, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18)).text_size(13)
         .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
-        .child(v.gift ? this.itemMark(v.gift, 18) : "🎁"))));
-    if (this.visitorHover) {
-      const tagW = 230;
+        .child(v.gift ? this.itemMark(v.gift, 18) : "🎁")))
+      .when(!!ball, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18))
+        .loop("opacity", { from: 0.5, to: 1, period: 700 })
+        .child(this.itemMark(ball, 18)))));
+    const broke = v.broke && now - v.broke < 2500;
+    if (this.visitorHover || broke) {
+      const tagW = 250;
+      const what = `${v.pick.legend ? "A legendary" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
+      const tail = broke ? " broke free!"
+        : !v.gift ? ": click it"
+        : now - v.giftAt < 2500 ? ` left you ${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`
+        : ball ? `: click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it flees` : ""}`
+        : ": no Poké Balls (the Shop has them)";
       root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-        .child(`A wild ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.gift ? ` left you ${ITEMS[v.gift].name.startsWith("A") || ITEMS[v.gift].name.startsWith("O") ? "an" : "a"} ${ITEMS[v.gift].name}` : ": click it"}`));
+        .child(`${what}${tail}`));
     }
   }
 
@@ -740,10 +894,12 @@ export default class PokemonHerd extends View {
           saveBag(addItem(bag(), "berry", -1));
           updatePick(a.pane, (p) => withFriend(p, FRIEND.berry));
           this.note(m, ITEMS.berry.icon, now, 5000, "berry");
+          research("berry");
         }
       } else if (now - m.blockedAt < QUICK_MS && now - (petAt[a.pane] ?? 0) > PET_MS / 3) {
         petAt[a.pane] = now;
         if (updatePick(a.pane, (p) => withFriend(p, FRIEND.quick))) this.note(m, "💗", now);
+        research("quick");
       }
       m.blockedAt = undefined;
       m.hungry = false;
@@ -803,6 +959,14 @@ export default class PokemonHerd extends View {
       forgetPanes(forget);
     }
     if (this.leader) this.publishIcons(list, ids, cx); // agent-icons / agent-cards for the sidebar
+    // Once a minute: the Pokédex has seen the herd; a new day's Research is drawn (yesterday summed up).
+    if (this.leader && now - (this.dexAt ?? 0) > 60000) {
+      this.dexAt = now;
+      const seen = withSeen(pokedex(), Object.values(ids).map((p) => p.dex));
+      if (seen) saveDex(seen);
+      const day = dailyNow(now);
+      if (shared(DAILY_KEY)?.day !== day.day) setShared(DAILY_KEY, day);
+    }
     if (this.magick) {
       for (const a of list) {
         const p = ids[a.address];
@@ -929,7 +1093,9 @@ export default class PokemonHerd extends View {
       if (noted !== !!m.note) changed = true;
       const has = new Set(Object.keys(meta?.react ?? {}));
       const msOf = (name) => meta.react[name].ms;
-      const raw = moodOf(a, tabs, now, after);
+      // A caught Pokémon's nature (trainer.js): a Lazy one naps sooner, a Calm one later.
+      const pk = ids[a.address];
+      const raw = moodOf(a, tabs, now, after * natureMul(pk, "sleep"));
       if (m.status !== a.status) {
         // When it changed, for the Party list's "3m" (200 agents at most, the oldest forgotten).
         if (this.leader) {
@@ -1013,7 +1179,7 @@ export default class PokemonHerd extends View {
         // Instead of strolling on, it sniffs the flowers, basks, looks up at the leaves or shivers.
         m.pauseUntil = m.react.until + rand(3000, 8000);
         changed = true;
-      } else if (mood === "idle" && !reacting && now >= m.pauseUntil && Math.random() < (boosts["soda-pop"] ? 0.45 : FIDGET_CHANCE) && onFidget(m, now, has, msOf, Math.random, !!boosts["soda-pop"])) {
+      } else if (mood === "idle" && !reacting && now >= m.pauseUntil && Math.random() < (boosts["soda-pop"] ? 0.45 : FIDGET_CHANCE * natureMul(pk, "fidget")) && onFidget(m, now, has, msOf, Math.random, !!boosts["soda-pop"])) {
         // Whatever the season: it nods, sits, looks up, twirls… (whatever its sprite can do).
         m.pauseUntil = m.react.until + rand(3000, 8000);
         changed = true;
@@ -1034,7 +1200,7 @@ export default class PokemonHerd extends View {
         if (wrap) target = exitX(way, this.width, OFF);
         m.entering = false;
         if (Math.abs(target - m.x) >= 8) {
-          walk(m, target, SPEED[mood]);
+          walk(m, target, SPEED[mood] * natureMul(pk, "speed")); // a Hasty one walks faster
           m.wrap = wrap;
           changed = true;
         } else {
@@ -1112,7 +1278,9 @@ export default class PokemonHerd extends View {
     }
     // Sparring: now and then two idle ones standing close have a go, and like each other more.
     const attack = !!boosts["x-attack"]; // X Attack: ten times as often, again after 30 s
-    if (settingsNow().spar && Math.random() < SPAR_CHANCE * (attack ? 10 : 1)) {
+    // A Brave one on screen (a caught Pokémon's nature) makes sparring more likely.
+    const brave = list.some((a) => natureOf(ids[a.address])?.spar);
+    if (settingsNow().spar && Math.random() < SPAR_CHANCE * (attack ? 10 : 1) * (brave ? 3 : 1)) {
       const ready = list.filter((a) => {
         const m = this.mons[a.address];
         return m && m.mood === "idle" && !m.moving && !(m.react && now < m.react.until);
@@ -1120,7 +1288,7 @@ export default class PokemonHerd extends View {
       const pair = sparPair(ready.map((a) => ({ a, addr: a.address, x: this.mons[a.address].x, row: rowAt(a, list.indexOf(a)), lastSpar: this.mons[a.address].lastSpar })), now, attack ? BOOST_GAP : undefined);
       if (pair) {
         fight(pair[0].a, this.mons[pair[0].addr], pair[1].a, this.mons[pair[1].addr]);
-        if (this.leader) for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
+        if (this.leader) { for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); }
         changed = true;
       }
     }
@@ -1161,7 +1329,7 @@ export default class PokemonHerd extends View {
           const hearts = now - (dm.lastSpar ?? -Infinity) >= SPAR_GAP && now - (s.lastSpar ?? -Infinity) >= SPAR_GAP;
           dm.tease = null;
           fight(list[dj], dm, hit.b, s);
-          if (hearts && this.leader) for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
+          if (hearts && this.leader) { for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); }
         }
         changed = true;
       }
@@ -1247,7 +1415,7 @@ export default class PokemonHerd extends View {
 
   openMenu() {
     const update = this.update();
-    openOverlay({ mod: MOD, kind: "popup", width: 236, height: update ? 132 : 76, props: { menu: true, update } });
+    openOverlay({ mod: MOD, kind: "popup", width: 280, height: update ? 132 : 76, props: { menu: true, update } });
   }
 
   // The right-click menu: the Bag and Settings (both open a dialog of their own), and a newer
@@ -1265,7 +1433,7 @@ export default class PokemonHerd extends View {
       .child(div().text_size(11.5).text_color(t.muted).child(note));
     return v_flex()
       .id("pokemon-menu").size_full().p(8).gap(2).bg(t.popover)
-      .child(row("open-bag", "Bag", `${n} item${n === 1 ? "" : "s"} · ${got}/8 badges`, openBag))
+      .child(row("open-bag", "Box", `${boxCount()} Pokémon · ${n} item${n === 1 ? "" : "s"} · ${got}/8`, () => openBag("box")))
       .child(row("open-settings", "Settings", "", () => openSettings(props()?.update)))
       // A newer release: an installed copy never updates by itself.
       .when(!!props()?.update, (el) => el
@@ -1276,6 +1444,8 @@ export default class PokemonHerd extends View {
   }
 
   initSettings(cx) {
+    this.settingsTab = props()?.tab ?? (props()?.update ? "updates" : "strip"); // the Update pill opens Updates
+    this.unlocking = false; // Trainer → Unlock all, asked once: "Sure?"
     this.updating = null; // null | "running" | "done" | an error message
     this.sidebar = null; // Better Sidebar: "missing" | "patched" | "outdated" | "unpatched" (null: checking)
     this.patching = null; // null | "running" | an error message
@@ -1334,34 +1504,47 @@ export default class PokemonHerd extends View {
     if (hasAgentsList(tree) || (placesIn(tree).includes("sidebar") && !usesMod(tree, "better-sidebar"))) this.setCards("sidebar", tree, false);
   }
 
-  // The Settings dialog: where the strip sits and how, sounds, and which of the games' mechanics
-  // are on. Every change applies at once; it stays open (Esc closes it).
+  // The Settings dialog, in tabs: Strip (where and how it's drawn, the cards), Herd (the games'
+  // mechanics), Trainer (catching, legendaries), Sound and Updates. Every change applies at once;
+  // it stays open (Esc closes it).
   renderSettings() {
     const t = theme();
-    // A newer release: what Settings just read from GitHub, else what the strip knew.
-    const upd = this.latestNow !== undefined && this.latestNow !== null ? (isNewer(this.latestNow, VERSION) ? this.latestNow : null) : props()?.update;
     const st = settingsNow();
-    const tree = layout();
-    const name = shared("layout");
-    const shipped = SHIPPED.includes(name);
-    const have = placesIn(tree);
-    const place = placeOf(tree, MOD);
-    const rows = rowsOf(tree, MOD);
-    const inLayout = !!setRows(tree, MOD, rows, 0);
-    const movable = inLayout && !shipped;
-    const background = blockProps(tree, MOD).background === "plain" ? "plain" : "scenery";
-    const NAMES = { sidebar: "Sidebar", bottom: "Bottom", panel: "Right panel" };
-    // Agent cards: where they are now. In the sidebar: the Agents list drawn as cards, the
-    // Party panel there, or Better Sidebar's own rows (patched); or the Party panel in the right panel.
-    const betterHere = usesMod(tree, "better-sidebar");
-    const party = partyPlace(tree);
-    const cardsNow = usesPokemonSidebar(tree) || agentsSwapped(tree) || party === "sidebar" || (st.sidebar && betterHere) ? "sidebar" : party === "panel" ? "panel" : "off";
-    const cardsNote = usesPokemonSidebar(tree) ? "Pokémon Sidebar: each space with its agents as cards; collapsed, their Pokémon."
-      : cardsNow === "sidebar" && agentsSwapped(tree) ? "The sidebar's Agents list, as cards."
-      : cardsNow === "sidebar" && betterHere ? (this.sidebar === "patched" || this.sidebar === "outdated" ? "Better Sidebar's rows, as cards." : "Better Sidebar's rows: needs its patch (Updates).")
-      : cardsNow === "sidebar" ? "A Party list in the sidebar."
-      : cardsNow === "panel" ? "A Party list in the right panel."
-      : "The agent's name large, its status as the card's edge, its Pokémon and hearts.";
+    const tab = this.settingsTab ?? "strip";
+    const kit = this.settingsKit(t, st);
+    const TABS = [["strip", "Strip"], ["herd", "Herd"], ["trainer", "Trainer"], ["sound", "Sound"], ["updates", "Updates"]];
+    const body = tab === "herd" ? this.settingsHerd(kit, st)
+      : tab === "trainer" ? this.settingsTrainer(kit, st, t)
+      : tab === "sound" ? this.settingsSound(kit)
+      : tab === "updates" ? this.settingsUpdates(kit)
+      : this.settingsStrip(kit, st);
+    const upd = this.newerVersion();
+    // The title and the tabs stay; the tab's page scrolls (a short window shows it all, a step at a time).
+    return v_flex().id("pokemon-settings").size_full().min_h(0).pt(18).bg(t.popover)
+      .child(h_flex().px(18).pb(10).justify_between().items_center().flex_none()
+        .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Settings"))
+        .child(div().text_size(11).text_color(t.dim).child("Esc")))
+      .child(h_flex().px(14).pb(10).gap(4).flex_none().children(TABS.map(([k, txt]) => {
+        const on = tab === k;
+        const sparkle = k === "trainer" && !st.trainer; // Trainer mode, off: it twinkles to be found
+        return h_flex().id(`set-tab-${k}`).h(28).px(10).gap(4).rounded(6).items_center().cursor_pointer()
+          .bg(on ? t.selected : "#00000000").hover((s2) => s2.bg(on ? t.selected : t.hover))
+          .when(k === "trainer", (el) => el.border_1().border_color(on ? t.accent : "#f2c94c80"))
+          .on_click((_e, cx) => { this.settingsTab = k; this.unlocking = false; cx.notify(); })
+          .when(k === "trainer", (el) => el.child(div().text_size(12).when(sparkle, (e2) => e2.loop("opacity", { from: 0.25, to: 1, period: 900 })).child("✨")))
+          .child(div().text_size(12.5).text_color(on ? t.foreground : t.muted).when(on, (e2) => e2.font_semibold()).child(txt))
+          .when(k === "updates" && !!upd, (el) => el.child(div().size(6).rounded_full().bg(t.accent)));
+      })))
+      .child(v_flex().id(`settings-${tab}`).flex_1().min_h(0).overflow_y_scrollbar().px(18).pb(18).gap(8).children(body));
+  }
+
+  // A newer release: what Settings just read from GitHub, else what the strip knew.
+  newerVersion() {
+    return this.latestNow !== undefined && this.latestNow !== null ? (isNewer(this.latestNow, VERSION) ? this.latestNow : null) : props()?.update;
+  }
+
+  // The pieces every Settings tab is built of.
+  settingsKit(t, st) {
     const heading = (txt) => div().pt(6).text_size(11.5).text_color(t.muted).child(txt);
     // A row of choices, one of them on.
     const choices = (id, opts, cur, enabled, pick) => h_flex().gap(4).flex_none().children(opts.map(([v, txt]) => div()
@@ -1376,14 +1559,12 @@ export default class PokemonHerd extends View {
         .child(div().text_size(12.5).text_color(t.foreground).child(title))
         .when(!!note, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(note))))
       .child(control);
-    // An on/off switch.
-    const toggle = (key) => {
-      const on = st[key];
-      return div().id(`set-${key}`).w(34).h(20).rounded_full().flex_none().relative().cursor_pointer()
-        .bg(on ? t.accent : t.border)
-        .on_click((_e, cx) => { setSetting(key, !on); cx.notify(); })
-        .child(div().absolute().top(2).left(on ? 16 : 2).size(16).rounded_full().bg(on ? t.accent_foreground : t.foreground));
-    };
+    // An on/off switch: a setting's (`key`), or any (`on`, `flip`, `enabled`).
+    const swtch = (id, on, flip, enabled = true) => div().id(id).w(34).h(20).rounded_full().flex_none().relative()
+      .bg(on ? t.accent : t.border).opacity(enabled ? 1 : 0.4)
+      .when(enabled, (el) => el.cursor_pointer().on_click((_e, cx) => { flip(); cx.notify(); }))
+      .child(div().absolute().top(2).left(on ? 16 : 2).size(16).rounded_full().bg(on ? t.accent_foreground : t.foreground));
+    const toggle = (key) => swtch(`set-${key}`, st[key], () => setSetting(key, !st[key]));
     // A pill; ink on paper when it can be pressed, dim when not.
     const button = (id, txt, enabled, onPress) => div().id(id).h(26).px(12).rounded_full().flex().items_center().flex_none()
       .text_size(12).font_semibold()
@@ -1391,76 +1572,167 @@ export default class PokemonHerd extends View {
       .when(enabled, (el) => el.cursor_pointer().on_click((_e, cx) => { onPress(cx); cx.notify(); }))
       .child(txt);
     const panel = (...kids) => v_flex().px(14).py(4).rounded(10).bg(t.raised).children(kids);
-    const herd = agents();
-    const focused = herd.find((a) => a.focused) ?? herd[0];
-    const sample = focused ? assignAll(herd).ids[focused.address] : { dex: 25 };
+    // Switches two to a row: a title, a short note, the switch.
+    const tiles = (rows) => h_flex().flex_wrap().gap(8).children(rows.map(([key, title, note]) => v_flex()
+      .w(234).min_h(66).p(10).gap(3).rounded(10).bg(t.raised)
+      .child(h_flex().justify_between().items_center().gap(8)
+        .child(div().text_size(12.5).text_color(t.foreground).child(title))
+        .child(toggle(key)))
+      .child(div().text_size(11).text_color(t.muted).child(note))));
+    return { heading, choices, line, swtch, toggle, button, panel, tiles };
+  }
 
-    // The title stays; everything under it scrolls (a short window shows it all, a step at a time).
-    return v_flex().id("pokemon-settings").size_full().min_h(0).pt(18).bg(t.popover)
-      .child(h_flex().px(18).pb(8).justify_between().items_center().flex_none()
-        .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Settings"))
-        .child(div().text_size(11).text_color(t.dim).child("Esc")))
-      .child(v_flex().id("settings-body").flex_1().min_h(0).overflow_y_scrollbar().px(18).pb(18).gap(8)
-      .child(heading("Strip"))
-      .child(panel(
-        line("Place", shipped ? `"${name}" is a built-in layout: clone it to move things.` : null,
-          choices("place", ["sidebar", "bottom", "panel"].map((p) => [p, NAMES[p]]), place, (p) => have.includes(p) && !shipped, (p) => this.applyLayout(p, rows, false))),
+  // Strip: where it sits, its size, rows and background; the agent cards.
+  settingsStrip({ heading, choices, line, button, panel }, st) {
+    const tree = layout();
+    const name = shared("layout");
+    const shipped = SHIPPED.includes(name);
+    const have = placesIn(tree);
+    const place = placeOf(tree, MOD);
+    const rows = rowsOf(tree, MOD);
+    const inLayout = !!setRows(tree, MOD, rows, 0);
+    const movable = inLayout && !shipped;
+    const background = blockProps(tree, MOD).background === "plain" ? "plain" : "scenery";
+    const NAMES = { sidebar: "Sidebar", bottom: "Bottom", panel: "Right panel" };
+    // Agent cards: where they are now. In the sidebar: Pokémon Sidebar, the Agents list drawn as
+    // cards, the Party panel there, or Better Sidebar's own rows (patched); or the Party panel in the right panel.
+    const betterHere = usesMod(tree, "better-sidebar");
+    const party = partyPlace(tree);
+    const cardsNow = usesPokemonSidebar(tree) || agentsSwapped(tree) || party === "sidebar" || (st.sidebar && betterHere) ? "sidebar" : party === "panel" ? "panel" : "off";
+    const cardsNote = usesPokemonSidebar(tree) ? "Pokémon Sidebar: each space with its agents as cards; collapsed, their Pokémon."
+      : cardsNow === "sidebar" && agentsSwapped(tree) ? "The sidebar's Agents list, as cards."
+      : cardsNow === "sidebar" && betterHere ? (this.sidebar === "patched" || this.sidebar === "outdated" ? "Better Sidebar's rows, as cards." : "Better Sidebar's rows: needs its patch (Updates).")
+      : cardsNow === "sidebar" ? "A Party list in the sidebar."
+      : cardsNow === "panel" ? "A Party list in the right panel."
+      : "The agent's name large, its status as the card's edge, its Pokémon and hearts.";
+    return [
+      // A built-in layout can't be changed: one click makes a copy of it, shown at once.
+      ...(shipped ? [panel(line("Make this layout yours", `"${name}" is built in. A copy you own can hold the cards and move the strip.`,
+        button("clone-layout", "Make it mine", true, () => run("layout.clone", { name }))))] : []),
+      heading("Where and how"),
+      panel(
+        line("Place", null, choices("place", ["sidebar", "bottom", "panel"].map((p) => [p, NAMES[p]]), place, (p) => have.includes(p) && !shipped, (p) => this.applyLayout(p, rows, false))),
         line("Size", null, choices("size", SIZES, scaleIn(blockProps(tree, MOD)), () => movable, (v) => this.applySize(v))),
         line("Rows", null, choices("rows", [[1, "1"], [2, "2"], [3, "3"]], rows, () => movable, (n) => this.applyLayout(place, n, false))),
+      ),
+      heading("Background"),
+      panel(
+        line("Background", null, choices("bg", [["plain", "Plain"], ["scenery", "Scenery"]], background, () => movable, (v) => {
+          const next = setBlockProps(layout(), MOD, { background: v });
+          if (next) run("layout.set", { layout: next });
+        })),
         line("Sky", "Muted sits quietly in a dark app; Bright is a real day, a sunset, and the sun.",
           choices("sky", [["muted", "Muted"], ["bright", "Bright"]], blockProps(tree, MOD).sky === "bright" ? "bright" : "muted",
             () => movable && background === "scenery", (v) => {
               const next = setBlockProps(layout(), MOD, { sky: v });
               if (next) run("layout.set", { layout: next });
             })),
-        line("Background", null, choices("bg", [["plain", "Plain"], ["scenery", "Scenery"]], background, () => movable, (v) => {
-          const next = setBlockProps(layout(), MOD, { background: v });
-          if (next) run("layout.set", { layout: next });
-        })),
-      ))
-      .child(heading("Agent cards"))
-      .child(panel(
-        // A built-in layout can't be changed: one click makes a copy of it, shown at once.
-        ...(shipped ? [line("Make this layout yours", `"${name}" is built in. A copy you own can hold the cards and move the strip.`,
-          button("clone-layout", "Make it mine", true, () => run("layout.clone", { name })))] : []),
-        line("Show each agent as its Pokémon's card", cardsNote,
-          choices("cards", [["off", "Off"], ["sidebar", "Sidebar"], ["panel", "Right panel"]], cardsNow,
-            (v) => !shipped && (v === "off" || (v === "sidebar" ? (this.sidebarMod && !!toPokemonSidebar(tree)) || hasAgentsList(tree) || betterHere || have.includes("sidebar") : have.includes("panel"))),
-            (v) => this.setCards(v, tree, betterHere))),
-      ))
-      .child(heading("Sounds and notifications"))
-      .child(panel(
-        line("Pokémon in notifications", shipped ? `Needs a layout of your own (Make it mine, above).` : "An agent's notification leads with its Pokémon.",
-          (() => {
-            const on = toastMod(tree) === MOD;
-            return div().id("set-toast").w(34).h(20).rounded_full().flex_none().relative()
-              .bg(on ? t.accent : t.border).opacity(shipped ? 0.4 : 1)
-              .when(!shipped, (el) => el.cursor_pointer().on_click((_e, cx) => { run("layout.set", { layout: setToast(layout(), on ? null : MOD) }); cx.notify(); }))
-              .child(div().absolute().top(2).left(on ? 16 : 2).size(16).rounded_full().bg(on ? t.accent_foreground : t.foreground));
-          })()),
-        line("Cry when an agent needs you", null, toggle("cryBlocked")),
-        line("Cry when an agent finishes", "Herdr's own sound plays too; it can be turned off in Herdr's settings.", toggle("cryDone")),
+      ),
+      heading("Agent cards"),
+      panel(line("Each agent as its Pokémon's card", cardsNote,
+        choices("cards", [["off", "Off"], ["sidebar", "Sidebar"], ["panel", "Right panel"]], cardsNow,
+          (v) => !shipped && (v === "off" || (v === "sidebar" ? (this.sidebarMod && !!toPokemonSidebar(tree)) || hasAgentsList(tree) || betterHere || have.includes("sidebar") : have.includes("panel"))),
+          (v) => this.setCards(v, tree, betterHere)))),
+    ];
+  }
+
+  // Herd: what the Pokémon do, each a switch; then visitors and who new agents get.
+  settingsHerd({ heading, choices, line, panel, tiles }, st) {
+    return [
+      heading("What they do"),
+      tiles([
+        ["evolve", "Evolution", "They evolve as their agents work. Off: jobs still count."],
+        ["pickup", "Pickup", "Idle ones find Berries, stones, balls and Rare Candy."],
+        ["spar", "Sparring", "Two idle ones spar now and then, and like each other more."],
+        ["family", "Sub-agents", "A sub-agent is its agent's Pokémon, younger, following it."],
+        ["weather", "Weather", "Rain while agents wait on you; a storm when they wait long."],
+        ["campfire", "Campfire", "At night, all resting: they sleep round a fire."],
+        ["tired", "Tired near the limit", "Usage Limits at 90%: they sweat and walk slower."],
+      ]),
+      heading("Who comes"),
+      panel(
+        line("Visitors", "A wild Pokémon walks across with a gift, to catch. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
+          choices("visitors", [["off", "Off"], ["rare", "Rare"], ["often", "Often"], ["lots", "Lots"]], st.visitors, () => true, (v) => setSetting("visitors", v))),
+        line("New agents' Pokémon", st.trainer ? "Trainer mode is on: the ones you caught (Trainer tab)."
+          : st.newFrom === "favorites" && !favs().length ? "No favourites yet: in the picker, right-click one you like and ☆ Favorite it." : "Any species, or one of your favourites (★ in the picker).",
+          choices("new-from", [["any", "Any"], ["favorites", "Favorites"]], st.newFrom, () => !st.trainer, (v) => setSetting("newFrom", v))),
+      ),
+    ];
+  }
+
+  // Trainer: Trainer mode (off by default, and it shows: it twinkles), the legendaries, the Pokédex.
+  settingsTrainer({ heading, line, swtch, button, panel }, st, t) {
+    const d = pokedex();
+    const legends = d.caught.filter(isLegendary).length;
+    const stars = [[14, 10, 1100], [430, 16, 1500], [60, 92, 1300], [400, 86, 900], [236, 6, 1700]];
+    const hero = div().relative().p(16).rounded(12).bg(t.raised).border_1().border_color(st.trainer ? t.accent : "#f2c94c")
+      // Little stars around the card, each twinkling at its own pace.
+      .children(stars.map(([x, y, period], i) => div().absolute().left(x).top(y).text_size(i % 2 ? 10 : 12).text_color("#f2c94c")
+        .loop("opacity", { from: 0.1, to: 1, period }).child(i % 2 ? "✦" : "✨")))
+      .child(v_flex().gap(8)
+        .child(h_flex().justify_between().items_center().gap(12)
+          .child(v_flex().gap(2)
+            .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Trainer mode"))
+            .child(div().text_size(11.5).text_color(t.muted).child(st.trainer ? "On: you're a trainer now." : "Off. Turn it on for a real journey.")))
+          .child(swtch("set-trainer", st.trainer, () => setSetting("trainer", !st.trainer))))
+        .child(div().text_size(12).text_color(t.foreground)
+          .child("Only the Pokémon you catch can be chosen in the picker or come to new agents, with the three Kanto starters to begin. Catch wild ones as they walk by: each joins your Box with a heart and a nature of its own."))
+        .child(div().text_size(11.5).text_color(t.muted).child(`You caught ${d.caught.length} species so far${d.caught.length ? "" : ": buy Poké Balls in the Shop (Bag)"}.`)));
+    const sure = this.unlocking;
+    return [
+      hero,
+      heading("Legendary Pokémon"),
+      panel(
+        line(st.legendsOpen ? "Open to everyone" : "Locked until caught",
+          st.legendsOpen ? "Every legendary can be chosen, and come to new agents, without catching one."
+            : `Mewtwo, Rayquaza and the others: catch one (the day's Research calls one over) to use it. ${legends} caught.`,
+          st.legendsOpen ? button("legends-lock", "Lock again", true, () => { setSetting("legendsOpen", false); this.unlocking = false; })
+            : div().id("legends-open").h(26).px(12).rounded_full().flex().items_center().flex_none().text_size(12).font_semibold().cursor_pointer()
+              .border_1().border_color(sure ? t.blocked : t.border).text_color(sure ? t.blocked : t.foreground).hover((s2) => s2.bg(t.hover))
+              .on_click((_e, cx) => {
+                if (!sure) { this.unlocking = true; cx.notify(); return; }
+                setSetting("legendsOpen", true);
+                this.unlocking = false;
+                cx.notify();
+              })
+              .child(sure ? "Sure? Unlock them all" : "Unlock all")),
+      ),
+      heading("Pokédex"),
+      panel(line(`${d.caught.length} caught · ${d.seen.length} seen · ${d.shiny.length} shiny`, "A shiny caught can be chosen shiny in the picker. Goals pay balls and Master Balls.",
+        button("open-dex", "Open Pokédex", true, () => openBag("dex")))),
+    ];
+  }
+
+  // Sound: Pokémon in notifications, and the cries.
+  settingsSound({ line, swtch, toggle, panel, heading }) {
+    const tree = layout();
+    const shipped = SHIPPED.includes(shared("layout"));
+    const herd = agents();
+    const focused = herd.find((a) => a.focused) ?? herd[0];
+    const sample = focused ? assignAll(herd).ids[focused.address] : { dex: 25 };
+    const t = theme();
+    const on = toastMod(tree) === MOD;
+    return [
+      heading("Notifications"),
+      panel(line("Pokémon in notifications", shipped ? "Needs a layout of your own (Strip → Make it mine)." : "An agent's notification leads with its Pokémon.",
+        swtch("set-toast", on, () => run("layout.set", { layout: setToast(layout(), on ? null : MOD) }), !shipped))),
+      heading("Cries"),
+      panel(
+        line("When an agent needs you", null, toggle("cryBlocked")),
+        line("When an agent finishes", "Herdr's own sound plays too; it can be turned off in Herdr's settings.", toggle("cryDone")),
         line("Hear one", `${fullName(sample.dex)}'s cry`, div().id("cry-test").h(26).px(12).rounded_full().flex().items_center().flex_none()
           .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold().cursor_pointer()
           .on_click(() => { lastCry = 0; cry(sample.dex); })
           .child("Play")),
-      ))
-      .child(heading("Gameplay"))
-      .child(panel(
-        line("Evolution", "Pokémon evolve as their agents work. Off: jobs still count.", toggle("evolve")),
-        line("Pickup", "Idle Pokémon find Berries, stones and Rare Candy.", toggle("pickup")),
-        line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
-        line("Sparring", "Two idle Pokémon spar now and then, and like each other more. Now and then one pokes a sleeping one awake for a go.", toggle("spar")),
-        line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
-        line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: in the picker, right-click one you like and ☆ Favorite it." : "Any species, or one of your favourites (★ in the picker).",
-          choices("new-from", [["any", "Any"], ["favorites", "Favorites"]], st.newFrom, () => true, (v) => setSetting("newFrom", v))),
-        line("Campfire", "At night, with every agent resting, the herd sleeps round a fire.", toggle("campfire")),
-        line("Visitors", "A wild Pokémon walks across, and the herd watches it go by. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
-          choices("visitors", [["off", "Off"], ["rare", "Rare"], ["often", "Often"], ["lots", "Lots"]], st.visitors, () => true, (v) => setSetting("visitors", v))),
-        line("Tired near the limit", "With Usage Limits: from 90% of the 5-hour window the herd sweats and walks slower.", toggle("tired")),
-      ))
-      .child(heading("Updates"))
-      .child(panel(
+      ),
+    ];
+  }
+
+  // Updates: this mod (and Pokémon Sidebar with it), and Better Sidebar's patch when it's installed.
+  settingsUpdates({ line, button, panel }) {
+    const upd = this.newerVersion();
+    return [
+      panel(
         line("Pokémon herd", this.updating === "running" ? "Downloading…"
           : this.updating === "done" ? `Updated ${(this.updated ?? []).map((u) => `mods/${u.dir.split("/").pop()} to ${u.version}`).join(", ")}. It reloads by itself; if this still says ${VERSION}, restart Herdr.`
           : this.updating ? `Couldn't update: ${this.updating}`
@@ -1478,8 +1750,7 @@ export default class PokemonHerd extends View {
               cx.notify();
             });
           })),
-        line("Cards in Better Sidebar", this.sidebar === null ? "Checking…"
-          : this.sidebar === "missing" ? "Better Sidebar isn't installed."
+        ...(this.sidebar === "missing" ? [] : [line("Cards in Better Sidebar", this.sidebar === null ? "Checking…"
           : this.sidebar === "patched" ? "Patched: each agent shows as its Pokémon's card, and as its Pokémon on the collapsed rail."
           : this.sidebar === "outdated" && !this.patching ? "Patched for the cards; Patch again for Pokémon on the collapsed rail."
           : this.patching && this.patching !== "running" ? `Couldn't patch: ${this.patching}`
@@ -1490,8 +1761,9 @@ export default class PokemonHerd extends View {
               try { await patchSidebar(this.sidebar === "outdated"); this.patching = null; this.sidebar = await sidebarState(); } catch (e) { this.patching = String(e?.message ?? e); }
               cx.notify();
             });
-          })),
-      )));
+          }))]),
+      ),
+    ];
   }
 
   openPicker(a, pick, tag) {
@@ -1602,7 +1874,7 @@ export default class PokemonHerd extends View {
       // Hovered: this one's own jobs ("Pikachu · api · ♥2 · 7 jobs"), not its species' totals
       // (a new Rayquaza showed every Rayquaza's "13 done", as if it had kept them).
       const line = full ? `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}` : "";
-      const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : "";
+      const hearts = (full && pick.hearts ? ` · ♥${pick.hearts}` : "") + (full && natureOf(pick) ? ` · ${natureOf(pick).name}` : "");
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       // What it says it's doing stays on the cards: here it ran across the whole strip.
@@ -1709,6 +1981,7 @@ export default class PokemonHerd extends View {
             petAt[a.pane] = now2;
             const mm = this.mons[a.address];
             if (mm) this.note(mm, "💗", now2, 3000);
+            research("pet");
           }
           a.pane ? run("pane.focus", { pane: a.pane }) : run("agent.focus", { terminal: a.address });
         })
@@ -2001,10 +2274,13 @@ export default class PokemonHerd extends View {
   // lightness step up (raised), no borders; the one primary control is ink on paper (solid).
 
   initBag(cx) {
-    this.bagTab = ["box", "shop"].includes(props()?.tab) ? props().tab : "items";
+    this.bagTab = ["box", "shop", "today", "dex"].includes(props()?.tab) ? props().tab : "items";
     // Renaming one in the Box: its slot, and the field (Enter saves; empty clears the name).
     this.renaming = null;
     this.nickInput = InputState.new({ placeholder: "Nickname (16 letters)" });
+    // The Box's search: by name, nickname or the agent it's with.
+    this.boxInput = InputState.new({ placeholder: "Search the Box…" });
+    this.boxInput.on("change", (_e, cx) => { this.boxQuery = this.boxInput.value(); cx.notify(); });
     this.nickInput.on("submit", (_e, cx) => {
       const slot = this.renaming;
       const nick = cleanNick(this.nickInput.value());
@@ -2039,6 +2315,81 @@ export default class PokemonHerd extends View {
       }
       cx.notify();
     });
+  }
+
+  // The Bag's Today tab: the day's Research (three tasks, each paying when done; all three call a
+  // legendary Pokémon over) and yesterday in one line.
+  renderToday(daily, h, t, art) {
+    const bar = (frac, w) => div().w(w).h(6).rounded_full().bg(t.border).overflow_hidden()
+      .child(div().h_full().w(Math.round(w * Math.min(1, frac))).bg(t.accent));
+    const reward = (p) => h_flex().gap(6).items_center().flex_none()
+      .when(!!p.item, (el) => el.child(art(ITEMS[p.item]?.art, 20)))
+      .child(div().text_size(12).text_color(t.foreground).child(p.money ? money(p.money) : `${p.count > 1 ? `${p.count} × ` : ""}${ITEMS[p.item]?.name ?? p.item}`));
+    const all = daily.tasks.every((x) => x.n >= x.goal);
+    const shown = (x) => (x.id === "work" ? `${Math.floor(x.n / 60)}h${String(Math.floor(x.n % 60)).padStart(2, "0")} of ${x.goal / 60}h` : `${Math.floor(x.n)} of ${x.goal}`);
+    return v_flex().flex_none().h(h).gap(10)
+      .child(div().text_size(12).text_color(daily.yesterday ? t.foreground : t.muted)
+        .child(daily.yesterday ? recapText(daily.yesterday) : "Today's Research: three tasks from your day's work. New ones at midnight."))
+      .children(daily.tasks.map((x, i) => {
+        const done = x.n >= x.goal;
+        return h_flex().id(`task-${i}`).h(64).px(14).gap(12).items_center().rounded(10).bg(t.raised)
+          .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none()
+            .bg(done ? t.accent : t.border).text_color(done ? t.accent_foreground : t.muted).text_size(13)
+            .child(done ? "✓" : String(i + 1)))
+          .child(v_flex().flex_1().min_w(0).gap(5)
+            .child(div().text_size(13).text_color(done ? t.muted : t.foreground).truncate().child(taskText(x)))
+            .child(h_flex().gap(8).items_center()
+              .child(bar(x.n / x.goal, 160))
+              .child(div().text_size(11.5).text_color(t.muted).child(done ? "Done, paid" : shown(x)))))
+          .child(reward(taskPay(x)));
+      }))
+      .child(h_flex().h(64).px(14).gap(12).items_center().rounded(10).bg(t.raised).border_1().border_color(all ? t.accent : t.raised)
+        .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none().text_size(14)
+          .when(!all, (el) => el.loop("opacity", { from: 0.4, to: 1, period: 1400 })).child("✦"))
+        .child(v_flex().flex_1().min_w(0).gap(3)
+          .child(div().text_size(13).text_color(t.foreground).child(all ? "All three done: a legendary Pokémon is on its way" : "All three: a legendary Pokémon walks by"))
+          .child(div().text_size(11.5).text_color(t.muted).child(settingsNow().visitors === "off" ? "Visitors are off (Settings): it can't come." : "Have a Master Ball or an Ultra Ball ready.")))
+        .child(reward(BONUS)))
+      .child(div().flex_1())
+      .child(div().text_size(11.5).text_color(t.muted).child("Tasks change at midnight; each pays the moment it's done."));
+  }
+
+  // The Bag's Pokédex tab: species seen and caught, by region; what the next goal gives.
+  renderDex(h, t, art) {
+    const d = pokedex();
+    const regions = dexByRegion(d);
+    const next = nextGoal(d);
+    const legends = d.caught.filter(isLegendary).length;
+    const bars = (r, w) => div().relative().w(w).h(8).rounded_full().bg(t.border).overflow_hidden()
+      .child(div().absolute().left(0).top(0).h_full().w(Math.round(w * r.seen / r.total)).bg(t.dim))
+      .child(div().absolute().left(0).top(0).h_full().w(Math.round(w * r.caught / r.total)).bg(t.accent));
+    return v_flex().flex_none().h(h).gap(10)
+      .child(h_flex().gap(12).items_stretch()
+        .children([["Seen", d.seen.length], ["Caught", d.caught.length], ["Legendary", legends], ["Shiny", d.shiny.length]].map(([k, n]) => v_flex().flex_1().p(10).gap(2).rounded(10).bg(t.raised)
+          .child(div().text_size(18).font_semibold().text_color(t.foreground).child(String(n)))
+          .child(div().text_size(11.5).text_color(t.muted).child(k === "Caught" ? `Caught of ${DEX_TOTAL}` : k)))))
+      // The goals: reached ones ticked; the next with how many to go.
+      .child(v_flex().p(12).gap(8).rounded(10).bg(t.raised)
+        .child(div().text_size(12).text_color(t.foreground).child(next ? `Next: ${next.n} caught → ${goalText(next)} (${next.n - d.caught.length} to go)` : "Every Pokédex goal reached"))
+        .child(h_flex().gap(6).flex_wrap().children(DEX_GOALS.map((g) => {
+          const got = d.caught.length >= g.n;
+          return h_flex().h(24).px(8).gap(5).rounded(6).items_center().border_1().border_color(got ? t.accent : t.border)
+            .text_size(11.5).text_color(got ? t.foreground : t.muted)
+            .when(!!g.item, (el) => el.child(div().opacity(got ? 1 : 0.4).child(art(ITEMS[g.item].art, 18))))
+            .child(`${g.n}: ${goalText(g)}${got ? " ✓" : ""}`);
+        }))))
+      .child(v_flex().id("dex-regions").flex_1().min_h(0).p(12).gap(7).rounded(10).bg(t.raised).overflow_y_scrollbar()
+        .child(h_flex().gap(10).items_center()
+          .child(div().w(70).text_size(11).text_color(t.muted).child("Region"))
+          .child(h_flex().flex_1().gap(10).items_center().text_size(11).text_color(t.muted)
+            .child(h_flex().gap(4).items_center().child(div().size(8).rounded_full().bg(t.accent)).child("caught"))
+            .child(h_flex().gap(4).items_center().child(div().size(8).rounded_full().bg(t.dim)).child("seen"))))
+        .children(regions.map((r) => h_flex().h(22).gap(10).items_center()
+          .child(div().w(70).text_size(12).text_color(t.foreground).child(r.region))
+          .child(bars(r, 260))
+          .child(div().text_size(11.5).text_color(t.muted).child(`${r.caught} / ${r.total}`)))))
+      .child(div().text_size(11.5).text_color(t.muted)
+        .child("Catch: click a wild Pokémon for its gift, then again to throw a ball. It goes to your Box with a heart and a nature. A shiny caught can be chosen shiny in the picker; a legendary caught can be chosen at all."));
   }
 
   // The Bag's Shop tab: every item and its price; the chosen one, what it does, and Buy.
@@ -2098,6 +2449,7 @@ export default class PokemonHerd extends View {
     const saved = savedPicks(); // read once per frame
     const herd = this.herd(saved);
     const tab = this.bagTab ?? "items";
+    const daily = dailyNow();
     const boxed = boxList(saved, new Set(agents().map((a) => a.pane).filter(Boolean)));
     const how = { night: isNight() };
     const ids = Object.keys(ITEMS);
@@ -2131,6 +2483,7 @@ export default class PokemonHerd extends View {
       saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0)); // what it held goes back in
       if (r.evolved) noteEvolved();
       if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+      if (id === "berry" || id === "sitrus-berry") research("berry");
     };
     const shown = all.find((x) => x.id === this.badgeHover);
     const charm = s.jobs >= CHARM_JOBS;
@@ -2140,7 +2493,7 @@ export default class PokemonHerd extends View {
       .child(h_flex().items_start().justify_between().gap(12).flex_none()
         .child(v_flex().min_w(0).gap(3)
           // Items | Box: what's in the Bag, or the Pokémon raised whose agents are gone.
-          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"]].map(([k, txt]) => div()
+          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"], ["today", `Today ${daily.tasks.filter((x) => x.n >= x.goal).length}/${daily.tasks.length}`], ["dex", "Pokédex"]].map(([k, txt]) => div()
             .id(`bag-tab-${k}`).text_size(15).cursor_pointer()
             .when(tab === k, (el) => el.font_semibold().text_color(t.foreground))
             .when(tab !== k, (el) => el.text_color(t.dim).hover((st) => st.text_color(t.muted)))
@@ -2157,6 +2510,8 @@ export default class PokemonHerd extends View {
             .child(`Most jobs: ${s.top.map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(" · ")}`)))))
       .when(tab === "box", (el) => el.child(this.renderBox(boxed, LIST_H, t, icon, herd)))
       .when(tab === "shop", (el) => el.child(this.renderShop(b, LIST_H, t, art)))
+      .when(tab === "today", (el) => el.child(this.renderToday(daily, LIST_H, t, art)))
+      .when(tab === "dex", (el) => el.child(this.renderDex(LIST_H, t, art)))
       .when(tab === "items", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
         .child(v_flex().id("bag-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
@@ -2221,6 +2576,22 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.dim)
                 .child(until ? `On: ${Math.ceil((until - Date.now()) / 60000)} min left.` : has ? `For ${BOOST_MS / 60000} minutes, the whole herd.` : "None in the Bag: the Shop has them.")));
           })
+          // A Poké Ball: thrown from the strip, at a wild Pokémon walking by.
+          .when(ITEMS[sel].kind === "ball", (el) => el.child(div().h(2))
+            .child(div().text_size(12).text_color(t.muted).child(`Odds with this ball: ${Math.round(100 * catchChance(sel, { dex: 25 }))}% for most, ${Math.round(100 * catchChance(sel, { dex: 25, shiny: true }))}% for a shiny, ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary.`))
+            .child(div().text_size(11.5).text_color(t.dim).child(b.items[sel] ? "Click a wild Pokémon on the strip once you have its gift: a ball over its head means one is ready." : "None in the Bag: the Shop has them, and the day's Research gives some.")))
+          // A Berry for catching: set it to be fed before each ball (one each time, while there are some).
+          .when(ITEMS[sel].kind === "bait", (el) => {
+            const on = shared(BAIT_KEY) === sel;
+            const has = !!b.items[sel];
+            return el.child(div().h(2)).child(h_flex().gap(10).items_center()
+              .child(div().id("use-bait").h(26).px(14).rounded_full().flex().items_center().flex_none()
+                .text_size(12).font_semibold().bg(on || has ? t.solid : t.border).text_color(on || has ? t.solid_foreground : t.dim)
+                .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BAIT_KEY, on ? null : sel); cx.notify(); }))
+                .child(on ? "Stop feeding" : "Feed before each ball"))
+              .child(div().text_size(11.5).text_color(t.dim)
+                .child(on ? (has ? "On: one goes before each ball you throw." : "On, but none left.") : has ? "One goes before each ball, till you stop or run out." : "None in the Bag: the Shop has them.")));
+          })
           // A Festival Ticket: fireworks now.
           .when(sel === "festival-ticket", (el) => {
             const has = !!b.items[sel];
@@ -2236,7 +2607,7 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.dim).child(has ? "Look at the strip." : "None in the Bag: the Shop has them.")));
           })
           // An item to use (Honey): one button, no Pokémon to choose.
-          .when(sel === "honey", (el) => {
+          .when(sel === "honey" || sel === "azure-flute", (el) => {
             const off = settingsNow().visitors === "off";
             return el.child(div().h(2)).child(h_flex().gap(10).items_center()
               .child((() => {
@@ -2245,20 +2616,20 @@ export default class PokemonHerd extends View {
                   .text_size(12).font_semibold().bg(on ? t.solid : t.border).text_color(on ? t.solid_foreground : t.dim)
                   .when(on, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
                     saveBag(addItem(bag(), sel, -1));
-                    setShared(HONEY_KEY, Date.now());
+                    setShared(sel === "honey" ? HONEY_KEY : LEGEND_KEY, Date.now());
                     cx.notify();
                   }))
-                  .child("Call one now");
+                  .child(sel === "honey" ? "Call one now" : "Call a legendary");
               })())
               .child(div().text_size(11.5).text_color(t.dim)
                 .child(off ? "Visitors are off (Settings)." : !b.items[sel] ? "None in the Bag yet." : "It walks across within a few seconds.")));
           })
-          .when(!["use", "boost"].includes(ITEMS[sel].kind), (el) => el.child(div().h(2))
+          .when(!["use", "boost", "ball", "bait"].includes(ITEMS[sel].kind), (el) => el.child(div().h(2))
           .child(div().text_size(11.5).text_color(t.muted).child("On screen")))
-          .when(!["use", "boost"].includes(ITEMS[sel].kind) && !(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
+          .when(!["use", "boost", "ball", "bait"].includes(ITEMS[sel].kind) && !(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
             .child(sel === "rare-candy" ? "None yet. A job over 30 minutes earns one; idle Pokémon sometimes find one; the Shop sells them."
               : "None yet. Idle Pokémon find these now and then, and the Shop sells them.")))
-          .when(!["use", "boost"].includes(ITEMS[sel].kind) && !!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
+          .when(!["use", "boost", "ball", "bait"].includes(ITEMS[sel].kind) && !!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
             .child(herd.length ? "No one here can use it now." : "No agents on screen.")))
           .child(v_flex().gap(4).children((b.items[sel] ? takers[sel] : []).slice(0, SHOW).map((h) => h_flex().id(`taker-${h.slot}`).h(38).gap(10).items_center()
             .child(icon(h.pick, 32))
@@ -2299,82 +2670,106 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11).text_color(t.muted).child(charm ? "Shinies 1 in 32" : `At ${CHARM_JOBS} jobs · ${s.jobs} so far`))))));
   }
 
-  // The Bag's Box tab: each raised Pokémon whose agent is gone (the latest first), its hearts and
-  // how close it is to evolving, what it holds (Take: back into the Bag), and Release (twice: it
-  // asks "Sure?"; what it held goes back into the Bag). An agent that gets its species takes it.
+  // The Bag's Box tab: every Pokémon you have, as a grid (those with agents and those waiting),
+  // narrowed by the chips and the search. Click one: what it is, and what can be done with it
+  // (Rename, Take what it holds, Bring out for an agent, Release: twice, "Sure?").
   renderBox(boxed, h, t, icon, herd = []) {
-    // `tag`: the agent it's with (on screen: no Release, it's in use); none: waiting in the Box.
-    const row = ({ slot, pick, tag }) => {
+    const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
+    const everyone = [...active, ...boxed];
+    const q = (this.boxQuery ?? "").trim().toLowerCase();
+    const FILTERS = [
+      ["all", "All", () => true],
+      ["waiting", "Waiting", (x) => !x.tag],
+      ["agents", "With agents", (x) => !!x.tag],
+      ["caught", "Caught", (x) => !!x.pick.caught],
+      ["shiny", "✨ Shiny", (x) => !!x.pick.shiny],
+      ["legend", "Legendary", (x) => isLegendary(x.pick.dex)],
+    ];
+    const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
+    const shown = everyone.filter(filter[2]).filter((x) => !q || nameFor(x.pick).toLowerCase().includes(q) || (x.tag ?? "").toLowerCase().includes(q));
+    const sel = everyone.find((x) => x.slot === this.boxSel) ?? null;
+    const chip = (id, label, on, click) => div().id(id).h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
+      .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")
+      .text_color(on ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+    const pill = (id, label, click, danger = false) => div().id(id).h(26).px(12).rounded_full().flex().items_center().flex_none().text_size(12).border_1()
+      .border_color(danger ? t.blocked : t.border).text_color(danger ? t.blocked : t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+    const CELL = 84;
+    const cell = (x) => {
+      const on = x.slot === this.boxSel;
+      return v_flex().id(`box-${x.slot}`).relative().w(CELL).h(92).flex_none().items_center().justify_center().gap(1)
+        .rounded(8).border_1().border_color(on ? t.accent : "#00000000").bg(on ? t.selected : "#00000000")
+        .cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
+        .on_click((_e, cx) => { this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null; cx.notify(); })
+        .child(icon(x.pick, 48))
+        .child(div().w_full().px(3).text_center().truncate().text_size(11).text_color(t.foreground).child(x.pick.nick ?? nameOf(x.pick.dex)))
+        .child(div().w_full().px(3).text_center().truncate().text_size(10).text_color(x.tag ? t.accent : t.muted)
+          .child(x.tag ? x.tag : `♥ ${heartsText(friendOf(x.pick))}`))
+        .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
+        .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt("poke-ball", 14))))
+        .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
+    };
+    // The chosen one: who it is, and its actions.
+    const detail = () => {
+      if (!sel) return div().text_size(12).text_color(t.dim).child(everyone.length
+        ? "Click a Pokémon to see it and what you can do with it."
+        : "None yet. Close an agent whose Pokémon you raised, or catch a wild one as it walks by (click it for its gift, then again with a Poké Ball).");
+      const { slot, pick, tag } = sel;
       const c = cardOf(pick);
       const sure = this.releasing === slot;
-      return h_flex().id(`box-${slot}`).h(46).px(10).gap(10).items_center().flex_none().rounded(8).hover((st) => st.bg(t.hover))
-        .child(icon(pick, 34))
-        .child(v_flex().flex_1().min_w(0).gap(1)
-          .child(this.renaming === slot
-            ? Input.new(this.nickInput).h(24).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12).text_color(t.foreground)
-            : div().text_size(12.5).text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${tag ? ` · ${tag}` : ""}`))
-          .child(div().text_size(11).text_color(t.muted).truncate()
-            .child([`♥ ${heartsText(friendOf(pick))}`, c.note, pick.stay ? "Everstone" : ""].filter(Boolean).join(" · "))))
-        .when(!!pick.held, (el) => el.child(h_flex().gap(6).items_center().flex_none()
-          .child(this.itemArt(pick.held, 20))
-          .child(div().id(`box-take-${slot}`).h(24).px(10).rounded_full().flex().items_center().text_size(11.5).border_1()
-            .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-            .on_click((_e, cx) => {
-              const now = savedPicks()[slot];
-              const r = now && takeHeld(now);
-              if (!r) return;
-              savePicks({ [slot]: r.pick });
-              saveBag(addItem(bag(), r.back));
-              cx.notify();
-            })
-            .child("Take"))))
-        // Rename: a field in place of its name; Enter saves (empty: no nickname).
-        .child(div().id(`box-rename-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
-          .border_color(t.border).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
-          .on_click((_e, cx) => {
-            if (this.renaming === slot) { this.renaming = null; cx.notify(); return; }
+      const nat = natureOf(pick);
+      const facts = [`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
+        pick.caught ? `caught ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
+      return v_flex().gap(8)
+        .child(h_flex().gap(12).items_center()
+          .child(icon(pick, 48))
+          .child(v_flex().flex_1().min_w(0).gap(2)
+            .child(this.renaming === slot
+              ? Input.new(this.nickInput).h(26).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12.5).text_color(t.foreground)
+              : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${tag ? ` · with ${tag}` : ""}`))
+            .child(div().text_size(11.5).text_color(t.muted).truncate().child(facts))))
+        .child(h_flex().gap(6).flex_wrap().items_center()
+          .child(pill(`box-rename-${slot}`, this.renaming === slot ? "Cancel" : "Rename", () => {
+            if (this.renaming === slot) { this.renaming = null; return; }
             this.renaming = slot;
             this.nickInput.set_value(pick.nick ?? "");
             this.nickInput.focus();
-            cx.notify();
-          })
-          .child(this.renaming === slot ? "Cancel" : "Rename"))
-        // Bring out: then which agent gets it (the agents on screen, with what they have now).
-        .when(!tag && herd.length > 0, (el) => el.child(div().id(`box-bring-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
-          .border_color(this.bringing === slot ? t.accent : t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-          .on_click((_e, cx) => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; cx.notify(); })
-          .child(this.bringing === slot ? "Cancel" : "Bring out")))
-        .when(!tag, (el) => el.child(div().id(`box-release-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
-          .border_color(sure ? t.blocked : t.border).text_color(sure ? t.blocked : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
-          .on_click((_e, cx) => {
-            if (!sure) { this.releasing = slot; cx.notify(); return; }
+          }))
+          .when(!!pick.held, (el) => el.child(pill(`box-take-${slot}`, `Take its ${ITEMS[pick.held].name}`, () => {
+            const now = savedPicks()[slot];
+            const r = now && takeHeld(now);
+            if (!r) return;
+            savePicks({ [slot]: r.pick });
+            saveBag(addItem(bag(), r.back));
+          })))
+          .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "Cancel" : "Bring out", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; })))
+          .when(!tag, (el) => el.child(pill(`box-release-${slot}`, sure ? "Sure? Release it" : "Release", () => {
+            if (!sure) { this.releasing = slot; return; }
             const now = savedPicks()[slot];
             if (now?.held) saveBag(addItem(bag(), now.held));
             forgetPanes([slot]);
             this.releasing = null;
-            cx.notify();
-          })
-          .child(sure ? "Sure?" : "Release")));
+            this.boxSel = null;
+          }, sure))))
+        // Bring out: which agent gets it (the agents on screen, with what they have now).
+        .when(this.bringing === slot, (el) => el.child(h_flex().flex_wrap().gap(6).items_center()
+          .child(div().text_size(11).text_color(t.muted).child("Give it to:"))
+          .children(herd.map((x) => div().id(`box-to-${slot}-${x.slot}`)
+            .h(26).px(8).gap(6).rounded(6).flex().items_center().flex_none().border_1().border_color(t.border)
+            .text_size(11.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; this.boxSel = null; cx.notify(); })
+            .child(icon(x.pick, 20))
+            .child(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`)))));
     };
-    // With agents now: the raised ones on screen, to see the whole herd in one place.
-    const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
-    const head = (txt) => div().px(10).pt(6).pb(2).text_size(11.5).text_color(t.muted).child(txt);
-    // Under the one being brought out: the agents to give it to; one click swaps them.
-    const chooser = (slot) => v_flex().id(`box-to-${slot}`).gap(4).px(10).pb(6).flex_none()
-      .child(div().text_size(11).text_color(t.muted).child("Give it to:"))
-      .child(h_flex().flex_wrap().gap(6).children(herd.map((x) => div().id(`box-to-${slot}-${x.slot}`)
-        .h(26).px(8).gap(6).rounded(6).flex().items_center().flex_none().border_1().border_color(t.border)
-        .text_size(11.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-        .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; cx.notify(); })
-        .child(icon(x.pick, 20))
-        .child(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`))));
-    const waiting = (x) => (this.bringing === x.slot ? [row(x), chooser(x.slot)] : [row(x)]);
-    return v_flex().id("bag-box").flex_none().h(h).p(6).gap(2).rounded(10).bg(t.raised).overflow_y_scrollbar()
-      .when(active.length > 0, (el) => el.child(head(`With agents ${active.length}`)).children(active.map(row)))
-      .child(head(`Waiting ${boxed.length}`))
-      .when(!boxed.length, (el) => el.child(div().px(10).py(6).text_size(12).text_color(t.dim)
-        .child("None. Close an agent whose Pokémon you raised (hearts, jobs, an item), or pick another for it, and it waits here for the next agent to get its species.")))
-      .children(boxed.flatMap(waiting));
+    return v_flex().id("bag-box").flex_none().h(h).gap(8)
+      .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
+        .child(Input.new(this.boxInput).w(150).h(26).px(8).rounded(6).border_1().border_color(t.border).bg(t.background).text_size(12).text_color(t.foreground))
+        .children(FILTERS.map(([k, label, f]) => chip(`box-f-${k}`, `${label} ${everyone.filter(f).length}`, filter[0] === k, () => { this.boxFilter = k; }))))
+      .child(div().id("box-grid").flex_1().min_h(0).p(6).rounded(10).bg(t.raised).overflow_y_scrollbar()
+        .child(h_flex().flex_wrap().gap(6).children(shown.map(cell)))
+        .when(!shown.length && everyone.length > 0, (el) => el.child(div().p(8).text_size(12).text_color(t.dim).child("None matches."))))
+      .child(div().flex_none().min_h(96).p(12).rounded(10).bg(t.raised).child(detail()));
   }
 
   // An item's sprite in the Bag (its emoji till it's in).
@@ -2401,7 +2796,7 @@ export default class PokemonHerd extends View {
     });
     this.input.on("submit", () => {
       const { entries, total } = searchEntries(this.input.value(), 2, this.searchOnly());
-      if (total === 1) this.choose(entries[0]);
+      if (total === 1 && !this.locked(entries[0])) this.choose(entries[0]);
     });
     this.input.focus();
     cx.timer.after(300, () => this.input.focus());
@@ -2414,9 +2809,17 @@ export default class PokemonHerd extends View {
   }
 
   // The filter chips as searchEntries takes them: the ★ chip is the favourites' keys, read live.
+  // Trainer mode (Settings): only what you caught, and the starters.
   searchOnly() {
     const { fav, ...rest } = this.only;
-    return fav ? { ...rest, keys: new Set(favs()) } : rest;
+    const mine = settingsNow().trainer ? trainerKeys(pokedex()) : null;
+    const keys = fav ? new Set(favs().filter((k) => !mine || mine.has(k))) : mine;
+    return keys ? { ...rest, keys } : rest;
+  }
+
+  // A legendary not caught yet (and not opened in Settings): shown, but can't be chosen.
+  locked(e) {
+    return !e.form && isLocked(e.dex, pokedex(), settingsNow().legendsOpen);
   }
 
   // Icons for what the picker shows, downloaded on demand, a few at a time.
@@ -2478,7 +2881,9 @@ export default class PokemonHerd extends View {
     if (same && !how.fresh) return closeOverlay(p.overlay);
     // A new one: what it holds and its Everstone stay with the pane, its Mega setting carries
     // over (X or Y if it stays the same species), and it rolls for a shiny of its own.
-    let next = switchedPick(cur, entry, this.megaMode, this.megaKind, rollShiny(entry, charmOdds()));
+    // Shiny on purpose: a species you caught shiny can be chosen shiny (the preview's ✨).
+    if (this.locked(entry)) return;
+    let next = switchedPick(cur, entry, this.megaMode, this.megaKind, (how.shiny && shinyUnlocked(pokedex(), entry.dex)) || rollShiny(entry, charmOdds()));
     // The Box: that species raised before by an agent now gone comes back as it was (its hearts,
     // jobs, item, shiny); if both hold something, this pane's item goes back into the Bag.
     const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
@@ -2498,7 +2903,7 @@ export default class PokemonHerd extends View {
   chooseRandom(entries) {
     const p = props();
     const taken = new Set(Object.entries(savedPicks()).filter(([slot]) => slot !== p.slot).map(([, x]) => x.dex));
-    const e = randomEntry(entries, p.current, taken);
+    const e = randomEntry(entries.filter((x) => !this.locked(x)), p.current, taken);
     if (e) this.choose(e, this.boxing ? { fresh: true } : {});
   }
 
@@ -2634,14 +3039,23 @@ export default class PokemonHerd extends View {
           .child(h_flex().gap(6).items_center()
             .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`))
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
-          .child(div().text_size(11.5).text_color(t.muted).child("Preview: right-click another to see it")))
+          .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research calls one), or open them all in Settings."
+            : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
+            : "Preview: right-click another to see it")))
         // Favourites are starred here (or on the card, for the one it is).
         .child((() => {
           const on = isFavorite(favs(), pv);
           return button("preview-fav", on ? "★ Favorite" : "☆ Favorite", on, (_e, cx) => { setFavs(toggleFavorite(favs(), pv.form ? { dex: pv.dex, form: pv.form } : { dex: pv.dex })); cx.notify(); });
         })())
         .when(hasShiny(pv.dex, pv.form), (el) => el.child(button("preview-shiny", "✨ Shiny", pv.shiny, (_e, cx) => this.showPreview(pv, cx, !pv.shiny))))
-        .child(button("preview-choose", this.boxing ? "Choose a new one" : "Choose", false, () => { const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) }; this.preview = null; this.choose(e, this.boxing ? { fresh: true } : {}); }))
+        .when(this.locked(pv), (el) => el.child(div().h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).text_color(t.muted).border_1().border_color(t.border)
+          .child("🔒 Catch one to use it")))
+        .when(!this.locked(pv), (el) => el.child(button("preview-choose", `${this.boxing ? "Choose a new one" : "Choose"}${pv.shiny && shinyUnlocked(pokedex(), pv.dex) && !pv.form ? " ✨" : ""}`, false, () => {
+          const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) };
+          const shiny = pv.shiny && !pv.form;
+          this.preview = null;
+          this.choose(e, { ...(this.boxing ? { fresh: true } : {}), shiny });
+        })))
         .child(button("preview-close", "✕", false, (_e, cx) => { this.preview = null; cx.notify(); })))
       .when(inBox.length > 0, (el) => el.child(v_flex().gap(4)
         .child(div().text_size(11).text_color(t.muted).child(`In the Box (${inBox.length})`))
@@ -2674,7 +3088,7 @@ export default class PokemonHerd extends View {
     const slot = props()?.slot;
     const night = isNight();
     const mine = new Set(evolveNeeds(cur).flatMap((n) => n.ways).filter((w) => w.startsWith("stone:")).map((w) => `${w.slice(6)}-stone`));
-    const ids = ["berry", "rare-candy", ...STONES.map((k) => `${k}-stone`).filter((id) => mine.has(id)), ...HELD_IDS].filter((id) => b.items[id]);
+    const ids = ["berry", "sitrus-berry", "rare-candy", ...STONES.map((k) => `${k}-stone`).filter((id) => mine.has(id)), ...HELD_IDS].filter((id) => b.items[id]);
     // Wraps onto a second line when there are many (a long Bag ran past the card's edge).
     return h_flex().flex_wrap().w_full().gap(6).items_center().flex_none()
       // What it holds: click to take it back into the Bag.
@@ -2717,6 +3131,7 @@ export default class PokemonHerd extends View {
     const all = searchEntries(this.filter, Infinity, this.searchOnly()).entries; // every match: scroll to browse them all
     const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav);
     const favKeys = favs();
+    const dexNow = pokedex();
     // A small toggle: the filter row's chips.
     const chip = (id, label, on, flip) => div()
       .id(id).h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11).border_1()
@@ -2739,7 +3154,7 @@ export default class PokemonHerd extends View {
             v_flex().min_w(0).gap(2)
               .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Choose a Pokémon"))
               .child(div().text_size(11.5).text_color(t.muted).truncate().child(this.boxing ? `${nameFor(cur ?? {})} goes to the Box: pick a new one (1 in ${charmOdds()} shiny)`
-                : `for ${p.tag ?? "this agent"}`)),
+                : settingsNow().trainer ? `for ${p.tag ?? "this agent"} · Trainer mode: the ones you caught` : `for ${p.tag ?? "this agent"}`)),
           )
           .child(
             h_flex().gap(10).items_center().flex_none()
@@ -2828,7 +3243,9 @@ export default class PokemonHerd extends View {
                   .child(this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(56).flex_none() : div().size(56).flex_none())
                   .child(div().text_size(9.5).text_color(t.dim).child(dexNo(e.dex)))
                   .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)))
-                  .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")));
+                  .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")))
+                  .when(this.locked(e), (el) => el.opacity(0.4).child(div().absolute().top(4).left(6).text_size(11).child("🔒")))
+                  .when(!this.locked(e) && !e.form && shinyUnlocked(dexNow, e.dex), (el) => el.child(div().absolute().top(4).left(6).text_size(11).child("✨")));
               })));
             }
             return rows;
@@ -2843,10 +3260,11 @@ export default class PokemonHerd extends View {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
             if (!(col >= 0 && col < PICK_COLS && e)) return;
+            if (this.locked(e)) { this.showPreview(e, cx); return; } // why it can't be chosen
             this.choose(e, this.boxing ? { fresh: true } : {});
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
-      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega ? "No Pokémon matches the search and filters." : "No Pokémon by that name or number.")));
+      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
   }
 }

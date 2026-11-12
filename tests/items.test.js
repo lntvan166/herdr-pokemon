@@ -20,7 +20,7 @@ test("addItem counts up and down within limits", () => {
   assert.equal(mark(b, { nightJob: true }).marks.nightJob, true);
 });
 
-test("pickup always finds a real item, mostly berries", () => {
+test("pickup always finds a real item, mostly balls and berries", () => {
   assert.equal(pickup(() => 0), "berry");
   assert.equal(pickup(() => 0.9999), "exp-share"); // the last, and among the rarest
   const seen = new Set(Array.from({ length: 2000 }, (_, i) => pickup(() => (i + 0.5) / 2000)));
@@ -155,9 +155,9 @@ test("money in the Bag: kept, capped, never negative", () => {
 test("buy: costs its price, needs the money, 99 at most; every item is for sale", () => {
   const b = { v: 1, items: {}, money: 250, marks: {} };
   const after = buy(b, "x-speed");
-  assert.equal(after.money, 50);
+  assert.equal(after.money, 100);
   assert.equal(after.items["x-speed"], 1);
-  assert.equal(buy(after, "x-speed"), null); // ₽50 left
+  assert.equal(buy({ ...after, money: 50 }, "x-speed"), null); // ₽50 left
   assert.equal(buy({ ...b, money: 9999, items: { berry: 99 } }, "berry"), null);
   assert.deepEqual(Object.keys(ITEMS).filter((id) => !PRICE[id]), []);
 });
