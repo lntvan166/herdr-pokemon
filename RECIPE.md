@@ -453,7 +453,15 @@ forms, and Mega Evolution while an agent works.
   `openOverlay/closeOverlay`, `nextCommand()`, `exec`, `appHome()`, and `fs/promises`.
 - **Commands:** `pane.focus`, `agent.focus`, `layout.resize`, `layout.set`.
 - **Motion:** a `cx.timer.every(250)` tick moves the Pokémon. Movement uses `left` transitions,
-  `.frames` for "zZ", and `.loop` for pulses. The picker grid is a `v_virtual_list`.
+  `.frames` for "zZ", and `.loop` for pulses. The picker grid is a `v_virtual_list`. A walk's
+  transition lasts what is left of it; a transition is taken when the target changes, so after
+  more than 3 s undrawn (the window hidden or covered: no frames, while they walked on) the
+  first frame puts each one where it is now with none, and the next tick walks on from there:
+  otherwise those asleep slid there slowly (the last walk's length) and others raced by.
+- **First run:** with no Pokémon saved yet (`pokemon-herd-cards-default` unset), the leader puts
+  Agent cards in the sidebar once: the Agents list swapped for cards, else a Party list there
+  (not on Better Sidebar's rows, which need its patch). On a built-in layout (main, terminals,
+  win98) it first runs `layout.clone`, then waits up to 30 s for the copy to be shown.
 - **Programs and network:** it runs `curl` and ImageMagick (`magick`, or `convert` +
   `identify`).
   - It downloads `AnimData.xml` and `*-Anim.png` sheets from

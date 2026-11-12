@@ -59,7 +59,8 @@ Coin** (it finds things twice as often), **Leftovers** (it never goes hungry) or
 from the Bag, calls a visitor over at once. At 500 jobs you get the **Shiny Charm**: shinies twice as
 often.
 
-**Agent cards.** Settings → Agent cards → **Sidebar**, and every agent is its Pokémon's card: the
+**Agent cards.** On by default for a new player (in the sidebar; on one of Herdr's built-in
+layouts a copy of it is made first, yours to change). Settings → Agent cards → **Sidebar**, and every agent is its Pokémon's card: the
 agent's name, large; the card's edge in its status colour (working, done, pulsing red while it
 needs you); its Pokémon, hearts and how close it is to evolving. Click one to focus that agent.
 It changes the sidebar you have rather than adding to it: Herdr's own Agents list is drawn as

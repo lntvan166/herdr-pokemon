@@ -37,6 +37,8 @@ const TAG_LINES = 2; // lines kept under each row for names: fixed, so the groun
 const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
+const CARDS_KEY = `${MOD}-cards-default`; // when a new player's agents were first put as cards
+const SHIPPED = ["main", "terminals", "win98"]; // Herdr's built-in layouts: a mod can't change them
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240;
@@ -759,6 +761,12 @@ export default class PokemonHerd extends View {
     const el = electLeader(shared(LEADER_KEY), this.me, now);
     this.leader = el.leader;
     if (el.write && now - (this.leaderWrote ?? 0) >= 1000) { this.leaderWrote = now; setShared(LEADER_KEY, el.write); }
+    // A new player (no Pokémon saved yet, the first time): their agents as cards in the sidebar.
+    if (this.leader && !shared(CARDS_KEY)) {
+      setShared(CARDS_KEY, now);
+      if (!Object.keys(savedPicks()).length) this.firstCards = now;
+    }
+    if (this.firstCards) this.defaultCards(now);
     const { ids, fresh, family } = assignAll(list, { write: this.leader });
     if (this.leader && Object.keys(fresh).length) {
       // A new agent given a species raised before (the Box): that very Pokémon, moved over.
@@ -788,6 +796,7 @@ export default class PokemonHerd extends View {
     if (g) this.fitHeight(g);
     if (!this.sized) return; // placing them in a guessed width would pile them at the edge
     let changed = false;
+    if (this.resume) { this.resume = false; changed = true; } // after a gap: walk on (renderStrip)
     const live = new Set();
     // Where the resting others on agent i's row are, or are headed (read live, so one move frees
     // the next). Working ones are left out: they keep walking, so nobody makes room for them.
@@ -1254,6 +1263,22 @@ export default class PokemonHerd extends View {
     if (JSON.stringify(next) !== JSON.stringify(tree)) run("layout.set", { layout: next });
   }
 
+  // A new player's first run: Agent cards in the sidebar. On a built-in layout, a copy of it is
+  // made first (as Settings' "Make it mine"), which Herdr shows at once; ticks wait for it (30 s at
+  // most). Better Sidebar's rows are left alone (cards there need its patch: an opt-in).
+  defaultCards(now) {
+    if (now - this.firstCards > 30000) { this.firstCards = null; return; }
+    const name = shared("layout");
+    if (SHIPPED.includes(name)) {
+      if (!this.cloning) { this.cloning = true; run("layout.clone", { name }); }
+      return;
+    }
+    this.firstCards = null;
+    const tree = layout();
+    if (!tree || partyPlace(tree) || agentsSwapped(tree)) return;
+    if (hasAgentsList(tree) || (placesIn(tree).includes("sidebar") && !usesMod(tree, "better-sidebar"))) this.setCards("sidebar", tree, false);
+  }
+
   // The Settings dialog: where the strip sits and how, sounds, and which of the games' mechanics
   // are on. Every change applies at once; it stays open (Esc closes it).
   renderSettings() {
@@ -1261,7 +1286,7 @@ export default class PokemonHerd extends View {
     const st = settingsNow();
     const tree = layout();
     const name = shared("layout");
-    const shipped = ["main", "terminals", "win98"].includes(name);
+    const shipped = SHIPPED.includes(name);
     const have = placesIn(tree);
     const place = placeOf(tree, MOD);
     const rows = rowsOf(tree, MOD);
@@ -1441,6 +1466,12 @@ export default class PokemonHerd extends View {
     const grounds = g ? Array.from({ length: g.rows }, (_, r) => r * g.rowH + ground) : [ground];
     const sceneryOn = props()?.background !== "plain";
     this.snowing = false; // scenery() turns it on while it snows
+    // Back after a while undrawn (the window was hidden or covered: no frames, while they kept
+    // walking): this frame puts each one straight where it is now, with no slide from where it was
+    // last drawn; the next tick redraws and those walking go on from there (`resume`).
+    const gap = this.drawnAt !== undefined && now - this.drawnAt > 3000;
+    this.drawnAt = now;
+    if (gap) this.resume = true;
 
     const root = div()
       .id("pokemon-strip")
@@ -1633,8 +1664,10 @@ export default class PokemonHerd extends View {
           .top(g ? rowOf(a) * g.rowH : 0)
           .h(g ? g.rowH : this.height)
           .w(sw)
-          .left(x - sw / 2)
-          .transition("left", { duration: Math.max(1, Math.round(m.moving ? m.dur : m.dur || 150)), easing: "linear" })
+          .left((gap && m.moving ? m.from + (m.target - m.from) * clamp((now - m.start) / m.dur, 0, 1) : x) - sw / 2)
+          // Walking: over what is left of its walk (from where it is drawn now); standing: its own
+          // short move (a step aside, a jump), or none at all after a gap.
+          .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
           .child(body)
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
