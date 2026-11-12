@@ -230,6 +230,9 @@ clashing.
 picks, name-tag layout, reactions, resting spots, row wrapping, and placement.
 `scripts/install.sh` copies the mod into Herdr, which hot-reloads it.
 
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Questions and ideas go to
+[Discussions](https://github.com/lntvan166/herdr-pokemon/discussions).
+
 ## License
 
 Code: MIT (see [LICENSE](LICENSE)). The demo GIFs: CC BY-NC 4.0, after PMD SpriteCollab.

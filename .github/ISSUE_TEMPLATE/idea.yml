@@ -1,0 +1,16 @@
+name: Idea
+description: Something the herd could do.
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What would happen, and when. What moment would it make better?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What it's for. A picture or a game it comes from is welcome.
