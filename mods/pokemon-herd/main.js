@@ -1308,7 +1308,7 @@ export default class PokemonHerd extends View {
     if (JSON.stringify(next) !== JSON.stringify(tree)) run("layout.set", { layout: next });
   }
 
-  // A new player's first run: Agent cards in the sidebar. On a built-in layout, a copy of it is
+  // A new player's first run: Agent cards in the sidebar, and Pokémon in notifications. On a built-in layout, a copy of it is
   // made first (as Settings' "Make it mine"), which Herdr shows at once; ticks wait for it (30 s at
   // most). Better Sidebar's rows are left alone (cards there need its patch: an opt-in).
   defaultCards(now) {
@@ -1319,8 +1319,11 @@ export default class PokemonHerd extends View {
       return;
     }
     this.firstCards = null;
-    const tree = layout();
-    if (!tree || partyPlace(tree) || agentsSwapped(tree)) return;
+    let tree = layout();
+    if (!tree) return;
+    // Notifications too: each agent's leads with its Pokémon (unless another mod draws them).
+    if (!toastMod(tree)) { tree = setToast(tree, MOD); run("layout.set", { layout: tree }); }
+    if (partyPlace(tree) || agentsSwapped(tree)) return;
     if (hasAgentsList(tree) || (placesIn(tree).includes("sidebar") && !usesMod(tree, "better-sidebar"))) this.setCards("sidebar", tree, false);
   }
 

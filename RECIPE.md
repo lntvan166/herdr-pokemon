@@ -496,7 +496,8 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   otherwise those asleep slid there slowly (the last walk's length) and others raced by.
 - **First run:** with no Pokémon saved yet (`pokemon-herd-cards-default` unset), the leader puts
   Agent cards in the sidebar once: the Agents list swapped for cards, else a Party list there
-  (not on Better Sidebar's rows, which need its patch). On a built-in layout (main, terminals,
+  (not on Better Sidebar's rows, which need its patch); and, unless another mod draws them,
+  notifications by this mod (the layout's `toast`), so each leads with its Pokémon. On a built-in layout (main, terminals,
   win98) it first runs `layout.clone`, then waits up to 30 s for the copy to be shown.
 - **Programs and network:** it runs `curl` and ImageMagick (`magick`, or `convert` +
   `identify`).
