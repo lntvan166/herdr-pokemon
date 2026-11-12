@@ -429,7 +429,8 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   `export const VERSION = "x.y.z"` and never counts a date as newer). Above it, a comment
   `// VERSION = "2026.11.12"` stays for copies from before 1.0.0 (date versions), which read the
   first `VERSION = "…"` in the file: it is newer than any of theirs, so they still offer the update. Once a day the strip reads `id.js` from
-  the repo on GitHub (`data/pokemon-herd/latest.json`). When that is newer, an accent pill
+  the repo on GitHub (`data/pokemon-herd/latest.json`); opening Settings reads it again at once
+  ("Checking for a newer version…" meanwhile). When that is newer, an accent pill
   "Update <version>" sits in the strip's top-right corner. Clicking it opens the menu, which
   grows to 352 px with how to update.
 - **Picks:** a new agent's Pokémon is chosen from the 974 walking species by a hash of its pane

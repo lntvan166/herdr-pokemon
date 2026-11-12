@@ -256,13 +256,14 @@ export async function refreshMegas(saved, now = Date.now()) {
 
 // The newest release's VERSION on GitHub (read from its id.js at most once a day, kept in
 // data/pokemon-herd/latest.json), or null when not known. A failed read keeps the last one.
+// `fresh`: read it now, whenever it was last read (Settings, on opening).
 const LATEST_FILE = `${DATA}/latest.json`;
-export async function latestVersion(now = Date.now()) {
+export async function latestVersion(now = Date.now(), fresh = false) {
   let saved = null;
   try {
     saved = JSON.parse(await fs.readFile(LATEST_FILE, "utf8"));
   } catch {}
-  if (!isStale(saved?.at, now)) return saved?.version ?? null;
+  if (!fresh && !isStale(saved?.at, now)) return saved?.version ?? null;
   await exec("mkdir", ["-p", DATA]);
   const tmp = `${DATA}/id.js.part`;
   let version = saved?.version ?? null;

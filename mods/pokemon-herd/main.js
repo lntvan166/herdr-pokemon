@@ -1242,6 +1242,13 @@ export default class PokemonHerd extends View {
       this.sidebar = await sidebarState().catch(() => "missing");
       cx.notify();
     });
+    // Opening Settings checks GitHub for a newer release once, now (the strip only does daily).
+    this.checking = true;
+    cx.spawn(async (cx) => {
+      try { this.latestNow = await latestVersion(Date.now(), true); } catch {}
+      this.checking = false;
+      cx.notify();
+    });
   }
 
   // Agent cards: Off, Sidebar or Right panel. Undoes whatever there was, then: in the sidebar,
@@ -1283,6 +1290,8 @@ export default class PokemonHerd extends View {
   // are on. Every change applies at once; it stays open (Esc closes it).
   renderSettings() {
     const t = theme();
+    // A newer release: what Settings just read from GitHub, else what the strip knew.
+    const upd = this.latestNow !== undefined && this.latestNow !== null ? (isNewer(this.latestNow, VERSION) ? this.latestNow : null) : props()?.update;
     const st = settingsNow();
     const tree = layout();
     const name = shared("layout");
@@ -1406,9 +1415,10 @@ export default class PokemonHerd extends View {
         line("Pokémon herd", this.updating === "running" ? "Downloading…"
           : this.updating === "done" ? `Updated ${(this.updated ?? []).map((u) => `mods/${u.dir.split("/").pop()} to ${u.version}`).join(", ")}. It reloads by itself; if this still says ${VERSION}, restart Herdr.`
           : this.updating ? `Couldn't update: ${this.updating}`
-          : props()?.update ? `${props().update} is out; you have ${VERSION}. Your Pokémon, Bag and badges stay.`
+          : upd ? `${upd} is out; you have ${VERSION}. Your Pokémon, Bag and badges stay.`
+          : this.checking ? "Checking for a newer version…"
           : `${VERSION}, the latest (checked once a day).`,
-          button("update-now", "Update now", !!props()?.update && this.updating !== "running" && this.updating !== "done", (cx) => {
+          button("update-now", "Update now", !!upd && this.updating !== "running" && this.updating !== "done", (cx) => {
             this.updating = "running";
             cx.spawn(async (cx) => {
               try {

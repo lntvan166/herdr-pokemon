@@ -175,7 +175,7 @@ If you are coming from the upstream `pokemon-agents` mod, your agents keep their
 ## Updating
 
 Once a day the strip checks this repo, and when a newer version is out it shows a small
-**Update** pill in its corner. Right-click the ground → **Settings** → Updates → **Update now**:
+**Update** pill in its corner. Opening **Settings** checks again right then. Right-click the ground → **Settings** → Updates → **Update now**:
 it downloads the release and copies it over the mod's folder, and Herdr reloads it (it needs
 `curl` and `tar`). Or by hand:
 
