@@ -101,13 +101,22 @@ export function fidgetAnim(has, rnd = Math.random) {
 }
 
 // Idle, it fidgets (nods, sits, looks up, twirls…): true when it does.
-export function onFidget(m, now, has, msOf, rnd = Math.random) {
-  const anim = fidgetAnim(has, rnd);
+// `dance` (Soda Pop): half the time it dances instead, when it can.
+export function onFidget(m, now, has, msOf, rnd = Math.random, dance = false) {
+  const anim = dance && has.has("Dance") && rnd() < 0.5 ? "Dance" : fidgetAnim(has, rnd);
   if (!anim) return false;
   const ms = Math.max(100, msOf(anim));
   const until = now + ms * Math.max(1, Math.ceil(1500 / ms));
   m.react = { anim, animUntil: until, until };
   return true;
+}
+
+// A Festival Ticket: it celebrates (Dance, else Hop) for about 3 s, 🎉 over its head.
+export function onCelebrate(m, now, has, msOf) {
+  const anim = reactionAnim("celebrate", has);
+  const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
+  const until = now + ms * Math.max(1, Math.ceil(3000 / ms));
+  m.react = { anim, animUntil: until, until, icon: "🎉" };
 }
 
 // Idle this long and it falls asleep: sooner at night.
@@ -205,8 +214,8 @@ export const megaShown = (pick, status) => !pick.form && !!megaForm(pick.dex) &&
 // neither sparred in the last SPAR_GAP. `cands`: [{ addr, x, row, lastSpar }]. The first such
 // pair, or null.
 export const SPAR_GAP = 10 * 60000;
-export function sparPair(cands, now) {
-  const ready = cands.filter((c) => now - (c.lastSpar ?? -Infinity) >= SPAR_GAP);
+export function sparPair(cands, now, gap = SPAR_GAP) {
+  const ready = cands.filter((c) => now - (c.lastSpar ?? -Infinity) >= gap);
   for (let i = 0; i < ready.length; i++) {
     for (let j = i + 1; j < ready.length; j++) {
       const [a, b] = [ready[i], ready[j]];
@@ -221,8 +230,8 @@ export function sparPair(cands, now) {
 // sleeper wakes with a start and they spar. Neither may have sparred in the last SPAR_GAP.
 // `cands`: [{ addr, x, row, mood, lastSpar }] (standing still, not reacting). The nearest such
 // pair as [teaser, sleeper], or null.
-export function teasePair(cands, now) {
-  const ready = cands.filter((c) => now - (c.lastSpar ?? -Infinity) >= SPAR_GAP);
+export function teasePair(cands, now, gap = SPAR_GAP) {
+  const ready = cands.filter((c) => now - (c.lastSpar ?? -Infinity) >= gap);
   let best = null;
   for (const a of ready.filter((c) => c.mood === "idle")) {
     for (const b of ready.filter((c) => c.mood === "sleep" && c.row === a.row)) {

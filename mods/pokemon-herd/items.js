@@ -3,7 +3,7 @@ import { EVOLVE_HOW, EVOLVES_FROM } from "./species.js";
 import { nameOf } from "./dex.js";
 import { itemUse, useItem, HELD_IDS, MAX_HEARTS } from "./picks.js";
 import { duration } from "./stats.js";
-// Kept in shared state as { v: 1, items: { <id>: count }, marks: { evolutions, nightJob, fullHearts } }.
+// Kept in shared state as { v: 1, items: { <id>: count }, money, marks: { evolutions, nightJob, fullHearts } }.
 
 export const STONES = ["fire", "water", "thunder", "leaf", "moon", "sun", "shiny", "dusk", "dawn", "ice"];
 const STONE_ICON = { fire: "🔥", water: "💧", thunder: "⚡", leaf: "🍃", moon: "🌙", sun: "🌞", shiny: "💎", dusk: "🌑", dawn: "🌅", ice: "🧊" };
@@ -20,7 +20,52 @@ export const ITEMS = {
   leftovers: { name: "Leftovers", icon: "🍎", art: "items/leftovers", kind: "held" },
   "exp-share": { name: "Exp. Share", icon: "📡", art: "items/exp-share", kind: "held" },
   honey: { name: "Honey", icon: "🍯", art: "items/honey", kind: "use" },
+  // From the Shop: for the whole herd, BOOST_MS each (the Festival Ticket at once).
+  "x-speed": { name: "X Speed", icon: "⚡", art: "items/x-speed", kind: "boost" },
+  "poke-flute": { name: "Poké Flute", icon: "🎺", art: "items/poke-flute", kind: "boost" },
+  "x-attack": { name: "X Attack", icon: "⚔️", art: "items/x-attack", kind: "boost" },
+  "soda-pop": { name: "Soda Pop", icon: "🥤", art: "items/soda-pop", kind: "boost" },
+  "festival-ticket": { name: "Festival Ticket", icon: "🎆", art: "items/festival-ticket", kind: "use" },
 };
+
+// The Shop: every item, for Pokédollars (₽).
+export const PRICE = {
+  berry: 30, honey: 200, "rare-candy": 800,
+  ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 500])),
+  ...Object.fromEntries(HELD_IDS.map((id) => [id, 1500])),
+  "x-speed": 200, "poke-flute": 150, "x-attack": 300, "soda-pop": 150, "festival-ticket": 250,
+};
+export const MAX_MONEY = 999999;
+export const money = (n) => `₽${String(Math.max(0, Math.round(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+
+// A Bag from before Pokédollars: what the jobs done till then pay, as jobPay would have (from
+// the stats summary { jobs, ms }: ₽5 a job and ₽2 a minute worked, ₽150 a job at most).
+export const backPay = (s) => Math.min(150 * (s.jobs || 0), 5 * (s.jobs || 0) + 2 * Math.floor((s.ms || 0) / 60000));
+
+// What a finished job pays: ₽5, and ₽2 a minute it took, ₽150 at most; twice that for a Pokémon
+// holding an Amulet Coin.
+export const jobPay = (taskMs, coin = false) => Math.min(150, 5 + 2 * Math.floor(Math.max(0, taskMs || 0) / 60000)) * (coin ? 2 : 1);
+export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });
+
+// The bag after buying one `id`, or null: not enough money, or already 99.
+export function buy(bag, id) {
+  const price = PRICE[id];
+  if (!price || (bag.money ?? 0) < price || (bag.items[id] ?? 0) >= MAX_ITEM) return null;
+  return addItem(addMoney(bag, -price), id);
+}
+
+// Boosts (shared state { <id>: until }): each lasts BOOST_MS from its use, another one adding
+// as much again, up to BOOST_MAX ahead. Which are on now: { <id>: until }.
+export const BOOST_MS = 10 * 60000;
+export const BOOST_MAX = 60 * 60000;
+export function loadBoosts(raw, now) {
+  const out = {};
+  for (const [id, until] of Object.entries(raw && typeof raw === "object" ? raw : {})) {
+    if (ITEMS[id]?.kind === "boost" && Number.isFinite(until) && until > now) out[id] = until;
+  }
+  return out;
+}
+export const withBoost = (boosts, id, now) => ({ ...boosts, [id]: Math.min(now + BOOST_MAX, Math.max(now, boosts[id] ?? 0) + BOOST_MS) });
 export const HELD = HELD_IDS;
 export const CHARM_ART = "items/shiny-charm";
 
@@ -39,6 +84,11 @@ export function itemAbout(id) {
   if (id === "leftovers") return "For a Pokémon to hold: it never goes hungry, however long its agent waits on you.";
   if (id === "exp-share") return "For a Pokémon to hold: each job its agent finishes also counts for the Pokémon on screen furthest from evolving.";
   if (id === "honey") return "Calls a wild Pokémon over right away, with its gift.";
+  if (id === "x-speed") return "For 10 minutes the whole herd is on the go: faster, and hardly stopping.";
+  if (id === "poke-flute") return "Wakes every sleeping Pokémon, and keeps the herd up for 10 minutes.";
+  if (id === "x-attack") return "For 10 minutes the herd spars and teases each other again and again.";
+  if (id === "soda-pop") return "For 10 minutes the herd fidgets three times as much, and those who can dance do.";
+  if (id === "festival-ticket") return "Fireworks over the strip, and the whole herd celebrates.";
   if (id === "rare-candy") return "Evolves a Pokémon now, if it evolves by jobs or by friendship (with its hearts full).";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");
@@ -78,7 +128,8 @@ export function loadBag(raw) {
   }
   const m = raw?.v === 1 && raw.marks && typeof raw.marks === "object" ? raw.marks : {};
   const seen = Array.isArray(m.seen) ? m.seen.filter((id) => BADGES.some((b) => b.id === id)) : [];
-  return { v: 1, items, marks: { evolutions: Number.isInteger(m.evolutions) && m.evolutions > 0 ? m.evolutions : 0, nightJob: m.nightJob === true, fullHearts: m.fullHearts === true, seen } };
+  const cash = Number.isInteger(raw?.money) && raw.money > 0 ? Math.min(raw.money, MAX_MONEY) : 0;
+  return { v: 1, items, money: cash, marks: { evolutions: Number.isInteger(m.evolutions) && m.evolutions > 0 ? m.evolutions : 0, nightJob: m.nightJob === true, fullHearts: m.fullHearts === true, seen } };
 }
 
 // The bag with `n` more (or fewer) of an item, kept within 0..MAX_ITEM.

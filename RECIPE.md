@@ -310,7 +310,21 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   (`kind: "use"`): the Bag shows "Call one now" (dim with no Honey or with Visitors off) instead
   of "On screen"; it writes shared `pokemon-herd-honey` = now, and the strip's next tick calls a
   visitor at once (or right after the one walking by). Pickup weights: Honey 4, each held item 1.
-  The Bag's rows are 26 px (18 items) in a 672 px dialog. Item marks on the strip (a find, a gift,
+  The Bag's rows are 26 px in a 672 px dialog; the list is 20 rows high and scrolls.
+- **Pokédollars** (`jobPay`, `backPay`, `buy` in `items.js`; the Bag's `money`): the leader pays
+  each finished job ₽5 + ₽2 per whole minute of the task, ₽150 at most, ×2 when its Pokémon holds
+  an Amulet Coin, "+₽n" as its note for 4 s. A Bag with no `money` key yet gets, once, what the
+  stats summary would have paid (₽5 a job + ₽2 a minute, ₽150 a job at most). Shown in the Bag's
+  title row (₽1,234). **Shop** (third Bag tab): every item and its `PRICE`, the chosen one's
+  card and "Buy for ₽n" (dim without the money or at 99; "₽n more to go").
+- **Boosts** (`loadBoosts`, `withBoost`; shared `pokemon-herd-boosts` = { id: until }): used from
+  the Bag ("Use it", "Use another (+10 min)"), 10 min each, stacking to 1 h ahead. X Speed:
+  walks ×1.6, idle pauses 0.8–2.5 s. Poké Flute: once per use, those asleep play their wake and
+  look; `awakeUntil` reaches its end. X Attack: sparring and teasing ×10 as likely, 30 s between
+  one's battles. Soda Pop: fidgets 45% (not 15%), half of them Dance when it has one. Pills top
+  left of the strip, "⚡ 7m", on #00000059. **Festival Ticket** (`kind: "use"`): shared
+  `pokemon-herd-festival` = now; every Pokémon celebrates (Dance, else Hop, about 3 s, 🎉), and 9
+  bursts (🎆 🎇 ✨, 16–22 px, 550 ms apart, 1.4 s each, places from the time) fill the sky for 6 s. Item marks on the strip (a find, a gift,
   a Berry eaten, a Rare Candy) are the item's sprite, 18 px, once downloaded; its emoji till then.
 - **Stirring** (`onStir`, `stirGap`, `stirFor` in `react.js`): asleep, each Pokémon on its own
   clock wakes now and then (by day every 1.5–4 min, at night every 4–10), plays its wake

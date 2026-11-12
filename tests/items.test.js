@@ -4,7 +4,7 @@ import { ITEMS, loadBag, addItem, mark, pickup, badges, BADGES, shinyOdds, MAX_I
 import { coatOf, waysOf } from "../mods/pokemon-herd/dex.js";
 
 test("loadBag tolerates junk and keeps known items", () => {
-  for (const junk of [null, 5, "x", { v: 2 }, { v: 1, items: 3 }]) assert.deepEqual(loadBag(junk), { v: 1, items: {}, marks: { evolutions: 0, nightJob: false, fullHearts: false, seen: [] } });
+  for (const junk of [null, 5, "x", { v: 2 }, { v: 1, items: 3 }]) assert.deepEqual(loadBag(junk), { v: 1, items: {}, money: 0, marks: { evolutions: 0, nightJob: false, fullHearts: false, seen: [] } });
   const b = loadBag({ v: 1, items: { berry: 3, "fire-stone": 1, junk: 4, "rare-candy": -1 }, marks: { evolutions: 2, nightJob: true } });
   assert.deepEqual(b.items, { berry: 3, "fire-stone": 1 });
   assert.equal(b.marks.evolutions, 2);
@@ -134,4 +134,49 @@ test("expShareTarget: another Pokémon on screen that evolves by jobs, the furth
   };
   assert.equal(expShareTarget(picks, "giver"), "far");
   assert.equal(expShareTarget({ giver: picks.giver, done: picks.done }, "giver"), null);
+});
+
+import { PRICE, jobPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, BOOST_MAX, money, MAX_MONEY } from "../mods/pokemon-herd/items.js";
+test("jobPay: ₽5 and ₽2 a minute, ₽150 at most, twice with an Amulet Coin", () => {
+  assert.equal(jobPay(30000), 5);
+  assert.equal(jobPay(10 * 60000), 25);
+  assert.equal(jobPay(10 * 60000, true), 50);
+  assert.equal(jobPay(5 * 3600000), 150);
+  assert.equal(jobPay(undefined), 5);
+});
+test("money in the Bag: kept, capped, never negative", () => {
+  assert.equal(loadBag({ v: 1, items: {}, money: 1234 }).money, 1234);
+  assert.equal(loadBag({ v: 1, items: {}, money: -5 }).money, 0);
+  assert.equal(loadBag({ v: 1, items: {}, money: "lots" }).money, 0);
+  assert.equal(loadBag(null).money, 0);
+  assert.equal(addMoney({ money: MAX_MONEY - 1 }, 10).money, MAX_MONEY);
+  assert.equal(money(1234), "₽1,234");
+});
+test("buy: costs its price, needs the money, 99 at most; every item is for sale", () => {
+  const b = { v: 1, items: {}, money: 250, marks: {} };
+  const after = buy(b, "x-speed");
+  assert.equal(after.money, 50);
+  assert.equal(after.items["x-speed"], 1);
+  assert.equal(buy(after, "x-speed"), null); // ₽50 left
+  assert.equal(buy({ ...b, money: 9999, items: { berry: 99 } }, "berry"), null);
+  assert.deepEqual(Object.keys(ITEMS).filter((id) => !PRICE[id]), []);
+});
+test("boosts: 10 min each, stacking up to an hour ahead; only boosts, only live ones", () => {
+  const now = 1000;
+  let bs = withBoost({}, "x-speed", now);
+  assert.equal(bs["x-speed"], now + BOOST_MS);
+  bs = withBoost(bs, "x-speed", now);
+  assert.equal(bs["x-speed"], now + 2 * BOOST_MS);
+  for (let i = 0; i < 10; i++) bs = withBoost(bs, "x-speed", now);
+  assert.equal(bs["x-speed"], now + BOOST_MAX);
+  assert.deepEqual(loadBoosts({ "x-speed": 5000, honey: 9999, "soda-pop": 10 }, now), { "x-speed": 5000 });
+  assert.deepEqual(loadBoosts(null, now), {});
+});
+import { backPay } from "../mods/pokemon-herd/items.js";
+test("backPay: the jobs done before Pokédollars, as they would have paid", () => {
+  assert.equal(backPay({ jobs: 237, ms: 252 * 60000 }), 5 * 237 + 2 * 252);
+  assert.equal(backPay({ jobs: 1, ms: 10 * 3600000 }), 150);
+  assert.equal(backPay({ jobs: 0, ms: 0 }), 0);
+  assert.equal(money(1500), "₽1,500");
+  assert.equal(money(999999), "₽999,999");
 });

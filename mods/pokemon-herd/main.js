@@ -18,13 +18,13 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onFidget, battle, battleSpots, reactIcon, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -39,6 +39,10 @@ const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
 const CARDS_KEY = `${MOD}-cards-default`; // when a new player's agents were first put as cards
 const SHIPPED = ["main", "terminals", "win98"]; // Herdr's built-in layouts: a mod can't change them
+const BOOSTS_KEY = `${MOD}-boosts`; // Shop boosts on now: { <item id>: until }
+const FESTIVAL_KEY = `${MOD}-festival`; // when a Festival Ticket was last used
+const FESTIVAL_MS = 6000; // its fireworks
+const BOOST_GAP = 30000; // with X Attack: how soon one may spar again
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240;
@@ -514,6 +518,10 @@ export default class PokemonHerd extends View {
     if (!this.leader) return; // another strip counts
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
     if (!c.job) return;
+    // Paid for the job, by how long it took (twice with an Amulet Coin): "+₽25" over its head.
+    const pay = jobPay(c.task, savedPicks()[a.pane]?.held === "amulet-coin");
+    saveBag(addMoney(bag(), pay));
+    this.note(m, `+${money(pay)}`, now, 4000);
     const d = new Date(now);
     if (d.getHours() < 5 && !bag().marks.nightJob) saveBag(mark(bag(), { nightJob: true }));
     if (c.task >= CANDY_JOB_MS) { saveBag(addItem(bag(), "rare-candy")); this.note(m, "🍬", now, 5000, "rare-candy"); } // a long job: a Rare Candy
@@ -537,6 +545,13 @@ export default class PokemonHerd extends View {
       if (shared2) noteEvolved();
     }
     if (this.giveBadgeGifts()) this.note(m, "🏅", now, 8000);
+  }
+
+  // A Bag from before Pokédollars (no "money" in it yet): paid once for the jobs done till then.
+  backPayOnce() {
+    const raw = shared(BAG_KEY);
+    if (raw && typeof raw === "object" && "money" in raw) return;
+    saveBag(addMoney(bag(), backPay(summary(stats(), 0))));
   }
 
   // A badge earned for the first time: an item to hold, in the Bag. Checked when a job finishes
@@ -767,6 +782,7 @@ export default class PokemonHerd extends View {
       if (!Object.keys(savedPicks()).length) this.firstCards = now;
     }
     if (this.firstCards) this.defaultCards(now);
+    if (this.leader && !this.paidBack) { this.paidBack = true; this.backPayOnce(); }
     const { ids, fresh, family } = assignAll(list, { write: this.leader });
     if (this.leader && Object.keys(fresh).length) {
       // A new agent given a species raised before (the Box): that very Pokémon, moved over.
@@ -796,6 +812,13 @@ export default class PokemonHerd extends View {
     if (g) this.fitHeight(g);
     if (!this.sized) return; // placing them in a guessed width would pile them at the edge
     let changed = false;
+    // Shop boosts on now (items.js), for the whole herd.
+    const boosts = loadBoosts(shared(BOOSTS_KEY), now);
+    // A Festival Ticket just used: everyone celebrates under the fireworks.
+    const fest = shared(FESTIVAL_KEY) ?? 0;
+    const festNew = this.festSeen !== undefined && fest > this.festSeen && now - fest < 10000;
+    this.festSeen = fest;
+    if (now - fest < FESTIVAL_MS) changed = true;
     if (this.resume) { this.resume = false; changed = true; } // after a gap: walk on (renderStrip)
     const live = new Set();
     // Where the resting others on agent i's row are, or are headed (read live, so one move frees
@@ -811,6 +834,7 @@ export default class PokemonHerd extends View {
       // Already there: no walk (a zero-length walk would divide 0 by 0 and lose the Pokémon).
       if (!(Math.abs(target - m.x) >= 1)) return;
       if (this.tired) speed *= 0.6;
+      if (boosts["x-speed"]) speed *= 1.6;
       m.from = m.x;
       m.target = target;
       m.dir = target > m.x ? "r" : "l";
@@ -916,6 +940,14 @@ export default class PokemonHerd extends View {
         }
         onStatus(m, m.status, a.status, now, has, msOf); this.count(a, ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
+      // Poké Flute: those asleep wake now (once per use), and all stay up while it lasts.
+      const flute = boosts["poke-flute"];
+      if (flute && m.fluted !== flute) {
+        m.fluted = flute;
+        if (effectiveMood(raw, m, now) === "sleep") { onFocus(m, "sleep", now, has, msOf); changed = true; }
+        m.awakeUntil = Math.max(m.awakeUntil ?? 0, flute);
+      }
+      if (festNew) { onCelebrate(m, now, has, msOf); m.pauseUntil = m.react.until + rand(500, 2000); changed = true; }
       // Asleep, it stirs now and then: up a little while, then back to sleep.
       if (onStir(m, effectiveMood(raw, m, now), now, nightness(date.getHours() + date.getMinutes() / 60) >= 0.5, has, msOf)) changed = true;
       const mood = effectiveMood(raw, m, now);
@@ -960,7 +992,7 @@ export default class PokemonHerd extends View {
         } else if (f >= 1) {
           m.moving = false;
           m.x = m.target;
-          if (!m.backstep) m.pauseUntil = m.shuffle ? now + 5000 : family[a.address] ? now + rand(600, 1500) : now + (mood === "working" ? rand(300, 1800) : rand(4000, 12000));
+          if (!m.backstep) m.pauseUntil = m.shuffle ? now + 5000 : family[a.address] ? now + rand(600, 1500) : now + (mood === "working" ? rand(300, 1800) : boosts["x-speed"] ? rand(800, 2500) : rand(4000, 12000));
           m.shuffle = false;
           m.backstep = false;
           changed = true;
@@ -978,7 +1010,7 @@ export default class PokemonHerd extends View {
         // Instead of strolling on, it sniffs the flowers, basks, looks up at the leaves or shivers.
         m.pauseUntil = m.react.until + rand(3000, 8000);
         changed = true;
-      } else if (mood === "idle" && !reacting && now >= m.pauseUntil && Math.random() < FIDGET_CHANCE && onFidget(m, now, has, msOf)) {
+      } else if (mood === "idle" && !reacting && now >= m.pauseUntil && Math.random() < (boosts["soda-pop"] ? 0.45 : FIDGET_CHANCE) && onFidget(m, now, has, msOf, Math.random, !!boosts["soda-pop"])) {
         // Whatever the season: it nods, sits, looks up, twirls… (whatever its sprite can do).
         m.pauseUntil = m.react.until + rand(3000, 8000);
         changed = true;
@@ -1076,12 +1108,13 @@ export default class PokemonHerd extends View {
       }
     }
     // Sparring: now and then two idle ones standing close have a go, and like each other more.
-    if (settingsNow().spar && Math.random() < SPAR_CHANCE) {
+    const attack = !!boosts["x-attack"]; // X Attack: ten times as often, again after 30 s
+    if (settingsNow().spar && Math.random() < SPAR_CHANCE * (attack ? 10 : 1)) {
       const ready = list.filter((a) => {
         const m = this.mons[a.address];
         return m && m.mood === "idle" && !m.moving && !(m.react && now < m.react.until);
       });
-      const pair = sparPair(ready.map((a) => ({ a, addr: a.address, x: this.mons[a.address].x, row: rowAt(a, list.indexOf(a)), lastSpar: this.mons[a.address].lastSpar })), now);
+      const pair = sparPair(ready.map((a) => ({ a, addr: a.address, x: this.mons[a.address].x, row: rowAt(a, list.indexOf(a)), lastSpar: this.mons[a.address].lastSpar })), now, attack ? BOOST_GAP : undefined);
       if (pair) {
         fight(pair[0].a, this.mons[pair[0].addr], pair[1].a, this.mons[pair[1].addr]);
         if (this.leader) for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
@@ -1132,13 +1165,13 @@ export default class PokemonHerd extends View {
     }
     // Teasing: now and then an idle one walks over to one asleep on its row, pokes it awake and
     // they spar (react.js teasePair, onPoke). One at a time; off with Sparring, and at the campfire.
-    if (settingsNow().spar && !this.campfire && Math.random() < TEASE_CHANCE && !list.some((a) => this.mons[a.address]?.tease)) {
+    if (settingsNow().spar && !this.campfire && Math.random() < TEASE_CHANCE * (attack ? 10 : 1) && !list.some((a) => this.mons[a.address]?.tease)) {
       const cands = list.flatMap((a, j) => {
         const m = this.mons[a.address];
         if (!m || m.moving || family[a.address] || (m.react && now < m.react.until)) return [];
         return [{ addr: a.address, x: m.x, row: rowAt(a, j), mood: m.mood, lastSpar: m.lastSpar }];
       });
-      const pair = teasePair(cands, now);
+      const pair = teasePair(cands, now, attack ? BOOST_GAP : undefined);
       if (pair) {
         const m = this.mons[pair[0].addr];
         m.tease = { victim: pair[1].addr, phase: "walk" };
@@ -1753,6 +1786,31 @@ export default class PokemonHerd extends View {
         .cursor_pointer().on_click(() => this.openMenu())
         .child(`Update ${update}`));
     }
+    // Shop boosts on now: a small pill each in the top-left corner, with the minutes left.
+    const on = Object.entries(loadBoosts(shared(BOOSTS_KEY), now));
+    if (on.length) {
+      root.child(h_flex().absolute().left(6).top(4).gap(4).children(on.map(([id, until]) =>
+        div().id(`boost-${id}`).h(16).px(6).rounded(8).flex().items_center().gap(3).text_size(10)
+          .bg("#00000059").text_color("#ffffff").tooltip(`${ITEMS[id].name}: ${Math.ceil((until - now) / 60000)} min left`)
+          .child(`${ITEMS[id].icon} ${Math.ceil((until - now) / 60000)}m`))));
+    }
+    // A Festival Ticket: bursts of fireworks over the strip, one after another (where and when
+    // from the moment it was used, so every strip and frame agrees).
+    const fest = shared(FESTIVAL_KEY) ?? 0;
+    if (now - fest < FESTIVAL_MS) {
+      const top = g ? g.rows * g.rowH : this.height;
+      for (let k = 0; k < 9; k++) {
+        const seed = Math.sin(fest / 1000 + k * 12.9898) * 43758.5453;
+        const r = seed - Math.floor(seed);
+        const at = fest + k * 550;
+        if (now < at || now > at + 1400) continue;
+        const left = 20 + r * Math.max(40, this.width - 60);
+        const y = 6 + ((r * 7) % 1) * Math.max(10, top * 0.45);
+        root.child(div().id(`firework-${fest}-${k}`).absolute().left(left).top(y).text_size(k % 3 === 0 ? 22 : 16)
+          .loop("opacity", { from: 0.2, to: 1, period: 400 })
+          .child(["🎆", "🎇", "✨"][k % 3]));
+      }
+    }
     this.renderVisitor(root, grounds, scale);
     return root;
   }
@@ -1927,7 +1985,7 @@ export default class PokemonHerd extends View {
   // lightness step up (raised), no borders; the one primary control is ink on paper (solid).
 
   initBag(cx) {
-    this.bagTab = props()?.tab === "box" ? "box" : "items";
+    this.bagTab = ["box", "shop"].includes(props()?.tab) ? props().tab : "items";
     // Renaming one in the Box: its slot, and the field (Enter saves; empty clears the name).
     this.renaming = null;
     this.nickInput = InputState.new({ placeholder: "Nickname (16 letters)" });
@@ -1967,6 +2025,50 @@ export default class PokemonHerd extends View {
     });
   }
 
+  // The Bag's Shop tab: every item and its price; the chosen one, what it does, and Buy.
+  // Pokédollars come from finished jobs (by how long each took).
+  renderShop(b, LIST_H, t, art) {
+    const ids = Object.keys(PRICE);
+    const sel = ids.includes(this.shopSel) ? this.shopSel : "x-speed";
+    const price = PRICE[sel];
+    const n = b.items[sel] ?? 0;
+    const can = (b.money ?? 0) >= price && n < 99;
+    return h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
+      .child(v_flex().id("shop-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
+        .children(ids.map((id) => {
+          const on = id === sel;
+          const afford = (b.money ?? 0) >= PRICE[id];
+          return h_flex().id(`shop-${id}`).h(26).px(8).gap(8).rounded(7).items_center()
+            .bg(on ? t.selected : "#00000000").cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
+            .on_click((_e, cx) => { this.shopSel = id; cx.notify(); })
+            .child(art(ITEMS[id].art, 22))
+            .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(ITEMS[id].name))
+            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(PRICE[id])));
+        })))
+      .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()
+        .child(h_flex().gap(12).items_center()
+          .child(art(ITEMS[sel].art, 56))
+          .child(v_flex().min_w(0).gap(2)
+            .child(div().text_size(14).font_semibold().text_color(t.foreground).child(ITEMS[sel].name))
+            .child(div().text_size(12).text_color(t.muted).child(`${money(price)} · ${n} in the Bag`))))
+        .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
+        .child(div().h(2))
+        .child(h_flex().gap(10).items_center()
+          .child(div().id("shop-buy").h(26).px(14).rounded_full().flex().items_center().flex_none()
+            .text_size(12).font_semibold().bg(can ? t.solid : t.border).text_color(can ? t.solid_foreground : t.dim)
+            .when(can, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
+              const next = buy(bag(), sel);
+              if (next) saveBag(next);
+              cx.notify();
+            }))
+            .child(`Buy for ${money(price)}`))
+          .child(div().text_size(11.5).text_color(t.dim).child(n >= 99 ? "The Bag holds 99 at most."
+            : can ? `You have ${money(b.money)}.` : `${money(price - (b.money ?? 0))} more to go.`)))
+        .child(div().flex_1())
+        .child(div().text_size(11.5).text_color(t.muted)
+          .child("Pokédollars come from jobs: ₽5 and ₽2 a minute each one took (₽150 at most), twice with an Amulet Coin.")));
+  }
+
   // The herd as the Bag sees it: agents with a pane, their saved Pokémon and tags.
   herd(saved = savedPicks()) {
     const tabs = tabsById();
@@ -1990,7 +2092,7 @@ export default class PokemonHerd extends View {
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
-    const LIST_H = ids.length * 26 + 8; // the items list; the panel beside it is held to the same height
+    const LIST_H = 20 * 26 + 8; // the items list (it scrolls); the panel beside it is held to the same height
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
     // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
     const all = badgeProgress(s, b.marks, liveForBadges(saved));
@@ -2022,7 +2124,7 @@ export default class PokemonHerd extends View {
       .child(h_flex().items_start().justify_between().gap(12).flex_none()
         .child(v_flex().min_w(0).gap(3)
           // Items | Box: what's in the Bag, or the Pokémon raised whose agents are gone.
-          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`]].map(([k, txt]) => div()
+          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"]].map(([k, txt]) => div()
             .id(`bag-tab-${k}`).text_size(15).cursor_pointer()
             .when(tab === k, (el) => el.font_semibold().text_color(t.foreground))
             .when(tab !== k, (el) => el.text_color(t.dim).hover((st) => st.text_color(t.muted)))
@@ -2031,15 +2133,17 @@ export default class PokemonHerd extends View {
           .child(div().text_size(12).text_color(first ? t.foreground : t.muted).truncate().child(finding)))
         .child(v_flex().gap(3).items_end().flex_none()
           .child(h_flex().gap(12).items_center()
+            .child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(money(b.money)))
             .child(div().text_size(11.5).text_color(t.muted).child(`${s.jobs} jobs · ${duration(s.ms)} worked`))
             .child(div().text_size(11).text_color(t.dim).child("Esc")))
           // Who did the most: the three species with the most jobs.
           .when(s.top.length > 0, (el) => el.child(div().text_size(11.5).text_color(t.muted)
             .child(`Most jobs: ${s.top.map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(" · ")}`)))))
       .when(tab === "box", (el) => el.child(this.renderBox(boxed, LIST_H, t, icon, herd)))
-      .when(tab !== "box", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
+      .when(tab === "shop", (el) => el.child(this.renderShop(b, LIST_H, t, art)))
+      .when(tab === "items", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
-        .child(v_flex().w(218).flex_none().p(4).gap(0).rounded(10).bg(t.raised)
+        .child(v_flex().id("bag-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
           .children(ids.map((id) => {
             const n = b.items[id] ?? 0;
             const on = id === sel;
@@ -2084,8 +2188,39 @@ export default class PokemonHerd extends View {
                   })
                   .child("Take"));
             }))))
+          // A boost (X Speed, Poké Flute…): one button, for the whole herd.
+          .when(ITEMS[sel].kind === "boost", (el) => {
+            const until = loadBoosts(shared(BOOSTS_KEY), Date.now())[sel];
+            const has = !!b.items[sel];
+            return el.child(div().h(2)).child(h_flex().gap(10).items_center()
+              .child(div().id("use-boost").h(26).px(14).rounded_full().flex().items_center().flex_none()
+                .text_size(12).font_semibold().bg(has ? t.solid : t.border).text_color(has ? t.solid_foreground : t.dim)
+                .when(has, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
+                  const now = Date.now();
+                  saveBag(addItem(bag(), sel, -1));
+                  setShared(BOOSTS_KEY, withBoost(loadBoosts(shared(BOOSTS_KEY), now), sel, now));
+                  cx.notify();
+                }))
+                .child(until ? "Use another (+10 min)" : "Use it"))
+              .child(div().text_size(11.5).text_color(t.dim)
+                .child(until ? `On: ${Math.ceil((until - Date.now()) / 60000)} min left.` : has ? `For ${BOOST_MS / 60000} minutes, the whole herd.` : "None in the Bag: the Shop has them.")));
+          })
+          // A Festival Ticket: fireworks now.
+          .when(sel === "festival-ticket", (el) => {
+            const has = !!b.items[sel];
+            return el.child(div().h(2)).child(h_flex().gap(10).items_center()
+              .child(div().id("use-festival").h(26).px(14).rounded_full().flex().items_center().flex_none()
+                .text_size(12).font_semibold().bg(has ? t.solid : t.border).text_color(has ? t.solid_foreground : t.dim)
+                .when(has, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
+                  saveBag(addItem(bag(), sel, -1));
+                  setShared(FESTIVAL_KEY, Date.now());
+                  cx.notify();
+                }))
+                .child("Start the festival"))
+              .child(div().text_size(11.5).text_color(t.dim).child(has ? "Look at the strip." : "None in the Bag: the Shop has them.")));
+          })
           // An item to use (Honey): one button, no Pokémon to choose.
-          .when(ITEMS[sel].kind === "use", (el) => {
+          .when(sel === "honey", (el) => {
             const off = settingsNow().visitors === "off";
             return el.child(div().h(2)).child(h_flex().gap(10).items_center()
               .child((() => {
@@ -2102,12 +2237,12 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.dim)
                 .child(off ? "Visitors are off (Settings)." : !b.items[sel] ? "None in the Bag yet." : "It walks across within a few seconds.")));
           })
-          .when(ITEMS[sel].kind !== "use", (el) => el.child(div().h(2))
+          .when(!["use", "boost"].includes(ITEMS[sel].kind), (el) => el.child(div().h(2))
           .child(div().text_size(11.5).text_color(t.muted).child("On screen")))
-          .when(ITEMS[sel].kind !== "use" && !(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
-            .child(sel === "rare-candy" ? "None yet. A job over 30 minutes earns one; idle Pokémon sometimes find one."
-              : "None yet. Idle Pokémon find these now and then.")))
-          .when(ITEMS[sel].kind !== "use" && !!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
+          .when(!["use", "boost"].includes(ITEMS[sel].kind) && !(b.items[sel] ?? 0) && !held.length, (el) => el.child(div().text_size(12).text_color(t.dim)
+            .child(sel === "rare-candy" ? "None yet. A job over 30 minutes earns one; idle Pokémon sometimes find one; the Shop sells them."
+              : "None yet. Idle Pokémon find these now and then, and the Shop sells them.")))
+          .when(!["use", "boost"].includes(ITEMS[sel].kind) && !!b.items[sel] && !takers[sel].length, (el) => el.child(div().text_size(12).text_color(t.dim)
             .child(herd.length ? "No one here can use it now." : "No agents on screen.")))
           .child(v_flex().gap(4).children((b.items[sel] ? takers[sel] : []).slice(0, SHOW).map((h) => h_flex().id(`taker-${h.slot}`).h(38).gap(10).items_center()
             .child(icon(h.pick, 32))

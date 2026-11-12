@@ -76,6 +76,16 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
+**Pokédollars and the Shop.** Every job an agent finishes pays: ₽5 and ₽2 a minute it took
+(₽150 at most), twice for a Pokémon holding an Amulet Coin, with "+₽25" over its head. The Bag's
+**Shop** tab sells every item (Oran Berry ₽30, Honey ₽200, stones ₽500, Rare Candy ₽800, items to
+hold ₽1,500) and five for the whole herd: **X Speed** (₽200, 10 min: faster, hardly stopping),
+**Poké Flute** (₽150: wakes everyone and keeps them up 10 min), **X Attack** (₽300, 10 min:
+sparring and teasing again and again), **Soda Pop** (₽150, 10 min: three times the fidgets, and
+dancing) and the **Festival Ticket** (₽250: fireworks, and everyone celebrates). Boosts on now show
+as small pills in the strip's corner with the minutes left. A Bag from before Pokédollars was
+paid once for the jobs already done.
+
 **The Box.** (Its tab in the Bag lists the ones with agents and the ones waiting; Take what one holds, Rename it, Bring one out for an agent you choose, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
 shiny luck. The next agent to get that species (you pick it, or a new agent is given it) gets
 that very Pokémon back; it moves over, so an item is never doubled. In the picker, **📦 Box it**
