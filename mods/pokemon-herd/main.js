@@ -38,6 +38,7 @@ const TAG_LINES = 2; // lines kept under each row for names: fixed, so the groun
 const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
+const MOVED_KEY = `${MOD}-sidebar-moved`; // when cards in the sidebar were moved onto Pokémon Sidebar, once
 const CARDS_KEY = `${MOD}-cards-default`; // when a new player's agents were first put as cards
 const SHIPPED = ["main", "terminals", "win98"];
 // Whether Pokémon Sidebar (this repo's mods/pokemon-sidebar) is installed next to this mod.
@@ -1008,6 +1009,7 @@ export default class PokemonHerd extends View {
       if (!Object.keys(savedPicks()).length) this.firstCards = now;
     }
     if (this.firstCards) this.defaultCards(now);
+    if (this.leader && !this.firstCards && this.sidebarMod && !shared(MOVED_KEY)) this.moveToPokemonSidebar(now);
     if (this.leader && !this.paidBack) { this.paidBack = true; this.backPayOnce(); }
     const { ids, fresh, family } = assignAll(list, { write: this.leader });
     if (this.leader && Object.keys(fresh).length) {
@@ -1577,6 +1579,20 @@ export default class PokemonHerd extends View {
       patchSidebar(this.sidebar === "outdated").then(async () => { this.patching = null; this.sidebar = await sidebarState(); }).catch((e) => { this.patching = String(e?.message ?? e); });
     }
     if (JSON.stringify(next) !== JSON.stringify(tree)) run("layout.set", { layout: next });
+  }
+
+  // Once, after an update brings Pokémon Sidebar: a player whose agents are cards in the sidebar
+  // (the Agents list drawn as cards, a Party list there, or Better Sidebar's patched rows) gets
+  // Pokémon Sidebar in its place, as a new player does. Anyone else (cards off, in the right
+  // panel, a built-in layout) is left as they are: Settings → Agent cards → Sidebar does it.
+  moveToPokemonSidebar(now) {
+    const tree = layout();
+    if (!tree) return;
+    setShared(MOVED_KEY, now);
+    if (SHIPPED.includes(shared("layout")) || usesPokemonSidebar(tree) || !toPokemonSidebar(tree)) return;
+    const betterHere = usesMod(tree, "better-sidebar");
+    const inSidebar = agentsSwapped(tree) || partyPlace(tree) === "sidebar" || (settingsNow().sidebar && betterHere);
+    if (inSidebar) this.setCards("sidebar", tree, betterHere);
   }
 
   // A new player's first run: Agent cards in the sidebar, and Pokémon in notifications. On a built-in layout, a copy of it is

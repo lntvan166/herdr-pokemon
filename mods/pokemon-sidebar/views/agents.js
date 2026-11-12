@@ -18,8 +18,16 @@ import {
   window,
   layout,
   props,
+  openOverlay,
 } from "herdr";
 import { findNode } from "./find-node.js";
+
+// Herdr's own right-click menu for an agent's tab: Rename (the name its card and row show), New
+// tab, Close.
+function tabMenu(a) {
+  if (!a?.tab) return;
+  openOverlay({ mod: "menu", kind: "popup", width: 200, height: 140, props: { tab: "tab", target: { id: a.tab, space: a.space } } });
+}
 import { TEXT, Icon, IconButton, GroupHeader, Menu, MenuLabel, MenuOption } from "./ui.js";
 
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
@@ -561,6 +569,8 @@ export class Agents {
       .gap(4)
       .hover((s) => s.bg(t.hover))
       .on_click(() => run("pane.focus", { pane: a.pane }))
+      // Right-click: Herdr's own menu for its tab (Rename, New tab, Close).
+      .on_mouse_down("right", () => tabMenu(a))
       .child(
         div()
           .flex_1()
@@ -606,6 +616,8 @@ export class Agents {
         cx.notify();
       })
       .on_click(() => run("pane.focus", { pane: a.pane }))
+      // Right-click: Herdr's own menu for its tab (Rename, New tab, Close).
+      .on_mouse_down("right", () => tabMenu(a))
       .when(Boolean(pic), (el) => el.child(this.agentIcon(a, pic, subs)))
       .child(this.agentName(a, view, t))
       .when(Boolean(machine), (el) =>
@@ -736,6 +748,8 @@ export class Agents {
         cx.notify();
       })
       .on_click(() => run("pane.focus", { pane: a.pane }))
+      // Right-click: Herdr's own menu for its tab (Rename, New tab, Close).
+      .on_mouse_down("right", () => tabMenu(a))
       .child(this.agentIcon(a, pic, subs))
       .child(
         v_flex()
