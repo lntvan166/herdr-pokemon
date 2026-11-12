@@ -30,10 +30,10 @@ one and it turns to you, and its name shows what it has done: "Pikachu · api ·
 walking animation, and keeps it. Close an agent and open a new one in the same folder, and it
 gets that folder's Pokémon back, hearts, jobs and all (each folder its own; a subfolder is another). Now and then one is **shiny** (1 in 64). Right-click one, or
 press `alt-shift-p` for the focused agent, to pick another: search by name, number or region,
-or scroll through them all; **right-click** one to preview it (standing, walking, asleep, shiny) before choosing. **☆ Favorite** in that preview makes it a **favourite** (★) (or
+or scroll through them all; click one to preview it (standing, walking, asleep, shiny, its line), and **Replace** there to take it. **☆ Favorite** in that preview makes it a **favourite** (★) (or
 the card's ☆ Favorite, for the one it is now); the ★ chip lists your favourites, and Settings → New agents' Pokémon → Favorites gives each new agent one
 of them. Narrow it to the ones that can **Mega** Evolve, or to one **region**
-(Kanto to Paldea, forms included), or roll **🎲 Random** among what's shown (it prefers a
+(Kanto to Paldea, forms included), or roll **🎲 Random** among what's shown, to preview (it prefers a
 Pokémon nobody else on screen has). The **regional forms** (Alola, Galar, Hisui, Paldea) are there too.
 
 <p align="center"><img src="docs/demo/variety.gif" alt="Pikachu, a shiny Pikachu, Alolan Vulpix and Mega Charizard X" width="440"></p>
@@ -119,7 +119,7 @@ day's Research calls one, and so does the Azure Flute. They're hard: about 15 ba
 flees, and it may get away (over those 15, Poké Balls catch it 4 times in 10, Ultra Balls 6,
 Ultra Balls with Golden Razz Berries 9). Settings → Trainer → Legendary Pokémon → **Unlock all**
 (it asks "Sure?") opens them to everyone. **A shiny caught** lets you choose that species shiny on
-purpose (the picker's preview: ✨ Shiny, then Choose ✨). **Trainer mode** (Settings → Trainer,
+purpose (the picker's preview: ✨ Shiny, then Replace ✨). **Trainer mode** (Settings → Trainer,
 off by default): only what you caught, and the three Kanto starters, can be chosen or come to new
 agents, each a caught one from the Box with its hearts and nature.
 

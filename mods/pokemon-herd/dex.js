@@ -28,7 +28,7 @@ export function fullName(dex, form) {
 }
 
 // Lowercase without accents, so "flabebe" finds Flabébé.
-function fold(s) {
+export function fold(s) {
   let out = s.toLowerCase();
   try {
     out = out.normalize("NFD").replace(/[̀-ͯ]/g, "");

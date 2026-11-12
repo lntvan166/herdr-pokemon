@@ -11,7 +11,7 @@ import { statusChange, record, loadStats, summary, duration, statLine } from "./
 
 const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer } from "./update.js";
-import { hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
+import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
 const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
@@ -2795,7 +2795,7 @@ export default class PokemonHerd extends View {
   renderBox(boxed, h, t, icon, herd = []) {
     const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
     const everyone = [...active, ...boxed];
-    const q = (this.boxQuery ?? "").trim().toLowerCase();
+    const q = fold((this.boxQuery ?? "").trim()); // accents folded: "flabebe" finds Flabébé
     const FILTERS = [
       ["all", "All", () => true],
       ["waiting", "Waiting", (x) => !x.tag],
@@ -2805,7 +2805,7 @@ export default class PokemonHerd extends View {
       ["legend", "Legendary", (x) => isLegendary(x.pick.dex)],
     ];
     const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
-    const shown = everyone.filter(filter[2]).filter((x) => !q || nameFor(x.pick).toLowerCase().includes(q) || (x.tag ?? "").toLowerCase().includes(q));
+    const shown = everyone.filter(filter[2]).filter((x) => !q || fold(nameFor(x.pick)).includes(q) || fold(x.tag ?? "").includes(q) || fold(natureOf(x.pick)?.name ?? "").includes(q));
     const sel = everyone.find((x) => x.slot === this.boxSel) ?? null;
     const chip = (id, label, on, click) => div().id(id).h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
       .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")
@@ -2913,9 +2913,10 @@ export default class PokemonHerd extends View {
       this.fetchIcons(cx);
       cx.notify();
     });
-    this.input.on("submit", () => {
+    // Enter with one match: its preview (Replace there chooses it).
+    this.input.on("submit", (_e, cx) => {
       const { entries, total } = searchEntries(this.input.value(), 2, this.searchOnly());
-      if (total === 1 && !this.locked(entries[0])) this.choose(entries[0]);
+      if (total === 1) this.showPreview(entries[0], cx);
     });
     this.input.focus();
     cx.timer.after(300, () => this.input.focus());
@@ -3021,11 +3022,12 @@ export default class PokemonHerd extends View {
     closeOverlay(p.overlay);
   }
 
-  chooseRandom(entries) {
+  // 🎲: a random one, previewed (Replace there chooses it; 🎲 again for another).
+  chooseRandom(entries, cx) {
     const p = props();
     const taken = new Set(Object.entries(savedPicks()).filter(([slot]) => slot !== p.slot).map(([, x]) => x.dex));
-    const e = randomEntry(entries.filter((x) => !this.locked(x)), p.current, taken);
-    if (e) this.choose(e, this.boxing ? { fresh: true } : {});
+    const e = randomEntry(entries.filter((x) => !this.locked(x) && !(this.preview && x.dex === this.preview.dex && (x.form ?? null) === (this.preview.form ?? null))), p.current, taken);
+    if (e) this.showPreview(e, cx);
   }
 
   // Saves the picker's Mega mode and X/Y on the current pick, together (one never drops the other).
@@ -3103,7 +3105,7 @@ export default class PokemonHerd extends View {
               .id(`evo-${entryKey(e)}`).items_center().flex_none().rounded(6).px(branchy ? 0 : 4).py(2)
               .border_1().border_color(isCur(e) ? t.accent : "#00000000").bg(isCur(e) ? t.selected : "#00000000")
               .cursor_pointer().hover((s2) => s2.bg(t.hover))
-              .on_click(() => { if (!isCur(e)) this.choose(e); })
+              .on_click((_e, cx) => { if (!isCur(e)) this.showPreview(e, cx); })
               .child(icon(e, branchy ? 30 : 36))
               .when(!branchy, (el2) => el2.child(div().text_size(10.5).text_color(t.muted).child(fullName(e.dex, e.form))))),
           ])),
@@ -3162,7 +3164,7 @@ export default class PokemonHerd extends View {
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
           .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research calls one), or open them all in Settings."
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
-            : "Preview: right-click another to see it")))
+            : "Preview: click another to see it, or Replace to take this one")))
         // Favourites are starred here (or on the card, for the one it is).
         .child((() => {
           const on = isFavorite(favs(), pv);
@@ -3171,12 +3173,21 @@ export default class PokemonHerd extends View {
         .when(hasShiny(pv.dex, pv.form), (el) => el.child(button("preview-shiny", "✨ Shiny", pv.shiny, (_e, cx) => this.showPreview(pv, cx, !pv.shiny))))
         .when(this.locked(pv), (el) => el.child(div().h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).text_color(t.muted).border_1().border_color(t.border)
           .child("🔒 Catch one to use it")))
-        .when(!this.locked(pv), (el) => el.child(button("preview-choose", `${this.boxing ? "Choose a new one" : "Choose"}${pv.shiny && shinyUnlocked(pokedex(), pv.dex) && !pv.form ? " ✨" : ""}`, false, () => {
-          const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) };
-          const shiny = pv.shiny && !pv.form;
-          this.preview = null;
-          this.choose(e, { ...(this.boxing ? { fresh: true } : {}), shiny });
-        })))
+        // The one control that changes the agent's Pokémon: ink on paper.
+        .when(!this.locked(pv), (el) => {
+          const cur = this.livePick();
+          const same = cur && cur.dex === pv.dex && (cur.form ?? null) === (pv.form ?? null);
+          const label = this.boxing ? "Choose a new one" : same ? "Keep it" : cur?.dex ? `Replace ${cur.nick ?? nameOf(cur.dex)}` : "Choose";
+          return el.child(div().id("preview-choose").h(26).px(12).rounded_full().flex().items_center().flex_none()
+            .text_size(12).font_semibold().bg(t.solid).text_color(t.solid_foreground).cursor_pointer()
+            .on_click(() => {
+              const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) };
+              const shiny = pv.shiny && !pv.form;
+              this.preview = null;
+              this.choose(e, { ...(this.boxing ? { fresh: true } : {}), shiny });
+            })
+            .child(`${label}${pv.shiny && shinyUnlocked(pokedex(), pv.dex) && !pv.form ? " ✨" : ""}`));
+        })
         .child(button("preview-close", "✕", false, (_e, cx) => { this.preview = null; cx.notify(); })))
       .when(inBox.length > 0, (el) => el.child(v_flex().gap(4)
         .child(div().text_size(11).text_color(t.muted).child(`In the Box (${inBox.length})`))
@@ -3283,7 +3294,7 @@ export default class PokemonHerd extends View {
               .child(div()
                 .id("pick-random").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
                 .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-                .on_click(() => this.chooseRandom(all))
+                .on_click((_e, cx) => this.chooseRandom(all, cx))
                 .child(narrowed ? "🎲 Random match" : "🎲 Random"))
               .child(div().text_size(11).text_color(t.dim).child("Esc")),
           ),
@@ -3372,7 +3383,7 @@ export default class PokemonHerd extends View {
             }
             return rows;
           }).size_full().cursor_pointer()
-          // Right-click: a preview of that one (how it stands, walks and sleeps) in the card's place.
+          // A click (or a right-click): a preview of that one (how it stands, walks and sleeps) in the card's place.
           .on_item_secondary_click((key, _e, cx) => {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
@@ -3382,8 +3393,7 @@ export default class PokemonHerd extends View {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
             if (!(col >= 0 && col < PICK_COLS && e)) return;
-            if (this.locked(e)) { this.showPreview(e, cx); return; } // why it can't be chosen
-            this.choose(e, this.boxing ? { fresh: true } : {});
+            this.showPreview(e, cx); // a click previews it; Replace there chooses it
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
