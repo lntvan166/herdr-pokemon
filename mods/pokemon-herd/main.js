@@ -168,6 +168,23 @@ function charmOdds() {
   if (Date.now() - odds.at > 60000) odds = { v: shinyOdds(summary(stats(), 0).jobs), at: Date.now() };
   return odds.v;
 }
+// Bring out: the boxed Pokémon `boxSlot` goes to `pane` (the picker's In the Box, the Bag's Box
+// tab). The one there goes to the Box if raised (the same species too); its Everstone stays with
+// the pane, and what it holds too unless the boxed one holds something (then it goes back into
+// the Bag). `mega`: the Mega setting to give it (the picker's), else its own. False if it's gone.
+function bringOut(boxSlot, pane, mega) {
+  const saved = savedPicks();
+  const b = saved[boxSlot];
+  if (!b || boxSlot === pane) return false;
+  const cur = saved[pane];
+  if (cur?.held && b.held) saveBag(addItem(bag(), cur.held));
+  const next = { ...b, ...(mega ? { mega } : {}), ...(b.held || !cur?.held ? {} : { held: cur.held }), ...(cur?.stay ? { stay: true } : {}) };
+  const away = cur ? boxOnSwitch(cur, b, Date.now(), { same: true }) : null;
+  savePicks({ ...(away ? { [away.key]: away.pick } : {}), [pane]: next });
+  forgetPanes([boxSlot]);
+  return true;
+}
+
 // One pane's saved Pokémon, changed by f (null: leave it). Returns the new one.
 function updatePick(slot, f) {
   const cur = slot && savedPicks()[slot];
@@ -1994,6 +2011,11 @@ export default class PokemonHerd extends View {
             cx.notify();
           })
           .child(this.renaming === slot ? "Cancel" : "Rename"))
+        // Bring out: then which agent gets it (the agents on screen, with what they have now).
+        .when(!tag && herd.length > 0, (el) => el.child(div().id(`box-bring-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+          .border_color(this.bringing === slot ? t.accent : t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+          .on_click((_e, cx) => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; cx.notify(); })
+          .child(this.bringing === slot ? "Cancel" : "Bring out")))
         .when(!tag, (el) => el.child(div().id(`box-release-${slot}`).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
           .border_color(sure ? t.blocked : t.border).text_color(sure ? t.blocked : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
           .on_click((_e, cx) => {
@@ -2009,12 +2031,22 @@ export default class PokemonHerd extends View {
     // With agents now: the raised ones on screen, to see the whole herd in one place.
     const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
     const head = (txt) => div().px(10).pt(6).pb(2).text_size(11.5).text_color(t.muted).child(txt);
+    // Under the one being brought out: the agents to give it to; one click swaps them.
+    const chooser = (slot) => v_flex().id(`box-to-${slot}`).gap(4).px(10).pb(6).flex_none()
+      .child(div().text_size(11).text_color(t.muted).child("Give it to:"))
+      .child(h_flex().flex_wrap().gap(6).children(herd.map((x) => div().id(`box-to-${slot}-${x.slot}`)
+        .h(26).px(8).gap(6).rounded(6).flex().items_center().flex_none().border_1().border_color(t.border)
+        .text_size(11.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+        .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; cx.notify(); })
+        .child(icon(x.pick, 20))
+        .child(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`))));
+    const waiting = (x) => (this.bringing === x.slot ? [row(x), chooser(x.slot)] : [row(x)]);
     return v_flex().id("bag-box").flex_none().h(h).p(6).gap(2).rounded(10).bg(t.raised).overflow_y_scrollbar()
       .when(active.length > 0, (el) => el.child(head(`With agents ${active.length}`)).children(active.map(row)))
       .child(head(`Waiting ${boxed.length}`))
       .when(!boxed.length, (el) => el.child(div().px(10).py(6).text_size(12).text_color(t.dim)
         .child("None. Close an agent whose Pokémon you raised (hearts, jobs, an item), or pick another for it, and it waits here for the next agent to get its species.")))
-      .children(boxed.map(row));
+      .children(boxed.flatMap(waiting));
   }
 
   // An item's sprite in the Bag (its emoji till it's in).
@@ -2109,8 +2141,13 @@ export default class PokemonHerd extends View {
     const p = props();
     const cur = this.livePick() ?? p.current;
     // The one it is already: keep it as it is (choosing it again would start its hearts and jobs over).
+    if (how.slot) {
+      const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
+      if (!onScreen.has(how.slot) && bringOut(how.slot, p.slot, this.megaMode)) closeOverlay(p.overlay);
+      return;
+    }
     const same = cur && cur.dex === entry.dex && (cur.form ?? null) === (entry.form ?? null);
-    if (same && !how.fresh && !how.slot) return closeOverlay(p.overlay);
+    if (same && !how.fresh) return closeOverlay(p.overlay);
     // A new one: what it holds and its Everstone stay with the pane, its Mega setting carries
     // over (X or Y if it stays the same species), and it rolls for a shiny of its own.
     let next = switchedPick(cur, entry, this.megaMode, this.megaKind, rollShiny(entry, charmOdds()));
@@ -2118,16 +2155,13 @@ export default class PokemonHerd extends View {
     // jobs, item, shiny); if both hold something, this pane's item goes back into the Bag.
     const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
     const saved = savedPicks();
-    const boxed = how.fresh ? null
-      : how.slot ? (saved[how.slot] && !onScreen.has(how.slot) && how.slot !== p.slot ? { slot: how.slot, pick: saved[how.slot] } : null)
-      : fromBox(entry, saved, onScreen, p.slot);
-    if (how.slot && !boxed) return; // gone from the Box meanwhile
+    const boxed = how.fresh ? null : fromBox(entry, saved, onScreen, p.slot);
     if (boxed) {
       if (cur?.held && boxed.pick.held) saveBag(addItem(bag(), cur.held));
       next = { ...boxed.pick, mega: this.megaMode, ...(boxed.pick.held || !cur?.held ? {} : { held: cur.held }), ...(cur?.stay ? { stay: true } : {}) };
     }
     // The one it was, if raised (any, with Box it), waits in the Box (not overwritten).
-    const away = boxOnSwitch(cur, entry, Date.now(), { same: !!(how.fresh || how.slot), all: !!how.fresh });
+    const away = boxOnSwitch(cur, entry, Date.now(), { same: !!how.fresh, all: !!how.fresh });
     savePicks({ ...(away ? { [away.key]: away.pick } : {}), [p.slot]: next });
     if (boxed) forgetPanes([boxed.slot]);
     closeOverlay(p.overlay);

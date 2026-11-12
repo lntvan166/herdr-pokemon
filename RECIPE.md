@@ -292,8 +292,10 @@ forms, and Mega Evolution while an agent works.
   `renderBox`): two parts, "With agents n" (raised Pokémon on screen now; no Release) and
   "Waiting n" (raised ones whose agents are gone, latest first), on a 46 px pitch in a
   scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/10 jobs · Everstone",
-  what it holds (its sprite, and Take: back into the Bag), Rename, and Release (asks "Sure?";
-  what it held goes back into the Bag; the pane is forgotten).
+  what it holds (its sprite, and Take: back into the Bag), Rename, Bring out (waiting ones; then
+  "Give it to:" chips, one per agent on screen with its Pokémon, "api: Pikachu"; a click swaps
+  them through `bringOut`, the same as the picker's), and Release (asks "Sure?"; what it held
+  goes back into the Bag; the pane is forgotten).
 - **Nicknames** (`cleanNick`, `nameFor` in `picks.js`; a pick's `nick`): Rename in the Box
   opens a text field (Enter saves; empty clears). The nickname replaces the species name on the
   strip's hover tag, the sidebar cards, the Party, the Bag's rows and the picker.
