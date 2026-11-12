@@ -2560,7 +2560,7 @@ export default class PokemonHerd extends View {
         .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
         .child(div().h(2))
         // How many: − n +, then ×1 ×5 ×10 and Max (what the money and the Bag allow).
-        .child(h_flex().gap(4).items_center()
+        .child(h_flex().flex_wrap().gap(4).items_center()
           .child(step("shop-less", "−", Math.max(1, qty - 1), qty > 1))
           .child(div().w(36).text_center().text_size(13).font_semibold().text_color(t.foreground).child(String(qty)))
           .child(step("shop-more", "+", qty + 1, qty < most))
@@ -2576,7 +2576,7 @@ export default class PokemonHerd extends View {
               cx.notify();
             }))
             .child(`Buy ${qty} for ${money(price * qty)}`))
-          .child(div().text_size(11.5).text_color(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? t.accent : t.dim)
+          .child(div().flex_1().min_w(0).text_size(11.5).text_color(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? t.accent : t.dim)
             .child(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? `Bought ${this.bought.n}.`
               : have >= 99 ? "The Bag holds 99 at most."
               : can ? `You have ${money(b.money)}.` : `${money(price * qty - (b.money ?? 0))} more to go.`)))
@@ -2744,7 +2744,7 @@ export default class PokemonHerd extends View {
                   cx.notify();
                 }))
                 .child(until ? "Use another (+10 min)" : "Use it"))
-              .child(div().text_size(11.5).text_color(t.dim)
+              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim)
                 .child(until ? `On: ${Math.ceil((until - Date.now()) / 60000)} min left.` : has ? `For ${BOOST_MS / 60000} minutes, the whole herd.` : "None in the Bag: the Shop has them.")));
           })
           // A Poké Ball: thrown from the strip, at a wild Pokémon walking by; this one, or Auto.
@@ -2756,7 +2756,7 @@ export default class PokemonHerd extends View {
                 .text_size(12).font_semibold().bg(on || has ? t.solid : t.border).text_color(on || has ? t.solid_foreground : t.dim)
                 .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BALL_KEY, on ? null : sel); cx.notify(); }))
                 .child(on ? "Back to Auto" : "Throw this one"))
-              .child(div().text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest, the best for a shiny, a Master Ball only for a legendary. Right-click a wild one to switch.")));
+              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest, the best for a shiny, a Master Ball only for a legendary. Right-click a wild one to switch.")));
           })
           .when(ITEMS[sel].kind === "ball", (el) => el
             .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: 1 in 20 flee.`))
@@ -2770,7 +2770,7 @@ export default class PokemonHerd extends View {
                 .text_size(12).font_semibold().bg(on || has ? t.solid : t.border).text_color(on || has ? t.solid_foreground : t.dim)
                 .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BAIT_KEY, on ? null : sel); cx.notify(); }))
                 .child(on ? "Stop feeding" : "Feed before each ball"))
-              .child(div().text_size(11.5).text_color(t.dim)
+              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim)
                 .child(on ? (has ? "On: one goes before each ball you throw." : "On, but none left.") : has ? "One goes before each ball, till you stop or run out." : "None in the Bag: the Shop has them.")));
           })
           // A Festival Ticket: fireworks now.
@@ -2785,7 +2785,7 @@ export default class PokemonHerd extends View {
                   cx.notify();
                 }))
                 .child("Start the festival"))
-              .child(div().text_size(11.5).text_color(t.dim).child(has ? "Look at the strip." : "None in the Bag: the Shop has them.")));
+              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim).child(has ? "Look at the strip." : "None in the Bag: the Shop has them.")));
           })
           // An item to use (Honey): one button, no Pokémon to choose.
           .when(sel === "honey" || sel === "azure-flute", (el) => {
@@ -2802,7 +2802,7 @@ export default class PokemonHerd extends View {
                   }))
                   .child(sel === "honey" ? "Call one now" : "Call a legendary");
               })())
-              .child(div().text_size(11.5).text_color(t.dim)
+              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim)
                 .child(off ? "Visitors are off (Settings)." : !b.items[sel] ? "None in the Bag yet." : "It walks across within a few seconds.")));
           })
           .when(!["use", "boost", "ball", "bait"].includes(ITEMS[sel].kind), (el) => el.child(div().h(2))
