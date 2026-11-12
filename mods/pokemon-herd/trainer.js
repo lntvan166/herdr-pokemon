@@ -71,9 +71,13 @@ export function ballFor(items, pick, chosen = null) {
 // Each wild Pokémon walking by carries Pokédollars too, shown over its head, taken with its gift:
 // ₽10–30 mostly, 1 in 10 ₽60–100, a shiny ₽150, a legendary ₽400. (At "Often", 8 hours bring
 // ~90 visitors; clicking 20 of them is about ₽500.)
-export function purse(pick, rnd = Math.random) {
+// `chance`: how many carry one at all, by the visitors' pace (PURSE_CHANCE), so the day's cap
+// lasts the day: every one at Rare, 1 in 2 at Often, 1 in 3 at Lots. A shiny or a legendary always does.
+export const PURSE_CHANCE = { rare: 1, often: 1 / 2, lots: 1 / 3 };
+export function purse(pick, rnd = Math.random, chance = 1) {
   if (isLegendary(pick.dex)) return 400;
   if (pick.shiny) return 150;
+  if (chance < 1 && rnd() >= chance) return 0;
   return rnd() < 0.1 ? 60 + Math.floor(rnd() * 41) : 10 + Math.floor(rnd() * 21);
 }
 // What a pat (when it gives a heart), a spar you set up and a spar you watch pay.

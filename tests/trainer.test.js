@@ -183,3 +183,13 @@ test("purses and tips stop at the day's cap", () => {
   assert.equal(allowance({ count: { top: {} } }, "tip", 10), 10);
   assert.equal(progress({ ...loadDaily(null, 0), tasks: [] }, "tip", 10).daily.count.tip, 10);
 });
+
+import { PURSE_CHANCE } from "../mods/pokemon-herd/trainer.js";
+test("purses by the visitors' pace: fewer when they come often", () => {
+  let n = 0;
+  for (let i = 0; i < 3000; i++) if (purse({ dex: 25 }, Math.random, PURSE_CHANCE.lots)) n++;
+  assert.ok(n > 800 && n < 1200, String(n));
+  assert.equal(purse({ dex: 150 }, () => 0.99, PURSE_CHANCE.lots), 400);
+  assert.equal(purse({ dex: 25, shiny: true }, () => 0.99, PURSE_CHANCE.lots), 150);
+  assert.ok(purse({ dex: 25 }, () => 0.99, PURSE_CHANCE.rare) > 0);
+});

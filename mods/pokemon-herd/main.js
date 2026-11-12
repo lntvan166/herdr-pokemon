@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { BALLS, BAIT, LEGEND_THROWS, purse, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -711,7 +711,7 @@ export default class PokemonHerd extends View {
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
       // kept that one's picture: only its 🎁 showed).
       // Its purse, shown over its head while the day's purses last.
-      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
+      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
       this.want(pick, cx);
     }
     if (!v) return false;
@@ -1458,8 +1458,8 @@ export default class PokemonHerd extends View {
     const update = this.update();
     const m = menuParts();
     // Rows of 30, the chip sections 46 each, a divider, the update note.
-    const height = 16 + 30 * (3 + m.calls.length) + (m.balls.length ? 46 : 0) + (m.baits.length ? 46 : 0) + 10 + (update ? 56 : 0);
-    openOverlay({ mod: MOD, kind: "popup", width: 320, height, props: { menu: true, update } });
+    const height = 16 + 30 * (3 + m.calls.length) + (m.balls.length ? 46 : 0) + (m.baits.length ? 46 : 0) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
+    openOverlay({ mod: MOD, kind: "popup", width: 380, height, props: { menu: true, update } }); // room for every ball and Berry, with icons
   }
 
   // The right-click menu: the Box (with the Bag, Shop, Today and Pokédex) and Settings, each a
@@ -1487,12 +1487,14 @@ export default class PokemonHerd extends View {
         .border_color(v === cur ? t.accent : t.border).bg(v === cur ? t.selected : "#00000000")
         .text_color(v === cur ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
         .on_click((_e, cx) => { pick(v); cx.notify(); })
+        .when(!!v, (e2) => e2.gap(3).pl(4).child(this.itemMark(v, 16)))
         .child(txt))));
     const short = (id) => ITEMS[id].name.replace(/ Ball$| Berry$/, "").replace("Golden ", "G. ").replace("Silver ", "S. ");
     return v_flex()
       .id("pokemon-menu").size_full().p(8).gap(2).bg(t.popover)
       .child(row("open-bag", "Box", `${boxCount()} Pokémon · ${n} item${n === 1 ? "" : "s"} · ${got}/8`, () => openBag("box")))
       .child(row("open-today", "Today", `Research ${done}/${daily.tasks.length} · ${money(b.money)}`, () => openBag("today")))
+      .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
       .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", "Ball to throw", [[null, "Auto"], ...m.balls.map((id) => [id, `${short(id)} ${b.items[id]}`])], m.ball,
         (v) => setShared(BALL_KEY, v))))
       .when(m.baits.length > 0, (el) => el.child(chips("menu-bait", "Berry before each ball", [[null, "None"], ...m.baits.map((id) => [id, `${short(id)} ${b.items[id]}`])], m.bait,
