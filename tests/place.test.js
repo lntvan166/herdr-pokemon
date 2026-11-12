@@ -192,3 +192,30 @@ test("notifications: the layout root's toast", () => {
   assert.equal(toastMod(on), "pokemon-herd");
   assert.deepEqual(setToast(on, null), tree);
 });
+
+import { toPokemonSidebar, fromPokemonSidebar, usesPokemonSidebar } from "../mods/pokemon-herd/place.js";
+test("Pokémon Sidebar: takes the spaces list, hides the Agents list, and gives both back", () => {
+  const main = { type: "column", children: [
+    { id: "spaces", type: "block", content: { mod: "spaces" }, size: { weight: 1 } },
+    { id: "agents", type: "block", content: { mod: "agents" }, size: { weight: 1 } },
+    { id: "foot", type: "block", content: { mod: "workspace-chrome", props: { footer: true } } },
+  ] };
+  const on = toPokemonSidebar(main);
+  assert.ok(usesPokemonSidebar(on));
+  assert.deepEqual(on.children[0].content, { mod: "pokemon-sidebar", props: { view: "lists", was: { mod: "spaces" } } });
+  assert.equal(on.children[0].size.weight, 1);
+  assert.equal(on.children[1].hidden, true);
+  assert.deepEqual(on.children[2].content, main.children[2].content);
+  assert.deepEqual(fromPokemonSidebar(on), main);
+  assert.deepEqual(toPokemonSidebar(on), on); // already there
+  // Better Sidebar's lists and footer become Pokémon Sidebar's.
+  const better = { type: "column", children: [
+    { id: "spaces", type: "block", content: { mod: "better-sidebar", props: { view: "lists" } } },
+    { id: "sidebar-footer", type: "block", content: { mod: "better-sidebar", props: { view: "footer" } } },
+  ] };
+  const b = toPokemonSidebar(better);
+  assert.equal(b.children[1].content.mod, "pokemon-sidebar");
+  assert.equal(b.children[1].content.props.view, "footer");
+  assert.deepEqual(fromPokemonSidebar(b), better);
+  assert.equal(toPokemonSidebar({ type: "column", children: [] }), null); // no spaces list
+});

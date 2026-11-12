@@ -80,3 +80,23 @@ test("updateScript: no copy runs this version: every copy of this repo is update
   const empty = fake();
   assert.throws(() => execFileSync("sh", ["-c", updateScript({ app: empty.app, repo: "lntvan166/herdr-pokemon", running: "1.0.0", source: empty.src })], { stdio: "pipe" }));
 });
+
+test("updateScript: Pokémon Sidebar beside it is installed, then updated keeping its settings", () => {
+  const f = fake();
+  const mine = f.copy("pokemon-herd", "pokemon-herd", "1.6.1");
+  const side = join(f.root, "release", "mods", "pokemon-sidebar");
+  mkdirSync(join(side, "views"), { recursive: true });
+  writeFileSync(join(side, "main.js"), "// sidebar\n");
+  writeFileSync(join(side, "views", "agents.js"), "// cards\n");
+  writeFileSync(join(side, "mod.json"), '{\n  "version": "1.1.0",\n  "title": "Pokémon Sidebar"\n}\n');
+  const to = join(f.app, "mods", "pokemon-sidebar");
+  let out = run(updateScript({ app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.6.1", source: f.src }));
+  assert.equal(out.trim(), `${mine} 1.9.0\n${to} 1.1.0`);
+  assert.equal(read(join(to, "views", "agents.js"), "utf8"), "// cards\n");
+  // The person's settings stay; the version moves on.
+  writeFileSync(join(to, "mod.json"), '{\n  "version": "1.0.0",\n  "settings": { "combined": false }\n}\n');
+  run(updateScript({ app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.9.0", source: f.src }));
+  const json = JSON.parse(read(join(to, "mod.json"), "utf8"));
+  assert.equal(json.version, "1.1.0");
+  assert.deepEqual(json.settings, { combined: false });
+});

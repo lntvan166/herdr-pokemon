@@ -65,7 +65,13 @@ often.
 layouts a copy of it is made first, yours to change), and so are Pokémon in notifications. Settings → Agent cards → **Sidebar**, and every agent is its Pokémon's card: the
 agent's name, large; the card's edge in its status colour (working, done, pulsing red while it
 needs you); its Pokémon, hearts and how close it is to evolving. Click one to focus that agent.
-It changes the sidebar you have rather than adding to it: Herdr's own Agents list is drawn as
+**Pokémon Sidebar** comes with it (`mods/pokemon-sidebar`, a fork of
+[Better Sidebar](https://github.com/munza/herdr-mods) by Tawsif Aqib, Apache-2.0): your spaces and
+their agents in one list, each agent as its Pokémon's card (hearts and evolving on one line, ⚔ when
+another agent works in the same folder, a bar on the focused one), and collapsed, a rail of each
+space's letter with its agents' Pokémon beneath it. When it is installed, **Sidebar** puts it in
+place of the sidebar's spaces and Agents lists; Off puts them back. Without it,
+it changes the sidebar you have rather than adding to it: Herdr's own Agents list is drawn as
 cards, in the same place, in its sections (Needs you, Done, Working, Idle); with
 [Better Sidebar](https://herdr.dev/mods), its own rows become the cards (it gets a small patch,
 applied for you). **Right panel** puts the same list in the right panel instead. Off by
@@ -167,7 +173,7 @@ In Herdr, the easiest way is to ask your agent to add `herdr.dev/mods/lntvan166/
 ```sh
 git clone https://github.com/lntvan166/herdr-pokemon
 cd herdr-pokemon
-scripts/install.sh   # copies mods/pokemon-herd into ~/.config/herdr-app/mods/ and checks it
+scripts/install.sh   # copies mods/pokemon-herd and mods/pokemon-sidebar into ~/.config/herdr-app/mods/
 ```
 
 Herdr docks a strip at the bottom of the window the first time it sees the mod. Right-click

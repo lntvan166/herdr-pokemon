@@ -31,6 +31,8 @@ and `herdr-app check mods/pokemon-herd` checks it without installing.
   `react.js` (reactions, battles), `items.js` (the Bag, Pokédollars, the Shop), `scene.js` (the
   sky), `tags.js`, `rest.js`, `wrap.js`, `place.js` (layouts), `stats.js`, `settings.js`,
   `update.js`, `types.js`, `dex.js` / `species.js` (generated).
+- `mods/pokemon-sidebar/`: Pokémon Sidebar, a fork of Better Sidebar (Apache-2.0: keep its
+  LICENSE and NOTICE, and add what you change to NOTICE). Its tests are in `tests/sidebar/`.
 - `sprites.js`: downloads and cuts the sprites (bump its `VERSION` when the cut changes, so caches
   are rebuilt).
 - [RECIPE.md](RECIPE.md) describes how everything behaves, numbers included. Keep it in step with

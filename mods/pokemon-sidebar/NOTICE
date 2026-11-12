@@ -1,0 +1,20 @@
+Pokémon Sidebar
+Copyright 2026 lntvan166
+
+This mod is a modified copy of Better Sidebar 3.3.0, part of Herdr Mods
+(https://github.com/munza/herdr-mods), Copyright 2026 Tawsif Aqib, licensed
+under the Apache License, Version 2.0 (LICENSE, beside this file).
+
+Better Sidebar adapts code from Herdr Desktop's shipped spaces and agents mods.
+Its bundled navigation and pull-request SVG icons are also adapted from
+Herdr Desktop (https://github.com/herdrdev/herdr-app, Apache License 2.0).
+
+Changes made here (2026):
+- Renamed to pokemon-sidebar (its settings, icons and shared state under that name).
+- Each agent drawn as its Pokémon's card, from Pokémon herd's shared "agent-cards":
+  the agent's name large, the card's edge in its status colour, the Pokémon's
+  portrait, hearts and how close it is to evolving on one line, a ⚔ mark (with who,
+  on hover) when another agent works in the same folder, and a bar on the focused card.
+- The collapsed rail: each space's letter with its agents beneath it, each as its
+  Pokémon (shared "agent-icons") with a dot in its status colour; their names and
+  times on hover.

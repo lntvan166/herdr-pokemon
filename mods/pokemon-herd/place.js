@@ -171,3 +171,43 @@ export function setToast(tree, mod) {
   else delete out.toast;
   return out;
 }
+
+// ---- Pokémon Sidebar (mods/pokemon-sidebar, a fork of Better Sidebar with the cards built in):
+// the sidebar's spaces list becomes its "lists" view (spaces with their agents as cards), the
+// Agents list beside it is hidden, and Better Sidebar's footer becomes its own. Each node keeps
+// its id, place and size, and what it had (`was`), so it can be put back.
+export const SIDEBAR_MOD = "pokemon-sidebar";
+const walk = (node, f) => {
+  if (!node || typeof node !== "object") return;
+  f(node);
+  for (const c of node.children ?? []) walk(c, f);
+};
+const isBlock = (n) => n.type === "block" && n.content;
+const isSpacesList = (n) => isBlock(n) && (n.content.mod === "spaces" || (n.content.mod === "better-sidebar" && ["lists", undefined, "spaces"].includes(n.content.props?.view)));
+const isAgentsList = (n) => isBlock(n) && (n.content.mod === "agents" || (n.content.mod === "better-sidebar" && n.content.props?.view === "agents") || isSwapped(n));
+const isOldFooter = (n) => isBlock(n) && n.content.mod === "better-sidebar" && n.content.props?.view === "footer";
+
+export const usesPokemonSidebar = (tree) => !!find(tree, (n) => isBlock(n) && n.content.mod === SIDEBAR_MOD && n.content.props?.view === "lists");
+
+// A copy of the tree with Pokémon Sidebar in place (null: no spaces list to put it in).
+export function toPokemonSidebar(tree) {
+  const out = JSON.parse(JSON.stringify(tree));
+  if (usesPokemonSidebar(out)) return out;
+  if (!find(out, isSpacesList)) return null;
+  walk(out, (n) => {
+    if (isSpacesList(n)) n.content = { mod: SIDEBAR_MOD, props: { view: "lists", was: n.content } };
+    else if (isAgentsList(n) && !n.hidden) { n.hidden = true; n.hiddenFor = SIDEBAR_MOD; }
+    else if (isOldFooter(n)) n.content = { mod: SIDEBAR_MOD, props: { view: "footer", was: n.content } };
+  });
+  return out;
+}
+
+// A copy of the tree with what Pokémon Sidebar took put back (unchanged when it isn't there).
+export function fromPokemonSidebar(tree) {
+  const out = JSON.parse(JSON.stringify(tree));
+  walk(out, (n) => {
+    if (isBlock(n) && n.content.mod === SIDEBAR_MOD && n.content.props?.was) n.content = n.content.props.was;
+    if (n.hiddenFor === SIDEBAR_MOD) { delete n.hidden; delete n.hiddenFor; }
+  });
+  return out;
+}

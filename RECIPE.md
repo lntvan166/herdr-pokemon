@@ -10,10 +10,15 @@ forms, and Mega Evolution while an agent works.
 
 ## After installing it, tell the user how to use it
 
+(Install both folders of the repo's `mods/`: `pokemon-herd` and `pokemon-sidebar`, as
+`scripts/install.sh` does. Keep an installed `pokemon-sidebar/mod.json`: it holds the person's
+settings.)
+
 An agent that installs this mod finishes by telling the user, briefly, in their language:
 
-- **The strip** shows up at the bottom of the window (a new player's agents also show as cards in
-  the sidebar). Each agent is a Pokémon; its name is under its feet.
+- **The strip** shows up at the bottom of the window. A new player's sidebar becomes **Pokémon
+  Sidebar** (spaces with their agents as cards; collapsed, their Pokémon), and notifications show
+  the agent's Pokémon. Each agent is a Pokémon; its name is under its feet.
 - **Click a Pokémon** to jump to its agent. **Hover** for its name, hearts and jobs.
 - **Right-click a Pokémon** to change it: search all 974, Random, Box it (keep this one, get a
   new one), right-click one in the list to preview it.
@@ -464,6 +469,14 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
 
 ## Built from
 
+- **Pokémon Sidebar:** `mods/pokemon-sidebar/`, Better Sidebar 3.3.0 (munza/herdr-mods,
+  Apache-2.0; LICENSE and NOTICE beside it) with the cards and the Pokémon rail built in, renamed
+  so both can be installed. Upstream's tests run against it from `tests/sidebar/`. Pokémon herd
+  publishes `agent-icons` / `agent-cards` whenever a layout uses it (`usesPokemonSidebar`), and
+  `toPokemonSidebar` / `fromPokemonSidebar` (`place.js`) swap the sidebar's spaces list for its
+  `lists` view (and Better Sidebar's footer for its own), hiding the Agents list, each node
+  keeping what it had in `was` / `hiddenFor`. Update now installs or updates it too, keeping its
+  mod.json's settings.
 - **The mod:** `mods/pokemon-herd/`.
   - `main.js` is the view and wiring: the strip, the picker (`props.picker`), and the menu
     (`props.menu`), all one mod opened three ways.

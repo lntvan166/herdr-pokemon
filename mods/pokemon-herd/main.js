@@ -4,8 +4,8 @@
 // choose which Pokémon it is.
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
-import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder } from "herdr";
-import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast } from "./place.js";
+import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder, readTextFile, appHome } from "herdr";
+import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast, usesPokemonSidebar, toPokemonSidebar, fromPokemonSidebar, SIDEBAR_MOD } from "./place.js";
 import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning, sunAt, rainbowArcs, rainbowFade, RAINBOW_MS } from "./scene.js";
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
 
@@ -38,7 +38,9 @@ const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
 const CARDS_KEY = `${MOD}-cards-default`; // when a new player's agents were first put as cards
-const SHIPPED = ["main", "terminals", "win98"]; // Herdr's built-in layouts: a mod can't change them
+const SHIPPED = ["main", "terminals", "win98"];
+// Whether Pokémon Sidebar (this repo's mods/pokemon-sidebar) is installed next to this mod.
+const sidebarModHere = () => readTextFile(`${appHome()}/mods/${SIDEBAR_MOD}/mod.json`).then((raw) => raw !== null, () => false); // Herdr's built-in layouts: a mod can't change them
 const BOOSTS_KEY = `${MOD}-boosts`; // Shop boosts on now: { <item id>: until }
 const FESTIVAL_KEY = `${MOD}-festival`; // when a Festival Ticket was last used
 const FESTIVAL_MS = 6000; // its fireworks
@@ -310,6 +312,7 @@ export default class PokemonHerd extends View {
       cx.notify();
     });
     this.errSeen = new Map(); // error message -> when it was last logged
+    sidebarModHere().then((v) => { this.sidebarMod = v; });
     // The timer must never see a throw: one would stop every Pokémon for good.
     cx.timer.every(60000, (cx) => cx.notify()); // the sky follows the clock
     cx.timer.every(250, (cx) => {
@@ -571,7 +574,7 @@ export default class PokemonHerd extends View {
   // Better Sidebar (patched) draws the card in place of the agent's row. Written only when it
   // changes; emptied when the setting is off.
   publishIcons(list, ids, cx) {
-    const on = settingsNow().sidebar;
+    const on = settingsNow().sidebar || usesPokemonSidebar(layout()); // Better Sidebar (patched), or Pokémon Sidebar
     this.portraits ??= {}; // entry key -> "loading" | "ready" | "failed"
     const icons = {};
     const cards = {};
@@ -1277,6 +1280,7 @@ export default class PokemonHerd extends View {
     this.sidebar = null; // Better Sidebar: "missing" | "patched" | "outdated" | "unpatched" (null: checking)
     this.patching = null; // null | "running" | an error message
     cx.spawn(async (cx) => {
+      this.sidebarMod = await sidebarModHere();
       this.sidebar = await sidebarState().catch(() => "missing");
       cx.notify();
     });
@@ -1290,13 +1294,14 @@ export default class PokemonHerd extends View {
   }
 
   // Agent cards: Off, Sidebar or Right panel. Undoes whatever there was, then: in the sidebar,
-  // the Agents list drawn as cards when the layout has one, else Better Sidebar's rows (patched
+  // Pokémon Sidebar when it is installed, else the Agents list drawn as cards when the layout has one, else Better Sidebar's rows (patched
   // if need be), else a Party panel there; or a Party panel in the right panel.
   setCards(v, tree, betterHere) {
-    let next = placeParty(unswapAgents(tree), MOD, null);
+    let next = placeParty(unswapAgents(fromPokemonSidebar(tree)), MOD, null);
     let better = false;
     if (v === "sidebar") {
-      if (hasAgentsList(next)) next = swapAgents(next, MOD);
+      if (this.sidebarMod && toPokemonSidebar(next)) next = toPokemonSidebar(next); // Pokémon Sidebar, when installed
+      else if (hasAgentsList(next)) next = swapAgents(next, MOD);
       else if (betterHere) better = true;
       else next = placeParty(next, MOD, "sidebar") ?? next;
     } else if (v === "panel") next = placeParty(next, MOD, "panel") ?? next;
@@ -1313,6 +1318,7 @@ export default class PokemonHerd extends View {
   // most). Better Sidebar's rows are left alone (cards there need its patch: an opt-in).
   defaultCards(now) {
     if (now - this.firstCards > 30000) { this.firstCards = null; return; }
+    if (this.sidebarMod === undefined) return; // still looking for Pokémon Sidebar
     const name = shared("layout");
     if (SHIPPED.includes(name)) {
       if (!this.cloning) { this.cloning = true; run("layout.clone", { name }); }
@@ -1323,7 +1329,8 @@ export default class PokemonHerd extends View {
     if (!tree) return;
     // Notifications too: each agent's leads with its Pokémon (unless another mod draws them).
     if (!toastMod(tree)) { tree = setToast(tree, MOD); run("layout.set", { layout: tree }); }
-    if (partyPlace(tree) || agentsSwapped(tree)) return;
+    if (partyPlace(tree) || agentsSwapped(tree) || usesPokemonSidebar(tree)) return;
+    if (this.sidebarMod && toPokemonSidebar(tree)) { run("layout.set", { layout: toPokemonSidebar(tree) }); return; }
     if (hasAgentsList(tree) || (placesIn(tree).includes("sidebar") && !usesMod(tree, "better-sidebar"))) this.setCards("sidebar", tree, false);
   }
 
@@ -1348,8 +1355,9 @@ export default class PokemonHerd extends View {
     // Party panel there, or Better Sidebar's own rows (patched); or the Party panel in the right panel.
     const betterHere = usesMod(tree, "better-sidebar");
     const party = partyPlace(tree);
-    const cardsNow = agentsSwapped(tree) || party === "sidebar" || (st.sidebar && betterHere) ? "sidebar" : party === "panel" ? "panel" : "off";
-    const cardsNote = cardsNow === "sidebar" && agentsSwapped(tree) ? "The sidebar's Agents list, as cards."
+    const cardsNow = usesPokemonSidebar(tree) || agentsSwapped(tree) || party === "sidebar" || (st.sidebar && betterHere) ? "sidebar" : party === "panel" ? "panel" : "off";
+    const cardsNote = usesPokemonSidebar(tree) ? "Pokémon Sidebar: each space with its agents as cards; collapsed, their Pokémon."
+      : cardsNow === "sidebar" && agentsSwapped(tree) ? "The sidebar's Agents list, as cards."
       : cardsNow === "sidebar" && betterHere ? (this.sidebar === "patched" || this.sidebar === "outdated" ? "Better Sidebar's rows, as cards." : "Better Sidebar's rows: needs its patch (Updates).")
       : cardsNow === "sidebar" ? "A Party list in the sidebar."
       : cardsNow === "panel" ? "A Party list in the right panel."
@@ -1417,7 +1425,7 @@ export default class PokemonHerd extends View {
           button("clone-layout", "Make it mine", true, () => run("layout.clone", { name })))] : []),
         line("Show each agent as its Pokémon's card", cardsNote,
           choices("cards", [["off", "Off"], ["sidebar", "Sidebar"], ["panel", "Right panel"]], cardsNow,
-            (v) => !shipped && (v === "off" || (v === "sidebar" ? hasAgentsList(tree) || betterHere || have.includes("sidebar") : have.includes("panel"))),
+            (v) => !shipped && (v === "off" || (v === "sidebar" ? (this.sidebarMod && !!toPokemonSidebar(tree)) || hasAgentsList(tree) || betterHere || have.includes("sidebar") : have.includes("panel"))),
             (v) => this.setCards(v, tree, betterHere))),
       ))
       .child(heading("Sounds and notifications"))

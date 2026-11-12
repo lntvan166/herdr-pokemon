@@ -27,7 +27,8 @@ export function isNewer(remote, local) {
 // this repo and runs `running`, or over every folder of this repo if none does (an agent may have
 // installed it under another name, or more than once). Each folder keeps its own `MOD` line (a
 // renamed copy keeps its name). It prints, per line, "<folder> <new version>". `source`: an
-// already unpacked release (tests), instead of downloading main.
+// already unpacked release (tests), instead of downloading main. Pokémon Sidebar
+// (mods/pokemon-sidebar next to it) is installed or updated as well, its settings kept.
 export function updateScript({ app, repo, running, source = null }) {
   const q = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
   const fetch = source
@@ -57,5 +58,22 @@ for dir in $targets; do
     sed "s|^export const MOD = .*|export const MOD = \\"$name\\";|" "$dir/id.js" > "$dir/id.js.new" && mv "$dir/id.js.new" "$dir/id.js"
   fi
   echo "$dir $new"
-done`;
+done
+# Pokémon Sidebar, beside it in the repo: installed or updated too. Its mod.json keeps the
+# person's settings: only its version changes.
+side="$(dirname "$src")/pokemon-sidebar"
+if [ -f "$side/main.js" ]; then
+  to=${q(app)}/mods/pokemon-sidebar
+  mkdir -p "$to"
+  sv=$(sed -n 's/.*"version": *"\\([0-9.]*\\)".*/\\1/p' "$side/mod.json")
+  for f in "$side"/* ; do
+    b=$(basename "$f")
+    if [ "$b" = mod.json ] && [ -f "$to/mod.json" ]; then
+      sed 's/"version": *"[0-9.]*"/"version": "'"$sv"'"/' "$to/mod.json" > "$to/mod.json.new" && mv "$to/mod.json.new" "$to/mod.json"
+    else
+      cp -R "$f" "$to"/
+    fi
+  done
+  echo "$to $sv"
+fi`;
 }
