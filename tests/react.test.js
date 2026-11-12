@@ -301,3 +301,22 @@ test("battle: they trade blows face to face, then one throws its type across", (
   battle(a, b, A, B, 0, () => 0.9); // b wins: its type flies the other way
   assert.equal(b.react.shot.icon, "💧");
 });
+
+import { battleSpots, BATTLE_GAP } from "../mods/pokemon-herd/react.js";
+test("battleSpots: BATTLE_GAP apart about their middle, each on its side, inside the strip", () => {
+  assert.deepEqual(battleSpots(200, 240, 28, 800), { ax: 185, bx: 255 });
+  assert.deepEqual(battleSpots(240, 200, 28, 800), { ax: 255, bx: 185 });
+  assert.deepEqual(battleSpots(780, 790, 28, 800), { ax: 730, bx: 800 }); // pushed in at the edge
+  assert.deepEqual(battleSpots(100, 100 + BATTLE_GAP + 5, 28, 800), { ax: 100, bx: 175 }); // far enough
+});
+test("battle after hopping back: they hop, then fight from the new spots", () => {
+  const a = { x: 200 };
+  const b = { x: 240 };
+  const S = { has: new Set(["Attack", "Hurt", "Hop", "SpAttack"]), msOf: () => 600, icon: "🔥" };
+  battle(a, b, S, S, 0, () => 0.1, { ax: 170, bx: 270, back: 350 });
+  assert.deepEqual(a.react.seq[0], { at: 0, until: 350, anim: "Hop" });
+  assert.equal(a.react.seq[1].at, 450);
+  assert.equal(a.react.shot.from, 170);
+  assert.equal(a.react.shot.to, 270);
+  assert.equal(a.dir, "r");
+});

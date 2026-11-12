@@ -24,7 +24,7 @@ import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onFidget, battle, reactIcon, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onFidget, battle, battleSpots, reactIcon, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -951,10 +951,11 @@ export default class PokemonHerd extends View {
         } else if (f >= 1) {
           m.moving = false;
           m.x = m.target;
-          m.pauseUntil = m.shuffle ? now + 5000 : family[a.address] ? now + rand(600, 1500) : now + (mood === "working" ? rand(300, 1800) : rand(4000, 12000));
+          if (!m.backstep) m.pauseUntil = m.shuffle ? now + 5000 : family[a.address] ? now + rand(600, 1500) : now + (mood === "working" ? rand(300, 1800) : rand(4000, 12000));
           m.shuffle = false;
+          m.backstep = false;
           changed = true;
-        } else if ((mood !== "working" && mood !== "idle" && !m.shuffle) || reacting) {
+        } else if (!m.backstep && ((mood !== "working" && mood !== "idle" && !m.shuffle) || reacting)) {
           m.shuffle = false;
           m.wrap = false;
           // Stop where it is: something needs the person, or it fell asleep.
@@ -1024,7 +1025,21 @@ export default class PokemonHerd extends View {
         const meta = this.spriteFor(ids[a.address], a.status);
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐" };
       };
-      battle(m1, m2, side(a1), side(a2), now);
+      // Too close: they hop apart first (a quick slide, facing each other), then battle.
+      const spots = battleSpots(m1.x, m2.x, EDGE, hiFor(this.width));
+      const BACK = 350;
+      const back = Math.abs(spots.ax - m1.x) >= 4 || Math.abs(spots.bx - m2.x) >= 4;
+      for (const [m, to] of [[m1, spots.ax], [m2, spots.bx]]) {
+        if (Math.abs(to - m.x) < 1) continue;
+        clearWalk(m);
+        m.from = m.x;
+        m.target = to;
+        m.start = now;
+        m.dur = BACK;
+        m.moving = true;
+        m.backstep = true;
+      }
+      battle(m1, m2, side(a1), side(a2), now, Math.random, back ? { ...spots, back: BACK } : spots);
       m1.pauseUntil = m1.react.until + rand(2000, 5000);
       m2.pauseUntil = m2.react.until + rand(2000, 5000);
     };

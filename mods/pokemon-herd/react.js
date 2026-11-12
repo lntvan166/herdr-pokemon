@@ -17,7 +17,8 @@ export const REACTIONS = {
   spar: ["Attack", "Strike", "Swing", "Shoot", "Hop"], // two idle ones spar
   poke: ["Head", "Pull", "Double", "Attack", "Hop"], // it pokes a sleeping one awake
   dizzy: ["Tumble", "LostBalance", "Rotate", "Hurt"], // shaken about while you drag it
-  special: ["SpAttack", "Shoot", "Charge", "Attack"], // a battle's last move: it throws its type
+  special: ["SpAttack", "Shoot", "Charge", "Attack"],
+  hopBack: ["Hop"], // before a battle, they hop apart // a battle's last move: it throws its type
 };
 
 // Animations cut facing left and right as well (<name>L, <name>R), so in a battle they go for
@@ -145,10 +146,18 @@ export function reactIcon(m, now) {
 // Charge facing the other, and its type's icon (`shot`) flies across and knocks the other back
 // (💥). `A`, `B`: { has, msOf, icon } for a and b. Both face each other throughout.
 // Sets a.react and b.react ({ seq, until, face, shot? }) and lastSpar; returns when it's over.
-export function battle(a, b, A, B, now, rnd = Math.random) {
+// `at`: { ax, bx, back } when they first hop back to ax and bx (battleSpots), taking `back` ms
+// (a Hop, if it has one), the battle starting after.
+export function battle(a, b, A, B, now, rnd = Math.random, at = null) {
   const len = (S, anim, min) => (anim ? Math.max(min, S.msOf(anim)) : NO_ANIM_MS);
   const seq = { a: [], b: [] };
+  const [ax, bx] = at ? [at.ax, at.bx] : [a.x, b.x];
   let t = now;
+  if (at?.back) {
+    seq.a.push({ at: now, until: now + at.back, anim: reactionAnim("hopBack", A.has) });
+    seq.b.push({ at: now, until: now + at.back, anim: reactionAnim("hopBack", B.has) });
+    t += at.back + 100;
+  }
   const strike = (S, D, k, dk) => {
     const anim = reactionAnim("spar", S.has);
     const d = len(S, anim, 500);
@@ -162,21 +171,31 @@ export function battle(a, b, A, B, now, rnd = Math.random) {
   strike(A, B, "a", "b");
   strike(B, A, "b", "a");
   const aWins = rnd() < 0.5;
-  const [W, L, wk, lk, w, l] = aWins ? [A, B, "a", "b", a, b] : [B, A, "b", "a", b, a];
+  const [W, L, wk, lk, wx, lx] = aWins ? [A, B, "a", "b", ax, bx] : [B, A, "b", "a", bx, ax];
   const sp = reactionAnim("special", W.has);
   const sd = len(W, sp, 700);
   seq[wk].push({ at: t, until: t + sd, anim: sp });
-  const shot = { at: t + Math.round(sd * 0.4), until: t + Math.round(sd * 0.4) + 450, from: w.x, to: l.x, icon: W.icon };
+  const shot = { at: t + Math.round(sd * 0.4), until: t + Math.round(sd * 0.4) + 450, from: wx, to: lx, icon: W.icon };
   const hurt = reactionAnim("startle", L.has);
   const hd = len(L, hurt, 600);
   seq[lk].push({ at: shot.until, until: shot.until + hd, anim: hurt, icon: "💥" });
   const end = Math.max(t + sd, shot.until + hd) + 300;
-  a.dir = b.x > a.x ? "r" : "l";
-  b.dir = a.x > b.x ? "r" : "l";
+  a.dir = bx > ax ? "r" : "l";
+  b.dir = ax > bx ? "r" : "l";
   a.react = { seq: seq.a, until: end, face: a.dir, ...(aWins ? { shot } : {}) };
   b.react = { seq: seq.b, until: end, face: b.dir, ...(aWins ? {} : { shot }) };
   a.lastSpar = b.lastSpar = now;
   return end;
+}
+
+// Where two about to battle stand: BATTLE_GAP apart about their middle, each keeping its side,
+// inside lo..hi (pushed in together at an edge). Already that far apart: where they are.
+export const BATTLE_GAP = 70;
+export function battleSpots(ax, bx, lo, hi) {
+  if (Math.abs(ax - bx) >= BATTLE_GAP || hi - lo < BATTLE_GAP) return { ax, bx };
+  const side = ax <= bx ? -1 : 1;
+  const mid = Math.min(hi - BATTLE_GAP / 2, Math.max(lo + BATTLE_GAP / 2, (ax + bx) / 2));
+  return { ax: mid + side * BATTLE_GAP / 2, bx: mid - side * BATTLE_GAP / 2 };
 }
 
 // Whether it shows its Mega form now: On always, Auto while its agent works, Off never.

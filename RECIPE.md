@@ -123,8 +123,9 @@ forms, and Mega Evolution while an agent works.
 - **Sparring** (`sparPair` in `react.js`): about once a minute while two idle Pokémon
   stand still on one row 30–160 px apart and neither sparred in 10 min, both turn to each other
   and battle (below); a heart each. Sprite cache v4 cuts those animations.
-- **Battles** (`battle` in `react.js`; sparring, teasing, a drop on another): they face each
-  other the whole time, their moves cut facing right and left (`FACING`, sprite cache v7). Each
+- **Battles** (`battle`, `battleSpots` in `react.js`; sparring, teasing, a drop on another):
+  closer than 70 px, they first hop apart (Hop, a 350 ms slide) to 70 px about their middle,
+  pushed in together at an edge. They face each other the whole time, their moves cut facing right and left (`FACING`, sprite cache v7). Each
   strikes once (Attack, Strike, Swing, Shoot, else Hop; at least 0.5 s), the other flinching
   (Hurt, Shake; 💢) from halfway through the blow; 150 ms between. Then one, at random, uses its
   special move (SpAttack, Shoot, Charge, Attack; at least 0.7 s): 40% in, its first type's icon
