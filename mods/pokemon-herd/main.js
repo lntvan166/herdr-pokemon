@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -697,9 +697,10 @@ export default class PokemonHerd extends View {
     this.honeySeen = honey;
     if (called && v) this.honeyNext = true;
     else if (called) this.visitAt = now;
+    if (called) this.coming ??= "honey"; // a pill says it's on its way (its sprite may take a while)
     // The day's Research all done: a legendary Pokémon comes next (once per call).
     const legend = shared(LEGEND_KEY) ?? 0;
-    if (this.legendSeen !== undefined && legend > this.legendSeen) { this.legendNext = true; if (!v) this.visitAt = now; }
+    if (this.legendSeen !== undefined && legend > this.legendSeen) { this.legendNext = true; this.coming = "legend"; if (!v) this.visitAt = now; }
     this.legendSeen = legend;
     if (!v && now >= this.visitAt) {
       const pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds() });
@@ -740,8 +741,18 @@ export default class PokemonHerd extends View {
     if (!v.start) {
       // It sets off once its sprite is in; one that can't be had in a minute doesn't come.
       // A moment after its sprite is in, so the picture is up when it shows.
-      if (meta?.walkR) { v.ready ??= now; if (now - v.ready >= 500) v.start = now; }
-      else if (now - v.asked > 60000) { this.visitor = null; this.visitAt = next(); }
+      if (meta?.walkR) {
+        v.ready ??= now;
+        if (now - v.ready >= 500) {
+          v.start = now;
+          if (this.coming === "honey" || (this.coming === "legend" && v.pick.legend)) this.coming = null;
+        }
+      } else if (now - v.asked > 60000) {
+        // Its sprite couldn't be had: another one comes instead (a called legendary is never lost).
+        this.visitor = null;
+        if (v.pick.legend && this.coming === "legend") this.legendNext = true;
+        this.visitAt = this.coming ? now : next();
+      }
       return false;
     }
     const f = (now - v.start) / v.dur;
@@ -2171,6 +2182,15 @@ export default class PokemonHerd extends View {
           .child(["🎆", "🎇", "✨"][k % 3]));
       }
     }
+    // Called with Honey or the Azure Flute: on its way (the first time a species comes, its
+    // sprite is fetched, which can take half a minute).
+    if (this.coming) {
+      const txt = this.coming === "legend" ? "✦ A legendary Pokémon is on its way…" : "🍯 A wild Pokémon is on its way…";
+      root.child(div().id("pokemon-coming").absolute().right(update ? 90 : 6).top(4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).bg("#00000059").text_color(this.coming === "legend" ? "#f2c94c" : "#ffffff")
+        .loop("opacity", { from: 0.5, to: 1, period: 900 })
+        .child(this.visitor?.start && this.coming === "legend" ? "✦ A legendary Pokémon comes after this one…" : txt));
+    }
     this.renderVisitor(root, grounds, scale);
     return root;
   }
@@ -2907,10 +2927,12 @@ export default class PokemonHerd extends View {
 
   // The filter chips as searchEntries takes them: the ★ chip is the favourites' keys, read live.
   // Trainer mode (Settings): only what you caught, and the starters.
+  // The Legendary chip: legendary and mythical species only (caught or not).
   searchOnly() {
-    const { fav, ...rest } = this.only;
+    const { fav, legend, ...rest } = this.only;
     const mine = settingsNow().trainer ? trainerKeys(pokedex()) : null;
-    const keys = fav ? new Set(favs().filter((k) => !mine || mine.has(k))) : mine;
+    let keys = fav ? new Set(favs().filter((k) => !mine || mine.has(k))) : mine;
+    if (legend) keys = new Set([...LEGENDARY].map(String).filter((k) => !keys || keys.has(k)));
     return keys ? { ...rest, keys } : rest;
   }
 
@@ -3226,7 +3248,7 @@ export default class PokemonHerd extends View {
     const t = theme();
     const p = props() ?? {};
     const all = searchEntries(this.filter, Infinity, this.searchOnly()).entries; // every match: scroll to browse them all
-    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav);
+    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav || this.only.legend);
     const favKeys = favs();
     const dexNow = pokedex();
     // A small toggle: the filter row's chips.
@@ -3307,9 +3329,10 @@ export default class PokemonHerd extends View {
       )
       // Filters, on top of the search: species that can Mega Evolve, and one region (click again: all).
       .child(
-        h_flex().gap(4).items_center().flex_none()
+        h_flex().flex_wrap().gap(4).items_center().flex_none()
           .child(chip("only-fav", favKeys.length ? `★ ${favKeys.length}` : "★", !!this.only.fav, () => { this.only = { ...this.only, fav: !this.only.fav }; }))
           .child(chip("only-mega", "Mega", !!this.only.mega, () => { this.only = { ...this.only, mega: !this.only.mega }; }))
+          .child(chip("only-legend", "✦ Legendary", !!this.only.legend, () => { this.only = { ...this.only, legend: !this.only.legend }; }))
           .child(div().w(1).h(14).mx(3).bg(t.border))
           .children(REGIONS.map((r) => chip(`only-${r}`, r, this.only.region === r, () => {
             this.only = { ...this.only, region: this.only.region === r ? undefined : r };
@@ -3362,6 +3385,6 @@ export default class PokemonHerd extends View {
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
-      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
+      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega || this.only.legend ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
   }
 }
