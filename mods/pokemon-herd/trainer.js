@@ -56,14 +56,32 @@ export function throwBall(ball, pick, rnd = Math.random, bait = null) {
   const caught = rnd() < catchChance(ball, pick, bait);
   return { caught, shakes: caught ? 3 : Math.floor(rnd() * 3) };
 }
-// Which ball a click throws (`items`: the Bag's counts), or null. The cheapest first, but the
-// best for a shiny or a legendary; the Master Ball only for a legendary.
-export function ballFor(items, pick) {
+// Which ball a click throws (`items`: the Bag's counts), or null: the one chosen in the Bag
+// (`chosen`, any, the Master Ball too) while there are some; else the cheapest first, but the best
+// for a shiny or a legendary, and the Master Ball only for a legendary.
+export function ballFor(items, pick, chosen = null) {
+  if (BALLS.includes(chosen) && (items[chosen] ?? 0) > 0) return chosen;
   const order = isLegendary(pick.dex) ? ["master-ball", "ultra-ball", "great-ball", "poke-ball"]
     : pick.shiny ? ["ultra-ball", "great-ball", "poke-ball"]
     : ["poke-ball", "great-ball", "ultra-ball"];
   return order.find((id) => (items[id] ?? 0) > 0) ?? null;
 }
+
+// ---- a visitor's purse ----------------------------------------------------------------------
+// Each wild Pokémon walking by carries Pokédollars too, shown over its head, taken with its gift:
+// ₽10–30 mostly, 1 in 10 ₽60–100, a shiny ₽150, a legendary ₽400. (At "Often", 8 hours bring
+// ~90 visitors; clicking 20 of them is about ₽500.)
+export function purse(pick, rnd = Math.random) {
+  if (isLegendary(pick.dex)) return 400;
+  if (pick.shiny) return 150;
+  return rnd() < 0.1 ? 60 + Math.floor(rnd() * 41) : 10 + Math.floor(rnd() * 21);
+}
+// What a pat (when it gives a heart), a spar you set up and a spar you watch pay.
+export const TIP = { pat: 10, drop: 15, spar: 5 };
+// So clicking doesn't become the work: at most this much a day from visitors' purses and from tips.
+export const DAY_CAP = { purse: 600, tip: 200 };
+// How much of `amount` (of kind "purse" or "tip") is still to be had today.
+export const allowance = (daily, kind, amount) => Math.max(0, Math.min(amount, (DAY_CAP[kind] ?? Infinity) - (daily.count[kind] ?? 0)));
 
 // ---- natures --------------------------------------------------------------------------
 // A caught Pokémon has a nature of its own, and it shows: how fast it walks, how soon it naps,
@@ -123,7 +141,7 @@ export const shinyUnlocked = (d, dex) => d.shiny.includes(dex);
 
 // Rewards as the Pokédex fills (species caught).
 export const DEX_GOALS = [
-  { n: 5, money: 500 },
+  { n: 5, money: 750 },
   { n: 15, item: "ultra-ball", count: 3 },
   { n: 30, item: "master-ball", count: 1 },
   { n: 60, item: "master-ball", count: 1 },
@@ -160,15 +178,15 @@ export const openEntries = (d, open = false) => WALKABLE.filter((dex) => !isLock
 // Events: job (a job finished, with its Pokémon's dex), quick (an answer within a minute), pet,
 // catch, gift (a visitor's), berry (eaten), spar, work (minutes worked).
 export const TASKS = {
-  job: { goals: [5, 10, 15], text: (n) => `Finish ${n} jobs`, pay: (n) => ({ money: 20 * n }) },
-  type: { goals: [3], text: (n, type) => `${cap(type)}-type Pokémon finish ${n} jobs`, pay: () => ({ money: 250 }) },
-  work: { goals: [60, 120], text: (n) => `Work ${n / 60}h in all`, pay: (n) => ({ money: 2 * n }) },
-  quick: { goals: [2, 3], text: (n) => `Answer an agent within a minute, ${n} times`, pay: () => ({ money: 150 }) },
+  job: { goals: [5, 10, 15], text: (n) => `Finish ${n} jobs`, pay: (n) => ({ money: 30 * n }) },
+  type: { goals: [3], text: (n, type) => `${cap(type)}-type Pokémon finish ${n} jobs`, pay: () => ({ money: 375 }) },
+  work: { goals: [60, 120], text: (n) => `Work ${n / 60}h in all`, pay: (n) => ({ money: 3 * n }) },
+  quick: { goals: [2, 3], text: (n) => `Answer an agent within a minute, ${n} times`, pay: () => ({ money: 225 }) },
   pet: { goals: [3], text: (n) => `Pet ${n} Pokémon`, pay: () => ({ item: "poke-ball", count: 3 }) },
   catch: { goals: [1, 2], text: (n) => `Catch ${n} wild Pokémon`, pay: () => ({ item: "great-ball", count: 2 }), wild: true },
   gift: { goals: [2, 3], text: (n) => `Take ${n} gifts from visitors`, pay: () => ({ item: "poke-ball", count: 3 }), wild: true },
-  berry: { goals: [1, 2], text: (n) => `Feed ${n} Berr${n === 1 ? "y" : "ies"}`, pay: () => ({ money: 150 }) },
-  spar: { goals: [2, 3], text: (n) => `Watch ${n} spars`, pay: () => ({ money: 120 }) },
+  berry: { goals: [1, 2], text: (n) => `Feed ${n} Berr${n === 1 ? "y" : "ies"}`, pay: () => ({ money: 225 }) },
+  spar: { goals: [2, 3], text: (n) => `Watch ${n} spars`, pay: () => ({ money: 180 }) },
 };
 export const BONUS = { item: "ultra-ball", count: 1 }; // all three done (and a legendary comes)
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }

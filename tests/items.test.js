@@ -137,12 +137,23 @@ test("expShareTarget: another Pokémon on screen that evolves by jobs, the furth
 });
 
 import { PRICE, jobPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, BOOST_MAX, money, MAX_MONEY } from "../mods/pokemon-herd/items.js";
-test("jobPay: ₽5 and ₽2 a minute, ₽150 at most, twice with an Amulet Coin", () => {
-  assert.equal(jobPay(30000), 5);
-  assert.equal(jobPay(10 * 60000), 25);
-  assert.equal(jobPay(10 * 60000, true), 50);
-  assert.equal(jobPay(5 * 3600000), 150);
-  assert.equal(jobPay(undefined), 5);
+test("jobPay: ₽12 and ₽3 a minute, ₽200 at most, twice with an Amulet Coin", () => {
+  assert.equal(jobPay(30000), 12);
+  assert.equal(jobPay(5000), 3); // a one-line answer
+  assert.equal(jobPay(10 * 60000), 42);
+  assert.equal(jobPay(10 * 60000, true), 84);
+  assert.equal(jobPay(5 * 3600000), 200);
+  assert.equal(jobPay(undefined), 12);
+});
+import { sell, sellPrice } from "../mods/pokemon-herd/items.js";
+test("sell: half the price, only what's there", () => {
+  const b = { v: 1, items: { berry: 3, "master-ball": 1 }, money: 0, marks: {} };
+  assert.equal(sellPrice("berry"), 10);
+  assert.deepEqual(sell(b, "berry", 99).items.berry, undefined);
+  assert.equal(sell(b, "berry", 99).money, 30);
+  assert.equal(sell(b, "berry").items.berry, 2);
+  assert.equal(sell(b, "honey"), null);
+  assert.equal(sell(b, "master-ball").money, 12500);
 });
 test("money in the Bag: kept, capped, never negative", () => {
   assert.equal(loadBag({ v: 1, items: {}, money: 1234 }).money, 1234);

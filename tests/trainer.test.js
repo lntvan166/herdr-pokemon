@@ -113,7 +113,7 @@ test("Research: progress, rewards once, the bonus once; a new day sums up yester
   assert.equal(r.bonus, true);
   assert.equal(progress(r.daily, "pet").bonus, false);
   assert.equal(r.daily.count.top[25], 1);
-  assert.deepEqual(taskPay({ id: "job", goal: 10 }), { money: 200 });
+  assert.deepEqual(taskPay({ id: "job", goal: 10 }), { money: 300 });
   const kept = loadDaily(JSON.parse(JSON.stringify(r.daily)), now);
   assert.equal(kept.bonus, true);
   const next = loadDaily(r.daily, now + 24 * 3600000);
@@ -153,5 +153,33 @@ test("a legendary: about 15 balls, and it may get away", () => {
   assert.ok(over("poke-ball") > 0.3 && over("poke-ball") < 0.5, String(over("poke-ball")));
   assert.ok(over("ultra-ball") > 0.55 && over("ultra-ball") < 0.7, String(over("ultra-ball")));
   assert.ok(over("ultra-ball", "golden-razz-berry") > 0.85 && over("ultra-ball", "golden-razz-berry") < 0.97);
-  assert.equal(PRICE["azure-flute"], 1800);
+  assert.equal(PRICE["azure-flute"], 1000);
+});
+
+import { purse } from "../mods/pokemon-herd/trainer.js";
+test("a visitor's purse: ₽10–30 mostly, ₽60–100 now and then, more for a shiny or a legendary", () => {
+  assert.equal(purse({ dex: 150 }), 400);
+  assert.equal(purse({ dex: 25, shiny: true }), 150);
+  assert.equal(purse({ dex: 25 }, () => 0.5), 20);
+  assert.equal(purse({ dex: 25 }, () => 0.05), 62);
+  let total = 0;
+  for (let i = 0; i < 1000; i++) total += purse({ dex: 25 }, Math.random);
+  assert.ok(total / 1000 > 20 && total / 1000 < 32);
+});
+
+test("ballFor: the ball chosen in the Bag, while there are some", () => {
+  const items = { "poke-ball": 2, "ultra-ball": 1, "master-ball": 1 };
+  assert.equal(ballFor(items, { dex: 25 }, "ultra-ball"), "ultra-ball");
+  assert.equal(ballFor(items, { dex: 25 }, "master-ball"), "master-ball");
+  assert.equal(ballFor(items, { dex: 25 }, "great-ball"), "poke-ball"); // none: as if not chosen
+  assert.equal(ballFor(items, { dex: 25 }, "berry"), "poke-ball");
+});
+
+import { allowance, DAY_CAP } from "../mods/pokemon-herd/trainer.js";
+test("purses and tips stop at the day's cap", () => {
+  const d = { count: { top: {}, purse: DAY_CAP.purse - 10 } };
+  assert.equal(allowance(d, "purse", 25), 10);
+  assert.equal(allowance({ count: { top: {}, purse: DAY_CAP.purse } }, "purse", 25), 0);
+  assert.equal(allowance({ count: { top: {} } }, "tip", 10), 10);
+  assert.equal(progress({ ...loadDaily(null, 0), tasks: [] }, "tip", 10).daily.count.tip, 10);
 });

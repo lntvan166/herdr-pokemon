@@ -18,12 +18,12 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { BAIT, LEGEND_THROWS, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { BALLS, BAIT, LEGEND_THROWS, purse, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -48,6 +48,7 @@ const FESTIVAL_MS = 6000; // its fireworks
 const BOOST_GAP = 30000; // with X Attack: how soon one may spar again
 const DEX_KEY = `${MOD}-dex`; // the Pokédex (trainer.js loadDex)
 const DAILY_KEY = `${MOD}-daily`; // the day's Research (trainer.js loadDaily)
+const BALL_KEY = `${MOD}-ball`; // the ball chosen to throw (Bag, or right-click a visitor); none: Auto
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
@@ -244,6 +245,16 @@ function research(ev, n = 1, dex = null) {
   for (const t of r.done) payOut(taskPay(t));
   if (r.bonus) { payOut(BONUS); setShared(LEGEND_KEY, Date.now()); }
   return r;
+}
+// Pokédollars from clicking about (a visitor's purse, "purse"; a pat or a spar, "tip"), within the
+// day's cap (trainer.js DAY_CAP). Returns how much it paid.
+function earn(kind, amount) {
+  const d = dailyNow();
+  const got = allowance(d, kind, amount);
+  if (!got) return 0;
+  saveBag(addMoney(bag(), got));
+  setShared(DAILY_KEY, progress(d, kind, got).daily);
+  return got;
 }
 // The Pokédex's goals reached: paid, once each.
 function payDexGoals() {
@@ -685,7 +696,8 @@ export default class PokemonHerd extends View {
       const [from, to] = dir === "r" ? [-OFF, this.width + OFF] : [this.width + OFF, -OFF];
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
       // kept that one's picture: only its 🎁 showed).
-      v = this.visitor = { id: `${now}-${pick.dex}`, pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
+      // Its purse, shown over its head while the day's purses last.
+      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
       this.want(pick, cx);
     }
     if (!v) return false;
@@ -747,7 +759,7 @@ export default class PokemonHerd extends View {
   // A ball thrown at the visitor (the best one for it in the Bag): it stops, the ball shakes.
   throwAt(v) {
     if (v.throw || !v.start) return;
-    const ball = ballFor(bag().items, v.pick);
+    const ball = ballFor(bag().items, v.pick, shared(BALL_KEY));
     if (!ball) return;
     // The Berry set in the Bag goes first, while there are some (none for a Master Ball: no need).
     const b0 = bag();
@@ -778,7 +790,7 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const th = v.throw;
     // Its gift first; then, with a ball in the Bag, a ball over its head: click to throw it.
-    const ball = !th && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick) : null;
+    const ball = !th && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick, shared(BALL_KEY)) : null;
     const showGift = !th && ((!v.gift && now - v.start > 1000) || (v.gift && now - v.giftAt < 2500));
     if (th) {
       // Held in the ball where it stood: it shakes (left and right) up to three times, then
@@ -821,12 +833,23 @@ export default class PokemonHerd extends View {
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
         .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
+        // Right-click: the next ball to throw (Auto, then each kind you have).
+        .on_mouse_down("right", (_e, cx) => {
+          cx.stop_propagation();
+          const items = bag().items;
+          const ways = [null, ...BALLS.filter((id) => items[id])];
+          const cur = ways.indexOf(BALLS.includes(shared(BALL_KEY)) && items[shared(BALL_KEY)] ? shared(BALL_KEY) : null);
+          setShared(BALL_KEY, ways[(cur + 1) % ways.length]);
+          this.ballSwitched = Date.now();
+          cx.notify();
+        })
         .on_click((_e, cx) => {
           if (!v.gift) {
             v.gift = pickup();
             v.giftAt = Date.now();
             saveBag(addItem(bag(), v.gift));
             research("gift");
+            if (v.purse) v.paid = earn("purse", v.purse);
           } else if (Date.now() - v.giftAt > 800) this.throwAt(v);
           cx.notify();
         }))
@@ -837,17 +860,21 @@ export default class PokemonHerd extends View {
       .when(showGift, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18)).text_size(13)
         .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
         .child(v.gift ? this.itemMark(v.gift, 18) : "🎁")))
+      // Its purse beside the gift ("₽25"), then what it paid ("+₽25").
+      .when(showGift && (!v.gift ? v.purse > 0 : v.paid > 0), (el) => el.child(div().absolute().left(mid + 10).top(Math.max(2, headY - 16)).h(14).px(3).rounded(3)
+        .bg("#00000055").text_size(10).font_semibold().text_color(v.pick.legend || v.purse >= 60 ? "#f2c94c" : "#ffffff")
+        .child(v.gift ? `+${money(v.paid)}` : money(v.purse))))
       .when(!!ball, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18))
         .loop("opacity", { from: 0.5, to: 1, period: 700 })
         .child(this.itemMark(ball, 18)))));
     const broke = v.broke && now - v.broke < 2500;
-    if (this.visitorHover || broke) {
+    if (this.visitorHover || broke || now - (this.ballSwitched ?? 0) < 1500) {
       const tagW = 250;
       const what = `${v.pick.legend ? "A legendary" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
       const tail = broke ? " broke free!"
-        : !v.gift ? ": click it"
-        : now - v.giftAt < 2500 ? ` left you ${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`
-        : ball ? `: click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it flees` : ""}`
+        : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
+        : now - v.giftAt < 2500 ? ` left you ${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}${v.paid ? ` and ${money(v.paid)}` : ""}`
+        : ball ? `: ${shared(BALL_KEY) === ball ? "" : "(Auto) "}click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it flees` : ""}`
         : ": no Poké Balls (the Shop has them)";
       root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
@@ -1288,7 +1315,7 @@ export default class PokemonHerd extends View {
       const pair = sparPair(ready.map((a) => ({ a, addr: a.address, x: this.mons[a.address].x, row: rowAt(a, list.indexOf(a)), lastSpar: this.mons[a.address].lastSpar })), now, attack ? BOOST_GAP : undefined);
       if (pair) {
         fight(pair[0].a, this.mons[pair[0].addr], pair[1].a, this.mons[pair[1].addr]);
-        if (this.leader) { for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); }
+        if (this.leader) { for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); earn("tip", TIP.spar); }
         changed = true;
       }
     }
@@ -1329,7 +1356,7 @@ export default class PokemonHerd extends View {
           const hearts = now - (dm.lastSpar ?? -Infinity) >= SPAR_GAP && now - (s.lastSpar ?? -Infinity) >= SPAR_GAP;
           dm.tease = null;
           fight(list[dj], dm, hit.b, s);
-          if (hearts && this.leader) { for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); }
+          if (hearts && this.leader) { for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); earn("tip", TIP.drop); }
         }
         changed = true;
       }
@@ -1980,8 +2007,9 @@ export default class PokemonHerd extends View {
           if (a.pane && now2 - (petAt[a.pane] ?? 0) > PET_MS && updatePick(a.pane, (p) => (friendOf(p) < FRIEND_MAX ? withFriend(p, FRIEND.pat) : null))) {
             petAt[a.pane] = now2;
             const mm = this.mons[a.address];
-            if (mm) this.note(mm, "💗", now2, 3000);
             research("pet");
+            const tip = earn("tip", TIP.pat); // a little, while the day's tips last
+            if (mm) this.note(mm, tip ? `💗+${money(tip)}` : "💗", now2, 3000);
           }
           a.pane ? run("pane.focus", { pane: a.pane }) : run("agent.focus", { terminal: a.address });
         })
@@ -2535,6 +2563,22 @@ export default class PokemonHerd extends View {
               .child(div().text_size(14).font_semibold().text_color(t.foreground).child(ITEMS[sel].name))
               .child(div().text_size(12).text_color(t.muted).child(`${b.items[sel] ?? 0} in the Bag`))))
           .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
+          // Sell: one, or all of them (twice: "Sure?"), for half the Shop's price.
+          .when(!!b.items[sel] && sellPrice(sel) > 0, (el) => {
+            const n = b.items[sel];
+            const sure = this.sellingAll === sel;
+            const pill = (id, label, click, danger = false) => div().id(id).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+              .border_color(danger ? t.blocked : t.border).text_color(danger ? t.blocked : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+              .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+            return el.child(h_flex().gap(6).items_center()
+              .child(pill("sell-one", `Sell 1 · ${money(sellPrice(sel))}`, () => { const next = sell(bag(), sel, 1); if (next) saveBag(next); this.sellingAll = null; }))
+              .when(n > 1, (e2) => e2.child(pill("sell-all", sure ? `Sure? ${n} for ${money(n * sellPrice(sel))}` : `Sell all ${n}`, () => {
+                if (!sure) { this.sellingAll = sel; return; }
+                const next = sell(bag(), sel, n);
+                if (next) saveBag(next);
+                this.sellingAll = null;
+              }, sure))));
+          })
           // An item to hold: first who holds one now (their agent open or not), each with a way to
           // take it back into the Bag; then who on screen could be given one.
           .when(held.length > 0, (el) => el
@@ -2576,8 +2620,18 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.dim)
                 .child(until ? `On: ${Math.ceil((until - Date.now()) / 60000)} min left.` : has ? `For ${BOOST_MS / 60000} minutes, the whole herd.` : "None in the Bag: the Shop has them.")));
           })
-          // A Poké Ball: thrown from the strip, at a wild Pokémon walking by.
-          .when(ITEMS[sel].kind === "ball", (el) => el.child(div().h(2))
+          // A Poké Ball: thrown from the strip, at a wild Pokémon walking by; this one, or Auto.
+          .when(ITEMS[sel].kind === "ball", (el) => {
+            const on = shared(BALL_KEY) === sel;
+            const has = !!b.items[sel];
+            return el.child(div().h(2)).child(h_flex().gap(10).items_center()
+              .child(div().id("use-ball").h(26).px(14).rounded_full().flex().items_center().flex_none()
+                .text_size(12).font_semibold().bg(on || has ? t.solid : t.border).text_color(on || has ? t.solid_foreground : t.dim)
+                .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BALL_KEY, on ? null : sel); cx.notify(); }))
+                .child(on ? "Back to Auto" : "Throw this one"))
+              .child(div().text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest, the best for a shiny, a Master Ball only for a legendary. Right-click a wild one to switch.")));
+          })
+          .when(ITEMS[sel].kind === "ball", (el) => el
             .child(div().text_size(12).text_color(t.muted).child(`Odds with this ball: ${Math.round(100 * catchChance(sel, { dex: 25 }))}% for most, ${Math.round(100 * catchChance(sel, { dex: 25, shiny: true }))}% for a shiny, ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary.`))
             .child(div().text_size(11.5).text_color(t.dim).child(b.items[sel] ? "Click a wild Pokémon on the strip once you have its gift: a ball over its head means one is ready." : "None in the Bag: the Shop has them, and the day's Research gives some.")))
           // A Berry for catching: set it to be fed before each ball (one each time, while there are some).

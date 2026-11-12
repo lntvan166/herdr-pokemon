@@ -42,12 +42,12 @@ export const ITEMS = {
 
 // The Shop: every item, for Pokédollars (₽).
 export const PRICE = {
-  // Set from a working day: 8 hours of agents' work pays about ₽3,200, the day's Research about
-  // ₽400 more (≈ ₽3,600 a day). The Azure Flute is half a day; balls cheap enough to throw 15 at
-  // a legendary; a Master Ball about a week.
+  // Set from a working day: ~110 jobs and ~2 hours of agents' work pay about ₽1,700, the day's
+  // Research, visitors' purses and pats about ₽600 more (≈ ₽2,300). The Azure Flute is half a
+  // day; balls cheap enough to throw 15 at a legendary; a Master Ball about ten days.
   berry: 20, "sitrus-berry": 80, "razz-berry": 40, "pinap-berry": 40, "golden-razz-berry": 300, "silver-pinap-berry": 200,
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "master-ball": 25000,
-  honey: 150, "azure-flute": 1800, "rare-candy": 600,
+  honey: 150, "azure-flute": 1000, "rare-candy": 600,
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])),
   ...Object.fromEntries(HELD_IDS.map((id) => [id, 2000])),
   "x-speed": 150, "poke-flute": 100, "x-attack": 200, "soda-pop": 100, "festival-ticket": 250,
@@ -59,9 +59,21 @@ export const money = (n) => `₽${String(Math.max(0, Math.round(n || 0))).replac
 // the stats summary { jobs, ms }: ₽5 a job and ₽2 a minute worked, ₽150 a job at most).
 export const backPay = (s) => Math.min(150 * (s.jobs || 0), 5 * (s.jobs || 0) + 2 * Math.floor((s.ms || 0) / 60000));
 
-// What a finished job pays: ₽5, and ₽2 a minute it took, ₽150 at most; twice that for a Pokémon
-// holding an Amulet Coin.
-export const jobPay = (taskMs, coin = false) => Math.min(150, 5 + 2 * Math.floor(Math.max(0, taskMs || 0) / 60000)) * (coin ? 2 : 1);
+// What a finished job pays: ₽12, and ₽3 a minute it took, ₽200 at most; twice that for a Pokémon
+// holding an Amulet Coin. (A day here is ~110 jobs and ~2 hours of agents' work: ~₽1,700.)
+// A job under 15 s (a one-line answer: easy to send again and again) pays ₽3.
+export const QUICK_JOB_MS = 15000;
+export const jobPay = (taskMs, coin = false) => (Number.isFinite(taskMs) && taskMs < QUICK_JOB_MS ? 3
+  : Math.min(200, 12 + 3 * Math.floor(Math.max(0, taskMs || 0) / 60000))) * (coin ? 2 : 1);
+// What the Shop gives back for one: half its price, as in the games.
+export const sellPrice = (id) => Math.floor((PRICE[id] ?? 0) / 2);
+// The bag after selling `n` of `id` (as many as there are, at most), or null: none to sell.
+export function sell(bag, id, n = 1) {
+  const have = bag.items[id] ?? 0;
+  const k = Math.min(have, n);
+  if (!k || !sellPrice(id)) return null;
+  return addMoney(addItem(bag, id, -k), k * sellPrice(id));
+}
 export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });
 
 // The bag after buying one `id`, or null: not enough money, or already 99.

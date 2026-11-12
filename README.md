@@ -84,12 +84,16 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
-**Pokédollars and the Shop.** Every job an agent finishes pays: ₽5 and ₽2 a minute it took
-(₽150 at most), twice for a Pokémon holding an Amulet Coin, with "+₽25" over its head. Prices
-are set from a working day (8 hours of agents' work pays about ₽3,200, the day's Research about
-₽400 more). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
+**Pokédollars and the Shop.** Every job an agent finishes pays: ₽12 and ₽3 a minute it took
+(₽200 at most; a job under 15 seconds, ₽3), twice for a Pokémon holding an Amulet Coin, with
+"+₽42" over its head. A little comes from the strip too: a pat that gives a heart (₽10), a spar
+you set up by dropping one on another (₽15) or one you watch (₽5), up to ₽200 a day; and each
+wild Pokémon walking by carries a purse over its head, taken with its gift (₽10–30, now and then
+₽60–100, a shiny ₽150, a legendary ₽400), up to ₽600 a day. Prices are set from a working day
+(about 110 jobs and 2 hours of agents' work pay ₽1,700; the Research, purses and pats ₽600
+more). Anything in the Bag sells for half its price (Sell 1, or Sell all). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
 ₽150, Master Ball ₽25,000; Oran Berry ₽20, Sitrus Berry ₽80, Razz and Pinap Berries ₽40,
-Silver Pinap ₽200, Golden Razz ₽300; Honey ₽150, the **Azure Flute** ₽1,800 (it calls a
+Silver Pinap ₽200, Golden Razz ₽300; Honey ₽150, the **Azure Flute** ₽1,000 (it calls a
 legendary over: two a working day); stones ₽400, Rare Candy ₽600, items to hold ₽2,000; and five
 for the whole herd: **X Speed** (₽150, 10 min: faster, hardly stopping), **Poké Flute** (₽100:
 wakes everyone and keeps them up 10 min), **X Attack** (₽200, 10 min: sparring and teasing again
@@ -98,14 +102,15 @@ Ticket** (₽250: fireworks, and everyone celebrates). Boosts on now show as sma
 strip's corner with the minutes left.
 
 **Catching, and the Pokédex.** Click a wild Pokémon walking by for its gift, then again, with a
-ball over its head, to throw a Poké Ball (the cheapest you have; the best for a shiny; a Master
-Ball only for a legendary). It stops, the ball shakes, and "Gotcha!", or it breaks free and walks
+ball over its head, to throw it. Which ball: **Auto** (the cheapest you have; the best for a
+shiny; a Master Ball only for a legendary), or the one set in the Bag (Throw this one);
+right-click a wild Pokémon to switch to the next kind you have. It stops, the ball shakes, and "Gotcha!", or it breaks free and walks
 on. A caught Pokémon goes to the Box with a heart and a **nature** of its own: Hasty (walks
 faster), Lazy (naps sooner), Calm (stays up longer), Brave (spars more), Jolly (fidgets and dances
 more). Berries for catching, as in Pokémon GO, set in the Bag to be fed before each ball: **Razz**
 (×1.5), **Golden Razz** (×2.5), **Pinap** (twice the gift when it's caught), **Silver Pinap**
 (both). The Bag's **Pokédex** tab counts the species seen and caught, by region, and pays as it
-fills: ₽500 at 5, Ultra Balls at 15, a Master Ball at 30, 60, 100 and 200.
+fills: ₽750 at 5, Ultra Balls at 15, a Master Ball at 30, 60, 100 and 200.
 
 Catching is what opens things up. **Legendary Pokémon** (Mewtwo, Rayquaza…) can't be chosen in
 the picker (🔒) nor come to new agents until you catch one; one walks by 1 visitor in 150, the
