@@ -41,13 +41,14 @@ export const BAIT = {
   "pinap-berry": { rate: 1, double: true },
   "silver-pinap-berry": { rate: 1.8, double: true },
 };
-// A species' base rate, by where it stands in its line (GO's are much like this): a first stage
-// 30%, one on its own 20%, a middle stage 15%, a final stage 10%, a legendary 3%. A shiny is as
-// easy as any other (as in GO).
+// A species' base rate, by where it stands in its line: a first stage 45%, one on its own 35%, a
+// middle stage 30%, a final stage 20%, a legendary 3%. Higher than GO's (30/20/15/10): there the
+// Pokémon waits on the screen, here it walks off the edge, sooner on a narrow window. A shiny is
+// as easy as any other (as in GO).
 export function baseRate(dex) {
   if (isLegendary(dex)) return LEGEND_RATE;
   const pre = EVOLVES_FROM[dex] !== undefined, next = evolutionsOf(dex).length > 0;
-  return !pre ? (next ? 0.3 : 0.2) : next ? 0.15 : 0.1;
+  return !pre ? (next ? 0.45 : 0.35) : next ? 0.3 : 0.2;
 }
 // How likely `ball` catches `pick` ({ dex }), with `bait` fed first.
 export function catchChance(ball, pick, bait = null) {
@@ -61,8 +62,9 @@ export function catchChance(ball, pick, bait = null) {
 // Golden Razz Berries 9 in 10. The rest of the time it gets away.
 export const LEGEND_RATE = 0.03;
 export const LEGEND_THROWS = 15;
-// Any other breaks free and flees 1 time in 10 (GO's usual), else walks on for another ball.
-export const FLEE = 0.1;
+// Any other breaks free and flees 1 time in 20 (half GO's: it walks off soon enough), else walks
+// on for another ball.
+export const FLEE = 0.05;
 // One throw: { caught, shakes, fled } (the ball shakes three times before it clicks; fewer when it breaks out).
 export function throwBall(ball, pick, rnd = Math.random, bait = null) {
   const caught = rnd() < catchChance(ball, pick, bait);

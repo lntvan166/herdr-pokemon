@@ -212,18 +212,18 @@ test("a caught Pokémon remembers its ball", () => {
 
 import { baseRate, FLEE } from "../mods/pokemon-herd/trainer.js";
 test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a power", () => {
-  assert.equal(baseRate(1), 0.3); // Bulbasaur, a first stage
-  assert.equal(baseRate(2), 0.15); // Ivysaur
-  assert.equal(baseRate(3), 0.1); // Venusaur
-  assert.equal(baseRate(128), 0.2); // Tauros, on its own
+  assert.equal(baseRate(1), 0.45); // Bulbasaur, a first stage
+  assert.equal(baseRate(2), 0.3); // Ivysaur
+  assert.equal(baseRate(3), 0.2); // Venusaur
+  assert.equal(baseRate(128), 0.35); // Tauros, on its own
   assert.equal(baseRate(150), 0.03);
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.3) < 1e-9);
-  assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - 0.51) < 1e-9);
-  assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.9 ** 2.25)) < 1e-9);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.45) < 1e-9);
+  assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - (1 - 0.55 ** 2)) < 1e-9);
+  assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.8 ** 2.25)) < 1e-9);
   // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 15 balls).
   const seq = (...xs) => () => xs.shift();
-  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.05)).fled, true); // missed, then fled
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.02)).fled, true); // missed, then fled
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.5)).fled, false);
-  assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.05)).fled, false);
-  assert.equal(FLEE, 0.1);
+  assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.02)).fled, false);
+  assert.equal(FLEE, 0.05);
 });

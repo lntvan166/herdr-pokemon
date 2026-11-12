@@ -297,6 +297,15 @@ function cry(dex) {
   ensureCry(dex).then((path) => { if (path) playSound(path); }).catch(() => null);
 }
 // The Bag: a dialog of its own (menu, or keys.json "pokemon-herd.bag").
+// Item art known to be on disk (ensureArt), shared by every view: the strip, the menu, dialogs.
+const ART_READY = new Set();
+const ART_ASKED = new Set();
+// Every item's art, looked up (and fetched if missing) once; resolves when they're all known.
+let artAll = null;
+function readyArt() {
+  artAll ??= Promise.all(Object.values(ITEMS).map((x) => x.art).map((a) => ensureArt(a).then(() => { ART_READY.add(a); ART_ASKED.add(a); }).catch(() => null)));
+  return artAll;
+}
 // What the right-click menu offers from the Bag: the balls and catching Berries there are (and
 // which are set), and Honey or the Azure Flute to call a visitor (only with visitors on).
 function menuParts(b = bag()) {
@@ -371,7 +380,12 @@ export default class PokemonHerd extends View {
     if (this.settingsView) return this.initSettings(cx);
     if (!this.menu) this.loadMegas(cx, !this.picker); // the strip refreshes them; the picker only reads
     if (this.picker) return this.initPicker(cx);
-    if (this.menu) return;
+    if (this.menu) {
+      // Its chips' item art: on disk already, but each menu is a view of its own; look them up
+      // at once and draw them as soon as they're known (not the emoji, every time).
+      cx.spawn(async (cx) => { await readyArt(); cx.notify(); });
+      return;
+    }
     this.width = 900;
     this.sized = false; // Pokémon are placed only once the real width is known
     this.height = 112;
@@ -918,12 +932,11 @@ export default class PokemonHerd extends View {
   // An item's look on the strip: its sprite once it's in, else its emoji (size px).
   itemMark(id, size) {
     const art = ITEMS[id]?.art;
-    this.artReady ??= new Set();
-    if (art && !this.artReady.has(art) && !(this.artAsked ??= new Set()).has(art)) {
-      this.artAsked.add(art);
-      ensureArt(art).then(() => this.artReady.add(art)).catch(() => null);
+    if (art && !ART_READY.has(art) && !ART_ASKED.has(art)) {
+      ART_ASKED.add(art);
+      ensureArt(art).then(() => ART_READY.add(art)).catch(() => null);
     }
-    return art && this.artReady.has(art) ? image(artPath(art)).size(size).flex_none() : div().child(ITEMS[id]?.icon ?? "");
+    return art && ART_READY.has(art) ? image(artPath(art)).size(size).flex_none() : div().child(ITEMS[id]?.icon ?? "");
   }
 
   // Friendship and Pickup, each tick. Waiting on you: after HUNGRY_MS it's hungry (a heart down);
@@ -2385,11 +2398,11 @@ export default class PokemonHerd extends View {
     this.badgeHover = null;
     this.art = {}; // art key -> "ready" | "failed"
     const keys = [...Object.values(ITEMS).map((x) => x.art), ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `badges/${n}`), CHARM_ART];
+    // Known at once when cached (every one looked up together, not one after another); one redraw.
+    for (const k of keys) if (ART_READY.has(k)) this.art[k] = "ready";
     cx.spawn(async (cx) => {
-      for (const k of keys) {
-        try { await ensureArt(k); this.art[k] = "ready"; } catch { this.art[k] = "failed"; }
-        cx.notify();
-      }
+      await Promise.all(keys.map((k) => ensureArt(k).then(() => { this.art[k] = "ready"; ART_READY.add(k); }, () => { this.art[k] = "failed"; })));
+      cx.notify();
     });
     this.icons = {}; // the herd's portraits: entry key -> "loading" | "ready" | "failed"
     // The herd changes under it (agents finish, Pokémon evolve): redraw, and fetch new portraits.
@@ -2697,7 +2710,7 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest, the best for a shiny, a Master Ball only for a legendary. Right-click a wild one to switch.")));
           })
           .when(ITEMS[sel].kind === "ball", (el) => el
-            .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: 1 in 10 flee.`))
+            .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: 1 in 20 flee.`))
             .child(div().text_size(11.5).text_color(t.dim).child(b.items[sel] ? "Click a wild Pokémon on the strip once you have its gift: a ball over its head means one is ready." : "None in the Bag: the Shop has them, and the day's Research gives some.")))
           // A Berry for catching: set it to be fed before each ball (one each time, while there are some).
           .when(ITEMS[sel].kind === "bait", (el) => {
