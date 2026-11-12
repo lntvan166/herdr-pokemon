@@ -18,7 +18,7 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
@@ -2519,46 +2519,72 @@ export default class PokemonHerd extends View {
   // The Bag's Shop tab: every item and its price; the chosen one, what it does, and Buy.
   // Pokédollars come from finished jobs (by how long each took).
   renderShop(b, LIST_H, t, art) {
-    const ids = Object.keys(PRICE);
-    const sel = ids.includes(this.shopSel) ? this.shopSel : "x-speed";
+    const ids = grouped(Object.keys(PRICE));
+    const sel = ids.includes(this.shopSel) ? this.shopSel : "poke-ball";
     const price = PRICE[sel];
-    const n = b.items[sel] ?? 0;
-    const can = (b.money ?? 0) >= price && n < 99;
+    const have = b.items[sel] ?? 0;
+    const most = maxBuy(b, sel);
+    // How many: the stepper's count, kept within what can be bought (at least 1 to show).
+    const qty = Math.max(1, Math.min(this.shopQty ?? 1, Math.max(1, most)));
+    const can = most >= qty;
+    const setQty = (q) => { this.shopQty = q; };
+    const step = (id, label, q, enabled) => div().id(id).h(26).min_w(30).px(8).rounded(6).flex().items_center().justify_center().flex_none()
+      .text_size(12).border_1().border_color(q === qty && label.startsWith("×") ? t.accent : t.border)
+      .bg(q === qty && label.startsWith("×") ? t.selected : "#00000000")
+      .text_color(enabled ? t.foreground : t.dim)
+      .when(enabled, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { setQty(q); cx.notify(); }))
+      .child(label);
+    let last = null;
     return h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
-      .child(v_flex().id("shop-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
-        .children(ids.map((id) => {
+      .child(v_flex().id("shop-items").w(230).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
+        .children(ids.flatMap((id) => {
           const on = id === sel;
           const afford = (b.money ?? 0) >= PRICE[id];
-          return h_flex().id(`shop-${id}`).h(26).px(8).gap(8).rounded(7).items_center()
+          const g = groupOf(id);
+          const head = g !== last ? [div().px(8).pt(last ? 8 : 2).pb(2).text_size(10.5).text_color(t.dim).child(g)] : [];
+          last = g;
+          return [...head, h_flex().id(`shop-${id}`).h(26).px(8).gap(8).rounded(7).items_center()
             .bg(on ? t.selected : "#00000000").cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
-            .on_click((_e, cx) => { this.shopSel = id; cx.notify(); })
+            .on_click((_e, cx) => { this.shopSel = id; this.shopQty = 1; cx.notify(); })
             .child(art(ITEMS[id].art, 22))
             .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(ITEMS[id].name))
-            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(PRICE[id])));
+            .when(!!b.items[id], (el) => el.child(div().text_size(10.5).text_color(t.dim).child(`×${b.items[id]}`)))
+            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(PRICE[id])))];
         })))
       .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()
         .child(h_flex().gap(12).items_center()
           .child(art(ITEMS[sel].art, 56))
           .child(v_flex().min_w(0).gap(2)
             .child(div().text_size(14).font_semibold().text_color(t.foreground).child(ITEMS[sel].name))
-            .child(div().text_size(12).text_color(t.muted).child(`${money(price)} · ${n} in the Bag`))))
+            .child(div().text_size(12).text_color(t.muted).child(`${money(price)} each · ${have} in the Bag`))))
         .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
         .child(div().h(2))
+        // How many: − n +, then ×1 ×5 ×10 and Max (what the money and the Bag allow).
+        .child(h_flex().gap(4).items_center()
+          .child(step("shop-less", "−", Math.max(1, qty - 1), qty > 1))
+          .child(div().w(36).text_center().text_size(13).font_semibold().text_color(t.foreground).child(String(qty)))
+          .child(step("shop-more", "+", qty + 1, qty < most))
+          .child(div().w(6))
+          .children([1, 5, 10].map((q) => step(`shop-x${q}`, `×${q}`, q, most >= q)))
+          .child(step("shop-max", most > 0 ? `Max ${most}` : "Max", Math.max(1, most), most > 1)))
         .child(h_flex().gap(10).items_center()
-          .child(div().id("shop-buy").h(26).px(14).rounded_full().flex().items_center().flex_none()
-            .text_size(12).font_semibold().bg(can ? t.solid : t.border).text_color(can ? t.solid_foreground : t.dim)
+          .child(div().id("shop-buy").h(28).px(16).rounded_full().flex().items_center().flex_none()
+            .text_size(12.5).font_semibold().bg(can ? t.solid : t.border).text_color(can ? t.solid_foreground : t.dim)
             .when(can, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
-              const next = buy(bag(), sel);
-              if (next) saveBag(next);
+              const next = buy(bag(), sel, qty);
+              if (next) { saveBag(next); this.bought = { id: sel, n: qty, at: Date.now() }; }
               cx.notify();
             }))
-            .child(`Buy for ${money(price)}`))
-          .child(div().text_size(11.5).text_color(t.dim).child(n >= 99 ? "The Bag holds 99 at most."
-            : can ? `You have ${money(b.money)}.` : `${money(price - (b.money ?? 0))} more to go.`)))
+            .child(`Buy ${qty} for ${money(price * qty)}`))
+          .child(div().text_size(11.5).text_color(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? t.accent : t.dim)
+            .child(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? `Bought ${this.bought.n}.`
+              : have >= 99 ? "The Bag holds 99 at most."
+              : can ? `You have ${money(b.money)}.` : `${money(price * qty - (b.money ?? 0))} more to go.`)))
         .child(div().flex_1())
         .child(div().text_size(11.5).text_color(t.muted)
           .child("Pokédollars come from jobs (₽1 and ₽5 a minute each took, ₽300 at most; twice with an Amulet Coin), the day's Research, visitors' purses and pats. Anything sells back for half.")));
   }
+
 
   // The herd as the Bag sees it: agents with a pane, their saved Pokémon and tags.
   herd(saved = savedPicks()) {
@@ -2639,17 +2665,19 @@ export default class PokemonHerd extends View {
       .when(tab === "items", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
         .child(v_flex().id("bag-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
-          .children(ids.map((id) => {
+          .children(grouped(ids).flatMap((id, i, all) => {
             const n = b.items[id] ?? 0;
             const on = id === sel;
-            return h_flex().id(`item-${id}`).h(26).px(8).gap(8).rounded(7).items_center()
+            // A quiet heading where each group starts (Balls, Berries, Evolution…).
+            const head = !i || groupOf(all[i - 1]) !== groupOf(id) ? [div().px(8).pt(i ? 8 : 2).pb(2).text_size(10.5).text_color(t.dim).child(groupOf(id))] : [];
+            return [...head, h_flex().id(`item-${id}`).h(26).px(8).gap(8).rounded(7).items_center()
               .bg(on ? t.selected : "#00000000").cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
               .on_click((_e, cx) => { this.sel = id; cx.notify(); })
               .child(div().opacity(n ? 1 : 0.35).child(art(ITEMS[id].art, 22)))
               .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(n ? t.foreground : t.dim).child(ITEMS[id].name))
               .when(takers[id].length > 0, (el) => el.child(div().size(6).rounded_full().bg(t.accent)))
               .when((heldAll[id]?.length ?? 0) > 0, (el) => el.child(div().text_size(11).text_color(t.muted).child(`${heldAll[id].length} held`)))
-              .child(div().w(22).text_right().text_size(12.5).text_color(n ? t.foreground : t.dim).child(String(n)));
+              .child(div().w(22).text_right().text_size(12.5).text_color(n ? t.foreground : t.dim).child(String(n)))];
           })))
         // The chosen item: what it does, and who on screen can take it now.
         .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()
@@ -2660,14 +2688,17 @@ export default class PokemonHerd extends View {
               .child(div().text_size(12).text_color(t.muted).child(`${b.items[sel] ?? 0} in the Bag`))))
           .child(div().text_size(12).text_color(t.foreground).child(itemAbout(sel)))
           // Sell: one, or all of them (twice: "Sure?"), for half the Shop's price.
-          .when(!!b.items[sel] && sellPrice(sel) > 0, (el) => {
-            const n = b.items[sel];
+          // Buy more: the Shop, on this item.
+          .when(sellPrice(sel) > 0, (el) => {
+            const n = b.items[sel] ?? 0;
             const sure = this.sellingAll === sel;
             const pill = (id, label, click, danger = false) => div().id(id).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
               .border_color(danger ? t.blocked : t.border).text_color(danger ? t.blocked : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
               .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
-            return el.child(h_flex().gap(6).items_center()
-              .child(pill("sell-one", `Sell 1 · ${money(sellPrice(sel))}`, () => { const next = sell(bag(), sel, 1); if (next) saveBag(next); this.sellingAll = null; }))
+            return el.child(h_flex().flex_wrap().gap(6).items_center()
+              .child(pill("buy-more", `Buy more · ${money(PRICE[sel])}`, () => { this.bagTab = "shop"; this.shopSel = sel; this.shopQty = 1; }))
+              .when(n > 0, (e2) => e2.child(pill("sell-one", `Sell 1 · ${money(sellPrice(sel))}`, () => { const next = sell(bag(), sel, 1); if (next) saveBag(next); this.sellingAll = null; })))
+              .when(n > 10, (e2) => e2.child(pill("sell-ten", `Sell 10 · ${money(10 * sellPrice(sel))}`, () => { const next = sell(bag(), sel, 10); if (next) saveBag(next); this.sellingAll = null; })))
               .when(n > 1, (e2) => e2.child(pill("sell-all", sure ? `Sure? ${n} for ${money(n * sellPrice(sel))}` : `Sell all ${n}`, () => {
                 if (!sure) { this.sellingAll = sel; return; }
                 const next = sell(bag(), sel, n);

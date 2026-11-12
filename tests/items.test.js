@@ -201,3 +201,19 @@ test("a visitor's gift: balls about half the time, Poké Balls three at once", (
   for (let i = 0; i < 1000; i++) { const g = visitorGift(() => (i + 0.5) / 1000); assert.ok(ITEMS[g.id], g.id); if (ITEMS[g.id].kind === "ball") balls++; }
   assert.ok(balls > 450 && balls < 560, String(balls));
 });
+
+import { maxBuy, GROUPS, groupOf, grouped } from "../mods/pokemon-herd/items.js";
+test("buy several at once, as many as the money and the Bag allow", () => {
+  const b = { v: 1, items: { "poke-ball": 95 }, money: 1000, marks: {} };
+  assert.equal(buy(b, "poke-ball", 4).items["poke-ball"], 99);
+  assert.equal(buy(b, "poke-ball", 4).money, 1000 - 120);
+  assert.equal(buy(b, "poke-ball", 5), null); // past 99
+  assert.equal(maxBuy(b, "poke-ball"), 4);
+  assert.equal(maxBuy({ ...b, items: {}, money: 100 }, "poke-ball"), 3);
+  assert.equal(buy({ ...b, items: {}, money: 100 }, "poke-ball", 4), null); // not enough
+});
+test("every item is in one group", () => {
+  for (const id of Object.keys(ITEMS)) assert.notEqual(groupOf(id), "Other", id);
+  assert.equal(grouped(Object.keys(ITEMS)).length, Object.keys(ITEMS).length);
+  assert.equal(grouped(Object.keys(ITEMS))[0], "poke-ball");
+});

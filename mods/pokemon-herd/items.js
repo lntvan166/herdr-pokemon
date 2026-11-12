@@ -76,11 +76,26 @@ export function sell(bag, id, n = 1) {
 export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });
 
 // The bag after buying one `id`, or null: not enough money, or already 99.
-export function buy(bag, id) {
+export function buy(bag, id, n = 1) {
   const price = PRICE[id];
-  if (!price || (bag.money ?? 0) < price || (bag.items[id] ?? 0) >= MAX_ITEM) return null;
-  return addItem(addMoney(bag, -price), id);
+  if (!price || n < 1 || (bag.money ?? 0) < price * n || (bag.items[id] ?? 0) + n > MAX_ITEM) return null;
+  return addItem(addMoney(bag, -price * n), id, n);
 }
+// The most of `id` the Bag can take and the money buy (0: none).
+export const maxBuy = (bag, id) => (PRICE[id] ? Math.max(0, Math.min(MAX_ITEM - (bag.items[id] ?? 0), Math.floor((bag.money ?? 0) / PRICE[id]))) : 0);
+
+// The Bag's and the Shop's groups, in order: each item in one.
+export const GROUPS = [
+  ["Balls", (id) => ITEMS[id].kind === "ball"],
+  ["Berries", (id) => id === "berry" || id.endsWith("-berry")],
+  ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone")],
+  ["To hold", (id) => ITEMS[id].kind === "held"],
+  ["For the herd", (id) => ITEMS[id].kind === "boost" || id === "festival-ticket"],
+  ["Calls", (id) => id === "honey" || id === "azure-flute"],
+];
+export const groupOf = (id) => GROUPS.find(([, f]) => f(id))?.[0] ?? "Other";
+// Item ids in group order (each group in the Bag's order).
+export const grouped = (ids) => GROUPS.flatMap(([, f]) => ids.filter(f)).concat(ids.filter((id) => !GROUPS.some(([, f]) => f(id))));
 
 // Boosts (shared state { <id>: until }): each lasts BOOST_MS from its use, another one adding
 // as much again, up to BOOST_MAX ahead. Which are on now: { <id>: until }.
