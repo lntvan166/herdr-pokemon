@@ -58,7 +58,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Pokédex:** species seen and caught by region; goals at 5, 15, 30, 60, 100, 200 caught pay
   money, Ultra Balls, Master Balls. A species caught shiny can be chosen shiny in the picker.
 - **Today:** three Research tasks a day, drawn from the date (every window agrees), each paying
-  when done; all three: an Ultra Ball and a legendary walks by. Yesterday sums up in a line.
+  when done (money, or 15–20 Poké Balls, 8 Great Balls); all three: 5 Ultra Balls and a legendary walks by. Yesterday sums up in a line.
 - **Trainer mode** (Settings → Trainer, off by default, its tab twinkling): only caught species
   and the three Kanto starters can be chosen or come to new agents.
 

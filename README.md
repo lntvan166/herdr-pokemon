@@ -127,7 +127,7 @@ agents, each a caught one from the Box with its hearts and nature.
 **The day's Research.** The Bag's **Today** tab: three tasks a day drawn from your work (finish
 10 jobs, Fire-type Pokémon finish 3 jobs, answer an agent within a minute, catch one, take
 visitors' gifts, feed Berries, watch spars, work 2 hours…), each paying Pokédollars or balls the
-moment it's done. All three: an Ultra Ball, and a legendary Pokémon walks by. Yesterday sums up
+moment it's done. All three: 5 Ultra Balls, and a legendary Pokémon walks by. Yesterday sums up
 in a line at the top ("Yesterday: 23 jobs · 2 caught · Research 3/3 · busiest Pikachu").
 
 **The Box.** (Right-click the strip → Box. A grid of every Pokémon you have, with agents or waiting, to narrow down: search, Waiting, With agents, Caught, Shiny, Legendary. Click one to see it, then Rename it, Take what it holds, Bring it out for an agent you choose, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and

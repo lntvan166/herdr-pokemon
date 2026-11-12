@@ -205,13 +205,15 @@ export const TASKS = {
   type: { goals: [3], text: (n, type) => `${cap(type)}-type Pokémon finish ${n} jobs`, pay: () => ({ money: 375 }) },
   work: { goals: [60, 120], text: (n) => `Work ${n / 60}h in all`, pay: (n) => ({ money: 3 * n }) },
   quick: { goals: [2, 3], text: (n) => `Answer an agent within a minute, ${n} times`, pay: () => ({ money: 225 }) },
-  pet: { goals: [3], text: (n) => `Pet ${n} Pokémon`, pay: () => ({ item: "poke-ball", count: 3 }) },
-  catch: { goals: [1, 2], text: (n) => `Catch ${n} wild Pokémon`, pay: () => ({ item: "great-ball", count: 2 }), wild: true },
-  gift: { goals: [2, 3], text: (n) => `Take ${n} gifts from visitors`, pay: () => ({ item: "poke-ball", count: 3 }), wild: true },
+  pet: { goals: [3], text: (n) => `Pet ${n} Pokémon`, pay: () => ({ item: "poke-ball", count: 15 }) },
+  catch: { goals: [1, 2], text: (n) => `Catch ${n} wild Pokémon`, pay: () => ({ item: "great-ball", count: 8 }), wild: true },
+  gift: { goals: [2, 3], text: (n) => `Take ${n} gifts from visitors`, pay: () => ({ item: "poke-ball", count: 20 }), wild: true },
   berry: { goals: [1, 2], text: (n) => `Feed ${n} Berr${n === 1 ? "y" : "ies"}`, pay: () => ({ money: 225 }) },
   spar: { goals: [2, 3], text: (n) => `Watch ${n} spars`, pay: () => ({ money: 180 }) },
 };
-export const BONUS = { item: "ultra-ball", count: 1 }; // all three done (and a legendary comes)
+// Balls as pay are worth about what the money tasks pay (₽450–750: 15–20 Poké Balls, 8 Great
+// Balls); all three done: 5 Ultra Balls, and a legendary comes.
+export const BONUS = { item: "ultra-ball", count: 5 };
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 export const taskText = (t) => TASKS[t.id]?.text(t.goal, t.type) ?? t.id;
 export const taskPay = (t) => TASKS[t.id]?.pay(t.goal) ?? { money: 0 };
