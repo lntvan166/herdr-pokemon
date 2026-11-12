@@ -17,8 +17,7 @@ wakes up and looks at you, then stays up 15 s. When its agent finishes, it celeb
 agent needs you, it startles and calls. When the agent starts working, it gets ready to go. Idle ones mind the season: they sniff
 the spring flowers 🌸, bask in the summer sun ☀️, look up at the falling leaves 🍂 and shiver in
 the snow ❄️, and they fall asleep sooner at night. Hover
-one and it turns to you, and its name shows what its species has done: "Pikachu · api · 128 done ·
-14h 20m".
+one and it turns to you, and its name shows what it has done: "Pikachu · api · ♥2 · 7 jobs".
 
 <p align="center">
   <img src="docs/demo/focus.gif" alt="Clicking an agent wakes its sleeping Pikachu, which looks at you" width="360">

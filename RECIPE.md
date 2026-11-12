@@ -258,7 +258,7 @@ forms, and Mega Evolution while an agent works.
   new agent being given one (in the strip's tick, before its fresh picks are saved), takes the
   latest raised one of that species and form, as it was (the picker's Mega setting kept; the
   pane's own item kept if the boxed one holds none, else back into the Bag), and forgets its
-  old pane. Labels: the picker card says "Every Charmeleon: 6 done · 1m" (all of that species).
+  old pane. Labels: the picker card says "All Charmeleon so far: 6 done · 1m" (all of that species).
 - **Badge progress** (`badgeProgress`, `nextBadge` in `items.js`): under each badge not yet
   earned, a 28×3 px bar (`accent` on `border`) at its fraction (jobs of 10 / 100 / 1000, work of
   24 h, the longest job of an hour, the most hearts of 5; 0 for Thunder and Marsh, which are
@@ -339,7 +339,8 @@ forms, and Mega Evolution while an agent works.
   longest } } }`): per species, not per pane, so closing a pane loses nothing; shiny, Mega and
   regional forms count as their species. A job is work that ends in done or idle; blocked
   (waiting on you) pauses it without counting the wait. An agent already working when the strip
-  starts counts from then. The hovered name adds "128 done · 14h 20m".
+  starts counts from then. The hovered name adds its own jobs ("7 jobs"); the
+  species' totals are on the picker card ("All Pikachu so far: 128 done · 14h 20m").
 
 ## How it behaves
 

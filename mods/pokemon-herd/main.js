@@ -1369,8 +1369,9 @@ export default class PokemonHerd extends View {
     const rowOf = (a) => (g ? Math.min(this.mons[a.address]?.row ?? list.indexOf(a) % g.rows, g.rows - 1) : 0);
     const label = (a, full) => {
       const pick = ids[a.address];
-      // Hovered: its species' stats too ("Pikachu · api · 128 done · 14h 20m").
-      const line = full ? statLine(stats().species[pick.dex]) : "";
+      // Hovered: this one's own jobs ("Pikachu · api · ♥2 · 7 jobs"), not its species' totals
+      // (a new Rayquaza showed every Rayquaza's "13 done", as if it had kept them).
+      const line = full ? `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}` : "";
       const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : "";
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
@@ -2171,7 +2172,7 @@ export default class PokemonHerd extends View {
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
               .child(h_flex().gap(1).items_center()
                 .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
-                .child(div().ml(8).text_size(11.5).text_color(t.muted).child(line ? `Every ${nameOf(cur.dex)}: ${line}` : `No ${nameOf(cur.dex)} has finished a job yet`)))
+                .child(div().ml(8).text_size(11.5).text_color(t.muted).child(line ? `All ${nameOf(cur.dex)} so far: ${line}` : `No ${nameOf(cur.dex)} has finished a job yet`)))
               .child(h_flex().gap(8).items_center()
                 .child(div().min_w(0).text_size(11.5).text_color(t.foreground).child(progress))
                 .when(byJobs, (el) => el.child(
