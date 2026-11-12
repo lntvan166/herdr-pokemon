@@ -200,3 +200,10 @@ test("a legendary called over carries ₽100; one that just walks by ₽400", ()
   assert.equal(purse(called), 100);
   assert.equal(purse({ dex: 150, legend: true }), 400);
 });
+
+test("a caught Pokémon remembers its ball", () => {
+  const p = caughtPick({ dex: 480 }, 5, () => 0, "master-ball");
+  assert.equal(p.ball, "master-ball");
+  assert.equal(loadPicks({ v: 2, panes: { b: p } }).panes.b.ball, "master-ball");
+  assert.equal(loadPicks({ v: 2, panes: { b: { ...p, ball: "berry" } } }).panes.b.ball, undefined);
+});

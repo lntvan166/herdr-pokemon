@@ -773,7 +773,7 @@ export default class PokemonHerd extends View {
   // the Pokédex's goals paid.
   caught(v) {
     const now = Date.now();
-    const pick = caughtPick(v.pick, now);
+    const pick = caughtPick(v.pick, now, Math.random, v.throw?.ball);
     v.nature = pick.nature;
     savePicks({ [`box-${now}-${pick.dex}`]: pick });
     saveDex(withCaught(pokedex(), pick));
@@ -2826,7 +2826,7 @@ export default class PokemonHerd extends View {
         .child(div().w_full().px(3).text_center().truncate().text_size(10).text_color(x.tag ? t.accent : t.muted)
           .child(x.tag ? x.tag : `♥ ${heartsText(friendOf(x.pick))}`))
         .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
-        .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt("poke-ball", 14))))
+        .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt(x.pick.ball ?? "poke-ball", 14))))
         .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
     };
     // The chosen one: who it is, and its actions.
@@ -2839,7 +2839,7 @@ export default class PokemonHerd extends View {
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
       const facts = [`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
-        pick.caught ? `caught ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
+        pick.caught ? `caught in a ${ITEMS[pick.ball ?? "poke-ball"].name}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
           .child(icon(pick, 48))

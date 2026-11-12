@@ -6,7 +6,7 @@
 // held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin…); nick: the name you gave it.
 import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf, fullName } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
-import { NATURES } from "./trainer.js";
+import { NATURES, BALLS } from "./trainer.js";
 
 const EVOLVES_FROM_MAP = new Map(Object.entries(EVOLVES_FROM).map(([to, from]) => [Number(to), from]));
 
@@ -41,7 +41,8 @@ export function loadPicks(current, legacy) {
       const nick = cleanNick(p.nick) ?? undefined;
       const caught = Number.isFinite(p.caught) && p.caught > 0 ? p.caught : undefined; // caught in a ball (trainer.js)
       const nature = p.nature in NATURES ? p.nature : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}) };
+      const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }

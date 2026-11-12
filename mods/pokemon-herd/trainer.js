@@ -105,7 +105,8 @@ export const natureMul = (pick, what) => natureOf(pick)?.[what] ?? 1;
 
 // A wild Pokémon caught (`wild`: the visitor's pick): a Pokémon of yours for the Box, already ♥1
 // (it chose to come along), with a nature, and when it was caught.
-export function caughtPick(wild, now, rnd = Math.random) {
+// `ball`: the one it was caught in (shown on it in the Box).
+export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
   const keys = Object.keys(NATURES);
   return {
     dex: wild.dex,
@@ -115,6 +116,7 @@ export function caughtPick(wild, now, rnd = Math.random) {
     friend: 20,
     hearts: 1,
     caught: now,
+    ...(BALLS.includes(ball) ? { ball } : {}),
     nature: keys[Math.floor(rnd() * keys.length)],
   };
 }
