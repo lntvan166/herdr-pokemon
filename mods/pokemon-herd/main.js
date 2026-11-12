@@ -18,7 +18,7 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
@@ -887,9 +887,11 @@ export default class PokemonHerd extends View {
         })
         .on_click((_e, cx) => {
           if (!v.gift) {
-            v.gift = pickup();
+            const g = visitorGift();
+            v.gift = g.id;
+            v.giftN = g.n;
             v.giftAt = Date.now();
-            saveBag(addItem(bag(), v.gift));
+            saveBag(addItem(bag(), g.id, g.n));
             research("gift");
             if (v.purse) v.paid = earn("purse", v.purse);
           } else if (Date.now() - v.giftAt > 800) this.throwAt(v);
@@ -901,7 +903,7 @@ export default class PokemonHerd extends View {
         .loop("opacity", { from: 0.3, to: 1, period: 600 }).child("✦")))
       .when(showGift, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18)).text_size(13)
         .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
-        .child(v.gift ? this.itemMark(v.gift, 18) : "🎁")))
+        .child(v.gift ? h_flex().items_center().gap(1).child(this.itemMark(v.gift, 18)).when((v.giftN ?? 1) > 1, (e2) => e2.child(div().text_size(10).font_semibold().text_color("#ffffff").child(`×${v.giftN}`))) : "🎁")))
       // Its purse beside the gift ("₽25"), then what it paid ("+₽25").
       .when(showGift && (!v.gift ? v.purse > 0 : v.paid > 0), (el) => el.child(div().absolute().left(mid + 10).top(Math.max(2, headY - 16)).h(14).px(3).rounded(3)
         .bg("#00000055").text_size(10).font_semibold().text_color(v.pick.legend || v.purse >= 60 ? "#f2c94c" : "#ffffff")
@@ -915,7 +917,7 @@ export default class PokemonHerd extends View {
       const what = `${v.pick.legend ? "A legendary" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
-        : now - v.giftAt < 2500 ? ` left you ${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}${v.paid ? ` and ${money(v.paid)}` : ""}`
+        : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
         : ball ? `: ${shared(BALL_KEY) === ball ? "" : "(Auto) "}click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it flees` : ""}`
         : ": no Poké Balls (the Shop has them)";
       root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)

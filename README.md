@@ -144,7 +144,7 @@ up, stretches, wanders a little and dozes off again (less often at night).
 the strip and is gone; idle ones turn to watch it pass. Hover it: "A wild Pidgey". Settings →
 Visitors sets how often: Off, Rare (every 10–25 minutes), Often (3–8, the default) or Lots (1–3). Each
 carries a gift (🎁 over its head): click it as it passes and it leaves you something for the Bag
-(a Berry mostly, now and then a stone).
+(Poké Balls half the time, three at once, or Great Balls two at once; Berries for catching; now and then a stone).
 
 **A campfire, and combos.** At night, once no agent is working or waiting on you, a fire is lit
 in the middle of the strip and the herd sleeps round it (Settings → Campfire). An agent and its

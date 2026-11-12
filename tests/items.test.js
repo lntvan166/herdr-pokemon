@@ -193,3 +193,11 @@ test("backPay: the jobs done before Pokédollars, as they would have paid", () =
   assert.equal(money(1500), "₽1,500");
   assert.equal(money(999999), "₽999,999");
 });
+
+import { visitorGift } from "../mods/pokemon-herd/items.js";
+test("a visitor's gift: balls about half the time, Poké Balls three at once", () => {
+  assert.deepEqual(visitorGift(() => 0), { id: "poke-ball", n: 3 });
+  let balls = 0;
+  for (let i = 0; i < 1000; i++) { const g = visitorGift(() => (i + 0.5) / 1000); assert.ok(ITEMS[g.id], g.id); if (ITEMS[g.id].kind === "ball") balls++; }
+  assert.ok(balls > 450 && balls < 560, String(balls));
+});

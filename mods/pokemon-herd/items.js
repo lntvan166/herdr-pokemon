@@ -156,6 +156,22 @@ export function pickup(rnd = Math.random) {
   for (const [id, w] of PICKUP) if ((r -= w) < 0) return id;
   return PICKUP[0][0];
 }
+// A visitor's gift (out of 100): balls half the time, a few at once (Poké Balls ×3, Great Balls
+// ×2, as a PokéStop gives them), then Berries for catching, now and then something rarer. Catching
+// is hard (trainer.js): the balls to try again come from the visitors themselves.
+const GIFT = [
+  ["poke-ball", 35], ["great-ball", 12], ["ultra-ball", 4],
+  ["berry", 8], ["sitrus-berry", 4], ["razz-berry", 10], ["pinap-berry", 6], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
+  ...STONES.map((k) => [`${k}-stone`, 1]), ["rare-candy", 4], ["honey", 3], ...HELD_IDS.map((id) => [id, 0.4]),
+];
+const GIFT_COUNT = { "poke-ball": 3, "great-ball": 2 };
+// { id, n }: what a visitor leaves, and how many.
+export function visitorGift(rnd = Math.random) {
+  let r = rnd() * GIFT.reduce((t, [, w]) => t + w, 0);
+  const id = (GIFT.find(([, w]) => (r -= w) < 0) ?? GIFT[0])[0];
+  return { id, n: GIFT_COUNT[id] ?? 1 };
+}
+
 // How long a Pokémon goes between finds (ms): somewhere in 1 to 2 hours; it finds one only if
 // its agent is idle then. (Eight agents, a working day: a dozen or two Berries, a few stones.)
 export const pickupDelay = (rnd = Math.random) => (60 + rnd() * 60) * 60000;
