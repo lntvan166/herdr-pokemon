@@ -1,10 +1,11 @@
 # Pokémon herd
 
-Every coding agent becomes a pixel-art Pokémon on a strip of ground. It walks while its agent
-works, strolls and naps when the agent is idle, and stands calling for you with a red "!" when
-the agent is blocked. Each Pokémon's agent name sits under its feet. Click a Pokémon to jump to
-its agent; it wakes up and looks at you. There are 974 species, an occasional shiny, regional
-forms, and Mega Evolution while an agent works.
+Every coding agent becomes a pixel-art Pokémon (pokemon-herd) on a strip of ground: it walks
+while its agent works, naps when it's idle, and calls for you with a red "!" when it's blocked.
+And it's a game: your agents' work earns Pokédollars, wild Pokémon walk by with gifts to catch
+with Poké Balls and Berries, the Pokédex fills region by region, three Research tasks a day pay
+out and call a legendary over, and your team evolves, makes friends and hunts shinies. 974
+species, regional forms, Mega Evolution, and a Pokémon Sidebar with your agents as cards.
 
 ![Pokémon herd](preview.png)
 
@@ -20,15 +21,46 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   Sidebar** (spaces with their agents as cards; collapsed, their Pokémon), and notifications show
   the agent's Pokémon. Each agent is a Pokémon; its name is under its feet.
 - **Click a Pokémon** to jump to its agent. **Hover** for its name, hearts and jobs.
-- **Right-click a Pokémon** to change it: search all 974, Random, Box it (keep this one, get a
-  new one), right-click one in the list to preview it.
-- **Right-click the ground** for the menu: the **Bag** (items, badges, the Box of Pokémon whose
-  agents are gone) and **Settings** (where the strip sits, rows, size, background, agent cards,
-  cries, and each mechanic's switch; Updates → Update now).
+- **Right-click a Pokémon** to change it: search all 974, click one to preview it, **Replace**
+  to take it; Random; Box it (keep this one, get a new one).
+- **Wild Pokémon** walk by: click one for its gift and its purse (₽), then again to throw a Poké
+  Ball. Caught ones join the Box with a heart and a nature. Legendaries are locked until caught.
+- **Right-click the ground** for the menu: the **Box** (with the Bag, the Shop, Today's three
+  Research tasks and the Pokédex), the ball and Berry to throw, and **Settings** (tabs: Strip,
+  Herd, Trainer, Sound, Updates → Update now).
 - **Drag** a Pokémon to move it; drop it on another and they spar, on a sleeping one and it
   pokes it awake; shake it while dragging and it gets dizzy.
 - They evolve as their agents finish jobs, find items while idle, and like you more when you
-  answer them quickly. Optional keys (`keys.json`): `alt-shift-p` picker, `alt-shift-b` Bag.
+  answer them quickly. Jobs pay by the time they took (₽1 + ₽5 a minute). Optional keys
+  (`keys.json`): `alt-shift-p` picker, `alt-shift-b` Bag.
+
+## The trainer's game (trainer.js, items.js)
+
+The pure rules are in `mods/pokemon-herd/trainer.js` and `items.js`, each constant commented
+with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin them down.
+
+- **Pokédollars:** a job pays `1 + 5 × minutes` (₽300 at most, ×2 with an Amulet Coin), so about
+  ₽300 an hour of agents' work however it's cut into jobs. Small extras with daily caps against
+  farming: visitors' purses (₽10–30, now and then ₽60–100, a shiny ₽150, a legendary walking by
+  ₽400, one called ₽100; up to ₽600 a day; fewer purses the more often visitors come) and tips
+  (a pat that gives a heart ₽10, a spar set up by a drop ₽15, one watched ₽5; up to ₽200 a day).
+  Prices are set from a working day (~₽3,000); anything sells back for half.
+- **Catching:** a visitor's first click takes its gift and purse; then, with a ball over its
+  head, a click throws one: the chosen ball (Bag, menu, or right-click the visitor) or Auto
+  (cheapest; the best for a shiny; a Master Ball only for a legendary). A Berry set in the Bag goes
+  before each ball (Razz ×1.5, Golden Razz ×2.5, Pinap: twice the gift, Silver Pinap: both). The
+  visitor stops while the ball shakes (up to three times), then "Gotcha!" or it breaks free and
+  walks on. Caught: into the Box (`box-<when>-<dex>`) with ♥1, a nature (Hasty, Lazy, Calm, Brave,
+  Jolly: speed, napping, sparring, fidgets) and its ball.
+- **Legendaries** (`LEGENDARY`): locked in the picker and for new agents until one is caught
+  (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
+  Azure Flute (₽1,000) and the day's Research call one. About 15 balls before one flees.
+- **Pokédex:** species seen and caught by region; goals at 5, 15, 30, 60, 100, 200 caught pay
+  money, Ultra Balls, Master Balls. A species caught shiny can be chosen shiny in the picker.
+- **Today:** three Research tasks a day, drawn from the date (every window agrees), each paying
+  when done; all three: an Ultra Ball and a legendary walks by. Yesterday sums up in a line.
+- **Trainer mode** (Settings → Trainer, off by default, its tab twinkling): only caught species
+  and the three Kanto starters can be chosen or come to new agents.
 
 ## What you see
 
