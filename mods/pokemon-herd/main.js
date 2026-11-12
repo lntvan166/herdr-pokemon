@@ -297,6 +297,20 @@ function cry(dex) {
   ensureCry(dex).then((path) => { if (path) playSound(path); }).catch(() => null);
 }
 // The Bag: a dialog of its own (menu, or keys.json "pokemon-herd.bag").
+// What the right-click menu offers from the Bag: the balls and catching Berries there are (and
+// which are set), and Honey or the Azure Flute to call a visitor (only with visitors on).
+function menuParts(b = bag()) {
+  const balls = BALLS.filter((id) => b.items[id]);
+  const baits = Object.keys(BAIT).filter((id) => b.items[id]);
+  const chosen = shared(BALL_KEY), fed = shared(BAIT_KEY);
+  const visitors = settingsNow().visitors !== "off";
+  return {
+    balls, baits,
+    ball: balls.includes(chosen) ? chosen : null,
+    bait: baits.includes(fed) ? fed : null,
+    calls: visitors ? ["honey", "azure-flute"].filter((id) => b.items[id]) : [],
+  };
+}
 // How many Pokémon wait in the Box (the right-click menu's count).
 const boxCount = () => { try { return boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean))).length; } catch { return 0; } };
 const openBag = (tab) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}) } });
@@ -1442,25 +1456,52 @@ export default class PokemonHerd extends View {
 
   openMenu() {
     const update = this.update();
-    openOverlay({ mod: MOD, kind: "popup", width: 280, height: update ? 132 : 76, props: { menu: true, update } });
+    const m = menuParts();
+    // Rows of 30, the chip sections 46 each, a divider, the update note.
+    const height = 16 + 30 * (3 + m.calls.length) + (m.balls.length ? 46 : 0) + (m.baits.length ? 46 : 0) + 10 + (update ? 56 : 0);
+    openOverlay({ mod: MOD, kind: "popup", width: 320, height, props: { menu: true, update } });
   }
 
-  // The right-click menu: the Bag and Settings (both open a dialog of their own), and a newer
-  // release when there is one.
+  // The right-click menu: the Box (with the Bag, Shop, Today and Pokédex) and Settings, each a
+  // dialog of its own; the ball and the Berry to throw, switched there and then; Honey and the
+  // Azure Flute at hand; and a newer release when there is one.
   renderMenu() {
     const t = theme();
     const b = bag();
     const n = Object.values(b.items).reduce((x, y) => x + y, 0);
     const got = badges(summary(stats(), 0), b.marks, liveForBadges()).filter((x) => x.earned).length;
-    const row = (id, txt, note, on) => h_flex()
+    const daily = dailyNow();
+    const done = daily.tasks.filter((x) => x.n >= x.goal).length;
+    const m = menuParts(b);
+    const row = (id, txt, note, on, close = true) => h_flex()
       .id(id).h(28).px(8).rounded(6).items_center().justify_between()
       .text_size(12.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-      .on_click(() => { closeOverlay(props()?.overlay); on(); })
+      .on_click((_e, cx) => { if (close) closeOverlay(props()?.overlay); on(); cx.notify(); })
       .child(txt)
       .child(div().text_size(11.5).text_color(t.muted).child(note));
+    // A row of chips under a label: one on (the ball or the Berry in use); a click switches to it.
+    const chips = (id, label, opts, cur, pick) => v_flex().h(44).px(8).gap(3).justify_center()
+      .child(div().text_size(11).text_color(t.muted).child(label))
+      .child(h_flex().gap(4).items_center().children(opts.map(([v, txt]) => div().id(`${id}-${v ?? "auto"}`)
+        .h(22).px(7).rounded(5).flex().items_center().flex_none().text_size(11.5).border_1()
+        .border_color(v === cur ? t.accent : t.border).bg(v === cur ? t.selected : "#00000000")
+        .text_color(v === cur ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+        .on_click((_e, cx) => { pick(v); cx.notify(); })
+        .child(txt))));
+    const short = (id) => ITEMS[id].name.replace(/ Ball$| Berry$/, "").replace("Golden ", "G. ").replace("Silver ", "S. ");
     return v_flex()
       .id("pokemon-menu").size_full().p(8).gap(2).bg(t.popover)
       .child(row("open-bag", "Box", `${boxCount()} Pokémon · ${n} item${n === 1 ? "" : "s"} · ${got}/8`, () => openBag("box")))
+      .child(row("open-today", "Today", `Research ${done}/${daily.tasks.length} · ${money(b.money)}`, () => openBag("today")))
+      .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", "Ball to throw", [[null, "Auto"], ...m.balls.map((id) => [id, `${short(id)} ${b.items[id]}`])], m.ball,
+        (v) => setShared(BALL_KEY, v))))
+      .when(m.baits.length > 0, (el) => el.child(chips("menu-bait", "Berry before each ball", [[null, "None"], ...m.baits.map((id) => [id, `${short(id)} ${b.items[id]}`])], m.bait,
+        (v) => setShared(BAIT_KEY, v))))
+      .children(m.calls.map((id) => row(`menu-${id}`, id === "honey" ? "Call a wild Pokémon" : "Call a legendary", `${ITEMS[id].name} · ${b.items[id]} left`, () => {
+        saveBag(addItem(bag(), id, -1));
+        setShared(id === "honey" ? HONEY_KEY : LEGEND_KEY, Date.now());
+      })))
+      .child(div().h(1).mx(8).my(4).bg(t.border))
       .child(row("open-settings", "Settings", "", () => openSettings(props()?.update)))
       // A newer release: an installed copy never updates by itself.
       .when(!!props()?.update, (el) => el
