@@ -529,15 +529,25 @@ def bright_sky(width, height, horizon, tmp, name):
     return path
 
 
-def fireball(x, y, k=1.0):
+FIRE = {"orange": ["#ff9a3c", "#ff8a2a", "#ff7a1a", "#ff5a14", "#ffb43a", "#fff2a8"],
+        "blue": ["#4fb4ff", "#3aa0ff", "#2a8cff", "#1f6fe0", "#6fd2ff", "#e8fbff"]}  # Mega Charizard X burns blue
+
+
+def fireball(x, y, k=1.0, color="orange"):
     """A pixel fireball flying right, its trail behind it (ImageMagick draw args)."""
+    c = FIRE[color]
     out = []
-    for i, (dx, r, c) in enumerate([(-22, 2, "#ff9a3c66"), (-15, 3, "#ff8a2a99"), (-8, 4, "#ff7a1acc")]):
-        out += ["-fill", c, "-draw", f"circle {x + dx},{y} {x + dx + r * k},{y}"]
-    out += ["-fill", "#ff5a14", "-draw", f"circle {x},{y} {x + 7 * k},{y}",
-            "-fill", "#ffb43a", "-draw", f"circle {x + 1},{y} {x + 1 + 4.5 * k},{y}",
-            "-fill", "#fff2a8", "-draw", f"circle {x + 2},{y} {x + 2 + 2 * k},{y}"]
+    for dx, r, col in [(-22, 2, c[0] + "66"), (-15, 3, c[1] + "99"), (-8, 4, c[2] + "cc")]:
+        out += ["-fill", col, "-draw", f"circle {x + dx},{y} {x + dx + r * k},{y}"]
+    out += ["-fill", c[3], "-draw", f"circle {x},{y} {x + 7 * k},{y}",
+            "-fill", c[4], "-draw", f"circle {x + 1},{y} {x + 1 + 4.5 * k},{y}",
+            "-fill", c[5], "-draw", f"circle {x + 2},{y} {x + 2 + 2 * k},{y}"]
     return out
+
+
+def star(cx, cy, r, color):
+    """A four-pointed sparkle (ImageMagick draw args)."""
+    return ["-fill", color, "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
 
 
 def burst(x, y, r=12):
@@ -554,7 +564,7 @@ def burst(x, y, r=12):
 def preview(tmp):
     """preview.png at the repo root (the herdr.dev gallery card, 1600x900). The card shows it about
     245 px wide (a 6.5x shrink), so it carries little and big: a 320x180 pixel scene at 5x on a
-    bright day (a battle: Charizard's fire flying at Lucario; Pikachu asleep; a shiny Gengar
+    bright day (a battle: Mega Charizard X's blue fire flying at Lucario; Pikachu asleep; a shiny Gengar
     sparkling), and the name in large type over the sky. Small sprites or thin text turn to mush
     at that size."""
     A = lambda f, n: Anim.get(f, n, tmp)
@@ -562,7 +572,7 @@ def preview(tmp):
     horizon = 150
     ground = horizon + 4
     sky_png = bright_sky(W, H, horizon, tmp, "preview")
-    zard, luc = A("0006", "react-SpAttackR"), A("0448", "react-HurtL")
+    zard, luc = A("0006-0001", "react-SpAttackR"), A("0448", "react-HurtL")
     pika, geng = A("0025", "sleep"), A("0094s", "idleL")
     X = {"pika": 40, "zard": 126, "luc": 210, "geng": 284}
     scene = [("pika", pika, X["pika"], 300), ("zard", zard, X["zard"], 250), ("luc", luc, X["luc"], 300), ("geng", geng, X["geng"], 0)]
@@ -573,7 +583,10 @@ def preview(tmp):
         args += [an.at(t), "-geometry", f"+{x}+{y}", "-composite"]
         heads[key] = (cx, ground - an.height())
     # Charizard's special move: a fireball halfway, and the hit on Lucario.
-    args += fireball(X["zard"] + 52, ground - 26)
+    args += fireball(X["zard"] + 52, ground - 26, color="blue")
+    # Mega Evolved as its agent got to work: sparkles round it.
+    for dx, dy, r, c in [(-30, -40, 2.4, "#ffffff"), (-38, -14, 1.8, "#bfe6ff"), (6, -52, 2, "#bfe6ff"), (-24, -64, 1.6, "#ffffff")]:
+        args += star(X["zard"] + dx, ground + dy, r, c)
     args += burst(X["luc"] - 12, ground - 34, 10)
     # The shiny's sparkles.
     gx, gy = heads["geng"]
@@ -606,8 +619,8 @@ def preview(tmp):
 
 
 def battle(tmp):
-    """README's hero: a battle on a bright day. Charizard and Lucario face off; each strikes, the
-    other flinches; then Charizard's special move, a fireball, knocks Lucario back. Pikachu sleeps
+    """README's hero: a battle on a bright day. Mega Charizard X and Lucario face off; each strikes,
+    the other flinches; then its special move, a blue fireball, knocks Lucario back. Pikachu sleeps
     through it; a shiny Gengar watches. 270x130 at 2x, names under their feet."""
     A = lambda f, n: Anim.get(f, n, tmp)
     W, H, Z = 270, 118, 2
@@ -622,10 +635,10 @@ def battle(tmp):
         def play(folder, name, start):
             return A(folder, name), t - start
         # Charizard: idle, strike (1.0 s), flinch (1.9 s), special move (2.7 s), idle.
-        if 1000 <= t < 1600: z = play("0006", "react-AttackR", 1000)
-        elif 2150 <= t < 2700: z = play("0006", "react-HurtR", 2150)
-        elif 2800 <= t < 3500: z = play("0006", "react-SpAttackR", 2800)
-        else: z = play("0006", "idleR", 0)
+        if 1000 <= t < 1600: z = play("0006-0001", "react-AttackR", 1000)
+        elif 2150 <= t < 2700: z = play("0006-0001", "react-HurtR", 2150)
+        elif 2800 <= t < 3500: z = play("0006-0001", "react-SpAttackR", 2800)
+        else: z = play("0006-0001", "idleR", 0)
         if 1300 <= t < 1900: l = play("0448", "react-HurtL", 1300)
         elif 1900 <= t < 2500: l = play("0448", "react-AttackL", 1900)
         elif 3350 <= t < 4300: l = play("0448", "react-HurtL", 3350)
@@ -639,7 +652,7 @@ def battle(tmp):
         if 2150 <= t < 2350: args += burst(zx + 8, ground - 26, 7)
         if 3000 <= t < 3350:  # the fireball, across
             f = (t - 3000) / 350
-            args += fireball(round(zx + 44 + f * (lx - zx - 58)), ground - 22, 0.9)
+            args += fireball(round(zx + 44 + f * (lx - zx - 58)), ground - 22, 0.9, "blue")
         if 3350 <= t < 3700: args += burst(lx - 8, ground - 26, 10 if t < 3500 else 7)
         # The shiny's sparkles, twinkling.
         for j, (dx, dy, r) in enumerate([(-15, -38, 2.2), (12, -30, 1.8), (-12, -14, 1.6), (15, -10, 2.2)]):
@@ -666,7 +679,7 @@ def battle(tmp):
 SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party, "battle": battle}
 NEEDS = {"herd": ["0025", "0445", "0003", "0493", "0009", "0006-0001"], "focus": ["0025", "0003", "0493"],
          "reactions": ["0003", "0445"], "variety": ["0025", "0025s", "0037-0001", "0006-0001"],
-         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006", "0448", "0094s"], "party": [], "battle": ["0025", "0006", "0448", "0094s"]}
+         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006-0001", "0448", "0094s"], "party": [], "battle": ["0025", "0006-0001", "0448", "0094s"]}
 
 
 def main():

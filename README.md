@@ -4,7 +4,7 @@ Every coding agent in [Herdr](https://herdr.dev) becomes a pixel-art Pokémon. I
 its agent works, naps when it's idle, and calls for you when it's blocked. Click one to jump
 to its agent.
 
-<p align="center"><img src="docs/demo/battle.gif" alt="On a bright day Charizard and Lucario trade blows, then Charizard's fireball knocks Lucario back; Pikachu sleeps through it and a shiny Gengar sparkles" width="540"></p>
+<p align="center"><img src="docs/demo/battle.gif" alt="On a bright day Mega Charizard X and Lucario trade blows, then its blue fireball knocks Lucario back; Pikachu sleeps through it and a shiny Gengar sparkles" width="540"></p>
 
 <p align="center"><img src="docs/demo/herd.gif" alt="A herd of Pokémon in Herdr's sidebar, two rows, each named after its agent" width="540"></p>
 
