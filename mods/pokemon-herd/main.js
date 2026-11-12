@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onSpar, sparPair, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onFidget, onSpar, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -39,6 +39,8 @@ const SEASON_CHANCE = 0.3;
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
 const SPAR_CHANCE = 1 / 240;
+const TEASE_CHANCE = 1 / 480; // per tick: about every 2 minutes while one is asleep near an idle one
+const FIDGET_CHANCE = 0.15; // idle, about to stroll: how often it fidgets instead (nods, sits, twirls…)
 const COMBO_CHANCE = 1 / 480; // per tick: about every 2 minutes while an agent and its sub-agent both work
 const CAMP_GAP = 46; // px between seats round the campfire // per tick (4 a second): about once a minute while a pair is ready // idle, about to stroll: how often it reacts to the season instead
 // props.rows (> 1): agents take turns across that many rows; each roams its whole row, passing
@@ -954,6 +956,10 @@ export default class PokemonHerd extends View {
         // Instead of strolling on, it sniffs the flowers, basks, looks up at the leaves or shivers.
         m.pauseUntil = m.react.until + rand(3000, 8000);
         changed = true;
+      } else if (mood === "idle" && !reacting && now >= m.pauseUntil && Math.random() < FIDGET_CHANCE && onFidget(m, now, has, msOf)) {
+        // Whatever the season: it nods, sits, looks up, twirls… (whatever its sprite can do).
+        m.pauseUntil = m.react.until + rand(3000, 8000);
+        changed = true;
       } else if ((mood === "working" || mood === "idle") && !reacting && now >= m.pauseUntil && hi > lo) {
         let target = rand(lo, hi);
         if (!m.entering && Math.abs(target - m.x) < 60) target = m.x + (target >= m.x ? 60 : -60);
@@ -1037,6 +1043,52 @@ export default class PokemonHerd extends View {
           m.pauseUntil = m.react.until + rand(2000, 5000);
           if (this.leader) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
         });
+        changed = true;
+      }
+    }
+    // Teasing: now and then an idle one walks over to one asleep on its row, pokes it awake and
+    // they spar (react.js teasePair, onPoke). One at a time; off with Sparring, and at the campfire.
+    const hasOf = (meta) => new Set(Object.keys(meta?.react ?? {}));
+    const msFor = (meta) => (name) => meta.react[name].ms;
+    if (settingsNow().spar && !this.campfire && Math.random() < TEASE_CHANCE && !list.some((a) => this.mons[a.address]?.tease)) {
+      const cands = list.flatMap((a, j) => {
+        const m = this.mons[a.address];
+        if (!m || m.moving || family[a.address] || (m.react && now < m.react.until)) return [];
+        return [{ addr: a.address, x: m.x, row: rowAt(a, j), mood: m.mood, lastSpar: m.lastSpar }];
+      });
+      const pair = teasePair(cands, now);
+      if (pair) {
+        const m = this.mons[pair[0].addr];
+        m.tease = { victim: pair[1].addr, phase: "walk" };
+        m.lastSpar = now;
+        walk(m, teaseSpot(m.x, pair[1].x, EDGE, hiFor(this.width)), SPEED.idle * 1.5);
+        changed = true;
+      }
+    }
+    for (const a of list) {
+      const m = this.mons[a.address];
+      const t = m?.tease;
+      if (!t) continue;
+      const b = list.find((x) => x.address === t.victim);
+      const s = b && this.mons[b.address];
+      const meta = this.spriteFor(ids[a.address], a.status);
+      const sMeta = b && this.spriteFor(ids[b.address], b.status);
+      if (!s || !meta || !sMeta) { m.tease = null; continue; }
+      if (t.phase === "walk") {
+        if (m.moving) continue;
+        // Got there: still idle, and the other still asleep where it was? Otherwise it lets it be.
+        if (m.mood !== "idle" || s.mood !== "sleep" || s.moving || Math.abs(m.x - s.x) > TEASE_GAP + 20) { m.tease = null; continue; }
+        t.sparAt = onPoke(m, s, now, hasOf(meta), hasOf(sMeta), msFor(meta), msFor(sMeta));
+        t.phase = "poke";
+        m.pauseUntil = s.pauseUntil = t.sparAt + 3000;
+        changed = true;
+      } else if (now >= t.sparAt) {
+        m.tease = null;
+        if (m.moving || s.moving) continue;
+        onSpar(m, s.x, now, hasOf(meta), msFor(meta), "💥");
+        onSpar(s, m.x, now, hasOf(sMeta), msFor(sMeta), null);
+        m.pauseUntil = m.react.until + rand(2000, 5000);
+        s.pauseUntil = s.react.until + rand(2000, 5000);
         changed = true;
       }
     }
@@ -1245,7 +1297,7 @@ export default class PokemonHerd extends View {
         line("Evolution", "Pokémon evolve as their agents work. Off: jobs still count.", toggle("evolve")),
         line("Pickup", "Idle Pokémon find Berries, stones and Rare Candy.", toggle("pickup")),
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
-        line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
+        line("Sparring", "Two idle Pokémon spar now and then, and like each other more. Now and then one pokes a sleeping one awake for a go.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
         line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: in the picker, right-click one you like and ☆ Favorite it." : "Any species, or one of your favourites (★ in the picker).",
           choices("new-from", [["any", "Any"], ["favorites", "Favorites"]], st.newFrom, () => true, (v) => setSetting("newFrom", v))),

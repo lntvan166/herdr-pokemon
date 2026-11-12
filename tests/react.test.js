@@ -13,7 +13,7 @@ test("reactionAnim fallbacks", () => {
 
 test("REACTIONS lists every animation sprites must cut", () => {
   assert.deepEqual([...new Set(Object.values(REACTIONS).flat())].sort(),
-    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Eat", "Hop", "Hurt", "Laying", "LookUp", "Nod", "Rotate", "Shake", "Shoot", "Sit", "Strike", "Swing", "Wake"]);
+    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Double", "Eat", "Head", "Hop", "Hurt", "Laying", "LookUp", "Nod", "Pull", "Rotate", "Shake", "Shoot", "Sit", "Strike", "Swing", "Wake"]);
 });
 
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, LOOK_MS, AWAKE_MS } from "../mods/pokemon-herd/react.js";
@@ -203,4 +203,51 @@ test("onStir: a sleeper wakes now and then, for a while, on its own clock", () =
   // Night: further apart.
   assert.ok(stirGap(true, half) > stirGap(false, half));
   assert.ok(stirGap(false, () => 0) >= 90000 && stirGap(true, () => 1) <= 600000);
+});
+
+import { fidgetAnim, onFidget, FIDGETS, teasePair, teaseSpot, onPoke, TEASE_GAP } from "../mods/pokemon-herd/react.js";
+test("fidgetAnim: a random one it has; Hop/Rotate only when it has none", () => {
+  const has = new Set(["Nod", "Sit", "Hop", "Rotate"]);
+  assert.equal(fidgetAnim(has, () => 0), "Nod");
+  assert.equal(fidgetAnim(has, () => 0.99), "Sit");
+  assert.equal(fidgetAnim(new Set(["Hop", "Rotate"]), () => 0.99), "Rotate");
+  assert.equal(fidgetAnim(new Set(["Walk"])), null);
+  assert.ok(!FIDGETS.includes("Hurt") && !FIDGETS.includes("Attack"));
+});
+test("onFidget plays about 1.5s, or does nothing without an animation", () => {
+  const m = {};
+  assert.equal(onFidget(m, 1000, new Set(["Twirl"]), () => 400, () => 0), true);
+  assert.deepEqual(m.react, { anim: "Twirl", animUntil: 2600, until: 2600 });
+  assert.equal(onFidget({}, 0, new Set(), () => 400), false);
+});
+test("teasePair: the nearest sleeper on the idle one's row, both rested", () => {
+  const now = 10 * SPAR_GAP;
+  const c = [
+    { addr: "i", x: 100, row: 0, mood: "idle" },
+    { addr: "far", x: 600, row: 0, mood: "sleep" },
+    { addr: "near", x: 300, row: 0, mood: "sleep" },
+    { addr: "other", x: 110, row: 1, mood: "sleep" },
+  ];
+  assert.deepEqual(teasePair(c, now).map((x) => x.addr), ["i", "near"]);
+  assert.equal(teasePair(c.filter((x) => x.mood === "sleep"), now), null); // nobody awake
+  assert.equal(teasePair([{ ...c[0], lastSpar: now - 1000 }, c[2]], now), null); // just sparred
+  assert.equal(teasePair([c[0], { ...c[2], row: 1 }], now), null); // another row
+});
+test("teaseSpot: beside the sleeper on its own side, the other side at the edge", () => {
+  assert.equal(teaseSpot(100, 300, 28, 800), 300 - TEASE_GAP);
+  assert.equal(teaseSpot(500, 300, 28, 800), 300 + TEASE_GAP);
+  assert.equal(teaseSpot(10, 40, 28, 800), 40 + TEASE_GAP); // no room on the left
+});
+test("onPoke: it pokes, the sleeper wakes with a start and stays up", () => {
+  const m = { x: 100 };
+  const s = { x: 140 };
+  const end = onPoke(m, s, 1000, new Set(["Head"]), new Set(["Wake"]), () => 300, () => 900);
+  assert.equal(m.dir, "r");
+  assert.equal(s.dir, "l");
+  assert.equal(m.react.anim, "Head");
+  assert.equal(m.react.icon, "😜");
+  assert.equal(s.react.anim, "Wake");
+  assert.equal(s.react.icon, "💢");
+  assert.equal(end, 1900);
+  assert.ok(s.awakeUntil >= 21000);
 });

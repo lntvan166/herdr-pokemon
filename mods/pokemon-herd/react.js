@@ -15,7 +15,13 @@ export const REACTIONS = {
   lookUp: ["LookUp", "Rotate"], // autumn: the falling leaves
   shiver: ["Shake", "Cringe", "Hurt"], // winter: the cold
   spar: ["Attack", "Strike", "Swing", "Shoot", "Hop"], // two idle ones spar
+  poke: ["Head", "Pull", "Double", "Attack", "Hop"], // it pokes a sleeping one awake
 };
+
+// Idle now and then, whatever the season: one of these, at random among those its sprite has
+// (each about one sprite in four). Hop and Rotate, which nearly all have, only when it has none.
+export const FIDGETS = ["Nod", "Sit", "LookUp", "DeepBreath", "Eat", "Twirl", "Pose", "Float", "Appeal", "TailWhip", "Lick", "Sing", "Wiggle"];
+const FIDGET_FALLBACK = ["Hop", "Rotate"];
 
 // Spring, summer, autumn, winter (scene.js's seasons): the reaction, and an icon over its head
 // that says what it is about, whichever animation it got.
@@ -78,6 +84,25 @@ export function onSeason(m, season, now, has, msOf) {
   return true;
 }
 
+// The fidget to play: a random one of FIDGETS it has, else Hop or Rotate; null: none at all.
+export function fidgetAnim(has, rnd = Math.random) {
+  for (const list of [FIDGETS, FIDGET_FALLBACK]) {
+    const got = list.filter((n) => has.has(n));
+    if (got.length) return got[Math.floor(rnd() * got.length) % got.length];
+  }
+  return null;
+}
+
+// Idle, it fidgets (nods, sits, looks up, twirls…): true when it does.
+export function onFidget(m, now, has, msOf, rnd = Math.random) {
+  const anim = fidgetAnim(has, rnd);
+  if (!anim) return false;
+  const ms = Math.max(100, msOf(anim));
+  const until = now + ms * Math.max(1, Math.ceil(1500 / ms));
+  m.react = { anim, animUntil: until, until };
+  return true;
+}
+
 // Idle this long and it falls asleep: sooner at night.
 export const sleepAfter = (night) => (night > 0.5 ? 60000 : 180000);
 
@@ -122,6 +147,47 @@ export function onSpar(m, partnerX, now, has, msOf, icon) {
   const until = now + ms * Math.max(1, Math.ceil(2000 / ms));
   m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
   m.lastSpar = now;
+}
+
+// Teasing: an idle one standing still walks over to one asleep on its row and pokes it; the
+// sleeper wakes with a start and they spar. Neither may have sparred in the last SPAR_GAP.
+// `cands`: [{ addr, x, row, mood, lastSpar }] (standing still, not reacting). The nearest such
+// pair as [teaser, sleeper], or null.
+export function teasePair(cands, now) {
+  const ready = cands.filter((c) => now - (c.lastSpar ?? -Infinity) >= SPAR_GAP);
+  let best = null;
+  for (const a of ready.filter((c) => c.mood === "idle")) {
+    for (const b of ready.filter((c) => c.mood === "sleep" && c.row === a.row)) {
+      const d = Math.abs(a.x - b.x);
+      if (!best || d < best.d) best = { d, pair: [a, b] };
+    }
+  }
+  return best?.pair ?? null;
+}
+
+// Where the teaser stops: beside the sleeper on its own side (the other when that is past the
+// edge), TEASE_GAP away.
+export const TEASE_GAP = 40;
+export function teaseSpot(x, sleeperX, lo, hi) {
+  const side = x <= sleeperX ? -1 : 1;
+  const spots = [side, -side].map((d) => sleeperX + d * TEASE_GAP);
+  return spots.find((s) => s >= lo && s <= hi) ?? Math.min(hi, Math.max(lo, spots[0]));
+}
+
+// It got there: it turns to the sleeper and pokes it (😜); the sleeper wakes with a start (💢)
+// and stays up a while. Returns when the poke is over, for the spar that follows.
+export function onPoke(m, s, now, has, sHas, msOf, sMsOf) {
+  m.dir = s.x > m.x ? "r" : "l";
+  const anim = reactionAnim("poke", has);
+  const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
+  const until = now + ms * Math.max(1, Math.ceil(800 / ms));
+  m.react = { anim, animUntil: until, until, icon: "😜" };
+  s.dir = m.x > s.x ? "r" : "l";
+  const wake = reactionAnim("wake", sHas);
+  const wUntil = Math.max(until, now + (wake ? sMsOf(wake) : NO_ANIM_MS));
+  s.react = { anim: wake, animUntil: wUntil, until: wUntil, icon: "💢" };
+  s.awakeUntil = Math.max(s.awakeUntil ?? 0, now + 20000);
+  return Math.max(until, wUntil);
 }
 
 // A combo: an agent's Pokémon and its sub-agent's, both working, attack together facing the same

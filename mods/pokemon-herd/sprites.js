@@ -3,7 +3,7 @@
 // ~/.config/herdr-app/data/pokemon-herd/, and cuts them into GIFs with ImageMagick.
 import { exec, appHome } from "herdr";
 import * as fs from "fs/promises";
-import { REACTIONS } from "./react.js";
+import { REACTIONS, FIDGETS } from "./react.js";
 import { sheetPlan } from "./sheets.js";
 import { megasFrom, isStale } from "./megas.js";
 import { versionIn } from "./update.js";
@@ -14,7 +14,7 @@ const DATA = `${appHome()}/${DATA_REL}`;
 const PMD = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/sprite";
 const PORTRAITS = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait";
 // Bump when the GIF recipe changes, so old caches are rebuilt.
-const VERSION = 4; // 3: the seasonal reactions' animations; 4: sparring's
+const VERSION = 5; // 3: the seasonal reactions' animations; 4: sparring's; 5: fidgets and pokes
 
 // PMD sheets have one row per facing: 0 down, 1 down-right, 2 right, 3 up-right,
 // 4 up, 5 up-left, 6 left, 7 down-left. Walk sideways, stand half-facing the viewer
@@ -27,7 +27,7 @@ const CUTS = [
   ["idleD", "Idle", 0],
   ["sleep", "Sleep", 0],
 ];
-const REACT_ANIMS = [...new Set(Object.values(REACTIONS).flat())];
+const REACT_ANIMS = [...new Set([...Object.values(REACTIONS).flat(), ...FIDGETS])];
 
 const pad = (id) => String(id).padStart(4, "0");
 

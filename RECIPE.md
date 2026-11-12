@@ -124,6 +124,18 @@ forms, and Mega Evolution while an agent works.
   stand still on one row 30–160 px apart and neither sparred in 10 min, both turn to each other
   and play an attack (Attack, Strike, Swing, Shoot, else Hop) for about 2 s, 💥 over one; a heart
   each. Sprite cache v4 cuts those animations.
+- **Teasing** (`teasePair`, `teaseSpot`, `onPoke` in `react.js`; with Sparring, not at the
+  campfire): about every 2 min while an idle Pokémon (not a sub-agent's) stands still on a row
+  with one asleep, neither sparred in 10 min, one at a time. It walks (1.5× idle speed) to 40 px
+  beside the nearest sleeper, on its own side (the other at the edge), turns and pokes (Head,
+  Pull, Double, Attack, else Hop; at least 0.8 s, 😜); the sleeper wakes (Wake, 💢) and stays
+  up 20 s; then both spar as above (no hearts). Called off if on arrival it isn't idle or the
+  other moved or woke.
+- **Fidgets** (`fidgetAnim`, `onFidget` in `react.js`): an idle Pokémon about to stroll, after
+  the season's reaction didn't happen, fidgets 15% of the time instead: a random one of Nod,
+  Sit, LookUp, DeepBreath, Eat, Twirl, Pose, Float, Appeal, TailWhip, Lick, Sing, Wiggle that its
+  sprite has (each about one sprite in four), else Hop or Rotate, for about 1.5 s. Sprite cache
+  v5 cuts those and the pokes.
 - **Sub-agents** (`subAgents`, `familyOf`, `youngOf` in `picks.js`): herdr's agents() leaves out
   terminals with no pane; terminals() has them with `parent`. A live one with a status whose
   parent is on screen joins the strip: its parent's Pokémon at the first stage of its line (same
