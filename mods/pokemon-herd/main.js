@@ -22,8 +22,9 @@ import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_M
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
+import { typeOf, TYPE_ICON } from "./types.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onFidget, onSpar, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onFidget, battle, reactIcon, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -1015,6 +1016,18 @@ export default class PokemonHerd extends View {
         changed = true;
       }
     }, console.log, now, this.errSeen);
+    const hasOf = (meta) => new Set(Object.keys(meta?.react ?? {}));
+    const msFor = (meta) => (name) => meta.react[name].ms;
+    // A battle between two agents' Pokémon (react.js battle): what each can do, and its type.
+    const fight = (a1, m1, a2, m2) => {
+      const side = (a) => {
+        const meta = this.spriteFor(ids[a.address], a.status);
+        return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐" };
+      };
+      battle(m1, m2, side(a1), side(a2), now);
+      m1.pauseUntil = m1.react.until + rand(2000, 5000);
+      m2.pauseUntil = m2.react.until + rand(2000, 5000);
+    };
     // A combo: an agent and its sub-agent, both working, now and then attack together.
     if (Math.random() < COMBO_CHANCE) {
       for (const [child, parent] of Object.entries(family)) {
@@ -1046,19 +1059,11 @@ export default class PokemonHerd extends View {
       });
       const pair = sparPair(ready.map((a) => ({ a, addr: a.address, x: this.mons[a.address].x, row: rowAt(a, list.indexOf(a)), lastSpar: this.mons[a.address].lastSpar })), now);
       if (pair) {
-        pair.forEach(({ a }, k) => {
-          const m = this.mons[a.address];
-          const meta = this.spriteFor(ids[a.address], a.status);
-          const has = new Set(Object.keys(meta?.react ?? {}));
-          onSpar(m, pair[1 - k].x, now, has, (name) => meta.react[name].ms, k === 0 ? "💥" : null);
-          m.pauseUntil = m.react.until + rand(2000, 5000);
-          if (this.leader) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
-        });
+        fight(pair[0].a, this.mons[pair[0].addr], pair[1].a, this.mons[pair[1].addr]);
+        if (this.leader) for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
         changed = true;
       }
     }
-    const hasOf = (meta) => new Set(Object.keys(meta?.react ?? {}));
-    const msFor = (meta) => (name) => meta.react[name].ms;
     // Dropped by you: shaken, it reels (💫); on one asleep, it pokes it awake and they spar; on
     // one awake, they spar now (a heart each, as sparring, when neither sparred in 10 min).
     const drop = this.dropAt;
@@ -1095,10 +1100,7 @@ export default class PokemonHerd extends View {
         } else {
           const hearts = now - (dm.lastSpar ?? -Infinity) >= SPAR_GAP && now - (s.lastSpar ?? -Infinity) >= SPAR_GAP;
           dm.tease = null;
-          onSpar(dm, s.x, now, hasOf(dMeta), msFor(dMeta), "💥");
-          onSpar(s, dm.x, now, hasOf(sMeta), msFor(sMeta), null);
-          dm.pauseUntil = dm.react.until + rand(2000, 5000);
-          s.pauseUntil = s.react.until + rand(2000, 5000);
+          fight(list[dj], dm, hit.b, s);
           if (hearts && this.leader) for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
         }
         changed = true;
@@ -1141,10 +1143,7 @@ export default class PokemonHerd extends View {
       } else if (now >= t.sparAt) {
         m.tease = null;
         if (m.moving || s.moving) continue;
-        onSpar(m, s.x, now, hasOf(meta), msFor(meta), "💥");
-        onSpar(s, m.x, now, hasOf(sMeta), msFor(sMeta), null);
-        m.pauseUntil = m.react.until + rand(2000, 5000);
-        s.pauseUntil = s.react.until + rand(2000, 5000);
+        fight(a, m, b, s);
         changed = true;
       }
     }
@@ -1547,7 +1546,7 @@ export default class PokemonHerd extends View {
       let hit; // the area that takes the mouse: just its visible body (boxes overlap a lot)
       if (meta && meta.walkR) {
         const p = pose(m, mood, now, hovered, x < this.width / 2 ? "r" : "l");
-        const s = (p.sprite === "react" ? meta.react?.[p.anim] : meta[p.sprite]) ?? meta.idleR;
+        const s = (p.sprite === "react" ? (p.face && meta.react?.[`${p.anim}${p.face.toUpperCase()}`]) || meta.react?.[p.anim] : meta[p.sprite]) ?? meta.idleR;
         // Stand the sprite's visible feet on the ground line, centered on its visible body.
         const left = SLOT_MID - (s.box.x + s.box.w / 2) * scale;
         const top = ground - (s.box.y + s.box.h) * scale;
@@ -1626,9 +1625,20 @@ export default class PokemonHerd extends View {
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 22)).justify_center().text_size(12.5).child(bubble)))
           // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
-          .when(!!m.react?.icon && now < m.react.until, (el) =>
+          .when(!!reactIcon(m, now), (el) =>
             el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - 12)).text_size(12)
-              .loop("opacity", { from: 0.5, to: 1, period: 700 }).child(m.react.icon)))
+              .loop("opacity", { from: 0.5, to: 1, period: 700 }).child(reactIcon(m, now))))
+          // A battle's special move: its type's icon flies across to the other (one transition,
+          // set once: from where it starts on the first frame, to the other on the next ones).
+          .when(!!m.react?.shot && now >= m.react.shot.at && now < m.react.shot.until + 150, (el) => {
+            const sh = m.react.shot;
+            const first = sh.drawnAt === undefined;
+            if (first) sh.drawnAt = now;
+            return el.child(div().id(`shot-${a.address}-${sh.at}`).absolute().top(Math.max(2, headY + 6)).text_size(16)
+              .left(sw / 2 - 8 + ((first ? sh.from : sh.to) - sh.from))
+              .transition("left", { duration: Math.max(1, sh.until - sh.drawnAt), easing: "linear" })
+              .child(sh.icon));
+          })
           // A find, a heart, a berry; or hungry, waiting on you too long.
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)

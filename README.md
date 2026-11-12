@@ -103,7 +103,8 @@ window the herd sweats 💦 and walks slower. An agent's card says what it's doi
 
 **Weather, sparring, sub-agents, cries.** The sky rains while an agent waits on you, and storms
 when three do or one has waited 10 minutes; when the last one is answered, a rainbow. Two idle Pokémon standing close now and then spar
-(a heart each), and now and then one walks over to a sleeping one and pokes it awake for a go.
+(a heart each): they trade blows face to face, then one throws its special move, its type flying
+across (🔥 💧 ⚡ 👻 …), and now and then one walks over to a sleeping one and pokes it awake for a go.
 Idle ones also fidget: nod, sit, look up, twirl, strike a pose, whatever their sprite can do. A sub-agent shows as its agent's Pokémon, younger and smaller (Alakazam's helper
 is an Abra), tagged "↳ tab", and follows it. Each Pokémon can cry, its real cry, when its agent
 needs you or finishes: off by default, in **Settings** (needs `ffmpeg`).

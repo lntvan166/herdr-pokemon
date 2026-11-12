@@ -13,7 +13,7 @@ test("reactionAnim fallbacks", () => {
 
 test("REACTIONS lists every animation sprites must cut", () => {
   assert.deepEqual([...new Set(Object.values(REACTIONS).flat())].sort(),
-    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Double", "Eat", "Head", "Hop", "Hurt", "Laying", "LookUp", "LostBalance", "Nod", "Pull", "Rotate", "Shake", "Shoot", "Sit", "Strike", "Swing", "Tumble", "Wake"]);
+    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Double", "Eat", "Head", "Hop", "Hurt", "Laying", "LookUp", "LostBalance", "Nod", "Pull", "Rotate", "Shake", "Shoot", "Sit", "SpAttack", "Strike", "Swing", "Tumble", "Wake"]);
 });
 
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, LOOK_MS, AWAKE_MS } from "../mods/pokemon-herd/react.js";
@@ -149,7 +149,7 @@ test("sleepAfter: idle 3 minutes to fall asleep by day, 1 by night", () => {
   assert.equal(sleepAfter(0.6), 60000);
 });
 
-import { sparPair, onSpar, SPAR_GAP } from "../mods/pokemon-herd/react.js";
+import { sparPair, SPAR_GAP } from "../mods/pokemon-herd/react.js";
 test("sparPair: close, same row, rested", () => {
   const now = 1e9;
   assert.equal(sparPair([{ addr: "a", x: 100, row: 0 }, { addr: "b", x: 400, row: 0 }], now), null); // too far
@@ -158,16 +158,6 @@ test("sparPair: close, same row, rested", () => {
   assert.deepEqual(sparPair([{ addr: "a", x: 100, row: 0 }, { addr: "b", x: 180, row: 0 }], now).map((c) => c.addr), ["a", "b"]);
   assert.equal(sparPair([{ addr: "a", x: 100, row: 0, lastSpar: now - 1000 }, { addr: "b", x: 180, row: 0 }], now), null);
   assert.ok(sparPair([{ addr: "a", x: 100, row: 0, lastSpar: now - SPAR_GAP }, { addr: "b", x: 180, row: 0 }], now));
-});
-
-test("onSpar faces the partner and attacks", () => {
-  const m = { x: 100, dir: "l" };
-  onSpar(m, 180, 0, new Set(["Attack"]), () => 500, "💥");
-  assert.equal(m.dir, "r");
-  assert.equal(m.react.anim, "Attack");
-  assert.equal(m.react.until, 2000);
-  assert.equal(m.react.icon, "💥");
-  assert.equal(m.lastSpar, 0);
 });
 
 import { onCombo, COMBO_GAP } from "../mods/pokemon-herd/react.js";
@@ -270,4 +260,44 @@ test("onDizzy reels about 2.5 s with 💫", () => {
   const m = {};
   onDizzy(m, 0, new Set(["Rotate", "Tumble"]), () => 1000);
   assert.deepEqual(m.react, { anim: "Tumble", animUntil: 3000, until: 3000, icon: "💫" });
+});
+
+import { battle, reactIcon } from "../mods/pokemon-herd/react.js";
+import { typeOf, TYPE_ICON } from "../mods/pokemon-herd/types.js";
+test("typeOf: each species' first type", () => {
+  assert.equal(typeOf(6), "fire");
+  assert.equal(typeOf(7), "water");
+  assert.equal(typeOf(25), "electric");
+  assert.equal(typeOf(94), "ghost");
+  assert.equal(typeOf(1025), "poison");
+  assert.equal(typeOf(99999), "normal");
+  assert.equal(TYPE_ICON.fire, "🔥");
+});
+test("battle: they trade blows face to face, then one throws its type across", () => {
+  const a = { x: 100 };
+  const b = { x: 160 };
+  const A = { has: new Set(["Attack", "Hurt", "SpAttack"]), msOf: () => 600, icon: "🔥" };
+  const B = { has: new Set(["Strike", "Hurt"]), msOf: () => 600, icon: "💧" };
+  const end = battle(a, b, A, B, 0, () => 0.1); // a wins
+  assert.equal(a.dir, "r");
+  assert.equal(b.dir, "l");
+  assert.equal(a.react.face, "r");
+  assert.equal(a.react.until, end);
+  assert.equal(a.react.seq[0].anim, "Attack");
+  assert.equal(b.react.seq[0].anim, "Hurt");
+  assert.equal(b.react.seq[0].at, 300); // the blow lands halfway
+  assert.equal(a.react.seq.at(-1).anim, "SpAttack");
+  assert.equal(a.react.shot.icon, "🔥");
+  assert.equal(a.react.shot.to, 160);
+  assert.equal(b.react.shot, undefined);
+  assert.equal(b.react.seq.at(-1).icon, "💥");
+  assert.equal(b.react.seq.at(-1).at, a.react.shot.until);
+  assert.equal(a.lastSpar, 0);
+  // Poses: facing the other, its move turned that way; between moves it stands facing it.
+  assert.deepEqual(pose(a, "idle", 10, false, "l"), { sprite: "react", anim: "Attack", face: "r" });
+  assert.deepEqual(pose(b, "idle", 10, false, "r"), { sprite: "idleL" });
+  assert.equal(reactIcon(b, 400), "💢");
+  assert.equal(reactIcon(b, end), null);
+  battle(a, b, A, B, 0, () => 0.9); // b wins: its type flies the other way
+  assert.equal(b.react.shot.icon, "💧");
 });

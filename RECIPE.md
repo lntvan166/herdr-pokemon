@@ -120,16 +120,22 @@ forms, and Mega Evolution while an agent works.
   agent waits on you; rain (sky darkened 18%, 1×5 px drops, every other one of the row's drops)
   while any does; a storm (32%, 1×7 px slanting drops, all of them, a 35% white flash about
   every 9 s) when three or more wait or one has waited 10 min.
-- **Sparring** (`sparPair`, `onSpar` in `react.js`): about once a minute while two idle Pokémon
+- **Sparring** (`sparPair` in `react.js`): about once a minute while two idle Pokémon
   stand still on one row 30–160 px apart and neither sparred in 10 min, both turn to each other
-  and play an attack (Attack, Strike, Swing, Shoot, else Hop) for about 2 s, 💥 over one; a heart
-  each. Sprite cache v4 cuts those animations.
+  and battle (below); a heart each. Sprite cache v4 cuts those animations.
+- **Battles** (`battle` in `react.js`; sparring, teasing, a drop on another): they face each
+  other the whole time, their moves cut facing right and left (`FACING`, sprite cache v7). Each
+  strikes once (Attack, Strike, Swing, Shoot, else Hop; at least 0.5 s), the other flinching
+  (Hurt, Shake; 💢) from halfway through the blow; 150 ms between. Then one, at random, uses its
+  special move (SpAttack, Shoot, Charge, Attack; at least 0.7 s): 40% in, its first type's icon
+  (`types.js`, PokeAPI slot 1: 🔥 💧 🍃 ⚡ 👻 …) flies to the other in 450 ms, which is knocked
+  back (Hurt, 💥). Between moves each stands half-facing the other.
 - **Teasing** (`teasePair`, `teaseSpot`, `onPoke` in `react.js`; with Sparring, not at the
   campfire): about every 2 min while an idle Pokémon (not a sub-agent's) stands still on a row
   with one asleep, neither sparred in 10 min, one at a time. It walks (1.5× idle speed) to 40 px
   beside the nearest sleeper, on its own side (the other at the edge), turns and pokes (Head,
   Pull, Double, Attack, else Hop; at least 0.8 s, 😜); the sleeper wakes (Wake, 💢) and stays
-  up 20 s; then both spar as above (no hearts). Called off if on arrival it isn't idle or the
+  up 20 s; then they battle (below; no hearts). Called off if on arrival it isn't idle or the
   other moved or woke.
 - **Fidgets** (`fidgetAnim`, `onFidget` in `react.js`): an idle Pokémon about to stroll, after
   the season's reaction didn't happen, fidgets 15% of the time instead: a random one of Nod,
@@ -387,7 +393,7 @@ forms, and Mega Evolution while an agent works.
   pointer turned back, after 6 px one way, 4 times in the last 1.5 s) it reels about 2.5 s
   (Tumble, LostBalance, Rotate, Hurt; 💫). Else, on the nearest other on its row within 36 px
   (stopped where it is; right on top, the dropped one jumps 40 px beside it): asleep, it pokes it
-  awake and they spar (as Teasing); awake, they spar at once, a heart each when neither sparred
+  awake and they battle (as Teasing); awake, they spar at once, a heart each when neither sparred
   in 10 min. Not tied to the Sparring switch. Sprite cache v6 cuts the dizzy animations.
 - **Right-click** a Pokémon or its name: the picker for that agent. `alt-shift-p` (`keys.json`
   → `pokemon-herd.pick`) opens it for the focused agent. Choosing saves the pick and closes it.

@@ -17,7 +17,12 @@ export const REACTIONS = {
   spar: ["Attack", "Strike", "Swing", "Shoot", "Hop"], // two idle ones spar
   poke: ["Head", "Pull", "Double", "Attack", "Hop"], // it pokes a sleeping one awake
   dizzy: ["Tumble", "LostBalance", "Rotate", "Hurt"], // shaken about while you drag it
+  special: ["SpAttack", "Shoot", "Charge", "Attack"], // a battle's last move: it throws its type
 };
+
+// Animations cut facing left and right as well (<name>L, <name>R), so in a battle they go for
+// each other instead of bobbing at the viewer.
+export const FACING = ["Attack", "Strike", "Swing", "Shoot", "SpAttack", "Charge", "Double", "Head", "Pull", "Hurt", "Shake"];
 
 // Idle now and then, whatever the season: one of these, at random among those its sprite has
 // (each about one sprite in four). Hop and Rotate, which nearly all have, only when it has none.
@@ -113,12 +118,65 @@ export const effectiveMood = (mood, m, now) => (mood === "sleep" && now < (m.awa
 // Which sprite to show: a reaction, walking, facing you (done), turned to you on hover, asleep, standing.
 export function pose(m, mood, now, hovered, side) {
   const r = m.react;
-  if (r && now < r.until) return r.anim && now < r.animUntil ? { sprite: "react", anim: r.anim } : { sprite: "idleD" };
+  if (r && now < r.until) {
+    const st = r.seq ? stepAt(r, now) : r.anim && now < r.animUntil ? r : null;
+    if (st?.anim) return r.face ? { sprite: "react", anim: st.anim, face: r.face } : { sprite: "react", anim: st.anim };
+    return { sprite: r.face === "r" ? "idleR" : r.face === "l" ? "idleL" : "idleD" };
+  }
   if (m.moving) return { sprite: m.dir === "r" ? "walkR" : "walkL" };
   if (mood === "done") return { sprite: "idleD" };
   if (hovered) return { sprite: side === "r" ? "idleR" : "idleL" };
   if (mood === "sleep") return { sprite: "sleep" };
   return { sprite: m.dir === "r" ? "idleR" : "idleL" };
+}
+
+// A battle's step playing now, or undefined (between its moves it stands facing the other).
+const stepAt = (r, now) => r.seq.find((s) => now >= s.at && now < s.until);
+
+// The icon over its head now: the step's (💢 hit, 💥 knocked back), else the reaction's.
+export function reactIcon(m, now) {
+  const r = m.react;
+  if (!r || now >= r.until) return null;
+  return (r.seq && stepAt(r, now)?.icon) || r.icon || null;
+}
+
+// A battle (sparring, teasing, dropping one on another): each strikes once, the other flinching
+// as the blow lands, then one of them (at random) lets loose its special move: SpAttack, Shoot or
+// Charge facing the other, and its type's icon (`shot`) flies across and knocks the other back
+// (💥). `A`, `B`: { has, msOf, icon } for a and b. Both face each other throughout.
+// Sets a.react and b.react ({ seq, until, face, shot? }) and lastSpar; returns when it's over.
+export function battle(a, b, A, B, now, rnd = Math.random) {
+  const len = (S, anim, min) => (anim ? Math.max(min, S.msOf(anim)) : NO_ANIM_MS);
+  const seq = { a: [], b: [] };
+  let t = now;
+  const strike = (S, D, k, dk) => {
+    const anim = reactionAnim("spar", S.has);
+    const d = len(S, anim, 500);
+    seq[k].push({ at: t, until: t + d, anim });
+    const hurt = reactionAnim("startle", D.has);
+    const hit = t + Math.round(d * 0.5);
+    const hd = len(D, hurt, 400);
+    seq[dk].push({ at: hit, until: hit + hd, anim: hurt, icon: "💢" });
+    t = Math.max(t + d, hit + hd) + 150;
+  };
+  strike(A, B, "a", "b");
+  strike(B, A, "b", "a");
+  const aWins = rnd() < 0.5;
+  const [W, L, wk, lk, w, l] = aWins ? [A, B, "a", "b", a, b] : [B, A, "b", "a", b, a];
+  const sp = reactionAnim("special", W.has);
+  const sd = len(W, sp, 700);
+  seq[wk].push({ at: t, until: t + sd, anim: sp });
+  const shot = { at: t + Math.round(sd * 0.4), until: t + Math.round(sd * 0.4) + 450, from: w.x, to: l.x, icon: W.icon };
+  const hurt = reactionAnim("startle", L.has);
+  const hd = len(L, hurt, 600);
+  seq[lk].push({ at: shot.until, until: shot.until + hd, anim: hurt, icon: "💥" });
+  const end = Math.max(t + sd, shot.until + hd) + 300;
+  a.dir = b.x > a.x ? "r" : "l";
+  b.dir = a.x > b.x ? "r" : "l";
+  a.react = { seq: seq.a, until: end, face: a.dir, ...(aWins ? { shot } : {}) };
+  b.react = { seq: seq.b, until: end, face: b.dir, ...(aWins ? {} : { shot }) };
+  a.lastSpar = b.lastSpar = now;
+  return end;
 }
 
 // Whether it shows its Mega form now: On always, Auto while its agent works, Off never.
@@ -138,16 +196,6 @@ export function sparPair(cands, now) {
     }
   }
   return null;
-}
-
-// It spars: turns to its partner and plays its attack for about two seconds (💥 over one of them).
-export function onSpar(m, partnerX, now, has, msOf, icon) {
-  m.dir = partnerX > m.x ? "r" : "l";
-  const anim = reactionAnim("spar", has);
-  const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
-  const until = now + ms * Math.max(1, Math.ceil(2000 / ms));
-  m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
-  m.lastSpar = now;
 }
 
 // Teasing: an idle one standing still walks over to one asleep on its row and pokes it; the
@@ -224,7 +272,7 @@ export function onCombo(m, dir, now, has, msOf, icon) {
   const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
   const until = now + ms * Math.max(1, Math.ceil(2000 / ms));
   m.dir = dir;
-  m.react = { anim, animUntil: until, until, ...(icon ? { icon } : {}) };
+  m.react = { anim, animUntil: until, until, face: dir, ...(icon ? { icon } : {}) };
   m.lastCombo = now;
 }
 

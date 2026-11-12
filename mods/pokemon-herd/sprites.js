@@ -3,7 +3,7 @@
 // ~/.config/herdr-app/data/pokemon-herd/, and cuts them into GIFs with ImageMagick.
 import { exec, appHome } from "herdr";
 import * as fs from "fs/promises";
-import { REACTIONS, FIDGETS } from "./react.js";
+import { REACTIONS, FIDGETS, FACING } from "./react.js";
 import { sheetPlan } from "./sheets.js";
 import { megasFrom, isStale } from "./megas.js";
 import { versionIn } from "./update.js";
@@ -14,7 +14,7 @@ const DATA = `${appHome()}/${DATA_REL}`;
 const PMD = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/sprite";
 const PORTRAITS = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait";
 // Bump when the GIF recipe changes, so old caches are rebuilt.
-const VERSION = 6; // 3: the seasonal reactions' animations; 4: sparring's; 5: fidgets and pokes; 6: dizzy
+const VERSION = 7; // 3: the seasonal reactions' animations; 4: sparring's; 5: fidgets and pokes; 6: dizzy; 7: battles facing left and right
 
 // PMD sheets have one row per facing: 0 down, 1 down-right, 2 right, 3 up-right,
 // 4 up, 5 up-left, 6 left, 7 down-left. Walk sideways, stand half-facing the viewer
@@ -156,6 +156,14 @@ export async function loadSprite(dex, shiny, form = null) {
     const size = await cut(`${dir}/${anim.name}.png`, anim, 0, scale, `${dir}/${file}`);
     const ms = Math.round(((anim.durations.length ? anim.durations : [10]).reduce((t, d) => t + d, 0) * 1000) / 60);
     meta.react[name] = { path: `${rel}/${file}`, ...size, ms };
+    // Battle moves also facing right (row 2) and left (row 6).
+    if (FACING.includes(name)) {
+      for (const [side, row] of [["R", 2], ["L", 6]]) {
+        const f = `react-${name}${side}.gif`;
+        const sz = await cut(`${dir}/${anim.name}.png`, anim, row, scale, `${dir}/${f}`);
+        meta.react[`${name}${side}`] = { path: `${rel}/${f}`, ...sz, ms };
+      }
+    }
   }
   await fs.writeFile(metaFile, JSON.stringify(meta));
   return meta;
