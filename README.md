@@ -87,9 +87,11 @@ place, rows and size can be set.
 **Pokédollars and the Shop.** Every job an agent finishes pays: ₽12 and ₽3 a minute it took
 (₽200 at most; a job under 15 seconds, ₽3), twice for a Pokémon holding an Amulet Coin, with
 "+₽42" over its head. A little comes from the strip too: a pat that gives a heart (₽10), a spar
-you set up by dropping one on another (₽15) or one you watch (₽5), up to ₽200 a day; and each
-wild Pokémon walking by carries a purse over its head, taken with its gift (₽10–30, now and then
-₽60–100, a shiny ₽150, a legendary ₽400), up to ₽600 a day. Prices are set from a working day
+you set up by dropping one on another (₽15) or one you watch (₽5), up to ₽200 a day; and wild
+Pokémon walking by carry a purse over their heads, taken with the gift (₽10–30, now and then
+₽60–100, a shiny ₽150, a legendary ₽400), up to ₽600 a day: every one at Visitors: Rare, 1 in 2 at
+Often, 1 in 3 at Lots, so the day's purses last the day. The right-click menu switches the ball
+and the Berry to throw in place, and calls a visitor with Honey or the Azure Flute. Prices are set from a working day
 (about 110 jobs and 2 hours of agents' work pay ₽1,700; the Research, purses and pats ₽600
 more). Anything in the Bag sells for half its price (Sell 1, or Sell all). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
 ₽150, Master Ball ₽25,000; Oran Berry ₽20, Sitrus Berry ₽80, Razz and Pinap Berries ₽40,
