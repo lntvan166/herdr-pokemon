@@ -573,7 +573,7 @@ def preview(tmp):
     ground = horizon + 4
     sky_png = bright_sky(W, H, horizon, tmp, "preview")
     zard, luc = A("0006-0001", "react-SpAttackR"), A("0448", "react-HurtL")
-    pika, geng = A("0025", "sleep"), A("0094s", "idleL")
+    pika, geng = A("0025", "sleep"), A("0094-0001s", "idleL")
     X = {"pika": 40, "zard": 126, "luc": 210, "geng": 284}
     scene = [("pika", pika, X["pika"], 300), ("zard", zard, X["zard"], 250), ("luc", luc, X["luc"], 300), ("geng", geng, X["geng"], 0)]
     args = [sky_png]
@@ -621,14 +621,15 @@ def preview(tmp):
 def battle(tmp):
     """README's hero: a battle on a bright day. Mega Charizard X and Lucario face off; each strikes,
     the other flinches; then its special move, a blue fireball, knocks Lucario back. Pikachu sleeps
-    through it; a shiny Gengar watches. 270x130 at 2x, names under their feet."""
+    through it; a shiny Mega Gengar watches. 270x130 at 2x, names under their feet."""
     A = lambda f, n: Anim.get(f, n, tmp)
-    W, H, Z = 270, 118, 2
+    W, H, Z = 296, 118, 2
     horizon = 88
     ground = horizon + 4
     sky_png = bright_sky(W, H, horizon, tmp, "battle")
-    zx, lx = 92, 188
-    names = [("api", 34, "idle"), ("deploy", zx, "working"), ("tests", lx, "working"), ("review", 238, "done")]
+    zx, lx = 94, 186
+    gx = 252
+    names = [("api", 34, "idle"), ("deploy", zx, "working"), ("tests", lx, "working"), ("review", gx, "done")]
     frames = []
     for i in range(130):  # 6.5 s
         t = i * TICK
@@ -643,7 +644,7 @@ def battle(tmp):
         elif 1900 <= t < 2500: l = play("0448", "react-AttackL", 1900)
         elif 3350 <= t < 4300: l = play("0448", "react-HurtL", 3350)
         else: l = play("0448", "idleL", 0)
-        cast = [(A("0025", "sleep"), t, 34), (*z, zx), (*l, lx), (A("0094s", "idleL"), t, 238)]
+        cast = [(A("0025", "sleep"), t, 34), (*z, zx), (*l, lx), (A("0094-0001s", "idleL"), t, gx)]
         args = [sky_png]
         for an, tt, cx in cast:
             x, y = an.place(cx, ground)
@@ -657,7 +658,7 @@ def battle(tmp):
         # The shiny's sparkles, twinkling.
         for j, (dx, dy, r) in enumerate([(-15, -38, 2.2), (12, -30, 1.8), (-12, -14, 1.6), (15, -10, 2.2)]):
             if (i // 3 + j) % 4 < 2:
-                cx, cy = 238 + dx, ground + dy
+                cx, cy = gx + dx * 1.6, ground + dy - 6
                 args += ["-fill", "#ffffff" if j % 2 else "#ffe9a8", "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
         args += ["-filter", "point", "-resize", f"{Z * 100}%"]
         # zZ over Pikachu; names on the strip's dark.
@@ -679,7 +680,7 @@ def battle(tmp):
 SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party, "battle": battle}
 NEEDS = {"herd": ["0025", "0445", "0003", "0493", "0009", "0006-0001"], "focus": ["0025", "0003", "0493"],
          "reactions": ["0003", "0445"], "variety": ["0025", "0025s", "0037-0001", "0006-0001"],
-         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006-0001", "0448", "0094s"], "party": [], "battle": ["0025", "0006-0001", "0448", "0094s"]}
+         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006-0001", "0448", "0094-0001s"], "party": [], "battle": ["0025", "0006-0001", "0448", "0094-0001s"]}
 
 
 def main():
