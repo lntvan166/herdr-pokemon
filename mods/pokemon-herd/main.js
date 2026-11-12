@@ -2092,7 +2092,7 @@ export default class PokemonHerd extends View {
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
-    const LIST_H = 20 * 26 + 8; // the items list (it scrolls); the panel beside it is held to the same height
+    const LIST_H = 18 * 26 + 8; // the items list (it scrolls); the panel beside it is held to the same height
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
     // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
     const all = badgeProgress(s, b.marks, liveForBadges(saved));

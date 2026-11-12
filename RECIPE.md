@@ -310,7 +310,7 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   (`kind: "use"`): the Bag shows "Call one now" (dim with no Honey or with Visitors off) instead
   of "On screen"; it writes shared `pokemon-herd-honey` = now, and the strip's next tick calls a
   visitor at once (or right after the one walking by). Pickup weights: Honey 4, each held item 1.
-  The Bag's rows are 26 px in a 672 px dialog; the list is 20 rows high and scrolls.
+  The Bag's rows are 26 px in a 672 px dialog; the list is 18 rows high (as before the Shop) and scrolls, so the badges fit.
 - **Pokédollars** (`jobPay`, `backPay`, `buy` in `items.js`; the Bag's `money`): the leader pays
   each finished job ₽5 + ₽2 per whole minute of the task, ₽150 at most, ×2 when its Pokémon holds
   an Amulet Coin, "+₽n" as its note for 4 s. A Bag with no `money` key yet gets, once, what the
