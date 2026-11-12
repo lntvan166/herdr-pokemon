@@ -320,3 +320,17 @@ test("battle after hopping back: they hop, then fight from the new spots", () =>
   assert.equal(a.react.shot.to, 270);
   assert.equal(a.dir, "r");
 });
+
+import { attackPair } from "../mods/pokemon-herd/react.js";
+test("attackPair (X Attack): any two on a row, the attacker awake, nobody needing you", () => {
+  const now = 100000;
+  const c = [
+    { addr: "w", x: 100, row: 0, mood: "working" },
+    { addr: "s", x: 400, row: 0, mood: "sleep" },
+    { addr: "b", x: 120, row: 0, mood: "blocked" },
+    { addr: "o", x: 110, row: 1, mood: "idle" },
+  ];
+  assert.deepEqual(attackPair(c, now, 30000).map((x) => x.addr), ["w", "s"]);
+  assert.equal(attackPair([c[1], c[2]], now, 30000), null); // asleep and blocked: no attacker
+  assert.equal(attackPair([{ ...c[0], lastSpar: now - 1000 }, c[1]], now, 30000), null);
+});

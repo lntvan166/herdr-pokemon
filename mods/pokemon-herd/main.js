@@ -24,7 +24,7 @@ import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -1171,11 +1171,13 @@ export default class PokemonHerd extends View {
         if (!m || m.moving || family[a.address] || (m.react && now < m.react.until)) return [];
         return [{ addr: a.address, x: m.x, row: rowAt(a, j), mood: m.mood, lastSpar: m.lastSpar }];
       });
-      const pair = teasePair(cands, now, attack ? BOOST_GAP : undefined);
+      // X Attack: any two (attackPair), the other held where it is till the attacker gets there.
+      const pair = attack ? attackPair(cands, now, BOOST_GAP) : teasePair(cands, now);
       if (pair) {
         const m = this.mons[pair[0].addr];
-        m.tease = { victim: pair[1].addr, phase: "walk" };
+        m.tease = { victim: pair[1].addr, phase: "walk", any: attack };
         m.lastSpar = now;
+        if (attack) this.mons[pair[1].addr].pauseUntil = now + 8000;
         walk(m, teaseSpot(m.x, pair[1].x, EDGE, hiFor(this.width)), SPEED.idle * 1.5);
         changed = true;
       }
@@ -1192,7 +1194,10 @@ export default class PokemonHerd extends View {
       if (t.phase === "walk") {
         if (m.moving) continue;
         // Got there: still idle, and the other still asleep where it was? Otherwise it lets it be.
-        if (m.mood !== "idle" || s.mood !== "sleep" || s.moving || Math.abs(m.x - s.x) > TEASE_GAP + 20) { m.tease = null; continue; }
+        // (X Attack: anyone not needing you, asleep or awake.)
+        const ok = t.any ? m.mood !== "blocked" && s.mood !== "blocked" : m.mood === "idle" && s.mood === "sleep";
+        if (!ok || s.moving || Math.abs(m.x - s.x) > TEASE_GAP + 20) { m.tease = null; continue; }
+        if (s.mood !== "sleep") { m.tease = null; fight(a, m, b, s); changed = true; continue; }
         t.sparAt = onPoke(m, s, now, hasOf(meta), hasOf(sMeta), msFor(meta), msFor(sMeta));
         t.phase = "poke";
         m.pauseUntil = s.pauseUntil = t.sparAt + 3000;

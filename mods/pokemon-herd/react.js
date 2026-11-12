@@ -242,6 +242,22 @@ export function teasePair(cands, now, gap = SPAR_GAP) {
   return best?.pair ?? null;
 }
 
+// X Attack: any two on a row will do. The attacker idle or working, the other anything but
+// needing you (asleep: it gets poked awake), neither battled within `gap`. The nearest such pair
+// as [attacker, other], or null.
+export function attackPair(cands, now, gap) {
+  const ready = cands.filter((c) => c.mood !== "blocked" && now - (c.lastSpar ?? -Infinity) >= gap);
+  let best = null;
+  for (const a of ready.filter((c) => c.mood === "idle" || c.mood === "working")) {
+    for (const b of ready) {
+      if (b === a || b.row !== a.row) continue;
+      const d = Math.abs(a.x - b.x);
+      if (!best || d < best.d) best = { d, pair: [a, b] };
+    }
+  }
+  return best?.pair ?? null;
+}
+
 // Where the teaser stops: beside the sleeper on its own side (the other when that is past the
 // edge), TEASE_GAP away.
 export const TEASE_GAP = 40;

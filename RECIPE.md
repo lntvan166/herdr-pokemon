@@ -320,8 +320,9 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
 - **Boosts** (`loadBoosts`, `withBoost`; shared `pokemon-herd-boosts` = { id: until }): used from
   the Bag ("Use it", "Use another (+10 min)"), 10 min each, stacking to 1 h ahead. X Speed:
   walks ×1.6, idle pauses 0.8–2.5 s. Poké Flute: once per use, those asleep play their wake and
-  look; `awakeUntil` reaches its end. X Attack: sparring and teasing ×10 as likely, 30 s between
-  one's battles. Soda Pop: fidgets 45% (not 15%), half of them Dance when it has one. Pills top
+  look; `awakeUntil` reaches its end. X Attack: sparring ×10 as likely, 30 s between one's battles,
+  and teasing becomes `attackPair`: any idle or working one walks to the nearest on its row (not
+  needing you; held still 8 s), pokes it awake if asleep, and they battle; about every 12 s. Soda Pop: fidgets 45% (not 15%), half of them Dance when it has one. Pills top
   left of the strip, "⚡ 7m", on #00000059. **Festival Ticket** (`kind: "use"`): shared
   `pokemon-herd-festival` = now; every Pokémon celebrates (Dance, else Hop, about 3 s, 🎉), and 9
   bursts (🎆 🎇 ✨, 16–22 px, 550 ms apart, 1.4 s each, places from the time) fill the sky for 6 s. Item marks on the strip (a find, a gift,
