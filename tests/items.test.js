@@ -137,13 +137,15 @@ test("expShareTarget: another Pokémon on screen that evolves by jobs, the furth
 });
 
 import { PRICE, jobPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, BOOST_MAX, money, MAX_MONEY } from "../mods/pokemon-herd/items.js";
-test("jobPay: ₽12 and ₽3 a minute, ₽200 at most, twice with an Amulet Coin", () => {
-  assert.equal(jobPay(30000), 12);
-  assert.equal(jobPay(5000), 3); // a one-line answer
-  assert.equal(jobPay(10 * 60000), 42);
-  assert.equal(jobPay(10 * 60000, true), 84);
-  assert.equal(jobPay(5 * 3600000), 200);
-  assert.equal(jobPay(undefined), 12);
+test("jobPay: ₽1 and ₽5 a minute, ₽300 at most, twice with an Amulet Coin", () => {
+  assert.equal(jobPay(30000), 4);
+  assert.equal(jobPay(10000), 2); // a one-line answer
+  assert.equal(jobPay(10 * 60000), 51);
+  assert.equal(jobPay(10 * 60000, true), 102);
+  assert.equal(jobPay(5 * 3600000), 300);
+  assert.equal(jobPay(undefined), 1);
+  // Ten 1-minute jobs pay about what one 10-minute job does.
+  assert.ok(Math.abs(10 * jobPay(60000) - jobPay(10 * 60000)) <= 10);
 });
 import { sell, sellPrice } from "../mods/pokemon-herd/items.js";
 test("sell: half the price, only what's there", () => {

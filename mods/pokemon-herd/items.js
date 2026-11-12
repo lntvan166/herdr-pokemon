@@ -42,9 +42,9 @@ export const ITEMS = {
 
 // The Shop: every item, for Pokédollars (₽).
 export const PRICE = {
-  // Set from a working day: ~110 jobs and ~2 hours of agents' work pay about ₽1,700, the day's
-  // Research, visitors' purses and pats about ₽600 more (≈ ₽2,300). The Azure Flute is half a
-  // day; balls cheap enough to throw 15 at a legendary; a Master Ball about ten days.
+  // Set from a working day: agents at work 6 hours pay about ₽1,900 (jobPay), the day's Research,
+  // visitors' purses and tips about ₽1,000 more (≈ ₽3,000). Two Azure Flutes a day; balls cheap
+  // enough to throw 15 at a legendary; a Master Ball about eight days.
   berry: 20, "sitrus-berry": 80, "razz-berry": 40, "pinap-berry": 40, "golden-razz-berry": 300, "silver-pinap-berry": 200,
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "master-ball": 25000,
   honey: 150, "azure-flute": 1000, "rare-candy": 600,
@@ -59,12 +59,11 @@ export const money = (n) => `₽${String(Math.max(0, Math.round(n || 0))).replac
 // the stats summary { jobs, ms }: ₽5 a job and ₽2 a minute worked, ₽150 a job at most).
 export const backPay = (s) => Math.min(150 * (s.jobs || 0), 5 * (s.jobs || 0) + 2 * Math.floor((s.ms || 0) / 60000));
 
-// What a finished job pays: ₽12, and ₽3 a minute it took, ₽200 at most; twice that for a Pokémon
-// holding an Amulet Coin. (A day here is ~110 jobs and ~2 hours of agents' work: ~₽1,700.)
-// A job under 15 s (a one-line answer: easy to send again and again) pays ₽3.
-export const QUICK_JOB_MS = 15000;
-export const jobPay = (taskMs, coin = false) => (Number.isFinite(taskMs) && taskMs < QUICK_JOB_MS ? 3
-  : Math.min(200, 12 + 3 * Math.floor(Math.max(0, taskMs || 0) / 60000))) * (coin ? 2 : 1);
+// What a finished job pays: by the time it took, ₽1 and ₽5 a minute (to the second), ₽300 at most;
+// twice that for a Pokémon holding an Amulet Coin. About ₽300 an hour of agents' work, however it
+// is cut into jobs: many short ones pay no more than a few long ones (a 10 s answer: ₽2). A
+// working day with agents at work 6 hours: ~₽1,900, plus ~₽1,000 from the Research, purses, tips.
+export const jobPay = (taskMs, coin = false) => Math.min(300, Math.max(1, Math.round(1 + 5 * Math.max(0, taskMs || 0) / 60000))) * (coin ? 2 : 1);
 // What the Shop gives back for one: half its price, as in the games.
 export const sellPrice = (id) => Math.floor((PRICE[id] ?? 0) / 2);
 // The bag after selling `n` of `id` (as many as there are, at most), or null: none to sell.

@@ -84,16 +84,15 @@ Herdr's built-in layouts (`main`, …) can't be changed by a mod: Settings shows
 which copies the layout you're on into one you own (and shows it) so the cards and the strip's
 place, rows and size can be set.
 
-**Pokédollars and the Shop.** Every job an agent finishes pays: ₽12 and ₽3 a minute it took
-(₽200 at most; a job under 15 seconds, ₽3), twice for a Pokémon holding an Amulet Coin, with
-"+₽42" over its head. A little comes from the strip too: a pat that gives a heart (₽10), a spar
+**Pokédollars and the Shop.** Every job an agent finishes pays by the time it took: ₽1 and ₽5
+a minute (₽300 at most), about ₽300 an hour of agents' work however it's cut into jobs, twice
+for a Pokémon holding an Amulet Coin, with "+₽51" over its head. A little comes from the strip too: a pat that gives a heart (₽10), a spar
 you set up by dropping one on another (₽15) or one you watch (₽5), up to ₽200 a day; and wild
 Pokémon walking by carry a purse over their heads, taken with the gift (₽10–30, now and then
 ₽60–100, a shiny ₽150, a legendary ₽400), up to ₽600 a day: every one at Visitors: Rare, 1 in 2 at
 Often, 1 in 3 at Lots, so the day's purses last the day. The right-click menu switches the ball
 and the Berry to throw in place, and calls a visitor with Honey or the Azure Flute. Prices are set from a working day
-(about 110 jobs and 2 hours of agents' work pay ₽1,700; the Research, purses and pats ₽600
-more). Anything in the Bag sells for half its price (Sell 1, or Sell all). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
+(agents at work 6 hours pay about ₽1,900; the Research, purses and tips about ₽1,000 more). Anything in the Bag sells for half its price (Sell 1, or Sell all). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
 ₽150, Master Ball ₽25,000; Oran Berry ₽20, Sitrus Berry ₽80, Razz and Pinap Berries ₽40,
 Silver Pinap ₽200, Golden Razz ₽300; Honey ₽150, the **Azure Flute** ₽1,000 (it calls a
 legendary over: two a working day); stones ₽400, Rare Candy ₽600, items to hold ₽2,000; and five

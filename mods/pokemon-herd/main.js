@@ -2504,7 +2504,7 @@ export default class PokemonHerd extends View {
             : can ? `You have ${money(b.money)}.` : `${money(price - (b.money ?? 0))} more to go.`)))
         .child(div().flex_1())
         .child(div().text_size(11.5).text_color(t.muted)
-          .child("Pokédollars come from jobs: ₽5 and ₽2 a minute each one took (₽150 at most), twice with an Amulet Coin.")));
+          .child("Pokédollars come from jobs (₽1 and ₽5 a minute each took, ₽300 at most; twice with an Amulet Coin), the day's Research, visitors' purses and pats. Anything sells back for half.")));
   }
 
   // The herd as the Bag sees it: agents with a pane, their saved Pokémon and tags.
