@@ -7,6 +7,8 @@ import { updateScript } from "./update.js";
 const MOD_DIR = `${appHome()}/mods/${MOD}`;
 const SIDEBAR_DIR = `${appHome()}/mods/better-sidebar`;
 const PATCH = `${MOD_DIR}/extras/better-sidebar-cards.patch`;
+// For a Better Sidebar patched before the rail showed Pokémon: only what that patch lacks.
+const RAIL_PATCH = `${MOD_DIR}/extras/better-sidebar-rail.patch`;
 const sh = (script, timeout = 120000) => exec("sh", ["-c", script], { timeout });
 const lastLine = (r) => (r.stderr || r.stdout).trim().split("\n").pop() || `exit ${r.code}`;
 
@@ -23,20 +25,25 @@ export async function updateNow() {
   });
 }
 
-// Better Sidebar: "missing" (not installed), "patched" (draws the cards) or "unpatched".
+// Better Sidebar: "missing" (not installed), "patched" (draws the cards, and Pokémon on the
+// collapsed rail), "outdated" (the cards only: an earlier patch) or "unpatched".
 export async function sidebarState() {
-  const r = await sh(`test -f "${SIDEBAR_DIR}/views/agents.js" || { echo missing; exit 0; }
-grep -q 'agent-cards' "${SIDEBAR_DIR}/views/agents.js" && echo patched || echo unpatched`, 10000);
+  const f = `${SIDEBAR_DIR}/views/agents.js`;
+  const r = await sh(`test -f "${f}" || { echo missing; exit 0; }
+grep -q 'agent-cards' "${f}" || { echo unpatched; exit 0; }
+grep -q 'railIcon' "${f}" && echo patched || echo outdated`, 10000);
   const s = r.stdout.trim();
-  return s === "missing" || s === "patched" ? s : "unpatched";
+  return ["missing", "patched", "outdated"].includes(s) ? s : "unpatched";
 }
 
-// Applies extras/better-sidebar-cards.patch (made for Better Sidebar 3.2.0). A dry run first:
-// on another version that it doesn't fit, nothing changes and it says so.
-export async function patchSidebar() {
+// Applies extras/better-sidebar-cards.patch (made for Better Sidebar 3.2.0), or, on one patched
+// before (`outdated`), extras/better-sidebar-rail.patch. A dry run first: on another version
+// that it doesn't fit, nothing changes and it says so.
+export async function patchSidebar(outdated = false) {
+  const file = outdated ? RAIL_PATCH : PATCH;
   const r = await sh(`set -e
 cd "${SIDEBAR_DIR}"
-patch -p1 --forward --dry-run -s < "${PATCH}" >/dev/null || { echo "the patch doesn't fit this Better Sidebar version" >&2; exit 1; }
-patch -p1 --forward -s < "${PATCH}"`, 20000);
+patch -p1 --forward --dry-run -s < "${file}" >/dev/null || { echo "the patch doesn't fit this Better Sidebar version" >&2; exit 1; }
+patch -p1 --forward -s < "${file}"`, 20000);
   if (r.code !== 0) throw new Error(lastLine(r));
 }

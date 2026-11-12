@@ -1,0 +1,47 @@
+--- a/views/agents.js
++++ b/views/agents.js
+@@ -571,11 +571,11 @@
+       )
+       .child(
+         h_flex()
+-          .w(14)
++          .min_w(14)
+           .flex_none()
+           .items_center()
+           .justify_center()
+-          .child(this.status(t, a, true)),
++          .child(this.railIcon(t, a, 18)),
+       );
+   }
+ 
+@@ -666,6 +666,30 @@
+     return div().flex_1().min_w(0).truncate().text_size(TEXT.caption).text_color(t.dim).child(prog);
+   }
+ 
++  // On the rail: its Pokémon (shared "agent-icons", from Pokémon herd), a dot in its status
++  // colour on the corner (pulsing while it needs you); without one, its status as before.
++  railIcon(t, a, size = 22) {
++    const own = shared("agent-icons")?.[a.address];
++    if (!own) return this.status(t, a, true);
++    return div()
++      .relative()
++      .size(size)
++      .flex_none()
++      .child(image(own).absolute().left(0).top(0).size(size))
++      .child(
++        div()
++          .absolute()
++          .right(-1)
++          .bottom(-1)
++          .size(8)
++          .rounded_full()
++          .border_1()
++          .border_color(t.background)
++          .bg(t[a.status] ?? t.dim)
++          .when(a.status === "blocked", (el) => el.loop("opacity", { from: 0.4, to: 1, period: 800 })),
++      );
++  }
++
+   // An agent's card (shared "agent-cards", from Pokémon herd). Read at a glance: the agent's
+   // name, large; the card's edge in its status colour (pulsing while it needs you), so the
+   // state shows before a word is read; its Pokémon's portrait; then the Pokémon, its hearts, and how close

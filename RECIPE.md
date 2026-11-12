@@ -127,9 +127,12 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   latest (checked once a day)", or "<new> is out; you have <v>…") and an "Update now" pill
   (live only when newer): curl the repo's main tarball, copy `mods/pokemon-herd/` over the
   folder (Herdr's jsconfig.json and *.d.ts untouched), Herdr reloads. "Cards in Better Sidebar":
-  missing / patched / not patched, with a "Patch" pill: a dry run of
-  `extras/better-sidebar-cards.patch`, then the patch; on a version it doesn't fit, nothing
-  changes and it says so.
+  missing / patched / patched for the cards only (`outdated`: no `railIcon`) / not patched, with
+  a "Patch" pill: a dry run of `extras/better-sidebar-cards.patch` (outdated:
+  `extras/better-sidebar-rail.patch`, only the rail), then the patch; on a version it doesn't
+  fit, nothing changes and it says so. The patch also puts each agent's Pokémon (22 px, its
+  `agent-icons` image) on the collapsed rail, an 8 px dot in its status colour on the corner
+  (pulsing while it needs you), in place of the status mark.
 - **Cries** (`ensureCry` in `sprites.js`): PokeAPI's cries (`cries/pokemon/latest/<dex>.ogg`),
   converted once to MP3 with ffmpeg into `data/pokemon-herd/cries/`, played with `playSound`
   when an agent turns blocked or done (per the settings), at most one every 2 s.

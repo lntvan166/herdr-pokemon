@@ -1236,7 +1236,7 @@ export default class PokemonHerd extends View {
 
   initSettings(cx) {
     this.updating = null; // null | "running" | "done" | an error message
-    this.sidebar = null; // Better Sidebar: "missing" | "patched" | "unpatched" (null: checking)
+    this.sidebar = null; // Better Sidebar: "missing" | "patched" | "outdated" | "unpatched" (null: checking)
     this.patching = null; // null | "running" | an error message
     cx.spawn(async (cx) => {
       this.sidebar = await sidebarState().catch(() => "missing");
@@ -1263,9 +1263,9 @@ export default class PokemonHerd extends View {
       else next = placeParty(next, MOD, "sidebar") ?? next;
     } else if (v === "panel") next = placeParty(next, MOD, "panel") ?? next;
     if (settingsNow().sidebar !== better) setSetting("sidebar", better);
-    if (better && this.sidebar === "unpatched") {
+    if (better && (this.sidebar === "unpatched" || this.sidebar === "outdated")) {
       this.patching = "running";
-      patchSidebar().then(async () => { this.patching = null; this.sidebar = await sidebarState(); }).catch((e) => { this.patching = String(e?.message ?? e); });
+      patchSidebar(this.sidebar === "outdated").then(async () => { this.patching = null; this.sidebar = await sidebarState(); }).catch((e) => { this.patching = String(e?.message ?? e); });
     }
     if (JSON.stringify(next) !== JSON.stringify(tree)) run("layout.set", { layout: next });
   }
@@ -1309,7 +1309,7 @@ export default class PokemonHerd extends View {
     const party = partyPlace(tree);
     const cardsNow = agentsSwapped(tree) || party === "sidebar" || (st.sidebar && betterHere) ? "sidebar" : party === "panel" ? "panel" : "off";
     const cardsNote = cardsNow === "sidebar" && agentsSwapped(tree) ? "The sidebar's Agents list, as cards."
-      : cardsNow === "sidebar" && betterHere ? (this.sidebar === "patched" ? "Better Sidebar's rows, as cards." : "Better Sidebar's rows: needs its patch (Updates).")
+      : cardsNow === "sidebar" && betterHere ? (this.sidebar === "patched" || this.sidebar === "outdated" ? "Better Sidebar's rows, as cards." : "Better Sidebar's rows: needs its patch (Updates).")
       : cardsNow === "sidebar" ? "A Party list in the sidebar."
       : cardsNow === "panel" ? "A Party list in the right panel."
       : "The agent's name large, its status as the card's edge, its Pokémon and hearts.";
@@ -1431,13 +1431,14 @@ export default class PokemonHerd extends View {
           })),
         line("Cards in Better Sidebar", this.sidebar === null ? "Checking…"
           : this.sidebar === "missing" ? "Better Sidebar isn't installed."
-          : this.sidebar === "patched" ? "Patched: each agent shows as its Pokémon's card."
+          : this.sidebar === "patched" ? "Patched: each agent shows as its Pokémon's card, and as its Pokémon on the collapsed rail."
+          : this.sidebar === "outdated" && !this.patching ? "Patched for the cards; Patch again for Pokémon on the collapsed rail."
           : this.patching && this.patching !== "running" ? `Couldn't patch: ${this.patching}`
           : "Not patched (a reinstall of Better Sidebar undoes it).",
-          button("patch-sidebar", "Patch", this.sidebar === "unpatched" && this.patching !== "running", (cx) => {
+          button("patch-sidebar", "Patch", (this.sidebar === "unpatched" || this.sidebar === "outdated") && this.patching !== "running", (cx) => {
             this.patching = "running";
             cx.spawn(async (cx) => {
-              try { await patchSidebar(); this.patching = null; this.sidebar = await sidebarState(); } catch (e) { this.patching = String(e?.message ?? e); }
+              try { await patchSidebar(this.sidebar === "outdated"); this.patching = null; this.sidebar = await sidebarState(); } catch (e) { this.patching = String(e?.message ?? e); }
               cx.notify();
             });
           })),
