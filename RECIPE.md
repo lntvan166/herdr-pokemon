@@ -284,8 +284,7 @@ forms, and Mega Evolution while an agent works.
 - **Box it** (the card's "📦 Box it", "Cancel" while on; `this.boxing`): the subtitle says
   "<name> goes to the Box: pick a new one (1 in n shiny)"; the next pick (a cell, Random, or the
   preview's "Choose a new one") boxes the current one whatever it is (`boxOnSwitch` with
-  `{ same, all }`) and gives a new one, never one from the Box, the same species too. Edit ★
-  turns it off.
+  `{ same, all }`) and gives a new one, never one from the Box, the same species too.
 - **Bring out** (the preview's "In the Box (n)": that species' raised ones not on screen, latest
   first, "✨ Name · ♥ 2 · 4 jobs"): puts that one in the pane (`choose(e, { slot })`); the
   current one goes to the Box if raised, the same species too.
@@ -324,15 +323,14 @@ forms, and Mega Evolution while an agent works.
   random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
 - **Preview** (`showPreview`, `renderPreview`): right-clicking a grid cell (the list's
   `on_item_secondary_click`, the column from the pointer's x) shows that Pokémon in the card's
-  place: name, dex and region, "✨ Shiny" (if it has one), Choose (as a left click) and ✕; its
+  place: name, dex and region, "☆ Favorite", "✨ Shiny" (if it has one), Choose (as a left click) and ✕; its
   Standing (`idleD`), Walking (`walkR`) and Asleep (`sleep`) animations, each on a 150×104
   stage with a strip of grass (loaded with `want`, "Loading…" pulsing meanwhile), and its line
   as 30 px icons (click one to preview it).
 - **Favourites** (`favorites.js`, shared `pokemon-herd-favorites` { v: 1, keys: ["25",
-  "37-0001"] }): in the picker, "Edit ★" (beside Random; "✓ Done" while on, gold edge) makes a
-  click on a grid cell star it or not instead of choosing it, the picker staying open (the
-  subtitle then says "Click a Pokémon to ★ or un-★ it, then Done"); a starred cell shows a 12 px `★`
-  (`#f2c94c`) at its top right, and while editing the others show a dim `☆` there; the card has "☆ Favorite" / "★ Favorite" (gold edge when on);
+  "37-0001"] }): in the picker, the preview (right-click a cell) has
+  "☆ Favorite" / "★ Favorite" (gold edge when on); a starred cell shows a 12 px `★`
+  (`#f2c94c`) at its top right; the card has "☆ Favorite" / "★ Favorite" (gold edge when on);
   the filter row starts with a "★ n" chip (only the favourites, read live; with it, 🎲 picks a
   favourite); the subtitle otherwise says "for <tag>". Settings → Gameplay →
   "New agents' Pokémon: Any / Favorites" (`newFrom`): `assign()` takes the favourites as its pool,

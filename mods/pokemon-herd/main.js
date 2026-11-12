@@ -1230,7 +1230,7 @@ export default class PokemonHerd extends View {
         line("Weather", "Rain while agents wait on you; a storm when they wait long.", toggle("weather")),
         line("Sparring", "Two idle Pokémon spar now and then, and like each other more.", toggle("spar")),
         line("Sub-agents", "A sub-agent is its agent's Pokémon, younger, and follows it.", toggle("family")),
-        line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: Edit ★ in the picker, then click the ones you like." : "Any species, or one of your favourites (★ in the picker).",
+        line("New agents' Pokémon", st.newFrom === "favorites" && !favs().length ? "No favourites yet: in the picker, right-click one you like and ☆ Favorite it." : "Any species, or one of your favourites (★ in the picker).",
           choices("new-from", [["any", "Any"], ["favorites", "Favorites"]], st.newFrom, () => true, (v) => setSetting("newFrom", v))),
         line("Campfire", "At night, with every agent resting, the herd sleeps round a fire.", toggle("campfire")),
         line("Visitors", "A wild Pokémon walks across, and the herd watches it go by. Rare: every 10–25 min; Often: 3–8; Lots: 1–3.",
@@ -2191,7 +2191,7 @@ export default class PokemonHerd extends View {
           .child(div().id("box-it").h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
             .border_color(this.boxing ? t.accent : t.border).bg(this.boxing ? t.selected : "#00000000")
             .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-            .on_click((_e, cx) => { this.boxing = !this.boxing; this.marking = false; cx.notify(); })
+            .on_click((_e, cx) => { this.boxing = !this.boxing; cx.notify(); })
             .child(this.boxing ? "Cancel" : "📦 Box it"))
           // The Everstone: its Pokémon stays as it is.
           .when(chain.length > 1, (el) => el.child(div()
@@ -2272,6 +2272,11 @@ export default class PokemonHerd extends View {
             .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`))
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
           .child(div().text_size(11.5).text_color(t.muted).child("Preview: right-click another to see it")))
+        // Favourites are starred here (or on the card, for the one it is).
+        .child((() => {
+          const on = isFavorite(favs(), pv);
+          return button("preview-fav", on ? "★ Favorite" : "☆ Favorite", on, (_e, cx) => { setFavs(toggleFavorite(favs(), pv.form ? { dex: pv.dex, form: pv.form } : { dex: pv.dex })); cx.notify(); });
+        })())
         .when(hasShiny(pv.dex, pv.form), (el) => el.child(button("preview-shiny", "✨ Shiny", pv.shiny, (_e, cx) => this.showPreview(pv, cx, !pv.shiny))))
         .child(button("preview-choose", this.boxing ? "Choose a new one" : "Choose", false, () => { const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) }; this.preview = null; this.choose(e, this.boxing ? { fresh: true } : {}); }))
         .child(button("preview-close", "✕", false, (_e, cx) => { this.preview = null; cx.notify(); })))
@@ -2369,20 +2374,11 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().min_w(0).gap(2)
               .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Choose a Pokémon"))
-              .child(div().text_size(11.5).text_color(t.muted).truncate().child(this.marking ? "Click a Pokémon to ★ or un-★ it, then Done"
-                : this.boxing ? `${nameFor(cur ?? {})} goes to the Box: pick a new one (1 in ${charmOdds()} shiny)`
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(this.boxing ? `${nameFor(cur ?? {})} goes to the Box: pick a new one (1 in ${charmOdds()} shiny)`
                 : `for ${p.tag ?? "this agent"}`)),
           )
           .child(
             h_flex().gap(10).items_center().flex_none()
-              // Favourites mode: clicks ★ Pokémon (or un-★ them) instead of choosing one; Done ends
-              // it. Not a star itself ("☆ Mark" read as one: clicked again, nothing was un-starred).
-              .child(div()
-                .id("pick-mark").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
-                .border_color(this.marking ? "#f2c94c" : t.border).bg(this.marking ? t.selected : "#00000000")
-                .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-                .on_click((_e, cx) => { this.marking = !this.marking; this.boxing = false; cx.notify(); })
-                .child(this.marking ? "✓ Done" : "Edit ★"))
               // Any Pokémon (of those the search shows), preferring one nobody else on screen has.
               .child(div()
                 .id("pick-random").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
@@ -2468,9 +2464,7 @@ export default class PokemonHerd extends View {
                   .child(this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(56).flex_none() : div().size(56).flex_none())
                   .child(div().text_size(9.5).text_color(t.dim).child(dexNo(e.dex)))
                   .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)))
-                  .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")))
-                  // Editing favourites: an empty ☆ on the others, so a click plainly stars one.
-                  .when(this.marking && !isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color(t.dim).child("☆")));
+                  .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")));
               })));
             }
             return rows;
@@ -2485,8 +2479,7 @@ export default class PokemonHerd extends View {
             const col = Math.floor(this.pickX / (PICK_W + PICK_GAP));
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
             if (!(col >= 0 && col < PICK_COLS && e)) return;
-            if (this.marking) { setFavs(toggleFavorite(favs(), e)); cx.notify(); } // stays open, ★ shown at once
-            else this.choose(e, this.boxing ? { fresh: true } : {});
+            this.choose(e, this.boxing ? { fresh: true } : {});
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
