@@ -383,6 +383,12 @@ forms, and Mega Evolution while an agent works.
   agent without a pane.
 - **Drag** a Pokémon (after 5 px): it follows the pointer, can change row, and stays put for
   20 s. The click that ends a drag is ignored.
+- **Drop** (`shaken`, `dropTarget`, `onDizzy` in `react.js`), on the next tick: shaken (the
+  pointer turned back, after 6 px one way, 4 times in the last 1.5 s) it reels about 2.5 s
+  (Tumble, LostBalance, Rotate, Hurt; 💫). Else, on the nearest other on its row within 36 px
+  (stopped where it is; right on top, the dropped one jumps 40 px beside it): asleep, it pokes it
+  awake and they spar (as Teasing); awake, they spar at once, a heart each when neither sparred
+  in 10 min. Not tied to the Sparring switch. Sprite cache v6 cuts the dizzy animations.
 - **Right-click** a Pokémon or its name: the picker for that agent. `alt-shift-p` (`keys.json`
   → `pokemon-herd.pick`) opens it for the focused agent. Choosing saves the pick and closes it.
   Enter chooses when exactly one matches.

@@ -16,6 +16,7 @@ export const REACTIONS = {
   shiver: ["Shake", "Cringe", "Hurt"], // winter: the cold
   spar: ["Attack", "Strike", "Swing", "Shoot", "Hop"], // two idle ones spar
   poke: ["Head", "Pull", "Double", "Attack", "Hop"], // it pokes a sleeping one awake
+  dizzy: ["Tumble", "LostBalance", "Rotate", "Hurt"], // shaken about while you drag it
 };
 
 // Idle now and then, whatever the season: one of these, at random among those its sprite has
@@ -188,6 +189,31 @@ export function onPoke(m, s, now, has, sHas, msOf, sMsOf) {
   s.react = { anim: wake, animUntil: wUntil, until: wUntil, icon: "💢" };
   s.awakeUntil = Math.max(s.awakeUntil ?? 0, now + 20000);
   return Math.max(until, wUntil);
+}
+
+// Dragged and dropped (by you). Shaken: the pointer turned back at least 4 times in the last
+// 1.5 s (`flips`: when it turned). Pure.
+export const SHAKE_FLIPS = 4;
+export const shaken = (flips, now) => (flips ?? []).filter((t) => now - t <= 1500).length >= SHAKE_FLIPS;
+
+// The one it was dropped on: the nearest other on its row within DROP_REACH px, or null.
+// `cands`: [{ addr, x, row }].
+export const DROP_REACH = 36;
+export function dropTarget(cands, x, row) {
+  let best = null;
+  for (const c of cands) {
+    const d = Math.abs(c.x - x);
+    if (c.row === row && d <= DROP_REACH && (!best || d < best.d)) best = { d, c };
+  }
+  return best?.c ?? null;
+}
+
+// Shaken about, it reels for about 2.5 s (💫).
+export function onDizzy(m, now, has, msOf) {
+  const anim = reactionAnim("dizzy", has);
+  const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
+  const until = now + ms * Math.max(1, Math.ceil(2500 / ms));
+  m.react = { anim, animUntil: until, until, icon: "💫" };
 }
 
 // A combo: an agent's Pokémon and its sub-agent's, both working, attack together facing the same

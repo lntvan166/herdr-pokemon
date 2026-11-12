@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onFidget, onSpar, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { focusEdge, onFocus, onStatus, onSeason, onFidget, onSpar, sparPair, teasePair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -475,7 +475,16 @@ export default class PokemonHerd extends View {
     d.moved = true;
     this.dropped = d.addr; // whichever comes first, the click that ends this drag is ignored
     const z = zoom();
-    m.x = m.target = m.from = clamp(e.local_position.x / z, EDGE, Math.max(EDGE, this.width - EDGE));
+    const x = clamp(e.local_position.x / z, EDGE, Math.max(EDGE, this.width - EDGE));
+    // Shaking it about: each time the pointer turns back (after 6 px one way) counts.
+    if (d.lastX === undefined) d.lastX = x;
+    else if (Math.abs(x - d.lastX) >= 6) {
+      const way = Math.sign(x - d.lastX);
+      if (d.way && way !== d.way) (d.flips ??= []).push(Date.now());
+      d.way = way;
+      d.lastX = x;
+    }
+    m.x = m.target = m.from = x;
     clearWalk(m); // grabbed mid-walk (even mid-wrap): it's simply where you put it
     m.dur = 1;
     if (g) m.row = clamp(Math.floor(e.local_position.y / z / g.rowH), 0, g.rows - 1);
@@ -489,6 +498,8 @@ export default class PokemonHerd extends View {
     if (!d?.moved) return;
     const m = this.mons[d.addr];
     if (m) m.pauseUntil = Date.now() + 20000;
+    // What it was dropped on (or how hard it was shaken) plays out on the next tick.
+    this.dropAt = { addr: d.addr, dizzy: shaken(d.flips, Date.now()) };
     cx.notify();
   }
 
@@ -1046,10 +1057,55 @@ export default class PokemonHerd extends View {
         changed = true;
       }
     }
-    // Teasing: now and then an idle one walks over to one asleep on its row, pokes it awake and
-    // they spar (react.js teasePair, onPoke). One at a time; off with Sparring, and at the campfire.
     const hasOf = (meta) => new Set(Object.keys(meta?.react ?? {}));
     const msFor = (meta) => (name) => meta.react[name].ms;
+    // Dropped by you: shaken, it reels (💫); on one asleep, it pokes it awake and they spar; on
+    // one awake, they spar now (a heart each, as sparring, when neither sparred in 10 min).
+    const drop = this.dropAt;
+    this.dropAt = null;
+    const dj = drop ? list.findIndex((a) => a.address === drop.addr) : -1;
+    const dm = dj >= 0 && this.mons[drop.addr];
+    const dMeta = dm && this.spriteFor(ids[drop.addr], list[dj].status);
+    const stopHere = (o) => {
+      if (!o.moving) return;
+      o.x = o.target = o.from + (o.target - o.from) * clamp((now - o.start) / o.dur, 0, 1);
+      clearWalk(o);
+      o.moving = false;
+      o.dur = 150;
+    };
+    if (dm && dMeta && drop.dizzy) {
+      dm.tease = null;
+      onDizzy(dm, now, hasOf(dMeta), msFor(dMeta));
+      dm.pauseUntil = dm.react.until + rand(1000, 3000);
+      changed = true;
+    } else if (dm && dMeta) {
+      const row = rowAt(list[dj], dj);
+      const hit = dropTarget(list.flatMap((b, j) => (b.address === drop.addr || !this.mons[b.address] ? [] : [{ addr: b.address, b, x: this.mons[b.address].x, row: rowAt(b, j) }])), dm.x, row);
+      const s = hit && this.mons[hit.addr];
+      const sMeta = s && this.spriteFor(ids[hit.addr], hit.b.status);
+      if (s && sMeta) {
+        stopHere(s);
+        // Right on top: it steps beside the other first.
+        if (Math.abs(dm.x - s.x) < 30) { dm.x = dm.from = dm.target = teaseSpot(dm.x, s.x, EDGE, hiFor(this.width)); dm.dur = 1; }
+        for (const o of list) if (this.mons[o.address]?.tease?.victim === hit.addr) this.mons[o.address].tease = null;
+        if (s.mood === "sleep") {
+          const sparAt = onPoke(dm, s, now, hasOf(dMeta), hasOf(sMeta), msFor(dMeta), msFor(sMeta));
+          dm.tease = { victim: hit.addr, phase: "poke", sparAt };
+          dm.pauseUntil = s.pauseUntil = sparAt + 3000;
+        } else {
+          const hearts = now - (dm.lastSpar ?? -Infinity) >= SPAR_GAP && now - (s.lastSpar ?? -Infinity) >= SPAR_GAP;
+          dm.tease = null;
+          onSpar(dm, s.x, now, hasOf(dMeta), msFor(dMeta), "💥");
+          onSpar(s, dm.x, now, hasOf(sMeta), msFor(sMeta), null);
+          dm.pauseUntil = dm.react.until + rand(2000, 5000);
+          s.pauseUntil = s.react.until + rand(2000, 5000);
+          if (hearts && this.leader) for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar));
+        }
+        changed = true;
+      }
+    }
+    // Teasing: now and then an idle one walks over to one asleep on its row, pokes it awake and
+    // they spar (react.js teasePair, onPoke). One at a time; off with Sparring, and at the campfire.
     if (settingsNow().spar && !this.campfire && Math.random() < TEASE_CHANCE && !list.some((a) => this.mons[a.address]?.tease)) {
       const cands = list.flatMap((a, j) => {
         const m = this.mons[a.address];

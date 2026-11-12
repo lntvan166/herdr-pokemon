@@ -13,7 +13,7 @@ test("reactionAnim fallbacks", () => {
 
 test("REACTIONS lists every animation sprites must cut", () => {
   assert.deepEqual([...new Set(Object.values(REACTIONS).flat())].sort(),
-    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Double", "Eat", "Head", "Hop", "Hurt", "Laying", "LookUp", "Nod", "Pull", "Rotate", "Shake", "Shoot", "Sit", "Strike", "Swing", "Wake"]);
+    ["Attack", "Charge", "Cringe", "Dance", "DeepBreath", "Double", "Eat", "Head", "Hop", "Hurt", "Laying", "LookUp", "LostBalance", "Nod", "Pull", "Rotate", "Shake", "Shoot", "Sit", "Strike", "Swing", "Tumble", "Wake"]);
 });
 
 import { focusEdge, onFocus, onStatus, effectiveMood, pose, LOOK_MS, AWAKE_MS } from "../mods/pokemon-herd/react.js";
@@ -250,4 +250,24 @@ test("onPoke: it pokes, the sleeper wakes with a start and stays up", () => {
   assert.equal(s.react.icon, "💢");
   assert.equal(end, 1900);
   assert.ok(s.awakeUntil >= 21000);
+});
+
+import { shaken, dropTarget, onDizzy, DROP_REACH } from "../mods/pokemon-herd/react.js";
+test("shaken: 4 turns in the last 1.5 s", () => {
+  assert.equal(shaken([1000, 1200, 1400, 1600], 2000), true);
+  assert.equal(shaken([1000, 1200, 1400], 2000), false);
+  assert.equal(shaken([100, 1200, 1400, 1600], 2000), false); // one too long ago
+  assert.equal(shaken(undefined, 0), false);
+});
+test("dropTarget: the nearest on its row within reach", () => {
+  const c = [{ addr: "a", x: 120, row: 0 }, { addr: "b", x: 95, row: 0 }, { addr: "c", x: 100, row: 1 }];
+  assert.equal(dropTarget(c, 100, 0).addr, "b");
+  assert.equal(dropTarget(c, 100, 1).addr, "c");
+  assert.equal(dropTarget(c, 100 + DROP_REACH + 30, 0), null);
+  assert.equal(dropTarget([], 100, 0), null);
+});
+test("onDizzy reels about 2.5 s with 💫", () => {
+  const m = {};
+  onDizzy(m, 0, new Set(["Rotate", "Tumble"]), () => 1000);
+  assert.deepEqual(m.react, { anim: "Tumble", animUntil: 3000, until: 3000, icon: "💫" });
 });

@@ -138,7 +138,8 @@ Mega X / Y: pick one in the picker once both are drawn.
   Two agents that are both Pikachu add to Pikachu's. The Bag shows the totals and the three
   busiest species.
 - The rows form one track: walk off the right edge of one and you turn up on the left of the next.
-- Drag a Pokémon to move it, or to change its row.
+- Drag a Pokémon to move it, or to change its row. Drop it on a sleeping one and it pokes it
+  awake for a spar; on one awake, they spar there and then. Shake it about and it reels, dizzy.
 
 <p align="center"><img src="docs/demo/seasons.gif" alt="The same strip through spring flowers, summer green, autumn leaves and falling snow" width="480"></p>
 
