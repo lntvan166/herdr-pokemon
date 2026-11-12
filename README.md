@@ -1,8 +1,9 @@
-# herdr-pokemon
+# Pokerdr: Pokémon Trainer
 
 Every coding agent in [Herdr](https://herdr.dev) becomes a pixel-art Pokémon. It walks while
 its agent works, naps when it's idle, and calls for you when it's blocked. Click one to jump
-to its agent.
+to its agent. And it's a game: your agents' work earns Pokédollars, wild Pokémon walk by to
+catch, the Pokédex fills, three Research tasks a day pay out, and legendaries wait to be caught.
 
 <p align="center"><img src="docs/demo/battle.gif" alt="On a bright day Mega Charizard X and Lucario trade blows, then its blue fireball knocks Lucario back; Pikachu sleeps through it and a shiny Mega Gengar sparkles" width="592"></p>
 

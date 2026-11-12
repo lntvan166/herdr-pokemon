@@ -29,16 +29,18 @@ test("wildPick: legendary only when asked or very rarely", () => {
   assert.ok(isLegendary(l.dex) && l.legend);
 });
 
-test("catching: the Master Ball never fails; shinies and legendaries are harder", () => {
+test("catching: the Master Ball never fails; legendaries are much harder", () => {
   assert.equal(catchChance("master-ball", { dex: 150 }), 1);
-  assert.ok(catchChance("poke-ball", { dex: 25 }) > catchChance("poke-ball", { dex: 25, shiny: true }));
+  assert.equal(catchChance("poke-ball", { dex: 25 }), catchChance("poke-ball", { dex: 25, shiny: true })); // as in GO
   assert.ok(catchChance("ultra-ball", { dex: 150 }) < 0.3);
   assert.ok(catchChance("great-ball", { dex: 25 }) > catchChance("poke-ball", { dex: 25 }));
   assert.equal(catchChance("berry", { dex: 25 }), 0);
-  assert.deepEqual(throwBall("master-ball", { dex: 150 }, () => 0.99), { caught: true, shakes: 3 });
+  assert.deepEqual(throwBall("master-ball", { dex: 150 }, () => 0.99), { caught: true, shakes: 3, fled: false });
   const miss = throwBall("poke-ball", { dex: 25 }, () => 0.99);
   assert.equal(miss.caught, false);
   assert.ok(miss.shakes < 3);
+  assert.equal(miss.fled, false);
+  assert.equal(throwBall("poke-ball", { dex: 25 }, () => 0.05).caught, true);
 });
 
 test("ballFor: cheapest first; the best for a shiny; the Master Ball only for a legendary", () => {
@@ -206,4 +208,22 @@ test("a caught Pokémon remembers its ball", () => {
   assert.equal(p.ball, "master-ball");
   assert.equal(loadPicks({ v: 2, panes: { b: p } }).panes.b.ball, "master-ball");
   assert.equal(loadPicks({ v: 2, panes: { b: { ...p, ball: "berry" } } }).panes.b.ball, undefined);
+});
+
+import { baseRate, FLEE } from "../mods/pokemon-herd/trainer.js";
+test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a power", () => {
+  assert.equal(baseRate(1), 0.3); // Bulbasaur, a first stage
+  assert.equal(baseRate(2), 0.15); // Ivysaur
+  assert.equal(baseRate(3), 0.1); // Venusaur
+  assert.equal(baseRate(128), 0.2); // Tauros, on its own
+  assert.equal(baseRate(150), 0.03);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.3) < 1e-9);
+  assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - 0.51) < 1e-9);
+  assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.9 ** 2.25)) < 1e-9);
+  // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 15 balls).
+  const seq = (...xs) => () => xs.shift();
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.05)).fled, true); // missed, then fled
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.5)).fled, false);
+  assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.05)).fled, false);
+  assert.equal(FLEE, 0.1);
 });

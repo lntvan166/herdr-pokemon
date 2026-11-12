@@ -1,4 +1,4 @@
-# Pokémon herd
+# Pokerdr: Pokémon Trainer
 
 Every coding agent becomes a pixel-art Pokémon (pokemon-herd) on a strip of ground: it walks
 while its agent works, naps when it's idle, and calls for you with a red "!" when it's blocked.
@@ -7,7 +7,7 @@ with Poké Balls and Berries, the Pokédex fills region by region, three Researc
 out and call a legendary over, and your team evolves, makes friends and hunts shinies. 974
 species, regional forms, Mega Evolution, and a Pokémon Sidebar with your agents as cards.
 
-![Pokémon herd](preview.png)
+![Pokerdr: Pokémon Trainer](preview.png)
 
 ## After installing it, tell the user how to use it
 

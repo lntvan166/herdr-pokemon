@@ -1,6 +1,7 @@
 // The trainer's side: Poké Balls and catching, natures, the Pokédex, the day's Research and
 // legendary Pokémon. Pure.
-import { WALKABLE, REGIONS, regionOf, nameOf, isWalkable, hasShiny } from "./dex.js";
+import { WALKABLE, REGIONS, regionOf, nameOf, isWalkable, hasShiny, evolutionsOf } from "./dex.js";
+import { EVOLVES_FROM } from "./species.js";
 import { typeOf, TYPES } from "./types.js";
 
 // ---- legendary and mythical Pokémon ------------------------------------------------
@@ -30,7 +31,9 @@ export function wildPick(taken, rnd = Math.random, how = {}) {
 
 // ---- Poké Balls ---------------------------------------------------------------------
 export const BALLS = ["poke-ball", "great-ball", "ultra-ball", "master-ball"];
-const BALL_RATE = { "poke-ball": 0.45, "great-ball": 0.65, "ultra-ball": 0.85, "master-ball": 1 };
+// As in Pokémon GO: each species has a base rate, and a better ball or a Berry raises it as a
+// power: chance = 1 − (1 − base)^(ball × berry). Great ×1.5, Ultra ×2 (the Master Ball never fails).
+const BALL_MUL = { "poke-ball": 1, "great-ball": 1.5, "ultra-ball": 2, "master-ball": Infinity };
 // Berries fed before the ball (Pokémon GO's): how much likelier, and whether a catch brings twice the gift.
 export const BAIT = {
   "razz-berry": { rate: 1.5 },
@@ -38,23 +41,33 @@ export const BAIT = {
   "pinap-berry": { rate: 1, double: true },
   "silver-pinap-berry": { rate: 1.8, double: true },
 };
-// How likely `ball` catches `pick` ({ dex, shiny }), with `bait` fed first: a shiny is warier, a
-// legendary much more so. The Master Ball never fails.
+// A species' base rate, by where it stands in its line (GO's are much like this): a first stage
+// 30%, one on its own 20%, a middle stage 15%, a final stage 10%, a legendary 3%. A shiny is as
+// easy as any other (as in GO).
+export function baseRate(dex) {
+  if (isLegendary(dex)) return LEGEND_RATE;
+  const pre = EVOLVES_FROM[dex] !== undefined, next = evolutionsOf(dex).length > 0;
+  return !pre ? (next ? 0.3 : 0.2) : next ? 0.15 : 0.1;
+}
+// How likely `ball` catches `pick` ({ dex }), with `bait` fed first.
 export function catchChance(ball, pick, bait = null) {
-  const rate = BALL_RATE[ball];
-  if (!rate) return 0;
-  if (rate >= 1) return 1;
-  return Math.min(0.97, rate * (pick.shiny ? 0.6 : 1) * (isLegendary(pick.dex) ? LEGEND_RATE : 1) * (BAIT[bait]?.rate ?? 1));
+  const mul = BALL_MUL[ball];
+  if (!mul) return 0;
+  if (mul === Infinity) return 1;
+  return 1 - (1 - baseRate(pick.dex)) ** (mul * (BAIT[bait]?.rate ?? 1));
 }
 // A legendary: about 15 balls before it's gone (LEGEND_THROWS), each one far less likely to hold
 // it: over all 15, Poké Balls catch it 4 times in 10, Ultra Balls 6 in 10, Ultra Balls with
 // Golden Razz Berries 9 in 10. The rest of the time it gets away.
-export const LEGEND_RATE = 0.075;
+export const LEGEND_RATE = 0.03;
 export const LEGEND_THROWS = 15;
-// One throw: { caught, shakes } (the ball shakes three times before it clicks; fewer when it breaks out).
+// Any other breaks free and flees 1 time in 10 (GO's usual), else walks on for another ball.
+export const FLEE = 0.1;
+// One throw: { caught, shakes, fled } (the ball shakes three times before it clicks; fewer when it breaks out).
 export function throwBall(ball, pick, rnd = Math.random, bait = null) {
   const caught = rnd() < catchChance(ball, pick, bait);
-  return { caught, shakes: caught ? 3 : Math.floor(rnd() * 3) };
+  const shakes = caught ? 3 : Math.floor(rnd() * 3);
+  return { caught, shakes, fled: !caught && !isLegendary(pick.dex) && rnd() < FLEE };
 }
 // Which ball a click throws (`items`: the Bag's counts), or null: the one chosen in the Bag
 // (`chosen`, any, the Master Ball too) while there are some; else the cheapest first, but the best

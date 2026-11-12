@@ -600,10 +600,10 @@ def preview(tmp):
     big = ["-filter", "point", "-resize", f"{Z * 100}%"]
     text = ["-gravity", "northwest", "-font", BOLD]
     # The name, white with a dark drop shadow; the line under it.
-    text += ["-fill", "#0b2a4a88", "-pointsize", "128", "-annotate", "+66+52", "Pokémon herd",
-             "-fill", "#ffffff", "-pointsize", "128", "-annotate", "+58+44", "Pokémon herd",
-             "-font", FONT, "-fill", "#0b2a4a99", "-pointsize", "50", "-annotate", "+64+212", "Every coding agent becomes a Pokémon",
-             "-fill", "#ffffff", "-pointsize", "50", "-annotate", "+62+208", "Every coding agent becomes a Pokémon"]
+    text += ["-fill", "#0b2a4a88", "-pointsize", "128", "-annotate", "+66+52", "Pokerdr",
+             "-fill", "#ffffff", "-pointsize", "128", "-annotate", "+58+44", "Pokerdr",
+             "-font", FONT, "-fill", "#0b2a4a99", "-pointsize", "50", "-annotate", "+64+212", "Pokémon Trainer for your coding agents",
+             "-fill", "#ffffff", "-pointsize", "50", "-annotate", "+62+208", "Pokémon Trainer for your coding agents"]
     # Over each head: zZ (asleep), the agents' names on the soil.
     py = (ground - pika.height()) * Z
     text += ["-font", BOLD, "-fill", "#ffffff", "-pointsize", "54", "-annotate", f"+{X['pika'] * Z + 10}+{py - 100}", "zZ"]

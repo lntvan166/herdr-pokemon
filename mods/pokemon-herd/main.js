@@ -1816,7 +1816,7 @@ export default class PokemonHerd extends View {
     const upd = this.newerVersion();
     return [
       panel(
-        line("Pokémon herd", this.updating === "running" ? "Downloading…"
+        line("Pokerdr", this.updating === "running" ? "Downloading…"
           : this.updating === "done" ? `Updated ${(this.updated ?? []).map((u) => `mods/${u.dir.split("/").pop()} to ${u.version}`).join(", ")}. It reloads by itself; if this still says ${VERSION}, restart Herdr.`
           : this.updating ? `Couldn't update: ${this.updating}`
           : upd ? `${upd} is out; you have ${VERSION}. Your Pokémon, Bag and badges stay.`
@@ -2697,7 +2697,7 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest, the best for a shiny, a Master Ball only for a legendary. Right-click a wild one to switch.")));
           })
           .when(ITEMS[sel].kind === "ball", (el) => el
-            .child(div().text_size(12).text_color(t.muted).child(`Odds with this ball: ${Math.round(100 * catchChance(sel, { dex: 25 }))}% for most, ${Math.round(100 * catchChance(sel, { dex: 25, shiny: true }))}% for a shiny, ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary.`))
+            .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: 1 in 10 flee.`))
             .child(div().text_size(11.5).text_color(t.dim).child(b.items[sel] ? "Click a wild Pokémon on the strip once you have its gift: a ball over its head means one is ready." : "None in the Bag: the Shop has them, and the day's Research gives some.")))
           // A Berry for catching: set it to be fed before each ball (one each time, while there are some).
           .when(ITEMS[sel].kind === "bait", (el) => {
