@@ -25,7 +25,7 @@ export function wildPick(taken, rnd = Math.random, how = {}) {
   const free = all.filter((dex) => !taken.has(dex));
   const pool = free.length ? free : all;
   const dex = pool[Math.floor(rnd() * pool.length)];
-  return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}) };
+  return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}), ...(how.legend ? { called: true } : {}) };
 }
 
 // ---- Poké Balls ---------------------------------------------------------------------
@@ -74,7 +74,9 @@ export function ballFor(items, pick, chosen = null) {
 // `chance`: how many carry one at all, by the visitors' pace (PURSE_CHANCE), so the day's cap
 // lasts the day: every one at Rare, 1 in 2 at Often, 1 in 3 at Lots. A shiny or a legendary always does.
 export const PURSE_CHANCE = { rare: 1, often: 1 / 2, lots: 1 / 3 };
+// A legendary called over (the Azure Flute, the day's Research) carries none: it was paid for.
 export function purse(pick, rnd = Math.random, chance = 1) {
+  if (pick.called) return 0;
   if (isLegendary(pick.dex)) return 400;
   if (pick.shiny) return 150;
   if (chance < 1 && rnd() >= chance) return 0;

@@ -89,7 +89,7 @@ a minute (₽300 at most), about ₽300 an hour of agents' work however it's cut
 for a Pokémon holding an Amulet Coin, with "+₽51" over its head. A little comes from the strip too: a pat that gives a heart (₽10), a spar
 you set up by dropping one on another (₽15) or one you watch (₽5), up to ₽200 a day; and wild
 Pokémon walking by carry a purse over their heads, taken with the gift (₽10–30, now and then
-₽60–100, a shiny ₽150, a legendary ₽400), up to ₽600 a day: every one at Visitors: Rare, 1 in 2 at
+₽60–100, a shiny ₽150, a legendary that comes by on its own ₽400; one called over, none), up to ₽600 a day: every one at Visitors: Rare, 1 in 2 at
 Often, 1 in 3 at Lots, so the day's purses last the day. The right-click menu switches the ball
 and the Berry to throw in place, and calls a visitor with Honey or the Azure Flute. Prices are set from a working day
 (agents at work 6 hours pay about ₽1,900; the Research, purses and tips about ₽1,000 more). Anything in the Bag sells for half its price (Sell 1, or Sell all). The Bag's **Shop** tab sells every item: Poké Ball ₽30, Great Ball ₽80, Ultra Ball
