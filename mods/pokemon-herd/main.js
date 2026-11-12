@@ -17,7 +17,7 @@ const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -2100,25 +2100,33 @@ export default class PokemonHerd extends View {
     }));
   }
 
-  choose(entry) { // { dex, form? }: a species, or one of its regional forms
+  // `entry`: { dex, form? }, a species or one of its regional forms. `how.fresh` (Box it): the
+  // one it is goes to the Box whatever it is, and this is a new one, not one from the Box (the
+  // same species too: a plain one after a shiny, or another try for a shiny). `how.slot` (Bring
+  // out): that boxed one, the one it is going to the Box if raised (the same species too).
+  choose(entry, how = {}) {
     const p = props();
-    // The one it is already: keep it as it is (choosing it again would start its hearts and jobs over).
-    const was = this.livePick() ?? p.current;
-    if (was && was.dex === entry.dex && (was.form ?? null) === (entry.form ?? null)) return closeOverlay(p.overlay);
-    // What it holds and its Everstone stay with the pane; a shiny pane stays shiny; its Mega
-    // setting carries over, and X or Y if it stays the same species.
     const cur = this.livePick() ?? p.current;
-    let next = switchedPick(cur, entry, this.megaMode, this.megaKind);
+    // The one it is already: keep it as it is (choosing it again would start its hearts and jobs over).
+    const same = cur && cur.dex === entry.dex && (cur.form ?? null) === (entry.form ?? null);
+    if (same && !how.fresh && !how.slot) return closeOverlay(p.overlay);
+    // A new one: what it holds and its Everstone stay with the pane, its Mega setting carries
+    // over (X or Y if it stays the same species), and it rolls for a shiny of its own.
+    let next = switchedPick(cur, entry, this.megaMode, this.megaKind, rollShiny(entry, charmOdds()));
     // The Box: that species raised before by an agent now gone comes back as it was (its hearts,
     // jobs, item, shiny); if both hold something, this pane's item goes back into the Bag.
     const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
-    const boxed = fromBox(entry, savedPicks(), onScreen, p.slot);
+    const saved = savedPicks();
+    const boxed = how.fresh ? null
+      : how.slot ? (saved[how.slot] && !onScreen.has(how.slot) && how.slot !== p.slot ? { slot: how.slot, pick: saved[how.slot] } : null)
+      : fromBox(entry, saved, onScreen, p.slot);
+    if (how.slot && !boxed) return; // gone from the Box meanwhile
     if (boxed) {
       if (cur?.held && boxed.pick.held) saveBag(addItem(bag(), cur.held));
       next = { ...boxed.pick, mega: this.megaMode, ...(boxed.pick.held || !cur?.held ? {} : { held: cur.held }), ...(cur?.stay ? { stay: true } : {}) };
     }
-    // The one it was, if raised, waits in the Box (not overwritten).
-    const away = boxOnSwitch(cur, entry, Date.now());
+    // The one it was, if raised (any, with Box it), waits in the Box (not overwritten).
+    const away = boxOnSwitch(cur, entry, Date.now(), { same: !!(how.fresh || how.slot), all: !!how.fresh });
     savePicks({ ...(away ? { [away.key]: away.pick } : {}), [p.slot]: next });
     if (boxed) forgetPanes([boxed.slot]);
     closeOverlay(p.overlay);
@@ -2128,7 +2136,7 @@ export default class PokemonHerd extends View {
     const p = props();
     const taken = new Set(Object.entries(savedPicks()).filter(([slot]) => slot !== p.slot).map(([, x]) => x.dex));
     const e = randomEntry(entries, p.current, taken);
-    if (e) this.choose(e);
+    if (e) this.choose(e, this.boxing ? { fresh: true } : {});
   }
 
   // Saves the picker's Mega mode and X/Y on the current pick, together (one never drops the other).
@@ -2179,6 +2187,12 @@ export default class PokemonHerd extends View {
               .on_click((_e, cx) => { setFavs(toggleFavorite(favs(), cur.form ? { dex: cur.dex, form: cur.form } : { dex: cur.dex })); cx.notify(); })
               .child(on ? "★ Favorite" : "☆ Favorite");
           })())
+          // Box it: this one goes to the Box (as it is, raised or not); the next pick is a new one.
+          .child(div().id("box-it").h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
+            .border_color(this.boxing ? t.accent : t.border).bg(this.boxing ? t.selected : "#00000000")
+            .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click((_e, cx) => { this.boxing = !this.boxing; this.marking = false; cx.notify(); })
+            .child(this.boxing ? "Cancel" : "📦 Box it"))
           // The Everstone: its Pokémon stays as it is.
           .when(chain.length > 1, (el) => el.child(div()
             .id("everstone").h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
@@ -2224,6 +2238,10 @@ export default class PokemonHerd extends View {
     const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
     const isPv = (e) => e.dex === pv.dex && (e.form ?? null) === (pv.form ?? null);
     const line = this.lineOf(pv);
+    // Its kind waiting in the Box (raised, agent gone), latest first: Bring out takes one.
+    const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
+    const inBox = Object.entries(savedPicks()).filter(([slot, b]) => slot !== props()?.slot && !onScreen.has(slot)
+      && b.dex === pv.dex && (b.form ?? null) === (pv.form ?? null) && raised(b)).reverse();
     const STAGE_W = 150, STAGE_H = 104, GROUND = 88;
     const stage = (key, label) => {
       const s = meta?.[key];
@@ -2255,8 +2273,14 @@ export default class PokemonHerd extends View {
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
           .child(div().text_size(11.5).text_color(t.muted).child("Preview: right-click another to see it")))
         .when(hasShiny(pv.dex, pv.form), (el) => el.child(button("preview-shiny", "✨ Shiny", pv.shiny, (_e, cx) => this.showPreview(pv, cx, !pv.shiny))))
-        .child(button("preview-choose", "Choose", false, () => { const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) }; this.preview = null; this.choose(e); }))
+        .child(button("preview-choose", this.boxing ? "Choose a new one" : "Choose", false, () => { const e = { dex: pv.dex, ...(pv.form ? { form: pv.form } : {}) }; this.preview = null; this.choose(e, this.boxing ? { fresh: true } : {}); }))
         .child(button("preview-close", "✕", false, (_e, cx) => { this.preview = null; cx.notify(); })))
+      .when(inBox.length > 0, (el) => el.child(v_flex().gap(4)
+        .child(div().text_size(11).text_color(t.muted).child(`In the Box (${inBox.length})`))
+        .children(inBox.map(([slot, b]) => h_flex().gap(8).items_center().h(26)
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground)
+            .child(`${b.shiny ? "✨ " : ""}${nameFor(b)} · ♥ ${heartsText(friendOf(b))} · ${b.jobs ?? 0} jobs`))
+          .child(button(`bring-${slot}`, "Bring out", false, () => { this.preview = null; this.choose(pv, { slot }); }))))))
       .child(h_flex().gap(8).items_start()
         .child(stage("idleD", "Standing"))
         .child(stage("walkR", "Walking"))
@@ -2345,7 +2369,9 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().min_w(0).gap(2)
               .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Choose a Pokémon"))
-              .child(div().text_size(11.5).text_color(t.muted).truncate().child(this.marking ? "Click a Pokémon to ★ or un-★ it, then Done" : `for ${p.tag ?? "this agent"}`)),
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(this.marking ? "Click a Pokémon to ★ or un-★ it, then Done"
+                : this.boxing ? `${nameFor(cur ?? {})} goes to the Box: pick a new one (1 in ${charmOdds()} shiny)`
+                : `for ${p.tag ?? "this agent"}`)),
           )
           .child(
             h_flex().gap(10).items_center().flex_none()
@@ -2355,7 +2381,7 @@ export default class PokemonHerd extends View {
                 .id("pick-mark").h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
                 .border_color(this.marking ? "#f2c94c" : t.border).bg(this.marking ? t.selected : "#00000000")
                 .text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-                .on_click((_e, cx) => { this.marking = !this.marking; cx.notify(); })
+                .on_click((_e, cx) => { this.marking = !this.marking; this.boxing = false; cx.notify(); })
                 .child(this.marking ? "✓ Done" : "Edit ★"))
               // Any Pokémon (of those the search shows), preferring one nobody else on screen has.
               .child(div()
@@ -2460,7 +2486,7 @@ export default class PokemonHerd extends View {
             const e = all[Number(key.slice(1)) * PICK_COLS + col];
             if (!(col >= 0 && col < PICK_COLS && e)) return;
             if (this.marking) { setFavs(toggleFavorite(favs(), e)); cx.notify(); } // stays open, ★ shown at once
-            else this.choose(e);
+            else this.choose(e, this.boxing ? { fresh: true } : {});
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )

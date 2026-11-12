@@ -484,3 +484,22 @@ test("nicknames: kept short and clean, shown with the species, carried through e
   assert.equal(boxOnSwitch({ dex: 6, hearts: 2, friend: 40, nick: "Blaze" }, { dex: 25 }, 1).pick.nick, "Blaze");
   assert.equal(switched({ dex: 6, nick: "Blaze" }, { dex: 25 }, "auto", null).nick, undefined); // another Pokémon: no name yet
 });
+
+import { rollShiny } from "../mods/pokemon-herd/picks.js";
+test("a new Pokémon rolls its own shiny; the one before's never carries over", () => {
+  const shinyCur = { dex: 384, shiny: true, mega: "auto", jobs: 4 };
+  assert.equal(switched(shinyCur, { dex: 6 }, "auto", null).shiny, false); // no shiny out of nothing
+  assert.equal(switched(shinyCur, { dex: 6 }, "auto", null, true).shiny, true); // its own roll
+  assert.equal(rollShiny({ dex: 6 }, 64, () => 0), true);
+  assert.equal(rollShiny({ dex: 6 }, 64, () => 0.5), false);
+  assert.equal(rollShiny({ dex: 6 }, 64, () => 1 / 64 - 1e-9), true); // 1 in 64
+});
+
+test("boxOnSwitch: Box it takes any, the same species too; Bring out the same species if raised", () => {
+  const fresh = { dex: 6, mega: "auto" }; // just chosen, never raised
+  assert.equal(boxOnSwitch(fresh, { dex: 25 }, 1), null); // a plain switch: not raised, not kept
+  assert.equal(boxOnSwitch(fresh, { dex: 6 }, 1, { same: true, all: true }).key, "box-1-6"); // Box it
+  assert.equal(boxOnSwitch({ dex: 6, shiny: true, mega: "auto" }, { dex: 25 }, 1).key, "box-1-6"); // a shiny is always kept
+  assert.equal(boxOnSwitch({ dex: 6, mega: "auto" }, { dex: 6 }, 1, { same: true }), null); // Bring out: not raised
+  assert.equal(boxOnSwitch({ dex: 6, jobs: 2, mega: "auto" }, { dex: 6 }, 1, { same: true }).pick.jobs, 2);
+});

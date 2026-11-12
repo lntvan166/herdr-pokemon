@@ -279,7 +279,16 @@ forms, and Mega Evolution while an agent works.
   then sleeps again. At the campfire it stays in its seat.
 - **Switching keeps the raised one:** choosing another Pokémon for a pane puts the one it was,
   if raised, in the Box under `box-<when>-<dex>` (`boxOnSwitch`; what it held and its Everstone
-  stay with the pane), where picking that species again finds it.
+  stay with the pane), where picking that species again finds it. A new one rolls its own shiny
+  (`rollShiny`: 1 in `charmOdds()`); the one before's never carries over.
+- **Box it** (the card's "📦 Box it", "Cancel" while on; `this.boxing`): the subtitle says
+  "<name> goes to the Box: pick a new one (1 in n shiny)"; the next pick (a cell, Random, or the
+  preview's "Choose a new one") boxes the current one whatever it is (`boxOnSwitch` with
+  `{ same, all }`) and gives a new one, never one from the Box, the same species too. Edit ★
+  turns it off.
+- **Bring out** (the preview's "In the Box (n)": that species' raised ones not on screen, latest
+  first, "✨ Name · ♥ 2 · 4 jobs"): puts that one in the pane (`choose(e, { slot })`); the
+  current one goes to the Box if raised, the same species too.
 - **The Box tab** (the Bag's title: "Bag | Box n", props `tab: "box"` opens on it; `boxList`,
   `renderBox`): two parts, "With agents n" (raised Pokémon on screen now; no Release) and
   "Waiting n" (raised ones whose agents are gone, latest first), on a 46 px pitch in a
@@ -458,7 +467,7 @@ forms, and Mega Evolution while an agent works.
 - Focus a sleeping agent's pane: its Pokémon wakes, faces you, and sleeps again about 15 s
   later.
 - Right-click a Pokémon: the picker searches "alola" and scrolls through all of them. Choosing
-  one changes it, and a shiny stays shiny.
+  one changes it to a new one (1 in 64 shiny; the shiny before goes to the Box).
 - Right-click the ground: 1/2/3 rows change the height at once. Bottom of the window moves the
   strip there.
 - A Pokémon with Mega on Auto turns Mega when its agent starts working, and back when it is done.

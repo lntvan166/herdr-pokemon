@@ -361,15 +361,16 @@ export function visitorPick(taken, rnd = Math.random) {
   return { dex, shiny: rnd() * SHINY_ODDS < 1 && hasShiny(dex), mega: "off" };
 }
 
-// The pick after choosing another Pokémon in the picker (`entry`: { dex, form? }): what the pane
-// holds and its Everstone stay with it (an item must never just vanish); its shiny luck stays if
-// the new one has a shiny; the job count and friendship start over; Mega X/Y only for the same
-// species. `mega`: the picker's Mega setting.
-export function switchedPick(cur, entry, mega, megaKind) {
+// The pick after choosing another Pokémon in the picker (`entry`: { dex, form? }): a new one.
+// What the pane holds and its Everstone stay with it (an item must never just vanish); the job
+// count and friendship start over; Mega X/Y only for the same species. `mega`: the picker's Mega
+// setting. `shiny`: its own roll (rollShiny), never the one before's (that made shinies out of
+// nothing: a shiny pane gave every Pokémon chosen for it a shiny, while the Box kept the first).
+export function switchedPick(cur, entry, mega, megaKind, shiny = false) {
   const { dex, form } = entry;
   return {
     dex,
-    shiny: cur?.shiny === true && hasShiny(dex, form),
+    shiny: shiny === true && hasShiny(dex, form),
     mega,
     ...(form ? { form } : {}),
     ...(dex === cur?.dex && megaKind ? { megaKind } : {}),
@@ -394,6 +395,9 @@ export function trimPanes(panes, max, keep = new Set()) {
   }
   return { panes: out, returned };
 }
+
+// A new Pokémon's shiny roll: 1 in `odds` (64; fewer with the Shiny Charm), if it has a shiny.
+export const rollShiny = (entry, odds, rnd = Math.random) => rnd() * odds < 1 && hasShiny(entry.dex, entry.form);
 
 // The Box: Pokémon you raised whose agents are gone. A saved pane not on screen whose Pokémon is
 // of `entry`'s species (and form) and was raised (hearts, jobs, an item, an Everstone, a shiny):
@@ -442,10 +446,12 @@ export function boxList(panes, onScreen) {
 // jobs, shiny…), under a key of its own ("box-<when>-<dex>"), instead of being overwritten. What
 // it held and its Everstone stay with the pane (switchedPick), so the boxed one has neither.
 // Returns { key, pick } to save, or null (not raised, or the same species and form).
-export function boxOnSwitch(cur, entry, now) {
-  if (!cur || (cur.dex === entry.dex && (cur.form ?? null) === (entry.form ?? null))) return null;
+// `how.same`: the same species goes too (Bring out puts the boxed one in its place; Box it);
+// `how.all`: even one not raised (Box it: you asked for it, so a fresh shiny isn't lost).
+export function boxOnSwitch(cur, entry, now, how = {}) {
+  if (!cur?.dex || (!how.same && cur.dex === entry.dex && (cur.form ?? null) === (entry.form ?? null))) return null;
   const { held, stay, evolvedAt, ...rest } = cur;
-  if (!raised(rest)) return null;
+  if (!how.all && !raised(rest)) return null;
   return { key: `box-${now}-${cur.dex}`, pick: rest };
 }
 

@@ -78,7 +78,10 @@ place, rows and size can be set.
 
 **The Box.** (Its tab in the Bag lists the ones with agents and the ones waiting; Take what one holds, Rename it, or Release it.) Close an agent and its Pokémon goes to the Box with its hearts, jobs, item and
 shiny luck. The next agent to get that species (you pick it, or a new agent is given it) gets
-that very Pokémon back; it moves over, so an item is never doubled.
+that very Pokémon back; it moves over, so an item is never doubled. In the picker, **📦 Box it**
+puts the current one in the Box and makes your next pick a new one (1 in 64 shiny: hunt for one,
+or swap a shiny for a plain one); right-click a species and **Bring out** a particular one from
+the Box.
 
 **Napping, not frozen.** An agent left idle puts its Pokémon to sleep, but now and then it wakes
 up, stretches, wanders a little and dozes off again (less often at night).
