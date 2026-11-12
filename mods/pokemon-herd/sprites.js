@@ -58,6 +58,27 @@ async function curl(pairs) {
   if (r.code !== 0) throw new Error(`download failed (curl ${r.code})`);
 }
 
+// Several downloads at once (curl --parallel); a missing one is left out, not an error. Returns
+// which files are there afterwards.
+async function curlAll(pairs) {
+  if (!pairs.length) return new Set();
+  const args = ["-sfL", "--retry", "2", "--connect-timeout", "10", "--parallel", "--parallel-max", "8"];
+  for (const [file, url] of pairs) args.push("-o", file, url);
+  await exec("curl", args);
+  const have = new Set();
+  for (const [file] of pairs) if (await fs.exists(file).catch(() => false)) have.add(file);
+  return have;
+}
+
+// Runs `jobs` (functions returning promises), `n` at a time.
+async function pool(jobs, n) {
+  const out = [];
+  let i = 0;
+  const run = async () => { while (i < jobs.length) { const k = i++; out[k] = await jobs[k](); } };
+  await Promise.all(Array.from({ length: Math.min(n, jobs.length) }, run));
+  return out;
+}
+
 function parseAnims(xml) {
   const anims = {};
   for (const m of xml.matchAll(/<Anim>([\s\S]*?)<\/Anim>/g)) {
@@ -112,7 +133,10 @@ async function cut(sheet, anim, row, scale, out) {
 // react: { <anim>: cut + { ms } } }, each cut { path, w, h, box }. Shiny ones come from
 // SpriteCollab's shiny sub-folder; `form` (a folder under sprite/<dex>/) picks a form, e.g. its
 // Mega. Cached on disk; meta.json is written last and marks it done.
-export async function loadSprite(dex, shiny, form = null) {
+// Fast the first time: every sheet downloads at once; the six it walks, stands and sleeps with
+// are cut together and handed to `onCore` (with no reactions yet) so it can show at once; its
+// reactions are cut after, four at a time.
+export async function loadSprite(dex, shiny, form = null, onCore = null) {
   const folder = `${pad(dex)}${form ? `-${form}` : ""}${shiny ? "s" : ""}`;
   const dir = `${DATA}/sprites/${folder}`;
   const metaFile = `${dir}/meta.json`;
@@ -137,34 +161,36 @@ export async function loadSprite(dex, shiny, form = null) {
   }
   // The sheets it needs, together; each reaction's on its own, dropped if it can't be had.
   const plan = sheetPlan(pick, reacts);
-  await curl(plan.core.map((n) => [`${dir}/${n}.png`, `${base}/${n}-Anim.png`]));
+  const sheet = (n) => [`${dir}/${n}.png`, `${base}/${n}-Anim.png`];
+  const have = await curlAll([...plan.core, ...plan.optional].map(sheet));
+  if (plan.core.some((n) => !have.has(`${dir}/${n}.png`))) await curl(plan.core.map(sheet)); // again, or the error
   for (const n of plan.optional) {
-    const ok = await curl([[`${dir}/${n}.png`, `${base}/${n}-Anim.png`]]).then(() => true, () => false);
-    if (!ok) for (const [name, anim] of Object.entries(reacts)) if (anim.name === n) delete reacts[name];
+    if (!have.has(`${dir}/${n}.png`)) for (const [name, anim] of Object.entries(reacts)) if (anim.name === n) delete reacts[name];
   }
   // Big Pokémon (Onix, Gyarados...) have big frames: draw those at 1x.
   const scale = walk.fh > 64 ? 1 : 2;
   const meta = { version: VERSION, dex, shiny, scale, react: {} };
   const rel = `${DATA_REL}/sprites/${folder}`;
-  for (const [key, which, row] of CUTS) {
+  await Promise.all(CUTS.map(async ([key, which, row]) => {
     const anim = pick[which];
     const size = await cut(`${dir}/${anim.name}.png`, anim, row, scale, `${dir}/${key}.gif`);
     meta[key] = { path: `${rel}/${key}.gif`, ...size };
-  }
+  }));
+  if (onCore) { try { onCore({ ...meta, react: {} }); } catch {} }
+  // Each reaction, and battle moves also facing right (row 2) and left (row 6).
+  const jobs = [];
   for (const [name, anim] of Object.entries(reacts)) {
-    const file = `react-${name}.gif`;
-    const size = await cut(`${dir}/${anim.name}.png`, anim, 0, scale, `${dir}/${file}`);
     const ms = Math.round(((anim.durations.length ? anim.durations : [10]).reduce((t, d) => t + d, 0) * 1000) / 60);
-    meta.react[name] = { path: `${rel}/${file}`, ...size, ms };
-    // Battle moves also facing right (row 2) and left (row 6).
-    if (FACING.includes(name)) {
-      for (const [side, row] of [["R", 2], ["L", 6]]) {
+    const rows = [["", 0], ...(FACING.includes(name) ? [["R", 2], ["L", 6]] : [])];
+    for (const [side, row] of rows) {
+      jobs.push(async () => {
         const f = `react-${name}${side}.gif`;
         const sz = await cut(`${dir}/${anim.name}.png`, anim, row, scale, `${dir}/${f}`);
         meta.react[`${name}${side}`] = { path: `${rel}/${f}`, ...sz, ms };
-      }
+      });
     }
   }
+  await pool(jobs, 4);
   await fs.writeFile(metaFile, JSON.stringify(meta));
   return meta;
 }

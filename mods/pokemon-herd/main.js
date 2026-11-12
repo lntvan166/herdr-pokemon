@@ -532,9 +532,11 @@ export default class PokemonHerd extends View {
     this.sprites[key] = "loading";
     cx.spawn(async (cx) => {
       try {
-        this.sprites[key] = await loadSprite(pick.dex, pick.shiny, form).catch((e) => {
+        // It shows as soon as it can walk; its reactions come in a moment later.
+        const early = (meta) => { if (this.sprites[key] === "loading") { this.sprites[key] = meta; cx.notify(); } };
+        this.sprites[key] = await loadSprite(pick.dex, pick.shiny, form, early).catch((e) => {
           if (!pick.shiny) throw e;
-          return loadSprite(pick.dex, false, form);
+          return loadSprite(pick.dex, false, form, early);
         });
       } catch (e) {
         this.sprites[key] = { error: String(e?.message ?? e), at: Date.now() };

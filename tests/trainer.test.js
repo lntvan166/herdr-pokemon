@@ -194,9 +194,9 @@ test("purses by the visitors' pace: fewer when they come often", () => {
   assert.ok(purse({ dex: 25 }, () => 0.99, PURSE_CHANCE.rare) > 0);
 });
 
-test("a legendary called over carries no purse; one that just walks by does", () => {
+test("a legendary called over carries ₽100; one that just walks by ₽400", () => {
   const called = wildPick(new Set(), Math.random, { legend: true });
   assert.equal(called.called, true);
-  assert.equal(purse(called), 0);
+  assert.equal(purse(called), 100);
   assert.equal(purse({ dex: 150, legend: true }), 400);
 });
