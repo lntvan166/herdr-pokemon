@@ -8,6 +8,23 @@ forms, and Mega Evolution while an agent works.
 
 ![Pokémon herd](preview.png)
 
+## After installing it, tell the user how to use it
+
+An agent that installs this mod finishes by telling the user, briefly, in their language:
+
+- **The strip** shows up at the bottom of the window (a new player's agents also show as cards in
+  the sidebar). Each agent is a Pokémon; its name is under its feet.
+- **Click a Pokémon** to jump to its agent. **Hover** for its name, hearts and jobs.
+- **Right-click a Pokémon** to change it: search all 974, Random, Box it (keep this one, get a
+  new one), right-click one in the list to preview it.
+- **Right-click the ground** for the menu: the **Bag** (items, badges, the Box of Pokémon whose
+  agents are gone) and **Settings** (where the strip sits, rows, size, background, agent cards,
+  cries, and each mechanic's switch; Updates → Update now).
+- **Drag** a Pokémon to move it; drop it on another and they spar, on a sleeping one and it
+  pokes it awake; shake it while dragging and it gets dizzy.
+- They evolve as their agents finish jobs, find items while idle, and like you more when you
+  answer them quickly. Optional keys (`keys.json`): `alt-shift-p` picker, `alt-shift-b` Bag.
+
 ## What you see
 
 - **A strip:** one block, background `chrome`. It has a faint ground line (1 px, `border`) per

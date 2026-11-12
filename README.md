@@ -150,7 +150,7 @@ Mega X / Y: pick one in the picker once both are drawn.
 You need [Herdr](https://herdr.dev), `curl`, and ImageMagick (`magick` or `convert`).
 
 In Herdr, the easiest way is to ask your agent to add `herdr.dev/mods/lntvan166/herdr-pokemon`
-(it follows [RECIPE.md](RECIPE.md)). Or by hand:
+(it follows [RECIPE.md](RECIPE.md), and tells you how to use it when it's done). Or by hand:
 
 ```sh
 git clone https://github.com/lntvan166/herdr-pokemon
