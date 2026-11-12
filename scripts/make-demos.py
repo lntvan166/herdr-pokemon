@@ -492,35 +492,181 @@ def party(tmp):
     print(f"{os.path.relpath(out)}: {len(frames)} frames, {os.path.getsize(out) // 1024} KB")
 
 
+def bright_sky(width, height, horizon, tmp, name):
+    """A bright day like the mod's Sky: Bright (scene.js palette and features): sky bands down to
+    the horizon, the sun, white clouds, hills, trees, grass; dark soil below. Returns a PNG path."""
+    js = (f"import('file://{os.path.abspath(SCENE_JS)}').then(m => {{ const f = m.features({width}, {horizon}, 0); "
+          f"console.log(JSON.stringify({{ ...f, p: m.palette(0, false, null, 'bright'), treeParts: f.trees.flatMap(t => m.treeParts(t, {horizon + 1})) }})); }})")
+    f = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
+    p = f["p"]
+    line = horizon + 4
+    args = ["-size", f"{width}x{height}", f"xc:{BG}"]
+    bands = p["bands"]
+    bh = line / len(bands)
+    for i, c in enumerate(bands):
+        args += ["-fill", c, "-draw", f"rectangle 0,{round(i * bh)} {width},{round((i + 1) * bh) + 1}"]
+    # The sun, high on the right, with a soft ring.
+    sx, sy = round(width * 0.84), round(line * 0.22)
+    args += ["-fill", "#fff6c855", "-draw", f"circle {sx},{sy} {sx + 17},{sy}", "-fill", "#ffe680", "-draw", f"circle {sx},{sy} {sx + 11},{sy}"]
+    for c in f["clouds"]:
+        x, y, w = c["x"], c["y"] * 0.6 + 4, c["w"] * 1.4
+        if (x + w > sx - 22 and x < sx + 22 and y < sy + 18) or (x < width * 0.75 and y < line * 0.42):
+            continue  # clear of the sun and of the title
+        args += ["-fill", "#ffffffe6", "-draw", f"roundrectangle {x},{y + 5} {x + w},{y + 13} 4,4",
+                 "-draw", f"roundrectangle {x + round(w * .22)},{y} {x + round(w * .7)},{y + 9} 5,5"]
+    for hl in f["hills"]:
+        args += ["-fill", p["hill"], "-draw", f"ellipse {round(hl['cx'])},{line} {round(hl['rx'] * 1.3)},{round(hl['ry'] * 1.5)} 0,360"]
+    for x, y, w, hh, c, round_ in f["treeParts"]:
+        shape = f"roundrectangle {x},{y} {x + w - 1},{y + hh - 1} {w / 2},{hh / 2}" if round_ else f"rectangle {x},{y} {x + w - 1},{y + hh - 1}"
+        args += ["-fill", p[c], "-draw", shape]
+    args += ["-fill", p["grass"], "-draw", f"rectangle 0,{line - 3} {width},{line + 3}"]
+    for u in f["tufts"]:
+        args += ["-fill", p["dark"] if u["dark"] else p["grass"], "-draw", f"rectangle {u['x']},{line - 3 - u['h']} {u['x']},{line - 4}"]
+    args += ["-fill", p["dark"], "-draw", f"rectangle 0,{line + 4} {width},{line + 5}"]
+    args += ["-fill", BG, "-draw", f"rectangle 0,{line + 6} {width},{height}"]  # names on the strip's own dark
+    path = os.path.join(tmp, f"{name}-sky.png")
+    magick(*args, path)
+    return path
+
+
+def fireball(x, y, k=1.0):
+    """A pixel fireball flying right, its trail behind it (ImageMagick draw args)."""
+    out = []
+    for i, (dx, r, c) in enumerate([(-22, 2, "#ff9a3c66"), (-15, 3, "#ff8a2a99"), (-8, 4, "#ff7a1acc")]):
+        out += ["-fill", c, "-draw", f"circle {x + dx},{y} {x + dx + r * k},{y}"]
+    out += ["-fill", "#ff5a14", "-draw", f"circle {x},{y} {x + 7 * k},{y}",
+            "-fill", "#ffb43a", "-draw", f"circle {x + 1},{y} {x + 1 + 4.5 * k},{y}",
+            "-fill", "#fff2a8", "-draw", f"circle {x + 2},{y} {x + 2 + 2 * k},{y}"]
+    return out
+
+
+def burst(x, y, r=12):
+    """A hit: a spiky star, yellow round white."""
+    pts = []
+    for i in range(16):
+        a = math.pi * 2 * i / 16
+        rr = r if i % 2 == 0 else r * 0.45
+        pts.append(f"{x + math.cos(a) * rr:.1f},{y + math.sin(a) * rr:.1f}")
+    small = [f"{x + math.cos(math.pi * 2 * i / 16) * (r * 0.55 if i % 2 == 0 else r * 0.25):.1f},{y + math.sin(math.pi * 2 * i / 16) * (r * 0.55 if i % 2 == 0 else r * 0.25):.1f}" for i in range(16)]
+    return ["-fill", "#ffd23a", "-draw", "polygon " + " ".join(pts), "-fill", "#ffffff", "-draw", "polygon " + " ".join(small)]
+
+
 def preview(tmp):
     """preview.png at the repo root (the herdr.dev gallery card, 1600x900). The card shows it about
-    245 px wide (a 6.5x shrink), so it carries little and big: one row of three Pokémon at 5x,
-    and the name in large type. Small sprites or thin text turn to mush at that size."""
+    245 px wide (a 6.5x shrink), so it carries little and big: a 320x180 pixel scene at 5x on a
+    bright day (a battle: Charizard's fire flying at Lucario; Pikachu asleep; a shiny Gengar
+    sparkling), and the name in large type over the sky. Small sprites or thin text turn to mush
+    at that size."""
     A = lambda f, n: Anim.get(f, n, tmp)
-    t = 1200
-    mega = A("0006-0001", "idleD")
-    top = 20
-    mons = [
-        Mon(A("0025", "sleep"), 50, 0, "api", t=t, zz=True),
-        # Charizard, just Mega Evolved into Mega Charizard X as its agent got to work.
-        Mon(mega, 150, 0, "deploy", "working", t=t, sparkles=sparkle_ring(0, 150, top + GROUND - mega.height(), spread=40)),
-        Mon(A("0445", "idleL"), 250, 0, "review", "blocked", t=t, bubble="!"),
-    ]
-    sky["season"] = [season("autumn")]
-    strip = os.path.join(tmp, "preview-strip.png")
-    draw(strip, 300, 1, mons, top=top, t=4000)
-    sky["season"] = None
+    W, H, Z = 320, 180, 5
+    horizon = 150
+    ground = horizon + 4
+    sky_png = bright_sky(W, H, horizon, tmp, "preview")
+    zard, luc = A("0006", "react-SpAttackR"), A("0448", "react-HurtL")
+    pika, geng = A("0025", "sleep"), A("0094s", "idleL")
+    X = {"pika": 40, "zard": 126, "luc": 210, "geng": 284}
+    scene = [("pika", pika, X["pika"], 300), ("zard", zard, X["zard"], 250), ("luc", luc, X["luc"], 300), ("geng", geng, X["geng"], 0)]
+    args = [sky_png]
+    heads = {}
+    for key, an, cx, t in scene:
+        x, y = an.place(cx, ground)
+        args += [an.at(t), "-geometry", f"+{x}+{y}", "-composite"]
+        heads[key] = (cx, ground - an.height())
+    # Charizard's special move: a fireball halfway, and the hit on Lucario.
+    args += fireball(X["zard"] + 52, ground - 26)
+    args += burst(X["luc"] - 12, ground - 34, 10)
+    # The shiny's sparkles.
+    gx, gy = heads["geng"]
+    for dx, dy, r, c in [(-20, 4, 3, "#ffffff"), (18, 10, 2.5, "#ffe9a8"), (-14, 30, 2, "#ffe9a8"), (22, 34, 3, "#ffffff")]:
+        cx, cy = gx + dx, gy + dy
+        args += ["-fill", c, "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
+    base = os.path.join(tmp, "preview-base.png")
+    magick(*args, base)
     out = os.path.join(OUT, "..", "..", "preview.png")
-    magick("-size", "1600x900", f"xc:{BG}", "(", strip, "-filter", "point", "-resize", "500%", ")", "-gravity", "south", "-geometry", "+0+20", "-composite",
-           "-gravity", "northwest", "-font", FONT, "-fill", FG, "-pointsize", "120", "-annotate", "+50+40", "Pokémon herd",
-           out)
+    BOLD = FONT.replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf")
+    big = ["-filter", "point", "-resize", f"{Z * 100}%"]
+    text = ["-gravity", "northwest", "-font", BOLD]
+    # The name, white with a dark drop shadow; the line under it.
+    text += ["-fill", "#0b2a4a88", "-pointsize", "128", "-annotate", "+66+52", "Pokémon herd",
+             "-fill", "#ffffff", "-pointsize", "128", "-annotate", "+58+44", "Pokémon herd",
+             "-font", FONT, "-fill", "#0b2a4a99", "-pointsize", "50", "-annotate", "+64+212", "Every coding agent becomes a Pokémon",
+             "-fill", "#ffffff", "-pointsize", "50", "-annotate", "+62+208", "Every coding agent becomes a Pokémon"]
+    # Over each head: zZ (asleep), the agents' names on the soil.
+    py = (ground - pika.height()) * Z
+    text += ["-font", BOLD, "-fill", "#ffffff", "-pointsize", "54", "-annotate", f"+{X['pika'] * Z + 10}+{py - 100}", "zZ"]
+    names = [("api", X["pika"], "idle"), ("deploy", X["zard"], "working"), ("tests", X["luc"], "blocked"), ("review", X["geng"], "done")]
+    for tag, cx, st in names:
+        tw = glyph_width(tag, 44)
+        x0 = cx * Z - (tw + 40) // 2
+        y0 = (ground + 8) * Z
+        text += ["-fill", DOT[st], "-draw", f"circle {x0 + 14},{y0 + 30} {x0 + 26},{y0 + 30}",
+                 "-font", FONT, "-fill", FG, "-pointsize", "44", "-annotate", f"+{x0 + 40}+{y0 + 4}", tag]
+    magick(base, *big, *text, out)
     print(f"{os.path.relpath(out)}: {os.path.getsize(out) // 1024} KB")
 
 
-SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party}
+def battle(tmp):
+    """README's hero: a battle on a bright day. Charizard and Lucario face off; each strikes, the
+    other flinches; then Charizard's special move, a fireball, knocks Lucario back. Pikachu sleeps
+    through it; a shiny Gengar watches. 270x130 at 2x, names under their feet."""
+    A = lambda f, n: Anim.get(f, n, tmp)
+    W, H, Z = 270, 118, 2
+    horizon = 88
+    ground = horizon + 4
+    sky_png = bright_sky(W, H, horizon, tmp, "battle")
+    zx, lx = 92, 188
+    names = [("api", 34, "idle"), ("deploy", zx, "working"), ("tests", lx, "working"), ("review", 238, "done")]
+    frames = []
+    for i in range(130):  # 6.5 s
+        t = i * TICK
+        def play(folder, name, start):
+            return A(folder, name), t - start
+        # Charizard: idle, strike (1.0 s), flinch (1.9 s), special move (2.7 s), idle.
+        if 1000 <= t < 1600: z = play("0006", "react-AttackR", 1000)
+        elif 2150 <= t < 2700: z = play("0006", "react-HurtR", 2150)
+        elif 2800 <= t < 3500: z = play("0006", "react-SpAttackR", 2800)
+        else: z = play("0006", "idleR", 0)
+        if 1300 <= t < 1900: l = play("0448", "react-HurtL", 1300)
+        elif 1900 <= t < 2500: l = play("0448", "react-AttackL", 1900)
+        elif 3350 <= t < 4300: l = play("0448", "react-HurtL", 3350)
+        else: l = play("0448", "idleL", 0)
+        cast = [(A("0025", "sleep"), t, 34), (*z, zx), (*l, lx), (A("0094s", "idleL"), t, 238)]
+        args = [sky_png]
+        for an, tt, cx in cast:
+            x, y = an.place(cx, ground)
+            args += [an.at(max(0, tt)), "-geometry", f"+{x}+{y}", "-composite"]
+        if 1300 <= t < 1500: args += burst(lx - 8, ground - 26, 7)
+        if 2150 <= t < 2350: args += burst(zx + 8, ground - 26, 7)
+        if 3000 <= t < 3350:  # the fireball, across
+            f = (t - 3000) / 350
+            args += fireball(round(zx + 44 + f * (lx - zx - 58)), ground - 22, 0.9)
+        if 3350 <= t < 3700: args += burst(lx - 8, ground - 26, 10 if t < 3500 else 7)
+        # The shiny's sparkles, twinkling.
+        for j, (dx, dy, r) in enumerate([(-15, -38, 2.2), (12, -30, 1.8), (-12, -14, 1.6), (15, -10, 2.2)]):
+            if (i // 3 + j) % 4 < 2:
+                cx, cy = 238 + dx, ground + dy
+                args += ["-fill", "#ffffff" if j % 2 else "#ffe9a8", "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
+        args += ["-filter", "point", "-resize", f"{Z * 100}%"]
+        # zZ over Pikachu; names on the strip's dark.
+        z_text = ["z", "zZ", "zZz", "zZ"][(t // 700) % 4]
+        args += ["-font", FONT, "-gravity", "none", "-fill", "#ffffff", "-pointsize", "18", "-annotate", f"+{34 * Z + 22}+{(ground - 50) * Z}", z_text]
+        for tag, cx, st in names:
+            tw = glyph_width(tag, 14)
+            x0 = cx * Z - (tw + 14) // 2
+            y0 = (ground + 6) * Z
+            args += ["-fill", DOT[st], "-draw", f"circle {x0 + 4},{y0 + 10} {x0 + 8},{y0 + 10}", "-fill", FG, "-pointsize", "14", "-annotate", f"+{x0 + 14}+{y0 + 15}", tag]
+        p = os.path.join(tmp, f"battle-{i:04d}.png")
+        magick(*args, p)
+        frames.append(p)
+    out = os.path.join(OUT, "battle.gif")
+    magick("-delay", str(TICK // 10), "-loop", "0", *frames, "-layers", "Optimize", out)
+    print(f"{os.path.relpath(out)}: {len(frames)} frames, {os.path.getsize(out) // 1024} KB")
+
+
+SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party, "battle": battle}
 NEEDS = {"herd": ["0025", "0445", "0003", "0493", "0009", "0006-0001"], "focus": ["0025", "0003", "0493"],
          "reactions": ["0003", "0445"], "variety": ["0025", "0025s", "0037-0001", "0006-0001"],
-         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0009", "0445", "0003", "0006-0001", "0493"], "party": []}
+         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006", "0448", "0094s"], "party": [], "battle": ["0025", "0006", "0448", "0094s"]}
 
 
 def main():
