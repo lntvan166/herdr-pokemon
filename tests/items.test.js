@@ -67,7 +67,7 @@ test("takersOf: who an item would help now, and into what", () => {
   const t = takersOf("thunder-stone", herd);
   assert.deepEqual(t.map((x) => [x.tag, x.use, x.after.dex]), [["api", "evolve", 26]]);
   assert.deepEqual(takersOf("berry", herd).map((x) => x.tag), ["api", "db"]);
-  assert.deepEqual(takersOf("rare-candy", herd).map((x) => [x.tag, x.after.dex]), [["web", 5]]);
+  assert.deepEqual(takersOf("rare-candy", herd).map((x) => [x.tag, x.use, x.after.jobs]), [["web", "jobs", 5]]);
 });
 
 import { badgeGifts, HELD } from "../mods/pokemon-herd/items.js";

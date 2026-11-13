@@ -216,10 +216,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Evolution** (`picks.js`; data from PokeAPI in `species.js`: `EVOLVES_FROM`, and `EVOLVE_HOW`
   from pokemon_evolution.csv). Each species it can become has its ways ("jobs", "stone:<kind>"
   for the ten common stones, "friend", "friend:day", "friend:night", "day", "night"); any one will
-  do. Levelling up, trades and odd ways count as "jobs": `EVOLVE_JOBS` (10) jobs since it became
-  this Pokémon. "friend" needs `MAX_HEARTS` (5) hearts and evolves on its next job. Day/night:
-  `nightness >= 0.5` when the job finishes. Stones and Rare Candy (any non-stone way, ignoring the
-  count) are used from the picker. A branch is chosen by hash of pane and dex among the ways met.
+  do. Levelling up, trades and odd ways count as "jobs": `evolveJobs(dex)` jobs since it became
+  this Pokémon, 15 for a first evolution (`EVOLVE_JOBS`) and 30 for a second (`EVOLVE_JOBS_2`),
+  as the games' levels 16 and 36. "friend" needs `MAX_HEARTS` (5) hearts and evolves on its next
+  job. Day/night: `nightness >= 0.5` when the job finishes. A Rare Candy adds `CANDY_JOBS` (5) to
+  the count (evolving it if that's enough, or if friendship is met); stones evolve at once. A branch is chosen by hash of pane and dex among the ways met.
   A regional form evolves into the same region's form when one walks. Shiny (if the new one has a
   shiny sprite), Mega mode, X/Y, hearts and `stay` (the Everstone, which stops all of it) carry
   over; `evolvedAt` makes every view flash ✨ for 3 s. Choosing a Pokémon restarts the count and
@@ -384,7 +385,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **The Box tab** (the Bag's title: "Bag | Box n", props `tab: "box"` opens on it; `boxList`,
   `renderBox`): two parts, "With agents n" (raised Pokémon on screen now; no Release) and
   "Waiting n" (raised ones whose agents are gone, latest first), on a 46 px pitch in a
-  scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/10 jobs · Everstone",
+  scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/15 jobs · Everstone",
   what it holds (its sprite, and Take: back into the Bag), Rename, Bring out (waiting ones; then
   "Give it to:" chips, one per agent on screen with its Pokémon, "api: Pikachu"; a click swaps
   them through `bringOut`, the same as the picker's), and Release (asks "Sure?"; what it held

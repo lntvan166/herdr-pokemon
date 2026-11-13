@@ -15,7 +15,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 - ✦ **Legendaries** locked until you catch one; **Alphas** α, bigger and tougher.
 - 📋 **Daily Research**: three tasks from your work; finish all three and a legendary appears.
 - ₽ **Pokédollars** from your agents' work, a **Shop**, a **Box**, a **Pokédex**.
-- 💗 **Hearts and evolution** that grow with your agents: 10 jobs, a stone, friendship.
+- 💗 **Hearts and evolution** that grow with your agents: 15 jobs then 30, a stone, friendship. A Rare Candy is 5 jobs.
 - 🗂 **Pokémon Sidebar**: your agents as cards with their Pokémon.
 
 <p align="center">
@@ -34,7 +34,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 | **Rare ones** | Shiny 1 in 64 · Alpha 1 in 40 (½ as easy, ₽150, ♥2) · Legendary 1 in 150, or call one with the Azure Flute. |
 | **Today** | Three Research tasks a day, each paying ₽ or balls; all three: 5 Ultra Balls and a legendary. |
 | **Pokédollars** | Jobs pay ₽1 + ₽5 a minute (about ₽300 an hour of agents' work). Shop via **right-click the ground → Box → Shop**. Anything sells back for half. |
-| **Hearts** | Pats, quick answers, spars and Berries (three a day). Most Pokémon evolve after 10 jobs. |
+| **Hearts** | Pats, quick answers, spars and Berries (three a day). Most evolve after 15 jobs, then 30 more; a Rare Candy counts for 5. |
 
 Everything else is one right-click on the strip's ground away: the **Box** (with the Bag, Shop,
 Today and Pokédex), the ball and Berry to throw, and **Settings** (with a **Guide** tab).

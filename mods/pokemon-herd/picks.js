@@ -101,12 +101,18 @@ export function randomEntry(entries, current, taken, rnd = Math.random) {
 export const HELD_IDS = ["lucky-egg", "soothe-bell", "amulet-coin", "leftovers", "exp-share"];
 
 // Jobs its agent finishes before a Pokémon evolves (by levelling up); hearts for friendship.
-export const EVOLVE_JOBS = 10;
+// Jobs to evolve by levelling up, as the games' levels: a first evolution after 15 (Charmander at
+// 16), a second after 30 more (Charmeleon at 36). The count starts over at each evolution.
+export const EVOLVE_JOBS = 15;
+export const EVOLVE_JOBS_2 = 30;
+export const evolveJobs = (dex) => (EVOLVES_FROM_MAP.has(dex) ? EVOLVE_JOBS_2 : EVOLVE_JOBS);
+// A Rare Candy: a level's worth, 5 jobs towards evolving (it no longer evolves one outright).
+export const CANDY_JOBS = 5;
 export const MAX_HEARTS = 5;
 
 // Whether one way to evolve (from dex.js waysOf) is met. `how`: { night, stone?, candy? }.
-// A stone works only for its own ways; levelling up needs EVOLVE_JOBS jobs (or a Rare Candy);
-// friendship needs full hearts, checked when a job finishes (or on a Rare Candy).
+// A stone works only for its own ways; levelling up needs evolveJobs jobs; friendship needs full
+// hearts, checked when a job finishes (or on a Rare Candy).
 function wayMet(way, pick, how) {
   if (how.stone) return way === `stone:${how.stone}`;
   if (way.startsWith("stone:")) return false;
@@ -114,7 +120,7 @@ function wayMet(way, pick, how) {
   const when = kind === "day" || kind === "night" ? kind : time;
   if (when && (when === "night") !== !!how.night) return false;
   if (kind === "friend") return (pick.hearts ?? 0) >= MAX_HEARTS;
-  return how.candy || (pick.jobs ?? 0) >= EVOLVE_JOBS;
+  return (pick.jobs ?? 0) >= evolveJobs(pick.dex);
 }
 
 // What it evolves into now, or null: among the species it can become whose way is met, one
@@ -164,10 +170,18 @@ export function withFriend(pick, pts) {
 export const withHearts = (pick, n) => withFriend(pick, n * HEART_PTS);
 
 // What an item from the Bag would do for it: "evolve", "hearts", "hold", or null (no use now).
+const candied = (pick) => ({ ...pick, jobs: (pick.jobs ?? 0) + CANDY_JOBS });
 export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
   if (id === "berry" || id === "sitrus-berry") return friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX ? "hearts" : null;
-  if (id === "rare-candy") return evolveTarget(pick, slot, { night: how.night, candy: true }) ? "evolve" : null;
+  if (id === "rare-candy") {
+    // 5 jobs on its count: "evolve" when that's enough (or friendship is met), "jobs" when it only
+    // brings it closer; nothing for one that can't level up.
+    if (pick.stay) return null;
+    const ways = new Set(evolveNeeds(pick).flatMap((n) => n.ways));
+    if (![...ways].some((w) => /^(jobs|day|night|friend)/.test(w))) return null;
+    return evolveTarget(candied(pick), slot, { night: how.night }) ? "evolve" : ways.has("jobs") || ways.has("day") || ways.has("night") ? "jobs" : null;
+  }
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   return stone && evolveTarget(pick, slot, { stone }) ? "evolve" : null;
 }
@@ -181,9 +195,14 @@ export function useItem(pick, slot, id, how = {}, at = 0) {
     const fed = how.day ? { fed: { day: how.day, n: fedOn(pick, how.day) + 1 } } : {};
     return { pick: { ...withFriend(pick, id === "sitrus-berry" ? FRIEND.sitrus : FRIEND.berry), ...fed }, evolved: false };
   }
+  if (id === "rare-candy" && use) {
+    const fed = candied(pick);
+    const dex = evolveTarget(fed, slot, { night: how.night });
+    return dex ? { pick: evolveInto(fed, dex, at), evolved: true } : { pick: fed, evolved: false };
+  }
   if (use !== "evolve") return null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
-  const dex = evolveTarget(pick, slot, stone ? { stone } : { night: how.night, candy: true });
+  const dex = evolveTarget(pick, slot, { stone });
   return { pick: evolveInto(pick, dex, at), evolved: true };
 }
 
@@ -197,7 +216,7 @@ export function needsText(pick) {
   if (!ways.size) return null;
   // A Lucky Egg counts each job twice: what's left is in real jobs, and says why.
   const egg = pick.held === "lucky-egg";
-  const left = Math.max(1, Math.ceil((EVOLVE_JOBS - (pick.jobs ?? 0)) / (egg ? 2 : 1)));
+  const left = Math.max(1, Math.ceil((evolveJobs(pick.dex) - (pick.jobs ?? 0)) / (egg ? 2 : 1)));
   const jobs = `after ${left} more job${left === 1 ? "" : "s"}${egg ? " (Lucky Egg: each counts twice)" : ""}`;
   const stones = [...ways].filter((w) => w.startsWith("stone:")).map((w) => w.slice(6));
   const cap = (k) => `${k[0].toUpperCase()}${k.slice(1)}`;
@@ -267,11 +286,11 @@ export function cardOf(pick) {
   const stone = [...ways].find((w) => w.startsWith("stone:"));
   const note = pick.stay ? "Everstone"
     : !ways.size ? "" // nothing to become: nothing to say
-    : byJobs ? `${Math.min(jobs, EVOLVE_JOBS)}/${EVOLVE_JOBS}${pick.held === "lucky-egg" ? " · 🥚×2" : " jobs"}`
+    : byJobs ? `${Math.min(jobs, evolveJobs(pick.dex))}/${evolveJobs(pick.dex)}${pick.held === "lucky-egg" ? " · 🥚×2" : " jobs"}`
     : ways.has("friend") || ways.has("friend:day") || ways.has("friend:night") ? `evolves at ${MAX_HEARTS} ♥`
     : stone ? `needs a ${stone.slice(6)[0].toUpperCase()}${stone.slice(7)} Stone`
     : "";
-  return { hearts: pick.hearts ?? 0, maxHearts: MAX_HEARTS, progress: byJobs ? Math.min(1, jobs / EVOLVE_JOBS) : null, note };
+  return { hearts: pick.hearts ?? 0, maxHearts: MAX_HEARTS, progress: byJobs ? Math.min(1, jobs / evolveJobs(pick.dex)) : null, note };
 }
 
 // Folders remember their Pokémon. `folders`: { <folder>: <pane> }, the pane whose Pokémon that

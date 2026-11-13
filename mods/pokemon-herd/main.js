@@ -17,7 +17,7 @@ const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -1808,7 +1808,7 @@ export default class PokemonHerd extends View {
       ["✨", "Rare ones", "Shiny 1 in 64 · Alpha α 1 in 40 · Legendary 1 in 150."],
       ["📋", "Today", "3 tasks a day. All three: 5 Ultra Balls and a legendary."],
       ["₽", "Pokédollars", "Jobs pay by the minute. Shop: right-click the ground → Box."],
-      ["💗", "Hearts & evolution", "Pats, quick answers, spars, Berries. 10 jobs evolve most."],
+      ["💗", "Hearts & evolution", "Pats, quick answers, spars, Berries. Most evolve after 15 jobs, then 30."],
     ];
     return [h_flex().flex_wrap().gap(8).children(TIPS.map(([icon, title, line]) => h_flex()
       .w(234).min_h(62).p(10).gap(10).items_start().rounded(10).bg(t.raised)
@@ -2807,6 +2807,7 @@ export default class PokemonHerd extends View {
     const first = usable[0] && takers[usable[0]][0];
     const finding = !first ? "Nothing to use right now"
       : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
+      : first.use === "jobs" ? `${ITEMS[usable[0]].name} brings ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${CANDY_JOBS} jobs closer to evolving`
       : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
       : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${usable[0] === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
     const use = (id, h) => {
@@ -3004,6 +3005,7 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.muted).truncate().child(h.use === "evolve"
                 ? `becomes ${fullName(h.after.dex, h.after.form)}`
                 : h.use === "hold" ? (h.pick.held ? `holds it; its ${ITEMS[h.pick.held].name} comes back` : "holds it")
+                : h.use === "jobs" ? `${h.pick.jobs ?? 0} → ${h.after.jobs}/${evolveJobs(h.pick.dex)} jobs`
                 : `♥ ${heartsText(friendOf(h.pick))} → ${heartsText(friendOf(h.after))}`)))
             .child(div().id(`use-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
               .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold()
@@ -3328,7 +3330,7 @@ export default class PokemonHerd extends View {
                 .child(div().min_w(0).text_size(11.5).text_color(t.foreground).child(progress))
                 .when(byJobs, (el) => el.child(
                   div().w(80).h(5).rounded_full().bg(t.border).overflow_hidden()
-                    .child(div().h_full().w(80 * Math.min(1, (cur.jobs ?? 0) / EVOLVE_JOBS)).bg(t.accent))))),
+                    .child(div().h_full().w(80 * Math.min(1, (cur.jobs ?? 0) / evolveJobs(cur.dex))).bg(t.accent))))),
           )
           // A favourite (★): the picker's ★ chip lists them; new agents can be given one.
           .child((() => {

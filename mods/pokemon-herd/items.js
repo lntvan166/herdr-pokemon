@@ -142,7 +142,7 @@ export function itemAbout(id) {
   if (id === "great-ball") return "A better chance than a Poké Ball. Thrown first at a shiny.";
   if (id === "ultra-ball") return "The best chance short of a Master Ball: shinies and legendaries get these first.";
   if (id === "master-ball") return "Never fails. Kept for legendary Pokémon: only one of those gets it.";
-  if (id === "rare-candy") return "Evolves a Pokémon now, if it evolves by jobs or by friendship (with its hearts full).";
+  if (id === "rare-candy") return "A level's worth: 5 jobs towards evolving (15 for a first evolution, 30 for a second); evolves it if that's enough.";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");
   return `Evolves ${list}.`;
@@ -164,7 +164,7 @@ export const MAX_ITEM = 99;
 const PICKUP = [
   ["berry", 18], ["sitrus-berry", 6], ["razz-berry", 10], ["pinap-berry", 5], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
   ["poke-ball", 22], ["great-ball", 7], ["ultra-ball", 2],
-  ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 6], ["honey", 4], ...HELD_IDS.map((id) => [id, 0.6]),
+  ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 3], ["honey", 4], ["berry", 3], ...HELD_IDS.map((id) => [id, 0.6]),
 ];
 export function pickup(rnd = Math.random) {
   let r = rnd() * PICKUP.reduce((t, [, w]) => t + w, 0);
@@ -177,7 +177,7 @@ export function pickup(rnd = Math.random) {
 const GIFT = [
   ["poke-ball", 35], ["great-ball", 12], ["ultra-ball", 4],
   ["berry", 8], ["sitrus-berry", 4], ["razz-berry", 10], ["pinap-berry", 6], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
-  ...STONES.map((k) => [`${k}-stone`, 1]), ["rare-candy", 4], ["honey", 3], ...HELD_IDS.map((id) => [id, 0.4]),
+  ...STONES.map((k) => [`${k}-stone`, 1]), ["rare-candy", 2], ["honey", 3], ["poke-ball", 2], ...HELD_IDS.map((id) => [id, 0.4]),
 ];
 const GIFT_COUNT = { "poke-ball": 3, "great-ball": 2 };
 // { id, n }: what a visitor leaves, and how many.

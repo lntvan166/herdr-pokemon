@@ -106,7 +106,7 @@ test("randomEntry tells regional forms apart from the current one", () => {
   assert.deepEqual(randomEntry(entries, { dex: 26 }, new Set(), () => 0.99), { dex: 26, form: 1 });
 });
 
-import { EVOLVE_JOBS, MAX_HEARTS, gainJob, useItem, itemUse, withHearts, evolveTarget } from "../mods/pokemon-herd/picks.js";
+import { evolveJobs, EVOLVE_JOBS, MAX_HEARTS, gainJob, useItem, itemUse, withHearts, evolveTarget } from "../mods/pokemon-herd/picks.js";
 test("loadPicks keeps jobs and Everstone", () => {
   const r = loadPicks({ panes: { p: { dex: 4, jobs: 3, stay: true }, q: { dex: 4, jobs: -1, stay: "x" } } }, null);
   assert.equal(r.panes.p.jobs, 3);
@@ -176,9 +176,14 @@ test("time of day: Gligar evolves at night only", () => {
   assert.equal(gainJob({ dex: 207, mega: "auto", jobs: EVOLVE_JOBS - 1 }, "p", { night: true }).pick.dex, 472);
 });
 
-test("Rare Candy evolves a levelling one now; berries add hearts", () => {
-  assert.equal(useItem({ dex: 4, mega: "auto" }, "p", "rare-candy", {}, 99).pick.dex, 5);
-  assert.equal(useItem({ dex: 4, mega: "auto" }, "p", "rare-candy", {}, 99).pick.evolvedAt, 99);
+test("Rare Candy: 5 jobs towards evolving (evolving it when that's enough); berries add hearts", () => {
+  assert.equal(itemUse({ dex: 4, mega: "auto" }, "p", "rare-candy"), "jobs");
+  assert.equal(useItem({ dex: 4, mega: "auto" }, "p", "rare-candy", {}, 99).pick.jobs, 5);
+  assert.equal(itemUse({ dex: 4, mega: "auto", jobs: 10 }, "p", "rare-candy"), "evolve");
+  assert.equal(useItem({ dex: 4, mega: "auto", jobs: 10 }, "p", "rare-candy", {}, 99).pick.dex, 5);
+  assert.equal(useItem({ dex: 4, mega: "auto", jobs: 10 }, "p", "rare-candy", {}, 99).pick.evolvedAt, 99);
+  assert.equal(evolveJobs(4), 15);
+  assert.equal(evolveJobs(5), 30); // a second evolution takes 30
   assert.equal(itemUse({ dex: 6 }, "p", "rare-candy"), null); // nothing to become
   assert.equal(itemUse({ dex: 25 }, "p", "rare-candy"), null); // needs a stone
   assert.equal(useItem({ dex: 4, hearts: 2 }, "p", "berry").pick.friend, 45); // a quarter of a heart
@@ -211,10 +216,10 @@ test("Shiny Charm odds", () => {
 
 import { needsText } from "../mods/pokemon-herd/picks.js";
 test("needsText says what it takes", () => {
-  assert.equal(needsText({ dex: 4, jobs: 3 }), "after 7 more jobs");
+  assert.equal(needsText({ dex: 4, jobs: 3 }), "after 12 more jobs");
   assert.equal(needsText({ dex: 25 }), "with a Thunder Stone");
   assert.equal(needsText({ dex: 172 }), "at 5 ♥");
-  assert.equal(needsText({ dex: 207, jobs: 9 }), "after 1 more job, at night");
+  assert.equal(needsText({ dex: 207, jobs: 14 }), "after 1 more job, at night");
   assert.equal(needsText({ dex: 6 }), null);
   assert.match(needsText({ dex: 133 }), /^with a Water, Thunder, Fire, Leaf or Ice Stone; .*at 5 ♥, by day.*at 5 ♥, at night$/);
 });
@@ -274,7 +279,7 @@ test("subAgents: live paneless children of agents on screen, as agents", () => {
 
 import { cardOf } from "../mods/pokemon-herd/picks.js";
 test("cardOf: hearts and the way to evolve, for the sidebar's card", () => {
-  assert.deepEqual(cardOf({ dex: 4, jobs: 6, hearts: 3 }), { hearts: 3, maxHearts: 5, progress: 0.6, note: "6/10 jobs" });
+  assert.deepEqual(cardOf({ dex: 4, jobs: 6, hearts: 3 }), { hearts: 3, maxHearts: 5, progress: 0.4, note: "6/15 jobs" });
   assert.deepEqual(cardOf({ dex: 25 }), { hearts: 0, maxHearts: 5, progress: null, note: "needs a Thunder Stone" });
   assert.equal(cardOf({ dex: 172 }).note, "evolves at 5 ♥");
   assert.equal(cardOf({ dex: 6 }).note, ""); // a last stage: the card says nothing
@@ -436,11 +441,11 @@ test("fromBox: the raised Pokémon of that species whose agent is gone, the late
 });
 
 test("with a Lucky Egg, what's left to evolve counts jobs at two each", () => {
-  assert.equal(needsText({ dex: 5, jobs: 8, held: "lucky-egg" }), "after 1 more job (Lucky Egg: each counts twice)");
-  assert.equal(needsText({ dex: 5, jobs: 5, held: "lucky-egg" }), "after 3 more jobs (Lucky Egg: each counts twice)");
-  assert.equal(needsText({ dex: 5, jobs: 8 }), "after 2 more jobs");
-  assert.equal(cardOf({ dex: 5, jobs: 8, held: "lucky-egg" }).note, "8/10 · 🥚×2");
-  assert.equal(cardOf({ dex: 5, jobs: 8 }).note, "8/10 jobs");
+  assert.equal(needsText({ dex: 5, jobs: 28, held: "lucky-egg" }), "after 1 more job (Lucky Egg: each counts twice)");
+  assert.equal(needsText({ dex: 5, jobs: 25, held: "lucky-egg" }), "after 3 more jobs (Lucky Egg: each counts twice)");
+  assert.equal(needsText({ dex: 5, jobs: 28 }), "after 2 more jobs");
+  assert.equal(cardOf({ dex: 5, jobs: 28, held: "lucky-egg" }).note, "28/30 · 🥚×2");
+  assert.equal(cardOf({ dex: 5, jobs: 28 }).note, "28/30 jobs");
 });
 
 test("trimPanes never drops the panes to keep (on screen, or just updated)", () => {
