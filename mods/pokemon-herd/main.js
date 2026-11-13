@@ -1788,63 +1788,25 @@ export default class PokemonHerd extends View {
       .child(v_flex().id(`settings-${tab}`).flex_1().min_h(0).overflow_y_scrollbar().px(18).pb(18).gap(8).children(body));
   }
 
-  // Guide: how to play, a topic at a time, each a few lines.
+  // Guide: how to play at a glance: a tile a topic, an icon, a title and a line.
   settingsGuide({ heading }, t) {
-    const GUIDE = [
-      ["Your herd", [
-        "Every agent is a Pokémon: it walks while its agent works, naps when it's idle, and shows a red \"!\" when the agent needs you.",
-        "Click one to go to its agent. Hover it for its name, hearts and jobs.",
-        "Right-click one to choose another: click a Pokémon to preview it, Replace to take it.",
-        "Drag one to move it; drop it on another and they spar.",
-      ]],
-      ["Hearts and evolution", [
-        "Hearts come from a pat (a click, every 30 min), answering its agent within a minute, sparring, and Berries (Oran ¼, Sitrus ½; three a day each).",
-        "Leave an agent waiting 5 minutes and its Pokémon gets hungry.",
-        "Most evolve after 10 jobs; others need a stone, full hearts or the time of day. A Rare Candy evolves one now; an Everstone stops it.",
-      ]],
-      ["Pokédollars", [
-        "Jobs pay by the time they took: ₽1 and ₽5 a minute, about ₽300 an hour of agents' work.",
-        "More from the day's Research, visitors' purses (up to ₽600 a day) and pats and spars (up to ₽200 a day).",
-        "Spend them in the Shop (right-click the ground → Box → Shop). Anything sells back for half.",
-      ]],
-      ["Catching", [
-        "Wild Pokémon walk across the strip (Settings → Herd → Visitors). Click one for its gift and purse.",
-        "Click it again, with a ball over its head, to throw one: Auto (cheapest; the best for a shiny), or the one you chose in the Bag or the menu. Right-click it to switch.",
-        "The ball shakes; Gotcha! or it breaks free and walks on (1 in 20 flee). Caught ones go to the Box with a heart and a nature.",
-      ]],
-      ["Weaken it first", [
-        "Drag one of yours onto a wild one: it attacks. A bar over the wild one shows its health.",
-        "How hard it hits: its best attack against the wild one's best defence (base stats), and the type chart, both types: ×4 extremely effective, ×2 super effective, ×½ not very, ×0 no effect. Your Alphas hit harder.",
-        "The wild one hits back. Yours has a health bar too; at 0 it faints and rests 10 minutes (its hearts are safe). Health comes back by itself.",
-        "The less health, the easier to catch: up to twice the chance. It hangs on while it's above the red; in the red, the first drop only warns, and another hit may make it faint (gone).",
-      ]],
-      ["Balls and Berries", [
-        "Poké Ball, Great (×1.5), Ultra (×2), Master (never fails).",
-        "Berries fed before each ball (choose one in the menu): Razz ×1.5, Golden Razz ×2.5, Pinap twice the gift, Silver Pinap both.",
-      ]],
-      ["Rare ones", [
-        "Shiny: 1 in 64 (1 in 32 with the Shiny Charm, at 500 jobs). Catch a shiny and you can choose that species shiny in the picker.",
-        "Alpha: 1 wild one in 40, bigger, a red ring and α. Half as easy to catch; ₽150 and twice the gift; caught, it keeps two hearts.",
-        "Legendary: 1 in 150, or call one with the Azure Flute or the day's Research. 15 balls before it flees. Locked in the picker until you catch one (Trainer → Unlock all).",
-      ]],
-      ["Today and the Pokédex", [
-        "Three Research tasks a day, each paying when done; all three: 5 Ultra Balls and a legendary walks by.",
-        "The Pokédex counts what you've seen and caught, by region, and pays at 5, 15, 30, 60, 100 and 200 caught.",
-      ]],
-      ["The Box and Trainer mode", [
-        "The Box holds every Pokémon you have: search, filter, Rename, Feed, Bring out for an agent, Release.",
-        "Trainer mode (Trainer tab): only what you caught, and the three starters, can be chosen or come to new agents.",
-      ]],
-      ["Shortcuts", [
-        "Right-click the strip's ground: the Box, Today, the ball and Berry to throw, Honey, Settings.",
-        "keys.json: alt-shift-p opens the picker for the focused agent, alt-shift-b the Bag.",
-      ]],
+    const TIPS = [
+      ["👆", "Your herd", "Click one: go to its agent. Right-click: choose another."],
+      ["🎁", "Wild Pokémon", "Click one walking by for its gift and ₽, again to throw a ball."],
+      ["⚔️", "Weaken it", "Drop one of yours on it. Lower health, easier catch. Stop at red."],
+      ["🍒", "Berries", "Razz before a ball: easier catch. Oran, Sitrus: hearts."],
+      ["✨", "Rare ones", "Shiny 1 in 64 · Alpha α 1 in 40 · Legendary 1 in 150."],
+      ["📋", "Today", "3 tasks a day. All three: 5 Ultra Balls and a legendary."],
+      ["₽", "Pokédollars", "Jobs pay by the minute. Shop: right-click the ground → Box."],
+      ["💗", "Hearts & evolution", "Pats, quick answers, spars, Berries. 10 jobs evolve most."],
     ];
-    return GUIDE.map(([title, lines]) => v_flex().gap(4).p(12).rounded(10).bg(t.raised)
-      .child(div().text_size(13).font_semibold().text_color(t.foreground).child(title))
-      .children(lines.map((l) => h_flex().gap(6).items_start()
-        .child(div().text_size(12).text_color(t.dim).child("•"))
-        .child(div().flex_1().min_w(0).text_size(12).text_color(t.muted).child(l)))));
+    return [h_flex().flex_wrap().gap(8).children(TIPS.map(([icon, title, line]) => h_flex()
+      .w(234).min_h(62).p(10).gap(10).items_start().rounded(10).bg(t.raised)
+      .child(div().w(22).flex_none().text_size(18).text_center().child(icon))
+      .child(v_flex().flex_1().min_w(0).gap(2)
+        .child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(title))
+        .child(div().text_size(11.5).text_color(t.muted).child(line))))),
+      div().pt(4).text_size(11.5).text_color(t.dim).child("More in the README: github.com/lntvan166/herdr-pokemon")];
   }
 
   // A newer release: what Settings just read from GitHub, else what the strip knew.

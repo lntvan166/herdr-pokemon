@@ -136,14 +136,14 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false) {
   return { hp: left, dmg, strong, eff, text, fainted: left <= 0.001 };
 }
 // The wild one hits back at yours (its `hp`, 0..1, kept on the strip): { hp, dmg, eff, text,
-// fainted }. Yours is raised, so sturdier: half the damage, and 8% less for each heart (5 ♥: 40%
-// less). It faints at 0 and rests a while (OWN_REST); its hearts are untouched.
+// fainted }. Yours is raised, so sturdier: half the damage, and a touch less for each heart (2%:
+// 5 ♥, 10% less). It faints at 0 and rests a while (OWN_REST); its hearts are untouched.
 export const OWN_REST = 10 * 60000;
 export function hitBack(own, wild, rnd = Math.random) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
   const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha });
   const { eff, text } = hit;
-  const dmg = hit.dmg * 0.5 * (1 - 0.08 * Math.min(5, own.hearts ?? 0));
+  const dmg = hit.dmg * 0.5 * (1 - 0.02 * Math.min(5, own.hearts ?? 0));
   const left = Math.max(0, hp - dmg);
   return { hp: left, dmg, eff, text, fainted: left <= 0.001 };
 }

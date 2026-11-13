@@ -591,7 +591,7 @@ def preview(tmp):
     args += burst(X["mew"] - 14, ground - 32, 9)
     # The legendary's gold sparkles.
     mx, my = heads["mew"]
-    for dx, dy, r in [(-26, 6, 2.6), (24, 14, 2.2), (-30, 34, 1.8), (28, 40, 2.6), (2, -6, 2)]:
+    for dx, dy, r in [(-26, 6, 2.6), (24, 14, 2.2), (-30, 34, 1.8), (28, 40, 2.6)]:
         args += star(mx + dx, my + dy, r, "#ffd75e")
     # The shiny's sparkles.
     gx, gy = heads["geng"]
@@ -626,6 +626,10 @@ def preview(tmp):
         x0 += w + 16
     # The ball in the air, big, and ₽400 over the legendary's head (gold, as on the strip).
     text += ["(", art("poke-ball"), "-filter", "point", "-resize", "130%", ")", "-geometry", f"+{145 * Z - 39}+{100 * Z - 39}", "-composite"]
+    # Its health, knocked down to the amber by Charizard (weakened, it's easier to catch).
+    hx, hy = mx * Z - 90, (my - 6) * Z
+    text += ["-fill", "#00000088", "-draw", f"roundrectangle {hx},{hy} {hx + 180},{hy + 26} 8,8",
+             "-fill", "#e8b062", "-draw", f"roundrectangle {hx + 5},{hy + 5} {hx + 5 + 62},{hy + 21} 5,5"]
     pw = round(glyph_width("₽400", 44) * 1.12) + 40 # bold is wider than the measure
     px, py = mx * Z - pw // 2, (my - 22) * Z
     text += ["-fill", "#00000080", "-draw", f"roundrectangle {px},{py} {px + pw},{py + 64} 14,14",
