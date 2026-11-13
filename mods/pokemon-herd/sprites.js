@@ -216,6 +216,13 @@ export async function ensureRing() {
 // A regional form's icon is its own portrait (portrait/<dex>/<form>/).
 export const iconPath = (dex, form) => `${DATA_REL}/icons/${dex}${form ? `-${form}` : ""}.png`;
 
+// Every icon already downloaded, by key ("25", "26-0001"): read once, so the picker can draw those
+// at once instead of blank till each is checked (scrolling blinked).
+export async function cachedIcons() {
+  const names = await fs.readdir(`${DATA}/icons`).catch(() => []);
+  return new Set(names.filter((n) => n.endsWith(".png")).map((n) => n.slice(0, -4)));
+}
+
 export async function ensureIcon(dex, form) {
   const dir = `${DATA}/icons`;
   const file = `${dir}/${dex}${form ? `-${form}` : ""}.png`;

@@ -26,7 +26,7 @@ import { typeOf, TYPE_ICON } from "./types.js";
 import { hitWild, hitBack, typesOf, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
+import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -3169,6 +3169,12 @@ export default class PokemonHerd extends View {
   // ---- the picker (opened as a dialog with props { picker, slot, current, tag }) ----
 
   initPicker(cx) {
+    // The icons on disk already: ready from the first frame (no blank cell while each is checked).
+    cx.spawn(async (cx) => {
+      for (const key of await cachedIcons()) this.icons[key] ??= "ready";
+      this.fetchIcons(cx);
+      cx.notify();
+    });
     cx.spawn(async (cx) => { await readyArt(); cx.notify(); }); // items' art, for the Box rows in a preview
     this.filter = "";
     this.only = {}; // the filter chips: { region?, mega? }
