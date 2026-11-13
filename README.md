@@ -93,9 +93,10 @@ Optional keys (`keys.json`): `"alt-shift-p": "pokemon-herd.pick"` (picker for th
 
 ## Updating
 
-The strip checks once a day and shows an **Update** pill when a new version is out. Right-click
-the ground → **Settings → Updates → Update now**. Your Pokémon, Bag, money and Pokédex stay. By
-hand: `git pull && scripts/install.sh`.
+It updates itself: every few hours the strip checks GitHub, installs a newer version and says
+"✓ Updated to …" in its corner. Your Pokémon, Bag, money and Pokédex stay. Turn it off in
+**Settings → Updates → Update by itself**; then an **Update** pill shows and **Update now** installs
+it. By hand: `git pull && scripts/install.sh`.
 
 ## Art and names
 

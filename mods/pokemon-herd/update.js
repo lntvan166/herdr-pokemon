@@ -21,6 +21,11 @@ export function isNewer(remote, local) {
   return false;
 }
 
+// Update by itself (Settings → Updates): whether to install `latest` now. Not when it's off, not
+// newer, or tried already (`tried`: the version last tried, so a failed one isn't tried again and
+// again: the Update pill stays for a hand).
+export const shouldAutoUpdate = (on, latest, running, tried) => !!on && isNewer(latest, running) && tried !== latest;
+
 // The shell script that updates this mod where it really is. `app`: Herdr's folder; `repo`:
 // "owner/name"; `running`: this copy's VERSION. It takes the repo's mods/pokemon-herd (the folder
 // is always named that on GitHub) and copies it over every installed folder whose id.js names

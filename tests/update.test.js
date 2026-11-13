@@ -100,3 +100,13 @@ test("updateScript: Pokémon Sidebar beside it is installed, then updated keepin
   assert.equal(json.version, "1.1.0");
   assert.deepEqual(json.settings, { combined: false });
 });
+
+import { shouldAutoUpdate } from "../mods/pokemon-herd/update.js";
+test("update by itself: when on, newer, and not tried already", () => {
+  assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", undefined), true);
+  assert.equal(shouldAutoUpdate(false, "2.5.6", "2.5.5", undefined), false);
+  assert.equal(shouldAutoUpdate(true, "2.5.5", "2.5.5", undefined), false);
+  assert.equal(shouldAutoUpdate(true, "2.5.4", "2.5.5", undefined), false); // a local build ahead of GitHub
+  assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", "2.5.6"), false); // tried: the pill, by hand
+  assert.equal(shouldAutoUpdate(true, null, "2.5.5", undefined), false);
+});

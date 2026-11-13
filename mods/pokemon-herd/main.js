@@ -10,7 +10,7 @@ import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, s
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
 
 const stats = () => loadStats(shared(STATS_KEY));
-import { isNewer } from "./update.js";
+import { isNewer, shouldAutoUpdate } from "./update.js";
 import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
 const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
@@ -49,6 +49,8 @@ const FESTIVAL_MS = 6000; // its fireworks
 const BOOST_GAP = 30000; // with X Attack: how soon one may spar again
 const DEX_KEY = `${MOD}-dex`; // the Pokédex (trainer.js loadDex)
 const DAILY_KEY = `${MOD}-daily`; // the day's Research (trainer.js loadDaily)
+const AUTO_KEY = `${MOD}-auto-update`; // { tried: version, at }: the version last updated to by itself
+const UPDATED_KEY = `${MOD}-updated`; // { from, to, at }: just updated by itself (the strip says so)
 const BALL_KEY = `${MOD}-ball`; // the ball chosen to throw (Bag, or right-click a visitor); none: Auto
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
@@ -1169,6 +1171,16 @@ export default class PokemonHerd extends View {
       forgetPanes(forget);
     }
     if (this.leader) this.publishIcons(list, ids, cx); // agent-icons / agent-cards for the sidebar
+    // Every 6 hours: is a newer version out (latestVersion reads GitHub once a day at most)? Then,
+    // Settings → Updates → Update by itself, install it (one window does: the counting one).
+    if (this.leader && now - (this.latestAt ?? now - 6 * 3600000 + 60000) >= 6 * 3600000) {
+      this.latestAt = now;
+      cx.spawn(async (cx) => {
+        try { this.latest = await latestVersion(); } catch {}
+        this.autoUpdate();
+        cx.notify();
+      });
+    }
     // Once a minute: the Pokédex has seen the herd; a new day's Research is drawn (yesterday summed up).
     if (this.leader && now - (this.dexAt ?? 0) > 60000) {
       this.dexAt = now;
@@ -1646,6 +1658,19 @@ export default class PokemonHerd extends View {
     if (next) run("layout.set", { layout: next });
   }
 
+  // Update by itself: the newer version, once (a failed one waits for Update now, by hand).
+  autoUpdate() {
+    if (!this.leader || this.autoUpdating) return;
+    if (!shouldAutoUpdate(settingsNow().autoUpdate, this.latest, VERSION, shared(AUTO_KEY)?.tried)) return;
+    this.autoUpdating = true;
+    const to = this.latest;
+    // Noted before: the copy reloads as soon as the new files land, maybe before this goes on.
+    // The new one shows "Updated to" only if it is that version (so it did update).
+    setShared(AUTO_KEY, { tried: to, at: Date.now() });
+    setShared(UPDATED_KEY, { from: VERSION, to, at: Date.now() });
+    updateNow().catch(() => {}).finally(() => { this.autoUpdating = false; });
+  }
+
   // The update waiting on GitHub (its version), or null.
   update() {
     return isNewer(this.latest, VERSION) ? this.latest : null;
@@ -2032,7 +2057,7 @@ export default class PokemonHerd extends View {
   }
 
   // Updates: this mod (and Pokémon Sidebar with it), and Better Sidebar's patch when it's installed.
-  settingsUpdates({ line, button, panel }) {
+  settingsUpdates({ line, button, panel, swtch }) {
     const upd = this.newerVersion();
     return [
       panel(
@@ -2053,6 +2078,8 @@ export default class PokemonHerd extends View {
               cx.notify();
             });
           })),
+        line("Update by itself", "A newer version, checked every few hours, installs itself (Herdr reloads the mod). Off: the Update pill, and Update now.",
+          swtch("set-autoUpdate", settingsNow().autoUpdate, () => setSetting("autoUpdate", !settingsNow().autoUpdate))),
         ...(this.sidebar === "missing" ? [] : [line("Cards in Better Sidebar", this.sidebar === null ? "Checking…"
           : this.sidebar === "patched" ? "Patched: each agent shows as its Pokémon's card, and as its Pokémon on the collapsed rail."
           : this.sidebar === "outdated" && !this.patching ? "Patched for the cards; Patch again for Pokémon on the collapsed rail."
@@ -2390,6 +2417,12 @@ export default class PokemonHerd extends View {
       );
     }
     this.heads = heads;
+    // Just updated by itself: "✓ Updated to 2.5.6" in the corner for two minutes.
+    const done = shared(UPDATED_KEY);
+    if (done?.to === VERSION && now - done.at < 120000) {
+      root.child(div().id("pokemon-updated").absolute().right(6).top(4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).bg("#00000059").text_color("#ffffff").child(`✓ Updated to ${VERSION}`));
+    }
     // A newer release on GitHub: a small pill in the corner; it opens the menu, which says how.
     const update = this.update();
     if (update) {
