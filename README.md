@@ -39,6 +39,34 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 Everything else is one right-click on the strip's ground away: the **Box** (with the Bag, Shop,
 Today and Pokédex), the ball and Berry to throw, and **Settings** (with a **Guide** tab).
 
+## Battle to catch
+
+A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** and they battle:
+
+- **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
+  and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
+  effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
+- **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
+  lost). Pick a strong attacker with a good type.
+- **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. It always hangs on
+  while above the red; **in the red** the next hit may knock it out, so a drop there only warns
+  you first. Then throw.
+
+| Ball | ×  | Berry (before each ball) | Effect |
+|---|---|---|---|
+| Poké Ball | 1 | Razz | ×1.5 |
+| Great Ball | 1.5 | Golden Razz | ×2.5 |
+| Ultra Ball | 2 | Pinap | twice the gift |
+| Master Ball | never fails | Silver Pinap | ×1.8 and twice the gift |
+
+## Rare Pokémon
+
+| | How often | What's special |
+|---|---|---|
+| ✨ **Shiny** | 1 in 64 (1 in 32 with the Shiny Charm, at 500 jobs) | Another colour. Catch one and you can choose that species shiny in the picker. |
+| α **Alpha** | 1 wild one in 40 | Bigger, a red ring and α. Half as easy to catch and tougher in battle; carries ₽150 and twice the gift. Caught, it stays an Alpha: ♥2, hits harder, takes less. |
+| ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) or by finishing the day's Research | Mewtwo, Rayquaza… Locked in the picker until you catch one. Very hard: 15 balls before it flees. |
+
 <p align="center"><img src="docs/demo/charizard-mega.gif" alt="Charizard asleep; its agent starts working; it Mega Evolves into Mega Charizard X and walks off" width="360"></p>
 
 ## Install
