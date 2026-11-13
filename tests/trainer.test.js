@@ -253,7 +253,8 @@ test("weakening: hits by base stats and type; weakened, easier to catch; it hang
   const h = hitWild({ dex: 1 }, 4, () => 0);
   assert.ok(Math.abs(h.hp - (1 - 0.18 * powerRatio(4, 1) * 1.5)) < 1e-9 && h.strong && !h.fainted);
   assert.equal(hitWild({ dex: 1, hp: 0.2 }, 150, () => 1).fainted, true); // Mewtwo: far too much
-  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 150, () => 1).fainted, true); // 30% left, a hit of ~80%
+  assert.equal(hitWild({ dex: 1, hp: 0.25 }, 150, () => 1).fainted, true); // 25% left, a hit of ~80%: over three times
+  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 150, () => 1).fainted, false); // 30% left: under three times, a sliver
   assert.equal(hitWild({ dex: 1, hp: 0.1 }, 25, () => 1).hp, 0.05); // a little too much: it hangs on
   assert.equal(hitWild({ dex: 1, hp: 0.1 }, 25, () => 1).fainted, false);
   assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.2 * 1.9) < 1e-9);

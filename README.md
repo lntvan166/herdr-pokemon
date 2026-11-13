@@ -50,9 +50,9 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
   lost). Pick a strong attacker with a good type.
-- **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit just a little
-  more than its health leaves it a sliver; a hit **twice its health or more** knocks it out
-  (30% left and a big hit: gone). The bar blinks red when the next hit may be too much. Then throw.
+- **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a bit more than
+  its health leaves it a sliver; a hit **three times its health or more** knocks it out (20% left
+  and a huge hit: gone). The bar blinks red when the next hit may be too much. Then throw.
 
 | Ball | ×  | Berry (before each ball) | Effect |
 |---|---|---|---|

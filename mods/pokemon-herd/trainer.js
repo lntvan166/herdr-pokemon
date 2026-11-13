@@ -126,7 +126,7 @@ export function damage(attacker, target, rnd = Math.random, how = {}) {
 }
 
 export const RED = 0.2; // its bar turns red, blinking: the next hit may be too much
-export const OVERKILL = 2;
+export const OVERKILL = 3; // simulated: careful players (stopping in the red) knock out ~5%, greedy ones ~15–20%
 const statsOf = (dex) => BASE[dex] ?? [70, 70];
 export const powerRatio = (attacker, target) => Math.max(0.35, Math.min(2.5, statsOf(attacker)[0] / statsOf(target)[1]));
 // `mega`: the attacker fights Mega Evolved: it hits ×1.2 (and, hit back, takes ×0.85: hitBack).

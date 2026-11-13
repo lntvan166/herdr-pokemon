@@ -1517,8 +1517,8 @@ export default class PokemonHerd extends View {
       changed = true;
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
       // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying; the
-      // wild one hits back (hitBack). Not while yours rests after fainting. A hit twice its health
-      // or more knocks it out (trainer.js OVERKILL).
+      // wild one hits back (hitBack). Not while yours rests after fainting. A hit three times its
+      // health or more knocks it out (trainer.js OVERKILL).
       const v = this.visitor;
       const pk = ids[drop.addr];
       const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
