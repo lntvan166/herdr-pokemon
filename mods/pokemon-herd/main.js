@@ -2072,9 +2072,23 @@ export default class PokemonHerd extends View {
     // Back after a while undrawn (the window was hidden or covered: no frames, while they kept
     // walking): this frame puts each one straight where it is now, with no slide from where it was
     // last drawn; the next tick redraws and those walking go on from there (`resume`).
-    const gap = this.drawnAt !== undefined && now - this.drawnAt > 3000;
+    const lastDrawn = this.drawnAt;
+    const gap = lastDrawn !== undefined && now - lastDrawn > 3000;
     this.drawnAt = now;
     if (gap) this.resume = true;
+    // The visitor too: its slide (one transition over its whole walk) stood still while undrawn,
+    // so its picture lagged behind where it is (its tag and the spot to click). It sets off again
+    // from where it is now, as a new leg.
+    const wv = this.visitor;
+    // (A walking visitor redraws every tick, so a second without frames already means a pause.)
+    if (lastDrawn !== undefined && now - lastDrawn > 1000 && wv?.start && !wv.throw && !wv.fight) {
+      const f = clamp((now - wv.start) / wv.dur, 0, 1);
+      wv.from = wv.from + (wv.to - wv.from) * f;
+      wv.start = now;
+      wv.dur = Math.max(1, (Math.abs(wv.to - wv.from) / VISIT_SPEED) * 1000);
+      wv.walkFrom = undefined;
+      wv.leg = (wv.leg ?? 0) + 1;
+    }
 
     const root = div()
       .id("pokemon-strip")
