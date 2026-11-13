@@ -23,9 +23,10 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { withEvolved, hitWild, hitBack, typesOf, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -275,6 +276,52 @@ function payDexGoals() {
   saveDex({ ...d, goals: [...d.goals, ...due.map((g) => g.n)] });
 }
 // A health bar (0..1) centred on x: green, amber, then red (blinking: one more hit may be the last).
+// ---- battle effects (fx.js works them out; these draw them) ----
+// One part of an effect, centred at (cx, cy) plus its offset.
+const fxPart = (p, cx = 0, cy = 0) => div().absolute().left(cx + p.x - p.w / 2).top(cy + p.y - p.h / 2).w(p.w).h(p.h)
+  .when(!!p.round, (el) => el.rounded_full())
+  .when(!!p.ring, (el) => el.border_2().border_color(p.color))
+  .when(!p.ring, (el) => el.bg(p.color))
+  .opacity(p.opacity ?? 1)
+  .when(!!p.flicker, (el) => el.loop("opacity", { from: (p.opacity ?? 1) * 0.55, to: p.opacity ?? 1, period: Math.max(100, p.flicker) })); // GPUI: at least 100 ms
+// A move flying from (x0, y) to (x1, y), under one transition: drawn where it sets off the first
+// time (`first`), at the far end after that.
+const fxShot = (id, style, x0, x1, y, ms, first) => div().id(id).absolute().top(y).left(first ? x0 : x1).w(1).h(1)
+  .transition("left", { duration: Math.max(1, ms), easing: "linear" })
+  .children(shotParts(style, x1 >= x0 ? 1 : -1).map((p) => fxPart(p)));
+// Where a blow lands, at (x, y): a flash and a ring swelling and fading, sparks flying out.
+// Drawn small the first time (`first`), then swollen, faded, flown, under transitions.
+function fxBurst(id, style, p, x, y, first, seed) {
+  const b = burstParts(style, p, seed);
+  const grow = (part, key, opacity, ms) => {
+    const d = first ? part.from : part.to;
+    return div().id(`${id}-${key}`).absolute().left(x - d / 2).top(y - d / 2).w(d).h(d).rounded_full()
+      .when(key === "ring", (el) => el.border_2().border_color(part.color)).when(key !== "ring", (el) => el.bg(part.color))
+      .opacity(first ? opacity : 0)
+      .transition("left", { duration: ms, easing: "ease-out" }).transition("top", { duration: ms, easing: "ease-out" })
+      .transition("width", { duration: ms, easing: "ease-out" }).transition("height", { duration: ms, easing: "ease-out" })
+      .transition("opacity", { duration: ms, easing: "ease-in" });
+  };
+  return div().absolute().left(0).top(0)
+    .child(grow(b.ring, "ring", 0.8, 360))
+    .child(grow(b.flash, "flash", 0.95, 220))
+    .children(b.sparks.map((sp, k) => div().id(`${id}-s${k}`).absolute()
+      .left(x + (first ? 0 : sp.dx) - sp.size / 2).top(y + (first ? 0 : sp.dy) - sp.size / 2).w(sp.size).h(sp.size)
+      .when(sp.round, (el) => el.rounded_full()).bg(sp.color).opacity(first ? 1 : 0)
+      .transition("left", { duration: 380, easing: "ease-out" }).transition("top", { duration: 380, easing: "ease-out" })
+      .transition("opacity", { duration: 420, easing: "ease-in" })));
+}
+// The word the games say ("Super effective!"), popping up over (x, top) and fading.
+const fxWord = (id, [text, color], x, top, phase) => div().id(id).absolute().left(x - 70).w(140).top(phase === 0 ? top + 8 : top)
+  .opacity(phase === 1 ? 1 : 0)
+  .transition("top", { duration: 160, easing: "ease-out" }).transition("opacity", { duration: phase === 2 ? 260 : 120 })
+  .flex().justify_center()
+  .child(div().px(6).h(16).rounded(5).bg("#000000b8").flex().items_center().text_size(11).font_bold().text_color(color).child(text));
+// A gentle style for a plain strike (no type): white and gold.
+const STRIKE = { glow: "#fff6c8", core: "#ffd23a", mid: "#fff2a8", hot: "#ffffff", look: "star" };
+const GOLD = { glow: "#ffe9a8", core: "#ffd75e", mid: "#fff2c0", hot: "#ffffff", look: "star" };
+const FX_GAP = 84; // how far apart yours and a wild one battle
+
 const healthBar = (x, top, hp) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
   .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
   .child(div().h_full().w(Math.max(1, Math.round(36 * hp))).bg(hp > 0.5 ? "#46c46a" : hp > RED ? "#e8b062" : "#e5484d"));
@@ -795,15 +842,15 @@ export default class PokemonHerd extends View {
     if (v.fight) {
       const fx = v.fight;
       v.x = fx.x;
-      if (now >= fx.at + 500) v.pick.hp = fx.hp;
+      if (now >= (fx.hitAt ?? fx.at + 500)) v.pick.hp = fx.hp;
       // It hits back: yours loses health (and faints at 0: it rests OWN_REST, 💫).
       const own = fx.back && this.mons[fx.own];
-      if (own && !fx.backDone && now >= fx.at + 1500) {
+      if (own && !fx.backDone && now >= (fx.backHit ?? fx.at + 1500)) {
         fx.backDone = true;
         own.hp = fx.back.hp;
         own.hpAt = now;
+        // (Hit, it flinches and is knocked back: its battle's steps and blows, set when it began.)
         if (fx.back.fainted) { own.restUntil = now + OWN_REST; own.react = { anim: null, until: now + 3000, icon: "💫" }; }
-        else own.react = { anim: null, until: now + 1200, icon: "💢" };
       }
       if (now < fx.until) return true;
       if (fx.fainted) {
@@ -822,7 +869,7 @@ export default class PokemonHerd extends View {
     // breaks out and walks on from there.
     if (v.throw) {
       const th = v.throw;
-      const end = th.at + 600 + th.shakes * 700;
+      const end = th.at + throwEnd(th.shakes);
       if (now < end) return true;
       // A legendary after its last ball: it flees.
       if (!th.caught && v.pick.legend && (v.throws ?? 0) >= LEGEND_THROWS) th.fled = true;
@@ -867,6 +914,68 @@ export default class PokemonHerd extends View {
       if (m && !m.moving && m.mood === "idle" && row === v.row && Math.abs(m.x - v.x) < 220) m.dir = v.x > m.x ? "r" : "l";
     });
     return true;
+  }
+
+  // A Pokémon's body (its box SLOT wide, `body` inside) with the blows landing on it (`blows`:
+  // [{ at, dir, p, style, word? }], fx.js): knocked back `dir` and back, shaking for a big one;
+  // the burst where it's hit; the word over its head.
+  withBlows(key, blows, body, cx, headY, ground, now) {
+    const b = (blows ?? []).filter((x) => now >= x.at && now < x.at + 1300).at(-1);
+    const k = b && knockOf(b.p);
+    const out = !!b && now < b.at + KNOCK_OUT;
+    const wrap = div().absolute().left(out ? b.dir * k.px : 0).top(0).w(SLOT).h(ground + 10)
+      .transition("left", { duration: out ? 70 : KNOCK_BACK, easing: "ease-out" })
+      .when(!!b && k.shake && now < b.at + SHAKE_MS, (el) => el.loop("top", { from: -2, to: 2, period: 100 }))
+      .child(body);
+    if (!b) return wrap;
+    const id = `${key}-${b.at}`;
+    const midY = Math.round((headY + ground) / 2);
+    return div().absolute().left(0).top(0)
+      .child(wrap)
+      .when(now < b.at + 470, (el) => el.child(fxBurst(`burst-${id}`, b.style, b.p, cx - b.dir * 6, midY, this.fxFirst(`burst-${id}`), b.at % 100000)))
+      .when(!!b.word, (el) => el.child(fxWord(`word-${id}`, b.word, cx, Math.max(2, headY - 30),
+        this.fxFirst(`word-${id}`) ? 0 : now < b.at + 900 ? 1 : 2)));
+  }
+
+  // True the first time an effect is drawn (it starts small, here, faded…; next frame it moves).
+  fxFirst(id) {
+    this.fxSeen ??= new Map();
+    if (this.fxSeen.has(id)) return false;
+    this.fxSeen.set(id, Date.now());
+    this.fxKick = true;
+    return true;
+  }
+
+  // Effects move between frames, and the strip draws four a second: a frame is asked for right
+  // when a blow lands, a shot sets off, a ball lands or shakes, so nothing waits a quarter second.
+  fxSchedule(cx, now) {
+    const times = [];
+    const blowTimes = (b) => times.push(b.at, b.at + KNOCK_OUT + 5, b.at + SHAKE_MS + 5, b.at + 470, b.at + 900, b.at + 1300);
+    for (const m of Object.values(this.mons ?? {})) {
+      for (const b of m.blows ?? []) blowTimes(b);
+      const sh = m.react?.shot;
+      if (sh && now < m.react.until) times.push(sh.at, sh.until, sh.until + 70);
+    }
+    const v = this.visitor;
+    if (v?.fight) {
+      const f = v.fight;
+      times.push(f.at, f.hitAt, f.backAt, f.backLaunch, f.backHit, f.backHit + 70);
+      if (f.blow) blowTimes(f.blow);
+    }
+    if (v?.throw) {
+      const a = v.throw.at;
+      times.push(a + THROW_UP, a + THROW_UP + THROW_DOWN, a + throwEnd(v.throw.shakes), a + throwEnd(v.throw.shakes) + 520);
+      for (let k = 0; k < 3; k++) times.push(a + SHAKE_FROM + k * SHAKE_EVERY, a + SHAKE_FROM + k * SHAKE_EVERY + WOBBLE);
+    }
+    this.wakes ??= new Set();
+    for (const t of times) {
+      if (!Number.isFinite(t) || t <= now || t > now + 300 || this.wakes.has(t)) continue;
+      this.wakes.add(t);
+      cx.timer.after(t - now, (c) => { this.wakes.delete(t); c.notify(); });
+    }
+    // Forget old ones: blows, effects drawn.
+    for (const m of Object.values(this.mons ?? {})) if (m.blows?.length) m.blows = m.blows.filter((b) => now < b.at + 3000);
+    if (this.fxSeen) for (const [id, at] of this.fxSeen) if (now - at > 15000) this.fxSeen.delete(id);
   }
 
   // A wild one walking by on `row`, near enough to `m` (dropped there) to be attacked; not while
@@ -934,23 +1043,35 @@ export default class PokemonHerd extends View {
       // Standing where it was hit, flinching; fainted: fading, and a word.
       const x = v.fight.x;
       const fx = v.fight;
-      // Hit first (flinching), then, hitting back, its attack toward yours.
+      // Facing yours throughout: hit (flinching, knocked back), then its own move back at yours.
       const toward = (fx.ownX ?? x) > x ? "R" : "L";
-      const striking = fx.back && now >= fx.at + 1000 && now < fx.at + 1700;
-      const hurt = (striking ? meta.react?.[`Attack${toward}`] ?? meta.react?.[`SpAttack${toward}`] ?? meta.react?.Attack : null)
-        ?? meta.react?.[v.dir === "r" ? "HurtR" : "HurtL"] ?? meta.react?.Hurt ?? s;
-      const hl = mid - (hurt.box.x + hurt.box.w / 2) * scale, ht = ground - (hurt.box.y + hurt.box.h) * scale;
+      const hitAt = fx.hitAt ?? fx.at, backAt = fx.backAt ?? fx.at + 1000;
+      const striking = fx.back && now >= backAt && now < backAt + 700;
+      const hurting = now >= hitAt && now < hitAt + 600;
+      const cur = (striking ? meta.react?.[`SpAttack${toward}`] ?? meta.react?.[`Shoot${toward}`] ?? meta.react?.[`Attack${toward}`] ?? meta.react?.Attack
+        : hurting ? meta.react?.[`Hurt${toward}`] ?? meta.react?.Hurt : null) ?? meta[`idle${toward}`] ?? s;
+      const cl = mid - (cur.box.x + cur.box.w / 2) * scale, ct = ground - (cur.box.y + cur.box.h) * scale;
+      const wildBody = div()
+        .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
+        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, cur.box, scale)))
+        .child(image(cur.path).absolute().left(cl).top(ct).w(cur.w * scale).h(cur.h * scale));
       root.child(div().id(`visitor-fight-${v.id}-${v.leg ?? 0}`).absolute().top(0).h(ground + 10).w(sw).left(x - mid)
         .when(!!v.fainted, (el) => el.opacity(0.35))
-        .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-        .child(image((now < v.fight.until ? hurt : s).path).absolute().left(now < v.fight.until ? hl : imgLeft).top(now < v.fight.until ? ht : imgTop)
-          .w((now < v.fight.until ? hurt : s).w * scale).h((now < v.fight.until ? hurt : s).h * scale)));
+        .child(this.withBlows(`wild-${v.id}`, fx.blow ? [fx.blow] : [], wildBody, mid, headY, ground, now)));
+      // Its move, flying back at yours (fx.js: its type's look).
+      if (fx.back && fx.wildMove && now >= fx.backLaunch && now < fx.backHit + 60) {
+        const first = fx.backDrawn === undefined;
+        if (first) { fx.backDrawn = now; this.fxKick = true; }
+        const dir = fx.ownX > x ? 1 : -1;
+        root.child(fxShot(`wildshot-${v.id}-${fx.at}`, moveStyle(fx.wildMove.type), x + dir * 14, fx.ownX - dir * 12,
+          Math.round((headY + ground) / 2) - 2, fx.backHit - fx.backDrawn, first));
+      }
       root.child(hpBar(x));
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
       const wildName = fullName(v.pick.dex, v.pick.form);
       const said = v.fainted ? `${wildName} fainted…`
-        : now >= fx.at + 1100 && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= fx.at + 1500 ? ` ${fx.ownName} fainted!` : ""}`
-        : now >= fx.at + 400 && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
+        : now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
+        : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
       if (said) {
         const tagW = 330;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
@@ -962,20 +1083,44 @@ export default class PokemonHerd extends View {
     const ball = !th && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick, shared(BALL_KEY)) : null;
     const showGift = !th && ((!v.gift && now - v.start > 1000) || (v.gift && now - v.giftAt < 2500));
     if (th) {
-      // Held in the ball where it stood: it shakes (left and right) up to three times, then
-      // clicks shut ("Gotcha!") or opens. Before its first shake, the Pokémon flashes into it.
+      // The ball flies up from the strip's roomier side and down onto it (fx.js THROW_UP,
+      // THROW_DOWN); the Pokémon flashes into it, a burst; the ball drops to the ground and
+      // wobbles once for each shake (up to three), resting between; then clicks shut ("Gotcha!",
+      // gold stars) or bursts open.
       const x = th.x;
-      const settled = now >= th.at + 600 + th.shakes * 700;
+      const tt = now - th.at;
+      const end = throwEnd(th.shakes);
+      const settled = tt >= end;
       const size = Math.round(20 * Math.max(0.8, scale));
-      const shaking = now >= th.at + 600 && !settled;
-      const ballEl = this.itemMark(th.ball, size);
-      root.child(div().id(`visitor-ball-${v.id}-${v.leg ?? 0}`).absolute().left(x - size / 2).top(ground - size)
-        .when(shaking, (el) => el.loop("left", { from: x - size / 2 - 3, to: x - size / 2 + 3, period: 350 }))
-        .child(ballEl));
-      if (now < th.at + 600) {
-        root.child(div().id(`visitor-flash-${v.id}`).absolute().left(x - mid).top(0).w(sw).h(ground + 10)
-          .loop("opacity", { from: 0.2, to: 0.9, period: 200 })
+      const from = Math.max(size, Math.min(this.width - size, x + (x > this.width / 2 ? -170 : 170)));
+      const peak = Math.max(2, headY - 34), hitY = Math.round((headY + ground) / 2 - size / 2);
+      const leg = (id, x0, y0, x1, y1, ms, ease) => {
+        const first = this.fxFirst(id);
+        return div().id(id).absolute().left(first ? x0 - size / 2 : x1 - size / 2).top(first ? y0 : y1)
+          .transition("left", { duration: ms, easing: "linear" }).transition("top", { duration: ms, easing: ease })
+          .child(this.itemMark(th.ball, size));
+      };
+      const key = `${v.id}-${th.at}`;
+      if (tt < THROW_UP) root.child(leg(`ball-up-${key}`, from, ground - size, (from + x) / 2, peak, THROW_UP, "ease-out"));
+      else if (tt < THROW_UP + THROW_DOWN) root.child(leg(`ball-down-${key}`, (from + x) / 2, peak, x, hitY, THROW_DOWN, "ease-in"));
+      else if (tt < SHAKE_FROM) root.child(div().absolute().left(x - size / 2).top(hitY).child(this.itemMark(th.ball, size)));
+      else {
+        root.child(leg(`ball-rest-${key}`, x, hitY, x, ground - size, 150, "ease-in")
+          .when(!settled && wobbling(tt, th.shakes), (el) => el.loop("left", { from: x - size / 2 - 3, to: x - size / 2 + 3, period: 110 })));
+      }
+      // The Pokémon: standing till the ball reaches it, then flashing into it.
+      if (tt < THROW_UP + THROW_DOWN) {
+        root.child(div().id(`visitor-held-${v.id}`).absolute().left(x - mid).top(0).w(sw).h(ground + 10)
           .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)));
+      } else if (tt < SHAKE_FROM) {
+        root.child(div().id(`visitor-flash-${v.id}`).absolute().left(x - mid).top(0).w(sw).h(ground + 10)
+          .loop("opacity", { from: 0.15, to: 0.9, period: 120 })
+          .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)));
+        root.child(fxBurst(`ball-hit-${key}`, MOVE.normal, 0.5, x, hitY + size / 2, this.fxFirst(`ball-hit-${key}`), th.at % 100000));
+      }
+      if (settled && tt < end + 520) {
+        const caughtFx = th.caught ? GOLD : MOVE.normal;
+        root.child(fxBurst(`ball-end-${key}`, caughtFx, th.caught ? 0.9 : 0.6, x, ground - size / 2, this.fxFirst(`ball-end-${key}`), th.at % 99991));
       }
       if (settled && (th.caught || th.fled)) {
         const tagW = 260;
@@ -1139,6 +1284,7 @@ export default class PokemonHerd extends View {
 
   tick(cx) {
     const now = Date.now();
+    dev?.tick?.(this, devApi, now); // dev.js, on this machine only
     const list = herdAgents();
     const tabs = tabsById();
     // One strip counts (jobs, finds, hunger, Berries, gifts, new agents' Pokémon): the leader.
@@ -1456,9 +1602,17 @@ export default class PokemonHerd extends View {
     const msFor = (meta) => (name) => meta.react[name].ms;
     // A battle between two agents' Pokémon (react.js battle): what each can do, and its type.
     const fight = (a1, m1, a2, m2) => {
-      const side = (a) => {
+      // Each fights as it will look (its Mega, for a battle; its regional form): its special move is
+      // its type that does most to the other (fx.js draws it; Mega Charizard X's fire is blue).
+      const keyOf = (a) => {
+        const p = ids[a.address];
+        return p ? fighterKey(p.dex, { form: p.form, mega: megaShown(p, "working") ? (megaForm(p.dex, p.megaKind)?.kind ?? "") : null }) : 0;
+      };
+      const [k1, k2] = [keyOf(a1), keyOf(a2)];
+      const side = (a, k, o) => {
         const meta = this.spriteFor(ids[a.address], a.status);
-        return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐" };
+        const move = k && o ? { type: bestType(k, o), eff: bestEffect(k, o), blue: k === "6mX" } : null;
+        return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
       // Too close: they hop apart first (a quick slide, facing each other), then battle.
       const spots = battleSpots(m1.x, m2.x, EDGE, hiFor(this.width));
@@ -1474,7 +1628,17 @@ export default class PokemonHerd extends View {
         m.moving = true;
         m.backstep = true;
       }
-      battle(m1, m2, side(a1), side(a2), now, Math.random, back ? { ...spots, back: BACK } : spots);
+      battle(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now, Math.random, back ? { ...spots, back: BACK } : spots);
+      // The blows that land on each (fx.js): knocked away from the other; the special one by its type.
+      for (const [m, o] of [[m1, m2], [m2, m1]]) {
+        for (const st of m.react.seq) {
+          if (!st.blow) continue;
+          const mv = o.react.shot?.move;
+          const special = st.blow === "special";
+          (m.blows ??= []).push({ at: st.at, dir: m.react.face === "r" ? -1 : 1, p: special ? power(st.eff ?? 1) : power(1, false),
+            style: special && mv ? moveStyle(mv.type, mv.blue) : STRIKE, word: special ? effectWord(st.eff ?? 1) : null });
+        }
+      }
       // Both Mega Evolve for it (those that can, Mega not Off), and a few seconds after.
       m1.battleUntil = m2.battleUntil = Math.max(m1.react.until, m2.react.until) + 3000;
       m1.pauseUntil = m1.react.until + rand(2000, 5000);
@@ -1548,17 +1712,49 @@ export default class PokemonHerd extends View {
       if (now < (dm.restUntil ?? 0)) {
         this.note(dm, "💫", now, 2500);
       } else {
-        const mega = megaShown(pk, "working"); // it Mega Evolves for the fight: stronger
-        const hit = hitWild(v.pick, pk.dex, Math.random, !!pk.alpha, mega);
-        const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0, mega }, v.pick);
-        v.fight = { at: now, until: now + (back ? 2400 : 1600), x: v.x, own: drop.addr, ownX: dm.x, ownName: fullName(pk.dex, pk.form), back, ...hit };
-        dm.dir = v.x > dm.x ? "r" : "l";
-        const anim = reactionAnim("spar", hasOf(dMeta));
-        const ms = anim ? Math.max(500, msFor(dMeta)(anim)) : 600;
-        const types = typesOf(pk.dex);
-        dm.react = { anim, animUntil: now + ms, until: now + ms + 400, face: dm.dir, icon: TYPE_ICON[types[0]] ?? "💥" };
-        dm.pauseUntil = now + 3000;
-        dm.battleUntil = now + 6000; // it Mega Evolves for the fight (megaStatus)
+        // It Mega Evolves for the fight: a Mega with its own stats and types (base-stats.js
+        // FORM_BASE) fights as itself; one without, as its species ×1.2 (trainer.js MEGA_HIT).
+        const mega = megaShown(pk, "working");
+        const ownKey = fighterKey(pk.dex, { form: pk.form, mega: mega ? (megaForm(pk.dex, pk.megaKind)?.kind ?? "") : null });
+        const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
+        const bonus = mega && !isFormKey(ownKey);
+        const wild = { ...v.pick, dex: wildKey };
+        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus);
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0, mega: bonus }, wild);
+        // It steps off to battle from a little way (FX_GAP), so the two never stand on each other.
+        const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), FX_GAP);
+        if (Math.abs(spot - dm.x) >= 1) {
+          clearWalk(dm);
+          dm.from = dm.x;
+          dm.target = spot;
+          dm.start = now;
+          dm.dur = 300;
+          dm.moving = true;
+          dm.backstep = true;
+        }
+        // Then: its move (its type that does most) flies over and lands; the wild one flinches,
+        // knocked back; then it lets fly back with its own, and yours takes it.
+        const at = now + 340;
+        dm.dir = v.x > spot ? "r" : "l";
+        const sp = reactionAnim("special", hasOf(dMeta)) ?? reactionAnim("spar", hasOf(dMeta));
+        const ms = sp ? Math.max(600, msFor(dMeta)(sp)) : 700;
+        const launch = at + Math.min(350, Math.round(ms * 0.4));
+        const fly = Math.round(Math.min(320, Math.max(200, Math.abs(v.x - spot) * 3)));
+        const hitAt = launch + fly, backAt = hitAt + 650, backLaunch = backAt + 250, backHit = backLaunch + fly;
+        const ownMove = { type: bestType(ownKey, wildKey), eff: hit.eff, blue: ownKey === "6mX" };
+        const wildMove = { type: bestType(wildKey, ownKey), eff: back?.eff ?? 1 };
+        const away = v.x > spot ? 1 : -1; // from yours toward the wild one
+        v.fight = {
+          at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
+          x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
+          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: effectWord(hit.eff) },
+        };
+        const seq = [{ at, until: at + ms, anim: sp }];
+        if (back) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
+        dm.react = { seq, until: back ? backHit + 700 : at + ms + 300, face: dm.dir, shot: { at: launch, until: hitAt, from: spot, to: v.x, move: ownMove } };
+        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : power(back.eff), style: moveStyle(wildMove.type), word: effectWord(back.eff) });
+        dm.pauseUntil = v.fight.until + 1500;
+        dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
       }
       changed = true;
     } else if (dm && dMeta) {
@@ -1633,6 +1829,7 @@ export default class PokemonHerd extends View {
     if (this.visit(list, ids, g, now, cx)) changed = true;
     if (this.leader && now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
+    this.fxSchedule(cx, now);
     if (changed || this.snowing) cx.notify();
   }
 
@@ -2349,7 +2546,7 @@ export default class PokemonHerd extends View {
           // Walking: over what is left of its walk (from where it is drawn now); standing: its own
           // short move (a step aside, a jump), or none at all after a gap.
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
-          .child(body)
+          .child(this.withBlows(`mon-${a.address}`, m.blows, body, SLOT_MID, headY, ground, now))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 22)).justify_center().text_size(12.5).child(bubble)))
@@ -2359,14 +2556,15 @@ export default class PokemonHerd extends View {
               .loop("opacity", { from: 0.5, to: 1, period: 700 }).child(reactIcon(m, now))))
           // A battle's special move: its type's icon flies across to the other (one transition,
           // set once: from where it starts on the first frame, to the other on the next ones).
-          .when(!!m.react?.shot && now >= m.react.shot.at && now < m.react.shot.until + 150, (el) => {
+          // (fx.js: its type's colours and look, a glow, a tail), landing as the other is hit.
+          .when(!!m.react?.shot && now >= m.react.shot.at && now < m.react.shot.until + 60, (el) => {
             const sh = m.react.shot;
             const first = sh.drawnAt === undefined;
-            if (first) sh.drawnAt = now;
-            return el.child(div().id(`shot-${a.address}-${sh.at}`).absolute().top(Math.max(2, headY + 6)).text_size(16)
-              .left(sw / 2 - 8 + ((first ? sh.from : sh.to) - sh.from))
-              .transition("left", { duration: Math.max(1, sh.until - sh.drawnAt), easing: "linear" })
-              .child(sh.icon));
+            if (first) { sh.drawnAt = now; this.fxKick = true; }
+            const dir = sh.to >= sh.from ? 1 : -1;
+            const style = sh.move ? moveStyle(sh.move.type, sh.move.blue) : MOVE.normal;
+            return el.child(fxShot(`shot-${a.address}-${sh.at}`, style, sw / 2 + dir * 14, sw / 2 + (sh.to - sh.from) - dir * 12,
+              Math.round((headY + ground) / 2) - 2, sh.until - sh.drawnAt, first));
           })
           // A find, a heart, a berry; or hungry, waiting on you too long.
           .when(!!m.note || !!m.hungry, (el) =>
@@ -2466,6 +2664,11 @@ export default class PokemonHerd extends View {
         .child(this.visitor?.start && this.coming === "legend" ? "✦ A legendary Pokémon comes after this one…" : txt));
     }
     this.renderVisitor(root, grounds, scale);
+    // An effect drawn for the first time (where it starts): a frame right after sets it moving.
+    if (this.fxKick) {
+      this.fxKick = false;
+      try { cx.timer.after(35, (c) => c.notify()); } catch (e) { logOnce(e, console.log, now, this.errSeen); }
+    }
     return root;
   }
 

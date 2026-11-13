@@ -142,6 +142,14 @@ export function pose(m, mood, now, hovered, side) {
 
 // A battle's step playing now, or undefined (between its moves it stands facing the other).
 const stepAt = (r, now) => r.seq.find((s) => now >= s.at && now < s.until);
+// The last blow that landed on it (a step with `blow` begun at most `ms` ago), or null.
+export function blowOn(m, now, ms = 700) {
+  const r = m.react;
+  if (!r?.seq) return null;
+  let last = null;
+  for (const s of r.seq) if (s.blow && now >= s.at && now < s.at + ms) last = s;
+  return last;
+}
 
 // The icon over its head now: the step's (💢 hit, 💥 knocked back), else the reaction's.
 export function reactIcon(m, now) {
@@ -153,7 +161,9 @@ export function reactIcon(m, now) {
 // A battle (sparring, teasing, dropping one on another): each strikes once, the other flinching
 // as the blow lands, then one of them (at random) lets loose its special move: SpAttack, Shoot or
 // Charge facing the other, and its type's icon (`shot`) flies across and knocks the other back
-// (💥). `A`, `B`: { has, msOf, icon } for a and b. Both face each other throughout.
+// (💥). `A`, `B`: { has, msOf, icon, move? } for a and b (`move`: its special move against the
+// other, { type, eff, blue? }, for fx.js). Both face each other throughout. A step where a blow
+// lands has `blow`: "strike" or "special" (the target is knocked back, fx.js knockOf).
 // Sets a.react and b.react ({ seq, until, face, shot? }) and lastSpar; returns when it's over.
 // `at`: { ax, bx, back } when they first hop back to ax and bx (battleSpots), taking `back` ms
 // (a Hop, if it has one), the battle starting after.
@@ -174,7 +184,7 @@ export function battle(a, b, A, B, now, rnd = Math.random, at = null) {
     const hurt = reactionAnim("startle", D.has);
     const hit = t + Math.round(d * 0.5);
     const hd = len(D, hurt, 400);
-    seq[dk].push({ at: hit, until: hit + hd, anim: hurt, icon: "💢" });
+    seq[dk].push({ at: hit, until: hit + hd, anim: hurt, blow: "strike" });
     t = Math.max(t + d, hit + hd) + 150;
   };
   strike(A, B, "a", "b");
@@ -184,10 +194,10 @@ export function battle(a, b, A, B, now, rnd = Math.random, at = null) {
   const sp = reactionAnim("special", W.has);
   const sd = len(W, sp, 700);
   seq[wk].push({ at: t, until: t + sd, anim: sp });
-  const shot = { at: t + Math.round(sd * 0.4), until: t + Math.round(sd * 0.4) + 450, from: wx, to: lx, icon: W.icon };
+  const shot = { at: t + Math.round(sd * 0.4), until: t + Math.round(sd * 0.4) + 450, from: wx, to: lx, icon: W.icon, ...(W.move ? { move: W.move } : {}) };
   const hurt = reactionAnim("startle", L.has);
   const hd = len(L, hurt, 600);
-  seq[lk].push({ at: shot.until, until: shot.until + hd, anim: hurt, icon: "💥" });
+  seq[lk].push({ at: shot.until, until: shot.until + hd, anim: hurt, blow: "special", eff: W.move?.eff ?? 1 });
   const end = Math.max(t + sd, shot.until + hd) + 300;
   a.dir = bx > ax ? "r" : "l";
   b.dir = ax > bx ? "r" : "l";

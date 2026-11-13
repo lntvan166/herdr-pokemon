@@ -51,7 +51,25 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   before each ball (Razz ×1.5, Golden Razz ×2.5, Pinap: twice the gift, Silver Pinap: both). The
   visitor stops while the ball shakes (up to three times), then "Gotcha!" or it breaks free and
   walks on. Caught: into the Box (`box-<when>-<dex>`) with ♥1, a nature (Hasty, Lazy, Calm, Brave,
-  Jolly: speed, napping, sparring, fidgets) and its ball.
+  Jolly: speed, napping, sparring, fidgets) and its ball. The throw (`fx.js`): the ball flies up
+  from the strip's roomier side and down onto it (260 + 220 ms), the Pokémon flashes into it with
+  a burst (260 ms), the ball drops to the ground and wobbles once per shake (320 ms of every
+  700), then a burst: gold stars caught, white broken out.
+- **Battling a wild one** (drop one of yours on it; `hitWild`, `hitBack` in `trainer.js`): yours
+  steps off to 84 px from it on its own side (`wildSpot`, 300 ms), then uses its special move:
+  its own type that does most to it (`bestType`) flies over and lands; the wild one flinches and
+  loses health; 650 ms later it lets fly back with its own type. Each fights as it looks: a Mega
+  or a regional form with its own stats and types (`base-stats.js` `FORM_BASE`, `fighterKey`),
+  a Mega without data as its species ×1.2 hitting, ×0.85 taking. Damage: real base stats and
+  the type chart (×4 and ×2 softened); in the red a hit three times its health knocks it out.
+- **Battle effects** (`fx.js`, drawn by `main.js` with native transitions and loops): a special
+  move is a shot in its type's colours and look (an orb with an ember tail for fire, bubbles,
+  leaves, sparks, shards, rings, wind, a star; Mega Charizard X's fire blue) with a glow. Where
+  any blow lands: a white flash and a ring swelling and fading, sparks flying out; the target
+  knocked back (3–16 px by how hard) and back; a shake only for a super-effective one or a
+  knockout; over its head the games' word ("Super effective!", "Not very effective…", "No
+  effect…"). A plain strike lands lightly in white and gold. The strip asks for a frame at each
+  of these moments (`fxSchedule`), so nothing waits for its quarter-second tick.
 - **Legendaries** (`LEGENDARY`): locked in the picker and for new agents until one is caught
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
   Azure Flute (₽1,000) and the day's Research call one. About 15 balls before one flees.
@@ -140,7 +158,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
     the lit one again for all). A species' region is where its dex number was introduced; a
     regional form's is its own (`regionOf` in `dex.js`). They combine with the search and Random.
   - An optional row "Mega: Off / Always / Auto: working & battles", only for species with a Mega
-    (Auto: Mega while its agent works and while it battles, hitting ×1.2 and taking ×0.85).
+    (Auto: Mega while its agent works and while it battles, with its Mega's own stats and types).
   - An optional row "Form: Mega X / Mega Y", only when both are drawn. Mega X is the default, and
     a choice of Y falls back to X until Y is drawn.
   - A search box, then a grid of every match: 6 columns of 92×96 cells, each with a 56 px
@@ -187,10 +205,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   closer than 70 px, they first hop apart (Hop, a 350 ms slide) to 70 px about their middle,
   pushed in together at an edge. They face each other the whole time, their moves cut facing right and left (`FACING`, sprite cache v7). Each
   strikes once (Attack, Strike, Swing, Shoot, else Hop; at least 0.5 s), the other flinching
-  (Hurt, Shake; 💢) from halfway through the blow; 150 ms between. Then one, at random, uses its
-  special move (SpAttack, Shoot, Charge, Attack; at least 0.7 s): 40% in, its first type's icon
-  (`types.js`, PokeAPI slot 1: 🔥 💧 🍃 ⚡ 👻 …) flies to the other in 450 ms, which is knocked
-  back (Hurt, 💥). Between moves each stands half-facing the other.
+  (Hurt, Shake) from halfway through the blow, knocked back a little; 150 ms between. Then one,
+  at random, uses its special move (SpAttack, Shoot, Charge, Attack; at least 0.7 s): 40% in, a
+  shot of its type that does most to the other (`bestType`; battle effects below) flies to it in
+  450 ms, which is knocked back (Hurt), with the games' word for how effective it was. Between
+  moves each stands half-facing the other.
 - **Teasing** (`teasePair`, `teaseSpot`, `onPoke` in `react.js`; with Sparring, not at the
   campfire): about every 2 min while an idle Pokémon (not a sub-agent's) stands still on a row
   with one asleep, neither sparred in 10 min, one at a time. It walks (1.5× idle speed) to 40 px

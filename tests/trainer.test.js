@@ -311,3 +311,23 @@ test("every stage between the species caught and what it is now", () => {
   assert.deepEqual(withEvolved(loadDex(null), [{ dex: 500, caught: 1, caughtAs: 500 }]).caught, [500]);
   assert.equal(caughtPick({ dex: 498 }, 1, () => 0).caughtAs, 498);
 });
+
+import { fighterKey, isFormKey, bestType, damage } from "../mods/pokemon-herd/trainer.js";
+test("forms fight with their own types and stats", () => {
+  assert.equal(fighterKey(6, { mega: "X" }), "6mX");
+  assert.deepEqual(typesOf("6mX"), ["fire", "dragon"]);
+  assert.deepEqual(typesOf("6mY"), ["fire", "flying"]);
+  assert.deepEqual(typesOf(6), ["fire", "flying"]);
+  assert.equal(isFormKey("6mX"), true);
+  assert.equal(isFormKey(6), false);
+  assert.equal(fighterKey(37, { form: "0001" }), "37f0001");
+  assert.deepEqual(typesOf("37f0001"), ["ice"]); // Alolan Vulpix
+  assert.equal(fighterKey(25, { mega: "" }), 25); // no Mega: itself
+  assert.equal(fighterKey(25, { form: "9999" }), 25);
+  // A Mega's stats: Mega Charizard X hits harder than Charizard.
+  assert.ok(damage("6mX", 3, () => 0.5).dmg > damage(6, 3, () => 0.5).dmg);
+  // Its move: the type that does most. Charizard X on Lucario (steel/fighting): fire; on a dragon: dragon.
+  assert.equal(bestType("6mX", 448), "fire");
+  assert.equal(bestType("6mX", 149), "dragon");
+  assert.equal(bestType(25, 7), "electric");
+});

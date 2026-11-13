@@ -2,7 +2,7 @@
 // legendary Pokémon. Pure.
 import { WALKABLE, REGIONS, regionOf, nameOf, isWalkable, hasShiny, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
-import { BASE } from "./base-stats.js";
+import { BASE, FORM_BASE } from "./base-stats.js";
 import { typeOf, TYPES } from "./types.js";
 
 // ---- legendary and mythical Pokémon ------------------------------------------------
@@ -97,7 +97,15 @@ const CHART = {
   fairy: [["fighting", "dragon", "dark"], ["fire", "poison", "steel"], []],
 };
 // A species' types (base-stats.js; its first type alone when unknown).
-export const typesOf = (dex) => { const b = BASE[dex]; return b && b.length > 2 ? b.slice(2) : [typeOf(dex)]; };
+// A fighter is a dex number, or a form's key: "<dex>m<X|Y|>" for a Mega, "<dex>f<folder>" for a
+// regional form (base-stats.js FORM_BASE); a form with no data fights as its species.
+const baseOf = (k) => FORM_BASE[k] ?? BASE[parseInt(k, 10)];
+export function fighterKey(dex, { form = null, mega = null } = {}) {
+  const k = mega !== null ? `${dex}m${mega}` : form ? `${dex}f${form}` : null;
+  return k && FORM_BASE[k] ? k : dex;
+}
+export const isFormKey = (k) => typeof k === "string" && !!FORM_BASE[k];
+export const typesOf = (dex) => { const b = baseOf(dex); return b && b.length > 2 ? b.slice(2) : [typeOf(parseInt(dex, 10))]; };
 // How effective a type is on a species: 0, ¼, ½, 1, 2 or 4 (both its types count).
 export function effectOn(type, dex) {
   const [sup, not, none] = CHART[type] ?? [[], [], []];
@@ -106,6 +114,11 @@ export function effectOn(type, dex) {
 // The attacker's best: of its own types, the one that does most to the target (as a move of its type).
 export function bestEffect(attacker, target) {
   return Math.max(...typesOf(attacker).map((t) => effectOn(t, target)));
+}
+// The type of the attacker's move against the target: its own type that does the most (its first on a tie).
+export function bestType(attacker, target) {
+  const ts = typesOf(attacker);
+  return ts.reduce((b, t) => (effectOn(t, target) > effectOn(b, target) ? t : b), ts[0]);
 }
 export const strongAgainst = (attacker, target) => bestEffect(attacker, target) > 1;
 // What the games say, and how much of it lands here (×4 and ×2 softened, so no single hit is all).
@@ -127,7 +140,7 @@ export function damage(attacker, target, rnd = Math.random, how = {}) {
 
 export const RED = 0.2; // its bar turns red, blinking: the next hit may be too much
 export const OVERKILL = 3; // simulated: careful players (stopping in the red) knock out ~5%, greedy ones ~15–20%
-const statsOf = (dex) => BASE[dex] ?? [70, 70];
+const statsOf = (dex) => baseOf(dex) ?? [70, 70];
 export const powerRatio = (attacker, target) => Math.max(0.35, Math.min(2.5, statsOf(attacker)[0] / statsOf(target)[1]));
 // `mega`: the attacker fights Mega Evolved: it hits ×1.2 (and, hit back, takes ×0.85: hitBack).
 export const MEGA_HIT = 1.2, MEGA_TAKE = 0.85;

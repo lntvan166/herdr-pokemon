@@ -262,7 +262,7 @@ test("onDizzy reels about 2.5 s with 💫", () => {
   assert.deepEqual(m.react, { anim: "Tumble", animUntil: 3000, until: 3000, icon: "💫" });
 });
 
-import { battle, reactIcon } from "../mods/pokemon-herd/react.js";
+import { battle, reactIcon, blowOn } from "../mods/pokemon-herd/react.js";
 import { typeOf, TYPE_ICON } from "../mods/pokemon-herd/types.js";
 test("typeOf: each species' first type", () => {
   assert.equal(typeOf(6), "fire");
@@ -290,16 +290,22 @@ test("battle: they trade blows face to face, then one throws its type across", (
   assert.equal(a.react.shot.icon, "🔥");
   assert.equal(a.react.shot.to, 160);
   assert.equal(b.react.shot, undefined);
-  assert.equal(b.react.seq.at(-1).icon, "💥");
+  assert.equal(b.react.seq.at(-1).blow, "special"); // knocked back (fx.js), no emoji now
+  assert.equal(b.react.seq[0].blow, "strike");
   assert.equal(b.react.seq.at(-1).at, a.react.shot.until);
   assert.equal(a.lastSpar, 0);
   // Poses: facing the other, its move turned that way; between moves it stands facing it.
   assert.deepEqual(pose(a, "idle", 10, false, "l"), { sprite: "react", anim: "Attack", face: "r" });
   assert.deepEqual(pose(b, "idle", 10, false, "r"), { sprite: "idleL" });
-  assert.equal(reactIcon(b, 400), "💢");
-  assert.equal(reactIcon(b, end), null);
+  assert.equal(reactIcon(b, 400), null);
+  assert.equal(blowOn(b, 400).blow, "strike"); // the strike that landed at 300
+  assert.equal(blowOn(b, 1100), null);
   battle(a, b, A, B, 0, () => 0.9); // b wins: its type flies the other way
   assert.equal(b.react.shot.icon, "💧");
+  // Its special move's type and effect, when given, ride on the shot and the blow it lands.
+  battle(a, b, { ...A, move: { type: "fire", eff: 2 } }, B, 0, () => 0.1);
+  assert.deepEqual(a.react.shot.move, { type: "fire", eff: 2 });
+  assert.equal(b.react.seq.at(-1).eff, 2);
 });
 
 import { battleSpots, BATTLE_GAP } from "../mods/pokemon-herd/react.js";

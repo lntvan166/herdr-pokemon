@@ -48,6 +48,10 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 - **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
   and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
+- **Moves you can see.** Yours steps off a little and uses its best type against it: a fireball
+  with a trail of embers, bubbles, leaves, sparks, rings… A hit flashes, throws sparks and knocks
+  it back; a super-effective one shakes it. Megas and regional forms fight with their own types
+  and stats (Mega Charizard X: Fire/Dragon, blue fire).
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
   lost). Pick a strong attacker with a good type.
 - **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a bit more than
