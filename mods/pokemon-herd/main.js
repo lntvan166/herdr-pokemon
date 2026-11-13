@@ -1530,8 +1530,9 @@ export default class PokemonHerd extends View {
         v.redWarn = now;
       } else {
         v.redWarn = 0;
-        const hit = hitWild(v.pick, pk.dex, Math.random, !!pk.alpha);
-        const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0 }, v.pick);
+        const mega = megaShown(pk, "working"); // it Mega Evolves for the fight: stronger
+        const hit = hitWild(v.pick, pk.dex, Math.random, !!pk.alpha, mega);
+        const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0, mega }, v.pick);
         v.fight = { at: now, until: now + (back ? 2400 : 1600), x: v.x, own: drop.addr, ownX: dm.x, ownName: fullName(pk.dex, pk.form), back, ...hit };
         dm.dir = v.x > dm.x ? "r" : "l";
         const anim = reactionAnim("spar", hasOf(dMeta));
@@ -1818,7 +1819,7 @@ export default class PokemonHerd extends View {
     const TIPS = [
       ["👆", "Your herd", "Click one: go to its agent. Right-click: choose another."],
       ["🎁", "Wild Pokémon", "Click one walking by for its gift and ₽, again to throw a ball."],
-      ["⚔️", "Weaken it", "Drop one of yours on it. Lower health, easier catch. Stop at red."],
+      ["⚔️", "Weaken it", "Drop one of yours on it (a Mega Evolves, and hits harder). Stop at red."],
       ["🍒", "Berries", "Razz before a ball: easier catch. Oran, Sitrus: hearts."],
       ["✨", "Rare ones", "Shiny 1 in 64 · Alpha α 1 in 40 · Legendary 1 in 150."],
       ["📋", "Today", "3 tasks a day. All three: 5 Ultra Balls and a legendary."],
@@ -3597,7 +3598,7 @@ export default class PokemonHerd extends View {
       .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
           .child(div().text_size(11.5).text_color(t.muted).mr(4).child("Mega"))
-          .children([["off", "Off"], ["on", "On"], ["auto", "Auto: while working"]].map(([mode, txt]) => div()
+          .children([["off", "Off"], ["on", "Always"], ["auto", "Auto: working & battles"]].map(([mode, txt]) => div()
             .id(`mega-${mode}`).h(26).px(10).rounded(6).flex().items_center().text_size(12).border_1()
             .border_color(this.megaMode === mode ? t.accent : t.border)
             .bg(this.megaMode === mode ? t.selected : "#00000000")

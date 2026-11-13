@@ -279,3 +279,9 @@ test("a wild one hits back; yours faints at 0", () => {
   assert.equal(r.fainted, true);
   assert.ok(hitBack({ dex: 1 }, { dex: 7 }, () => 0).hp > 0.8); // Squirtle's water on grass: not very
 });
+
+import { MEGA_HIT } from "../mods/pokemon-herd/trainer.js";
+test("a Mega hits harder and takes less", () => {
+  assert.ok(Math.abs((1 - hitWild({ dex: 4 }, 6, () => 0, false, true).hp) - (1 - hitWild({ dex: 4 }, 6, () => 0).hp) * MEGA_HIT) < 1e-9);
+  assert.ok(hitBack({ dex: 6, mega: true }, { dex: 9 }, () => 0).hp > hitBack({ dex: 6 }, { dex: 9 }, () => 0).hp);
+});

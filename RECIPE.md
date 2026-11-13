@@ -139,7 +139,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
     one region of Kanto, Johto, Hoenn, Sinnoh, Unova, Kalos, Alola, Galar, Hisui, Paldea (click
     the lit one again for all). A species' region is where its dex number was introduced; a
     regional form's is its own (`regionOf` in `dex.js`). They combine with the search and Random.
-  - An optional row "Mega: Off / On / Auto: while working", only for species with a Mega.
+  - An optional row "Mega: Off / Always / Auto: working & battles", only for species with a Mega
+    (Auto: Mega while its agent works and while it battles, hitting ×1.2 and taking ×0.85).
   - An optional row "Form: Mega X / Mega Y", only when both are drawn. Mega X is the default, and
     a choice of Y falls back to X until Y is drawn.
   - A search box, then a grid of every match: 6 columns of 92×96 cells, each with a 56 px

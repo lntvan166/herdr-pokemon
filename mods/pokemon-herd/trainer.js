@@ -128,9 +128,13 @@ export function damage(attacker, target, rnd = Math.random, how = {}) {
 export const RED = 0.2;
 const statsOf = (dex) => BASE[dex] ?? [70, 70];
 export const powerRatio = (attacker, target) => Math.max(0.35, Math.min(2.5, statsOf(attacker)[0] / statsOf(target)[1]));
-export function hitWild(wild, attacker, rnd = Math.random, alpha = false) {
+// `mega`: the attacker fights Mega Evolved: it hits ×1.2 (and, hit back, takes ×0.85: hitBack).
+export const MEGA_HIT = 1.2, MEGA_TAKE = 0.85;
+export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false) {
   const hp = Number.isFinite(wild.hp) ? wild.hp : 1;
-  const { dmg, eff, text } = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha });
+  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha });
+  const { eff, text } = hit;
+  const dmg = hit.dmg * (mega ? MEGA_HIT : 1);
   const strong = eff > 1;
   const left = hp > RED ? Math.max(0.05, hp - dmg) : Math.max(0, hp - dmg);
   return { hp: left, dmg, strong, eff, text, fainted: left <= 0.001 };
@@ -143,7 +147,7 @@ export function hitBack(own, wild, rnd = Math.random) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
   const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha });
   const { eff, text } = hit;
-  const dmg = hit.dmg * 0.75 * (1 - 0.02 * Math.min(5, own.hearts ?? 0));
+  const dmg = hit.dmg * 0.75 * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
   const left = Math.max(0, hp - dmg);
   return { hp: left, dmg, eff, text, fainted: left <= 0.001 };
 }

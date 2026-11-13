@@ -8,7 +8,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 
 ## Highlights
 
-- 🐾 **974 Pokémon**, regional forms, **Mega Evolution** while an agent works, shinies.
+- 🐾 **974 Pokémon**, regional forms, **Mega Evolution** while an agent works or battles (stronger as a Mega), shinies.
 - 🎯 **Catch wild Pokémon** walking across the strip with Poké Balls and Berries.
 - ⚔️ **Battle them first**: real base stats and the full type chart ("It's super effective!").
   They hit back.
