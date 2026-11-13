@@ -229,6 +229,7 @@ export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
     hearts: wild.alpha ? 2 : 1,
     ...(wild.alpha ? { alpha: true } : {}),
     caught: now,
+    caughtAs: wild.dex, // the species it was caught as (withEvolved)
     ...(BALLS.includes(ball) ? { ball } : {}),
     nature: keys[Math.floor(rnd() * keys.length)],
   };
@@ -259,14 +260,25 @@ export function withCaught(d, pick) {
   return { ...d, seen: add(d.seen, pick.dex), caught: add(d.caught, pick.dex), shiny: pick.shiny ? add(d.shiny, pick.dex) : d.shiny, alpha: pick.alpha ? add(d.alpha ?? [], pick.dex) : (d.alpha ?? []) };
 }
 // Pokémon you caught, as they are now (`picks`: every saved one): one that evolved since is that
-// species caught too, as the games register an evolution (and its shiny or Alpha with it). One
-// chosen in the picker doesn't count: the Pokédex is what you caught. Null when nothing's new.
+// species caught too, as the games register an evolution (and its shiny or Alpha with it), and so
+// is every stage between: back along its line to the species it was caught as (the first one
+// already in the Pokédex). Tepig caught, now an Emboar: Pignite and Emboar. One chosen in the
+// picker doesn't count: the Pokédex is what you caught. Null when nothing's new.
 export function withEvolved(d, picks) {
   let next = d;
   for (const p of picks) {
     if (!p?.caught || !isWalkable(p.dex)) continue;
+    // What it is now (with its shiny or Alpha), then each stage before it not in yet, back to one
+    // that is (the one it was caught as, or an earlier catch of that line).
     const newShiny = p.shiny && !next.shiny.includes(p.dex), newAlpha = p.alpha && !(next.alpha ?? []).includes(p.dex);
     if (!next.caught.includes(p.dex) || newShiny || newAlpha) next = withCaught(next, p);
+    // Only one that evolved since it was caught (`caughtAs`, or for one caught before that was
+    // kept, an evolvedAt): an Emboar caught as an Emboar has no Tepig behind it.
+    if (p.caughtAs === p.dex || (p.caughtAs === undefined && !p.evolvedAt)) continue;
+    for (let dex = EVOLVES_FROM[p.dex], k = 0; dex !== undefined && k < 3; dex = EVOLVES_FROM[dex], k++) {
+      if (!next.caught.includes(dex) && isWalkable(dex)) next = withCaught(next, { ...p, dex });
+      if (dex === p.caughtAs || (p.caughtAs === undefined && next.caught.includes(dex) && d.caught.includes(dex))) break;
+    }
   }
   return next === d ? null : next;
 }

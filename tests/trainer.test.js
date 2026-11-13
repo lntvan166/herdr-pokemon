@@ -298,3 +298,16 @@ test("an evolved caught Pokémon registers its new species as caught; a picked o
   assert.deepEqual(withEvolved(after, [{ dex: 5, caught: 1, shiny: true, alpha: true }]).shiny, [5]);
   assert.deepEqual(withEvolved(after, [{ dex: 5, caught: 1, alpha: true }]).alpha, [5]);
 });
+
+test("every stage between the species caught and what it is now", () => {
+  const d = withCaught(loadDex(null), { dex: 498 }); // Tepig caught
+  assert.deepEqual(withEvolved(d, [{ dex: 500, caught: 1, caughtAs: 498 }]).caught.sort((a, b) => a - b), [498, 499, 500]);
+  const mid = withCaught(loadDex(null), { dex: 499 }); // Pignite caught
+  assert.deepEqual(withEvolved(mid, [{ dex: 500, caught: 1, caughtAs: 499 }]).caught.sort((a, b) => a - b), [499, 500]);
+  // Caught before caughtAs was kept: back along its line only if it evolved (evolvedAt).
+  const old = withCaught(withCaught(loadDex(null), { dex: 498 }), { dex: 500 }); // Emboar in already, Pignite missed
+  assert.deepEqual(withEvolved(old, [{ dex: 500, caught: 1, evolvedAt: 5 }]).caught.sort((a, b) => a - b), [498, 499, 500]);
+  assert.equal(withEvolved(withCaught(loadDex(null), { dex: 500 }), [{ dex: 500, caught: 1 }]), null); // a wild Emboar
+  assert.deepEqual(withEvolved(loadDex(null), [{ dex: 500, caught: 1, caughtAs: 500 }]).caught, [500]);
+  assert.equal(caughtPick({ dex: 498 }, 1, () => 0).caughtAs, 498);
+});
