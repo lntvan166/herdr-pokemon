@@ -281,11 +281,13 @@ const ALPHA_RED = "#e5484d";
 const alphaGlow = (mid, ground, box, scale) => {
   // A red ring on the ground under its feet (wider than its shadow), breathing; and a few red
   // motes rising beside it. No box round it.
-  const w = Math.max(24, box.w * scale * 1.1), h = Math.max(6, 8 * scale);
+  const w = Math.max(26, box.w * scale * 1.15), h = Math.max(9, 11 * scale);
   const motes = [[-0.42, 0.55, 1300], [0.38, 0.35, 1700], [-0.15, 0.2, 2100], [0.2, 0.7, 1500]];
   return div().absolute().left(0).top(0)
-    .child(div().absolute().left(mid - w / 2).top(ground - h / 2).w(w).h(h).rounded_full()
-      .bg(`${ALPHA_RED}aa`).loop("opacity", { from: 0.35, to: 1, period: 1400 }))
+    // A bright red rim round a pale red inside (as the README's GIF): solid red turned muddy
+    // over the shadow and the grass.
+    .child(div().absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).rounded_full()
+      .border_2().border_color("#ff4a4a").bg("#ff5a5a44").loop("opacity", { from: 0.45, to: 1, period: 1400 }))
     .children(motes.map(([dx, dy, period]) => div().absolute()
       .left(mid + dx * box.w * scale).top(ground - dy * box.h * scale).size(3).rounded_full()
       .bg(ALPHA_RED).loop("opacity", { from: 0, to: 0.9, period })));
@@ -969,8 +971,8 @@ export default class PokemonHerd extends View {
     root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
       .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
       .child(div()
-        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
+        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
         .when(!!v.pick.alpha, (el) => el.child(alphaMark(mid - (s.box.w / 2) * scale - 14, headY + 2)))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
@@ -2217,8 +2219,8 @@ export default class PokemonHerd extends View {
         hit = { left: SLOT_MID - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
         const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
         body = div()
-          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale)))
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
+          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale))) // over its shadow, not darkened by it
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
           .when(!!pick.alpha, (el) => el.child(alphaMark(SLOT_MID - (s.box.w / 2) * scale - 14, headY + 2)))
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
