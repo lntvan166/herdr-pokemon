@@ -219,6 +219,11 @@ function updatePick(slot, f) {
   if ((next.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
   return next;
 }
+// dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
+let dev = null;
+import("./dev.js").then((m) => { dev = m; }, () => {});
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t) => openBag(t) };
+
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => loadDex(shared(DEX_KEY));
 const saveDex = (d) => setShared(DEX_KEY, d);
@@ -267,9 +272,18 @@ function payDexGoals() {
 }
 // An Alpha: a red glow behind it (breathing), and a red α by its head.
 const ALPHA_RED = "#e5484d";
-const alphaGlow = (mid, ground, box, scale) => div().absolute()
-  .left(mid - (box.w / 2) * scale - 6).top(ground - box.h * scale - 6).w(box.w * scale + 12).h(box.h * scale + 10)
-  .rounded_full().bg(`${ALPHA_RED}70`).loop("opacity", { from: 0.3, to: 0.9, period: 1600 });
+const alphaGlow = (mid, ground, box, scale) => {
+  // A red ring on the ground under its feet (wider than its shadow), breathing; and a few red
+  // motes rising beside it. No box round it.
+  const w = Math.max(24, box.w * scale * 1.1), h = Math.max(6, 8 * scale);
+  const motes = [[-0.42, 0.55, 1300], [0.38, 0.35, 1700], [-0.15, 0.2, 2100], [0.2, 0.7, 1500]];
+  return div().absolute().left(0).top(0)
+    .child(div().absolute().left(mid - w / 2).top(ground - h / 2).w(w).h(h).rounded_full()
+      .bg(`${ALPHA_RED}aa`).loop("opacity", { from: 0.35, to: 1, period: 1400 }))
+    .children(motes.map(([dx, dy, period]) => div().absolute()
+      .left(mid + dx * box.w * scale).top(ground - dy * box.h * scale).size(3).rounded_full()
+      .bg(ALPHA_RED).loop("opacity", { from: 0, to: 0.9, period })));
+};
 const alphaMark = (x, y) => div().absolute().left(x).top(Math.max(0, y)).h(14).px(3).rounded(4).flex().items_center()
   .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α");
 const noteEvolved = () => { const b = bag(); saveBag(mark(b, { evolutions: b.marks.evolutions + 1 })); };
@@ -424,6 +438,7 @@ export default class PokemonHerd extends View {
       for (;;) {
         const c = await nextCommand();
         if (c === "bag") { openBag(); continue; }
+        if (dev?.command?.(c, devApi)) continue; // dev.js, on this machine only
         if (c === "settings") { openSettings(this.update()); continue; }
         if (c !== "pick") continue;
         const list = herdAgents();
@@ -729,6 +744,7 @@ export default class PokemonHerd extends View {
     if (!v && now >= this.visitAt) {
       const pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds() });
       this.legendNext = false;
+      dev?.wild?.(pick, devApi); // dev.js: a wild one asked for
       const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
       if (seen) saveDex(seen);
       const dir = (Math.random() < 0.5 ? "r" : "l");
