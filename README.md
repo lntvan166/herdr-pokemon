@@ -4,7 +4,7 @@
 work turns into a Pokémon game.** It walks while its agent works, naps when it's idle, and calls
 for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 
-<p align="center"><img src="docs/demo/battle.gif" alt="On a bright day Mega Charizard X and Lucario trade blows, then its blue fireball knocks Lucario back; Pikachu sleeps through it and a shiny Mega Gengar sparkles" width="592"></p>
+<p align="center"><img src="docs/demo/battle.gif" alt="On a bright day Mega Charizard X and Lucario trade blows, then its blue fireball bursts on Lucario and knocks it back: Super effective! Pikachu sleeps through it and a shiny Mega Gengar sparkles" width="592"></p>
 
 ## Highlights
 
@@ -41,7 +41,7 @@ Today and Pokédex), the ball and Berry to throw, and **Settings** (with a **Gui
 
 ## Battle to catch
 
-<p align="center"><img src="docs/demo/catch.gif" alt="A wild Venusaur walks in; Mega Charizard X attacks (It's super effective!), Venusaur hits back (It's not very effective…), a second hit puts it in the red, a Poké Ball flies and shakes three times: Gotcha!" width="592"></p>
+<p align="center"><img src="docs/demo/catch.gif" alt="A wild Venusaur walks in; Mega Charizard X, dropped on it, steps off and fires blue flames (Super effective!), Venusaur fires leaves back (Not very effective…), a second fireball puts it in the red, a Poké Ball arcs in and wobbles three times: Gotcha!" width="592"></p>
 
 A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** and they battle:
 

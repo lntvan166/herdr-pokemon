@@ -685,24 +685,31 @@ def battle(tmp):
         elif 1900 <= t < 2500: l = play("0448", "react-AttackL", 1900)
         elif 3350 <= t < 4300: l = play("0448", "react-HurtL", 3350)
         else: l = play("0448", "idleL", 0)
-        cast = [(A("0025", "sleep"), t, 34), (*z, zx), (*l, lx), (A("0094-0001s", "idleL"), t, gx)]
+        # Knocked back by each blow (fx.js knockOf): a strike lightly, the fireball hard, shaking.
+        p_strike, p_fire = fx("power(1, false)"), fx("power(2)")
+        kl, sl = knock(t - 3350, p_fire) if t >= 3350 else knock(t - 1300, p_strike)
+        kz, sz = knock(t - 2150, p_strike)
+        cast = [(A("0025", "sleep"), t, 34, 0), (*z, zx - kz, sz), (*l, lx + kl, sl), (A("0094-0001s", "idleL"), t, gx, 0)]
         args = [sky_png]
-        for an, tt, cx in cast:
-            x, y = an.place(cx, ground)
-            args += [an.at(max(0, tt)), "-geometry", f"+{x}+{y}", "-composite"]
-        if 1300 <= t < 1500: args += burst(lx - 8, ground - 26, 7)
-        if 2150 <= t < 2350: args += burst(zx + 8, ground - 26, 7)
-        if 3000 <= t < 3350:  # the fireball, across
+        for an, tt, cx, dy in cast:
+            x, y = an.place(round(cx), ground)
+            args += [an.at(max(0, tt)), "-geometry", f"+{x}+{y + round(dy)}", "-composite"]
+        STRIKE = "{ glow: '#fff6c8', core: '#ffd23a', mid: '#fff2a8', hot: '#ffffff', look: 'star' }"
+        FIRE = "moveStyle('fire', true)"
+        if 1300 <= t < 1770: args += fx_burst(STRIKE, p_strike, lx - 6, ground - 26, t - 1300, 3)
+        if 2150 <= t < 2620: args += fx_burst(STRIKE, p_strike, zx + 6, ground - 28, t - 2150, 5)
+        if 3000 <= t < 3350:  # the fireball, across (fx.js shotParts)
             f = (t - 3000) / 350
-            args += fireball(round(zx + 44 + f * (lx - zx - 58)), ground - 22, 0.9, "blue")
-        if 3350 <= t < 3700: args += burst(lx - 8, ground - 26, 10 if t < 3500 else 7)
+            args += fx_shot(FIRE, 1, zx + 14 * FXK + f * (lx - zx - 26 * FXK), ground - 26, t)
+        if 3350 <= t < 3820: args += fx_burst(FIRE, p_fire, lx - 6, ground - 26, t - 3350, 9)
         # The shiny's sparkles, twinkling.
         for j, (dx, dy, r) in enumerate([(-15, -38, 2.2), (12, -30, 1.8), (-12, -14, 1.6), (15, -10, 2.2)]):
             if (i // 3 + j) % 4 < 2:
                 cx, cy = gx + dx * 1.6, ground + dy - 6
                 args += ["-fill", "#ffffff" if j % 2 else "#ffe9a8", "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
         args += ["-filter", "point", "-resize", f"{Z * 100}%"]
-        # zZ over Pikachu; names on the strip's dark.
+        # The games' word over Lucario (Mega Charizard X's fire on steel); zZ over Pikachu; names.
+        if t >= 3350: args += fx_word(2, lx * Z, (ground - 64) * Z, t - 3350, W * Z)
         z_text = ["z", "zZ", "zZz", "zZ"][(t // 700) % 4]
         args += ["-font", FONT, "-gravity", "none", "-fill", "#ffffff", "-pointsize", "18", "-annotate", f"+{34 * Z + 22}+{(ground - 50) * Z}", z_text]
         for tag, cx, st in names:
@@ -737,68 +744,211 @@ def say(text, cx, y, W, size=14, color="#ffffff"):
             "-font", FONT, "-fill", color, "-pointsize", str(size), "-annotate", f"+{x0 + 10}+{y + size + 3}", text]
 
 
+FX_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mods", "pokemon-herd", "fx.js")
+_fx = {}
+
+
+def fx(expr):
+    """A value worked out by the mod's own fx.js (so the demos show what the strip draws): `expr`
+    in JavaScript, with fx.js's exports in scope, as JSON."""
+    if expr not in _fx:
+        js = f"import('file://{os.path.abspath(FX_JS)}').then(m => {{ with (m) console.log(JSON.stringify({expr})); }})"
+        _fx[expr] = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
+    return _fx[expr]
+
+
+FXK = 0.7  # the effects' px to this world's (sprites drawn 1:1 here, then ×2)
+
+
+def ease_out(u):
+    u = min(max(u, 0), 1)
+    return 1 - (1 - u) ** 2
+
+
+def hexa(color, a):
+    return f"{color}{max(0, min(255, round(255 * a))):02x}"
+
+
+def fx_shot(style_expr, dir_, x, y, t):
+    """A move in flight at (x, y): fx.js shotParts (its type's look, a glow, a tail), flickering."""
+    args = []
+    for p in fx(f"shotParts({style_expr}, {dir_})"):
+        a = p.get("opacity", 1)
+        if p.get("flicker"):
+            a *= 0.775 + 0.225 * math.sin(2 * math.pi * t / max(100, p["flicker"]))
+        px, py, w, h = x + p["x"] * FXK, y + p["y"] * FXK, p["w"] * FXK / 2, p["h"] * FXK / 2
+        if p.get("ring"):
+            args += ["-fill", "none", "-stroke", hexa(p["color"], a), "-strokewidth", "1.2", "-draw", f"ellipse {px:.1f},{py:.1f} {w:.1f},{h:.1f} 0,360", "-stroke", "none"]
+        elif p.get("round"):
+            args += ["-fill", hexa(p["color"], a), "-draw", f"ellipse {px:.1f},{py:.1f} {w:.1f},{h:.1f} 0,360"]
+        else:
+            args += ["-fill", hexa(p["color"], a), "-draw", f"rectangle {px - w:.1f},{py - h:.1f} {px + w:.1f},{py + h:.1f}"]
+    return args
+
+
+def fx_burst(style_expr, power, x, y, t, seed=1):
+    """Where a blow lands, `t` ms after: fx.js burstParts (a flash, a ring, sparks flying out)."""
+    b = fx(f"burstParts({style_expr}, {power}, {seed})")
+    args = []
+    u = t / 220
+    if u < 1:
+        d = (b["flash"]["from"] + (b["flash"]["to"] - b["flash"]["from"]) * ease_out(u)) * FXK / 2
+        args += ["-fill", hexa(b["flash"]["color"], 0.95 * (1 - u * u)), "-draw", f"ellipse {x},{y} {d:.1f},{d:.1f} 0,360"]
+    u = t / 360
+    if u < 1:
+        d = (b["ring"]["from"] + (b["ring"]["to"] - b["ring"]["from"]) * ease_out(u)) * FXK / 2
+        args += ["-fill", "none", "-stroke", hexa(b["ring"]["color"], 0.8 * (1 - u * u)), "-strokewidth", "1.5",
+                 "-draw", f"ellipse {x},{y} {d:.1f},{d:.1f} 0,360", "-stroke", "none"]
+    for sp in b["sparks"]:
+        u = t / 420
+        if u >= 1:
+            continue
+        k = ease_out(t / 380)
+        sx, sy, r = x + sp["dx"] * k * FXK, y + sp["dy"] * k * FXK, sp["size"] * FXK / 2
+        col = hexa(sp["color"], 1 - u * u)
+        args += ["-fill", col, "-draw", (f"ellipse {sx:.1f},{sy:.1f} {r:.1f},{r:.1f} 0,360" if sp["round"] else f"rectangle {sx - r:.1f},{sy - r:.1f} {sx + r:.1f},{sy + r:.1f}")]
+    return args
+
+
+def knock(t, power):
+    """How far a Pokémon hit `t` ms ago stands from its spot (fx.js knockOf: out fast, back slow), and
+    its shake (up, down) for a big one."""
+    k = fx(f"knockOf({power})")
+    out, back, shake_ms = fx("[KNOCK_OUT, KNOCK_BACK, SHAKE_MS]")
+    if t < 0 or t >= out + back:
+        return 0, 0
+    off = k["px"] * FXK * (ease_out(t / 70) if t < out else 1 - ease_out((t - out) / back))
+    dy = (2 if (t // 50) % 2 else -2) * FXK if k["shake"] and t < shake_ms else 0
+    return off, dy
+
+
+def fx_word(eff, cx, head_y, t, W):
+    """The games' word over a Pokémon hit `t` ms ago (fx.js effectWord), popping up, fading (scaled
+    image coordinates)."""
+    w = fx(f"effectWord({eff})")
+    if not w or t < 0 or t >= 1300:
+        return []
+    rise = round(8 * (1 - ease_out(t / 160)))
+    a = min(1, t / 120) if t < 900 else max(0, 1 - (t - 900) / 260)
+    text, color = w
+    tw = round(glyph_width(text, 12) * 1.08)
+    x0 = max(4, min(W - tw - 16, cx - tw // 2 - 6))
+    y0 = head_y - 26 + rise
+    return ["-fill", hexa("#000000", 0.72 * a), "-draw", f"roundrectangle {x0},{y0} {x0 + tw + 12},{y0 + 18} 6,6",
+            "-font", FONT.replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"), "-fill", hexa(color, a), "-pointsize", "12",
+            "-annotate", f"+{x0 + 6}+{y0 + 14}", text, "-font", FONT]
+
+
 def catch(tmp):
-    """README: battle to catch. A wild Venusaur walks in; Mega Charizard X attacks (fire on grass:
-    super effective), Venusaur hits back (grass on fire: not very effective), a second hit puts it
-    in the red, a Poké Ball flies, shakes three times: Gotcha."""
+    """README: battle to catch, as the strip plays it (fx.js). Mega Charizard X is dropped by a wild
+    Venusaur and steps off; its blue fire flies over (fire on grass: super effective), a flash,
+    sparks, Venusaur knocked back; Venusaur fires leaves back (not very effective); a second fireball
+    puts it in the red; a Poké Ball arcs in, it flashes into the ball, three wobbles: Gotcha."""
     A = lambda f, n: Anim.get(f, n, tmp)
     W, H, Z = 296, 118, 2
     horizon = 88
     ground = horizon + 4
     sky_png = bright_sky(W, H, horizon, tmp, "catch")
-    zx, vx0, vx = 92, 330, 206
+    vx0, vx = 330, 206
+    zx0, zx = 172, vx - 84  # dropped close, it steps off to 84 px (fx.js wildSpot, FX_GAP)
     ball = os.path.join(tmp, "catch-ball.png")
-    magick(os.path.join(ART_DIR, "items-poke-ball.png"), "-filter", "point", "-resize", "16x16", ball)
+    magick(os.path.join(ART_DIR, "items-poke-ball.png"), "-filter", "point", "-resize", "12x12", ball)
+    FIRE, LEAF = "moveStyle('fire', true)", "MOVE.grass"
+    p_fire, p_leaf = fx("power(2)"), fx("power(0.5)")
+    # Rounds: [when it attacks, its shot's launch and landing, the hit back's launch and landing].
+    rounds = [(1900, 2180, 2440, 3340, 3600), (4300, 4580, 4840, 5740, 6000)]
+    hp_v = [(2440, 0.45), (4840, 0.14)]
+    THROW = 6500
+    up, down, into, first_shake, every, wob = fx("[THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE]")
+    done = THROW + first_shake + 3 * every
     frames = []
-    for i in range(200):  # 10 s
+    for i in range(round((done + 1100) / TICK)):
         t = i * TICK
-        # Venusaur: walks in (0-1.5 s), flinches, hits back, flinches; then it's in the ball.
+        vhit = max([h for (_, _, h, _, _) in rounds if h <= t], default=None)
+        zhit = max([h for (*_, h) in rounds if h <= t], default=None)
+        # Venusaur: walks in, stands facing Charizard; flinches when hit, fires back.
         x = vx if t >= 1500 else round(vx0 + (vx - vx0) * t / 1500)
+        v = None
         if t < 1500: v = (A("0003", "walkL"), t)
-        elif 1900 <= t < 2500: v = (A("0003", "react-HurtL"), t - 1900)
-        elif 2900 <= t < 3500: v = (A("0003", "react-AttackL"), t - 2900)
-        elif 4400 <= t < 5000: v = (A("0003", "react-HurtL"), t - 4400)
-        else: v = (A("0003", "idleL"), t)
-        if 1600 <= t < 2200: z = (A("0006-0001", "react-AttackR"), t - 1600)
-        elif 3200 <= t < 3700: z = (A("0006-0001", "react-HurtR"), t - 3200)
-        elif 4100 <= t < 4700: z = (A("0006-0001", "react-AttackR"), t - 4100)
-        else: z = (A("0006-0001", "idleR"), t)
+        for (a0, l0, h0, bl, bh) in rounds:
+            if h0 <= t < h0 + 600: v = (A("0003", "react-HurtL"), t - h0)
+            elif bl - 250 <= t < bl + 450: v = (A("0003", "react-ShootL"), t - bl + 250)
+        v = v or (A("0003", "idleL"), t)
+        # Charizard: walks up to it, is dropped close, steps off, then its special move each round.
+        if t < 1500: cx_z, z = 80 + (zx0 - 80) * t / 1500, (A("0006-0001", "walkR"), t)
+        elif t < 1600: cx_z, z = zx0, (A("0006-0001", "idleR"), t)
+        elif t < 1900: cx_z, z = zx0 + (zx - zx0) * ease_out((t - 1600) / 300), (A("0006-0001", "idleR"), t)
+        else:
+            cx_z, z = zx, (A("0006-0001", "idleR"), t)
+            for (a0, l0, h0, bl, bh) in rounds:
+                if a0 <= t < a0 + 700: z = (A("0006-0001", "react-SpAttackR"), t - a0)
+                elif bh <= t < bh + 600: z = (A("0006-0001", "react-HurtR"), t - bh)
+        kv, sv = knock(t - vhit, p_fire) if vhit is not None else (0, 0)
+        kz, sz = knock(t - zhit, p_leaf) if zhit is not None else (0, 0)
         args = [sky_png]
-        cast = [(*z, zx)] + ([(*v, x)] if t < 6000 else [])
-        for an, tt, cx in cast:
-            px, py = an.place(cx, ground)
-            args += [an.at(max(0, tt)), "-geometry", f"+{px}+{py}", "-composite"]
-        if 1900 <= t < 2100 or 4400 <= t < 4600: args += burst(vx - 8, ground - 26, 8)
-        if 3200 <= t < 3400: args += burst(zx + 10, ground - 26, 7)
-        # Health: Venusaur's over its head once hit; Charizard's once hit back.
-        vhp = 1 if t < 2000 else 0.45 if t < 4500 else 0.14
-        if 2000 <= t < 6000: args += hp_bar(vx, ground - 64, vhp, not (vhp < 0.2 and (i // 4) % 2))
-        if t >= 3300: args += hp_bar(zx, ground - 64, 0.9)
-        # The ball: thrown in an arc (5.4-6 s), then on the ground, shaking three times.
-        if 5400 <= t < 6000:
-            f = (t - 5400) / 600
-            bx, by = round(40 + (vx - 40) * f), round(20 + (ground - 30 - 20) * f - 40 * f * (1 - f) * 2)
-            args += [ball, "-geometry", f"+{bx - 8}+{by - 8}", "-composite"]
-        if 5900 <= t < 6100: args += burst(vx, ground - 16, 9)
-        if t >= 6000:
-            k = (t - 6200) // 120
-            wob = [-2, 2, -2, 0][k % 4] if 6200 <= t < 8000 and (t - 6200) % 600 < 480 else 0
-            args += [ball, "-geometry", f"+{vx - 8 + wob}+{ground - 16}", "-composite"]
-        if t >= 8100:
+        cast = [(*z, cx_z - kz, sz)] + ([(*v, x + kv, sv)] if t < THROW + up + down else [])
+        for an, tt, cx, dy in cast:
+            px, py = an.place(round(cx), ground)
+            args += [an.at(max(0, tt)), "-geometry", f"+{px}+{py + round(dy)}", "-composite"]
+        # The Pokémon flashing into the ball.
+        if THROW + up + down <= t < THROW + first_shake and (i // 2) % 2 == 0:
+            px, py = A("0003", "idleL").place(vx, ground)
+            args += [A("0003", "idleL").at(t), "-geometry", f"+{px}+{py}", "-composite"]
+        mid_v, mid_z = ground - 24, ground - 28
+        for (a0, l0, h0, bl, bh) in rounds:
+            if l0 <= t < h0:
+                f = (t - l0) / (h0 - l0)
+                args += fx_shot(FIRE, 1, zx + 14 * FXK + f * (vx - zx - 26 * FXK), mid_z, t)
+            if h0 <= t < h0 + 470: args += fx_burst(FIRE, p_fire, vx - 6, mid_v, t - h0, h0)
+            if bl <= t < bh:
+                f = (t - bl) / (bh - bl)
+                args += fx_shot(LEAF, -1, vx - 14 * FXK - f * (vx - zx - 26 * FXK), mid_v, t)
+            if bh <= t < bh + 470: args += fx_burst(LEAF, p_leaf, zx + 6, mid_z, t - bh, bh)
+        # Health: Venusaur's once hit, Charizard's once hit back.
+        vhp = 1
+        for at, hp in hp_v:
+            if t >= at: vhp = hp
+        if 2440 <= t < THROW: args += hp_bar(vx, ground - 64, vhp, not (vhp < 0.2 and (i // 4) % 2))
+        if t >= 3600: args += hp_bar(zx, ground - 64, 0.9 if t < 6000 else 0.8)
+        # The ball: up from the left, over, down onto it; it drops to the ground and wobbles thrice.
+        tb = t - THROW
+        if 0 <= tb:
+            fx0, peak, hit_y = vx - 170, ground - 76, ground - 26
+            if tb < up:
+                f = tb / up
+                bx, by = fx0 + (((fx0 + vx) / 2) - fx0) * f, (ground - 8) + (peak - (ground - 8)) * ease_out(f)
+            elif tb < up + down:
+                f = (tb - up) / down
+                bx, by = (fx0 + vx) / 2 + (vx - (fx0 + vx) / 2) * f, peak + (hit_y - peak) * f * f
+            elif tb < first_shake:
+                bx, by = vx, hit_y
+            else:
+                f = min(1, (tb - first_shake) / 150)
+                bx, by = vx, hit_y + (ground - 6 - hit_y) * f * f
+                k = (tb - first_shake) // every
+                if k < 3 and (tb - first_shake) % every < wob:
+                    bx += 2 * math.sin((tb - first_shake) % every / 110 * 2 * math.pi)
+            args += [ball, "-geometry", f"+{round(bx - 6)}+{round(by - 6)}", "-composite"]
+            if up + down <= tb < up + down + 470: args += fx_burst("MOVE.normal", 0.5, vx, hit_y, tb - up - down, 7)
+            if t >= done and t < done + 520: args += fx_burst("{ glow: '#ffe9a8', core: '#ffd75e', mid: '#fff2c0', hot: '#ffffff', look: 'star' }", 0.9, vx, ground - 6, t - done, 11)
+        if t >= done + 400:
             for j, (dx, dy) in enumerate([(-14, -14), (12, -18), (16, -4), (-16, -2)]):
                 if (i // 3 + j) % 3:
                     args += star(vx + dx, ground - 8 + dy, 2, "#ffe9a8")
         args += ["-filter", "point", "-resize", f"{Z * 100}%"]
-        # What the games say.
-        if 2000 <= t < 2900: args += say("It's super effective!", vx * Z, 8, W * Z)
-        elif 3100 <= t < 4000: args += say("Venusaur hit back! It's not very effective…", W, 8, W * Z)
-        elif 4500 <= t < 5400: args += say("In the red: throw now!", vx * Z, 8, W * Z, color="#ff8a80")
-        elif 6200 <= t < 8000: args += say(["Shake…", "Shake… shake…", "Shake… shake… shake…"][min(2, (t - 6200) // 600)], vx * Z, 8, W * Z)
-        elif t >= 8100: args += say("✦ Gotcha! Venusaur → Box", vx * Z, 8, W * Z, color="#f2c94c")
-        for tag, cx, st in [("deploy", zx, "working"), ("wild Venusaur", min(x, vx0 - 20), None)]:
-            if st is None and t >= 6000: continue
+        # The games' words over each, and what happened, on a line at the top.
+        for (a0, l0, h0, bl, bh) in rounds:
+            if t >= h0: args += fx_word(2, vx * Z, (ground - 64) * Z, t - h0, W * Z)
+            if t >= bh: args += fx_word(0.5, zx * Z, (ground - 64) * Z, t - bh, W * Z)
+        r = rounds
+        # (How effective each hit was: the word over its head, as on the strip.)
+        if r[1][2] + 1300 <= t < THROW: args += say("In the red: throw now!", vx * Z, 8, W * Z, color="#ff8a80")
+        elif THROW + first_shake <= t < done: args += say(["Shake…", "Shake… shake…", "Shake… shake… shake…"][min(2, (t - THROW - first_shake) // every)], vx * Z, 8, W * Z)
+        elif t >= done: args += say("✦ Gotcha! Venusaur → Box", vx * Z, 8, W * Z, color="#f2c94c")
+        for tag, cx, st in [("deploy", cx_z, "working"), ("wild Venusaur", min(x, vx0 - 20), None)]:
+            if st is None and t >= THROW + up + down: continue
             tw = glyph_width(tag, 14)
-            x0 = cx * Z - (tw + 14) // 2
+            x0 = round(cx * Z - (tw + 14) / 2)
             y0 = (ground + 6) * Z
             if st: args += ["-fill", DOT[st], "-draw", f"circle {x0 + 4},{y0 + 10} {x0 + 8},{y0 + 10}"]
             args += ["-fill", FG if st else "#f2c94c", "-pointsize", "14", "-annotate", f"+{x0 + 14}+{y0 + 15}", tag]
