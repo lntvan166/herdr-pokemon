@@ -562,15 +562,16 @@ def burst(x, y, r=12):
 
 
 def preview(tmp):
-    """preview.png at the repo root (the herdr.dev gallery card, 1600x900). The card shows it small,
+    """preview.png at the repo root (the herdr.dev gallery card, 1600x1000: the gallery frames it
+    16:10, and crops a 16:9 one's sides). The card shows it small,
     so it carries little and big: on a bright day (a 320x180 pixel scene at 5x), the name and what
     it is in large type; a battle that is a catch (Mega Charizard X's blue fire hits a wild
     legendary, Mewtwo, gold sparkles round it and ₽400 over its head, as a Poké Ball flies at
     it); Pikachu asleep, a shiny Mega Gengar; and the Shop as it really is (docs/demo/shop.png,
     a screenshot of the Bag's Shop tab, cropped to the list and the buy panel)."""
     A = lambda f, n: Anim.get(f, n, tmp)
-    W, H, Z = 320, 180, 5
-    horizon = 150
+    W, H, Z = 320, 200, 5
+    horizon = 170
     ground = horizon + 4
     sky_png = bright_sky(W, H, horizon, tmp, "preview")
     zard, mew = A("0006-0001", "react-SpAttackR"), A("0150", "react-HurtL")
@@ -597,7 +598,7 @@ def preview(tmp):
     for dx, dy, r, c in [(-20, 4, 3, "#ffffff"), (18, 10, 2.5, "#ffe9a8"), (22, 34, 3, "#ffffff")]:
         args += star(gx + dx, gy + dy, r, c)
     # The ball's arc, in dots, from the trainer's side of the field.
-    for i, (bx, by) in enumerate([(112, 92), (120, 86), (128, 82), (136, 80)]):
+    for i, (bx, by) in enumerate([(112, 112), (120, 106), (128, 102), (136, 100)]):
         args += ["-fill", "#ffffff", "-draw", f"circle {bx},{by} {bx + 1.2 - i * 0.1},{by}"]
     base = os.path.join(tmp, "preview-base.png")
     magick(*args, base)
@@ -624,7 +625,7 @@ def preview(tmp):
             text += ["(", art(icon), "-filter", "point", "-resize", "80%", ")", "-geometry", f"+{x0 + 12}+{277}", "-composite"]
         x0 += w + 16
     # The ball in the air, big, and ₽400 over the legendary's head (gold, as on the strip).
-    text += ["(", art("poke-ball"), "-filter", "point", "-resize", "130%", ")", "-geometry", f"+{145 * Z - 39}+{80 * Z - 39}", "-composite"]
+    text += ["(", art("poke-ball"), "-filter", "point", "-resize", "130%", ")", "-geometry", f"+{145 * Z - 39}+{100 * Z - 39}", "-composite"]
     pw = round(glyph_width("₽400", 44) * 1.12) + 40 # bold is wider than the measure
     px, py = mx * Z - pw // 2, (my - 22) * Z
     text += ["-fill", "#00000080", "-draw", f"roundrectangle {px},{py} {px + pw},{py + 64} 14,14",
