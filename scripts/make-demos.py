@@ -562,58 +562,94 @@ def burst(x, y, r=12):
 
 
 def preview(tmp):
-    """preview.png at the repo root (the herdr.dev gallery card, 1600x900). The card shows it about
-    245 px wide (a 6.5x shrink), so it carries little and big: a 320x180 pixel scene at 5x on a
-    bright day (a battle: Mega Charizard X's blue fire flying at Lucario; Pikachu asleep; a shiny Gengar
-    sparkling), and the name in large type over the sky. Small sprites or thin text turn to mush
-    at that size."""
+    """preview.png at the repo root (the herdr.dev gallery card, 1600x900). The card shows it small,
+    so it carries little and big: on a bright day (a 320x180 pixel scene at 5x), the name and what
+    it is in large type; a battle that is a catch (Mega Charizard X's blue fire hits a wild
+    legendary, Mewtwo, gold sparkles round it and ₽400 over its head, as a Poké Ball flies at
+    it); Pikachu asleep, a shiny Mega Gengar; and the Shop as it really is (docs/demo/shop.png,
+    a screenshot of the Bag's Shop tab, cropped to the list and the buy panel)."""
     A = lambda f, n: Anim.get(f, n, tmp)
     W, H, Z = 320, 180, 5
     horizon = 150
     ground = horizon + 4
     sky_png = bright_sky(W, H, horizon, tmp, "preview")
-    zard, luc = A("0006-0001", "react-SpAttackR"), A("0448", "react-HurtL")
+    zard, mew = A("0006-0001", "react-SpAttackR"), A("0150", "react-HurtL")
     pika, geng = A("0025", "sleep"), A("0094-0001s", "idleL")
-    X = {"pika": 40, "zard": 126, "luc": 210, "geng": 284}
-    scene = [("pika", pika, X["pika"], 300), ("zard", zard, X["zard"], 250), ("luc", luc, X["luc"], 300), ("geng", geng, X["geng"], 0)]
+    X = {"pika": 30, "zard": 96, "mew": 172, "geng": 284}
+    scene = [("pika", pika, X["pika"], 300), ("zard", zard, X["zard"], 250), ("mew", mew, X["mew"], 120), ("geng", geng, X["geng"], 0)]
     args = [sky_png]
     heads = {}
     for key, an, cx, t in scene:
         x, y = an.place(cx, ground)
         args += [an.at(t), "-geometry", f"+{x}+{y}", "-composite"]
         heads[key] = (cx, ground - an.height())
-    # Charizard's special move: a fireball halfway, and the hit on Lucario.
-    args += fireball(X["zard"] + 52, ground - 26, color="blue")
-    # Mega Evolved as its agent got to work: sparkles round it.
-    for dx, dy, r, c in [(-30, -40, 2.4, "#ffffff"), (-38, -14, 1.8, "#bfe6ff"), (6, -52, 2, "#bfe6ff"), (-24, -64, 1.6, "#ffffff")]:
+    # Charizard's special move: a fireball, and the hit on Mewtwo.
+    args += fireball(X["zard"] + 44, ground - 26, color="blue")
+    for dx, dy, r, c in [(-30, -40, 2.4, "#ffffff"), (-38, -14, 1.8, "#bfe6ff"), (6, -52, 2, "#bfe6ff")]:
         args += star(X["zard"] + dx, ground + dy, r, c)
-    args += burst(X["luc"] - 12, ground - 34, 10)
+    args += burst(X["mew"] - 14, ground - 32, 9)
+    # The legendary's gold sparkles.
+    mx, my = heads["mew"]
+    for dx, dy, r in [(-26, 6, 2.6), (24, 14, 2.2), (-30, 34, 1.8), (28, 40, 2.6), (2, -6, 2)]:
+        args += star(mx + dx, my + dy, r, "#ffd75e")
     # The shiny's sparkles.
     gx, gy = heads["geng"]
-    for dx, dy, r, c in [(-20, 4, 3, "#ffffff"), (18, 10, 2.5, "#ffe9a8"), (-14, 30, 2, "#ffe9a8"), (22, 34, 3, "#ffffff")]:
-        cx, cy = gx + dx, gy + dy
-        args += ["-fill", c, "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
+    for dx, dy, r, c in [(-20, 4, 3, "#ffffff"), (18, 10, 2.5, "#ffe9a8"), (22, 34, 3, "#ffffff")]:
+        args += star(gx + dx, gy + dy, r, c)
+    # The ball's arc, in dots, from the trainer's side of the field.
+    for i, (bx, by) in enumerate([(112, 92), (120, 86), (128, 82), (136, 80)]):
+        args += ["-fill", "#ffffff", "-draw", f"circle {bx},{by} {bx + 1.2 - i * 0.1},{by}"]
     base = os.path.join(tmp, "preview-base.png")
     magick(*args, base)
     out = os.path.join(OUT, "..", "..", "preview.png")
     BOLD = FONT.replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf")
+    ART = os.path.expanduser("~/.config/herdr-app/data/pokemon-herd/art")
+    art = lambda name: os.path.join(ART, f"items-{name}.png")
     big = ["-filter", "point", "-resize", f"{Z * 100}%"]
     text = ["-gravity", "northwest", "-font", BOLD]
-    # The name, white with a dark drop shadow; the line under it.
-    text += ["-fill", "#0b2a4a88", "-pointsize", "128", "-annotate", "+66+52", "Pokerdr",
-             "-fill", "#ffffff", "-pointsize", "128", "-annotate", "+58+44", "Pokerdr",
-             "-font", FONT, "-fill", "#0b2a4a99", "-pointsize", "50", "-annotate", "+64+212", "Pokémon Trainer for your coding agents",
-             "-fill", "#ffffff", "-pointsize", "50", "-annotate", "+62+208", "Pokémon Trainer for your coding agents"]
-    # Over each head: zZ (asleep), the agents' names on the soil.
-    py = (ground - pika.height()) * Z
-    text += ["-font", BOLD, "-fill", "#ffffff", "-pointsize", "54", "-annotate", f"+{X['pika'] * Z + 10}+{py - 100}", "zZ"]
-    names = [("api", X["pika"], "idle"), ("deploy", X["zard"], "working"), ("tests", X["luc"], "blocked"), ("review", X["geng"], "done")]
+    # The name, white with a dark drop shadow; what it is under it.
+    text += ["-fill", "#0b2a4a88", "-pointsize", "128", "-annotate", "+66+40", "Pokerdr",
+             "-fill", "#ffffff", "-pointsize", "128", "-annotate", "+58+32", "Pokerdr",
+             "-font", FONT, "-fill", "#0b2a4a99", "-pointsize", "46", "-annotate", "+64+196", "Catch 'em while your agents code",
+             "-fill", "#ffffff", "-pointsize", "46", "-annotate", "+62+192", "Catch 'em while your agents code"]
+    # What there is to do, as pills: an item's picture and a word or two.
+    pills = [("poke-ball", "Catch"), ("master-ball", "Legendaries"), (None, "974 Pokémon")]
+    x0 = 62
+    for icon, word in pills:
+        tw = glyph_width(word, 36)
+        w = tw + (98 if icon else 48)
+        text += ["-fill", "#ffffffe6", "-draw", f"roundrectangle {x0},{270} {x0 + w},{332} 31,31",
+                 "-font", FONT, "-fill", "#18406b", "-pointsize", "36", "-annotate", f"+{x0 + (78 if icon else 24)}+{279}", word]
+        if icon:
+            text += ["(", art(icon), "-filter", "point", "-resize", "80%", ")", "-geometry", f"+{x0 + 12}+{277}", "-composite"]
+        x0 += w + 16
+    # The ball in the air, big, and ₽400 over the legendary's head (gold, as on the strip).
+    text += ["(", art("poke-ball"), "-filter", "point", "-resize", "130%", ")", "-geometry", f"+{145 * Z - 39}+{80 * Z - 39}", "-composite"]
+    pw = round(glyph_width("₽400", 44) * 1.12) + 40 # bold is wider than the measure
+    px, py = mx * Z - pw // 2, (my - 22) * Z
+    text += ["-fill", "#00000080", "-draw", f"roundrectangle {px},{py} {px + pw},{py + 64} 14,14",
+             "-font", BOLD, "-fill", "#f2c94c", "-pointsize", "44", "-annotate", f"+{px + 18}+{py + 6}", "₽400"]
+    # zZ over Pikachu; the agents' names on the soil (the wild one says so).
+    zy = (ground - pika.height()) * Z
+    text += ["-font", BOLD, "-fill", "#ffffff", "-pointsize", "54", "-annotate", f"+{X['pika'] * Z + 10}+{zy - 100}", "zZ"]
+    names = [("api", X["pika"], "idle"), ("deploy", X["zard"], "working"), ("wild Mewtwo", X["mew"], None), ("review", X["geng"], "done")]
     for tag, cx, st in names:
         tw = glyph_width(tag, 44)
-        x0 = cx * Z - (tw + 40) // 2
-        y0 = (ground + 8) * Z
-        text += ["-fill", DOT[st], "-draw", f"circle {x0 + 14},{y0 + 30} {x0 + 26},{y0 + 30}",
-                 "-font", FONT, "-fill", FG, "-pointsize", "44", "-annotate", f"+{x0 + 40}+{y0 + 4}", tag]
+        x1 = cx * Z - (tw + 40) // 2
+        y1 = (ground + 8) * Z
+        if st:
+            text += ["-fill", DOT[st], "-draw", f"circle {x1 + 14},{y1 + 30} {x1 + 26},{y1 + 30}"]
+        text += ["-font", FONT, "-fill", "#f2c94c" if not st else FG, "-pointsize", "44", "-annotate", f"+{x1 + (40 if st else 20)}+{y1 + 4}", tag]
+    # The Shop, as it really is: a card with rounded corners and a soft shadow, top right.
+    shop = os.path.join(os.path.dirname(OUT), "demo", "shop.png")
+    card = os.path.join(tmp, "shop-card.png")
+    cw = 500
+    ch = round(490 * cw / 600)
+    magick(shop, "-resize", f"{cw}x", "(", "+clone", "-alpha", "extract", "-fill", "black", "-colorize", "100",
+           "-fill", "white", "-draw", f"roundrectangle 0,0 {cw - 1},{ch - 1} 22,22", ")", "-alpha", "off", "-compose", "CopyOpacity", "-composite", card)
+    cx0, cy0 = 1600 - cw - 44, 36
+    text += ["-fill", "#0b2a4a55", "-draw", f"roundrectangle {cx0 + 10},{cy0 + 14} {cx0 + cw + 10},{cy0 + ch + 14} 24,24",
+             card, "-geometry", f"+{cx0}+{cy0}", "-composite"]
     magick(base, *big, *text, out)
     print(f"{os.path.relpath(out)}: {os.path.getsize(out) // 1024} KB")
 
