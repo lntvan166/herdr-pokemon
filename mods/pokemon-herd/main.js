@@ -1043,12 +1043,10 @@ export default class PokemonHerd extends View {
     const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
     // Not once it's walked off the strip (its tag stuck at the edge, saying "click it").
     const onStrip = v.x >= 0 && v.x <= this.width;
-    const warned = now - (v.redWarn ?? 0) < 4000;
-    if (onStrip && (hovered || broke || warned || now - (this.ballSwitched ?? 0) < 1500)) {
+    if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = 330;
       const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? "An Alpha" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
-      const tail = warned ? " is in the red: one more hit may knock it out. Drop again to attack, or throw now."
-        : broke ? " broke free!"
+      const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
         : ball ? `: ${shared(BALL_KEY) === ball ? "" : "(Auto) "}click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it runs away` : ""}`
@@ -1519,17 +1517,14 @@ export default class PokemonHerd extends View {
       changed = true;
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
       // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying; the
-      // wild one hits back (hitBack). Not while yours rests after fainting; in the red, the first
-      // drop only warns (one more hit may knock it out), a second within 4 s attacks.
+      // wild one hits back (hitBack). Not while yours rests after fainting. A hit twice its health
+      // or more knocks it out (trainer.js OVERKILL).
       const v = this.visitor;
       const pk = ids[drop.addr];
       const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
       if (now < (dm.restUntil ?? 0)) {
         this.note(dm, "💫", now, 2500);
-      } else if (hp <= RED && !(now - (v.redWarn ?? 0) < 4000)) {
-        v.redWarn = now;
       } else {
-        v.redWarn = 0;
         const mega = megaShown(pk, "working"); // it Mega Evolves for the fight: stronger
         const hit = hitWild(v.pick, pk.dex, Math.random, !!pk.alpha, mega);
         const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0, mega }, v.pick);
