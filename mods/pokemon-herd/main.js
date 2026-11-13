@@ -984,9 +984,11 @@ export default class PokemonHerd extends View {
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
-        // An Alpha says so under its feet, where a name would be (it has none).
+        // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
-          .child(div().h(14).px(4).rounded(4).flex().items_center().bg(ALPHA_RED).text_size(9.5).font_bold().text_color("#ffffff").child("α Alpha"))))
+          .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
+            .child(alphaTag())
+            .child(div().text_size(10.5).text_color(t.muted).child(fullName(v.pick.dex, v.pick.form))))))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
