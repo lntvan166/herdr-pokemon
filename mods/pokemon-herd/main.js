@@ -569,6 +569,12 @@ export default class PokemonHerd extends View {
     return this.sprites[spriteKey(pick)];
   }
 
+  // The status its Mega follows: battling a wild one, it Mega Evolves as if working (unless its
+  // Mega is Off), for the fight and a few seconds after.
+  megaStatus(a) {
+    return (this.mons[a.address]?.battleUntil ?? 0) > Date.now() ? "working" : a.status;
+  }
+
   // Shiny, and really shown as one (not the normal sprite standing in for a shiny that failed).
   showsShiny(pick) {
     pick = dressed(pick);
@@ -1169,7 +1175,7 @@ export default class PokemonHerd extends View {
       for (const a of list) {
         const p = ids[a.address];
         this.want(p, cx);
-        if (megaShown(p, a.status)) this.want(p, cx, true); // its Mega, fetched when first needed
+        if (megaShown(p, this.megaStatus(a))) this.want(p, cx, true); // its Mega, fetched when first needed
       }
     }
 
@@ -1275,7 +1281,7 @@ export default class PokemonHerd extends View {
         changed = true;
       }
       // Reactions (react.js): to its agent's status changing, and to you focusing it.
-      const meta = this.spriteFor(ids[a.address], a.status);
+      const meta = this.spriteFor(ids[a.address], this.megaStatus(a));
       // Mega Evolution (or back): a flash of sparkles.
       const mega = meta?.megaShown === true;
       if (m.mega !== undefined && mega !== m.mega) { m.flashUntil = now + 1500; changed = true; }
@@ -1448,6 +1454,8 @@ export default class PokemonHerd extends View {
         m.backstep = true;
       }
       battle(m1, m2, side(a1), side(a2), now, Math.random, back ? { ...spots, back: BACK } : spots);
+      // Both Mega Evolve for it (those that can, Mega not Off), and a few seconds after.
+      m1.battleUntil = m2.battleUntil = Math.max(m1.react.until, m2.react.until) + 3000;
       m1.pauseUntil = m1.react.until + rand(2000, 5000);
       m2.pauseUntil = m2.react.until + rand(2000, 5000);
     };
@@ -1531,6 +1539,7 @@ export default class PokemonHerd extends View {
         const types = typesOf(pk.dex);
         dm.react = { anim, animUntil: now + ms, until: now + ms + 400, face: dm.dir, icon: TYPE_ICON[types[0]] ?? "💥" };
         dm.pauseUntil = now + 3000;
+        dm.battleUntil = now + 6000; // it Mega Evolves for the fight (megaStatus)
       }
       changed = true;
     } else if (dm && dMeta) {
@@ -2212,7 +2221,7 @@ export default class PokemonHerd extends View {
       const id = pick.dex;
       const m = this.mons[a.address] ?? { x: this.width / 2, target: this.width / 2, dir: "r", moving: false, dur: 0 };
       const mood = m.mood ?? moodOf(a, tabs, now);
-      const meta = this.spriteFor(pick, a.status);
+      const meta = this.spriteFor(pick, this.megaStatus(a));
       const tag = tagOf(a, tabs);
       const x = m.moving ? m.target : m.x;
       const spot = tags.get(a.address);
