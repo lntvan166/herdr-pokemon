@@ -288,3 +288,13 @@ test("a Mega hits harder and takes less", () => {
   assert.ok(Math.abs((1 - hitWild({ dex: 4 }, 6, () => 0, false, true).hp) - (1 - hitWild({ dex: 4 }, 6, () => 0).hp) * MEGA_HIT) < 1e-9);
   assert.ok(hitBack({ dex: 6, mega: true }, { dex: 9 }, () => 0).hp > hitBack({ dex: 6 }, { dex: 9 }, () => 0).hp);
 });
+
+import { withEvolved } from "../mods/pokemon-herd/trainer.js";
+test("an evolved caught Pokémon registers its new species as caught; a picked one doesn't", () => {
+  const d = withCaught(loadDex(null), { dex: 4 });
+  const after = withEvolved(d, [{ dex: 5, caught: 1 }, { dex: 25 }]); // Charmeleon caught as Charmander; a picked Pikachu
+  assert.deepEqual(after.caught, [4, 5]);
+  assert.equal(withEvolved(after, [{ dex: 5, caught: 1 }]), null); // nothing new
+  assert.deepEqual(withEvolved(after, [{ dex: 5, caught: 1, shiny: true, alpha: true }]).shiny, [5]);
+  assert.deepEqual(withEvolved(after, [{ dex: 5, caught: 1, alpha: true }]).alpha, [5]);
+});

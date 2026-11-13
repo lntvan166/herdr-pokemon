@@ -258,6 +258,19 @@ export function withCaught(d, pick) {
   const add = (list, x) => (list.includes(x) ? list : [...list, x]);
   return { ...d, seen: add(d.seen, pick.dex), caught: add(d.caught, pick.dex), shiny: pick.shiny ? add(d.shiny, pick.dex) : d.shiny, alpha: pick.alpha ? add(d.alpha ?? [], pick.dex) : (d.alpha ?? []) };
 }
+// Pokémon you caught, as they are now (`picks`: every saved one): one that evolved since is that
+// species caught too, as the games register an evolution (and its shiny or Alpha with it). One
+// chosen in the picker doesn't count: the Pokédex is what you caught. Null when nothing's new.
+export function withEvolved(d, picks) {
+  let next = d;
+  for (const p of picks) {
+    if (!p?.caught || !isWalkable(p.dex)) continue;
+    const newShiny = p.shiny && !next.shiny.includes(p.dex), newAlpha = p.alpha && !(next.alpha ?? []).includes(p.dex);
+    if (!next.caught.includes(p.dex) || newShiny || newAlpha) next = withCaught(next, p);
+  }
+  return next === d ? null : next;
+}
+
 // Shiny on purpose: a species caught shiny can be chosen shiny in the picker.
 export const shinyUnlocked = (d, dex) => d.shiny.includes(dex);
 
