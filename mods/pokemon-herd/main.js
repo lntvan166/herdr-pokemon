@@ -300,6 +300,8 @@ const alphaGlow = (mid, ground, box, scale) => {
         .loop("opacity", { from: 0, to: 0.95, period: period / 2 });
     }));
 };
+// The α in an Alpha's name tag (before its name).
+const alphaTag = () => div().flex_none().h(12).px(3).rounded(3).flex().items_center().bg(ALPHA_RED).text_size(9).font_bold().text_color("#ffffff").child("α");
 const alphaMark = (x, y) => div().absolute().left(x).top(Math.max(0, y)).h(14).px(3).rounded(4).flex().items_center()
   .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α");
 const noteEvolved = () => { const b = bag(); saveBag(mark(b, { evolutions: b.marks.evolutions + 1 })); };
@@ -982,7 +984,9 @@ export default class PokemonHerd extends View {
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
-        .when(!!v.pick.alpha, (el) => el.child(alphaMark(mid - (s.box.w / 2) * scale - 14, headY + 2)))
+        // An Alpha says so under its feet, where a name would be (it has none).
+        .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
+          .child(div().h(14).px(4).rounded(4).flex().items_center().bg(ALPHA_RED).text_size(9.5).font_bold().text_color("#ffffff").child("α Alpha"))))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
@@ -2230,7 +2234,6 @@ export default class PokemonHerd extends View {
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
           .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale))) // over its shadow, not darkened by it
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
-          .when(!!pick.alpha, (el) => el.child(alphaMark(SLOT_MID - (s.box.w / 2) * scale - 14, headY + 2)))
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
           .when(ownHp(m, now) < 1, (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now))));
       } else {
@@ -2344,6 +2347,7 @@ export default class PokemonHerd extends View {
               // A background, so a tag passing over another covers it instead of mixing letters.
               .overflow_hidden().justify_center().items_center().gap(4).rounded(4).bg(t.chrome)
               .child(div().flex_none().size(6).rounded_full().bg(t[a.status] ?? t.idle))
+              .when(!!pick.alpha, (e2) => e2.child(alphaTag()))
               .child(
                 div().min_w(0).truncate().text_size(10.5)
                   .text_color(hovered || a.focused ? t.foreground : t.muted)
@@ -2361,6 +2365,7 @@ export default class PokemonHerd extends View {
                 .overflow_hidden().justify_center().items_center().gap(4).px(4)
                 .rounded(5).bg(t.popover).border_1().border_color(t.border)
                 .child(div().flex_none().size(6).rounded_full().bg(t[a.status] ?? t.idle))
+                .when(!!pick.alpha, (e2) => e2.child(alphaTag()))
                 .child(div().min_w(0).truncate().text_size(10.5).text_color(t.foreground).child(full)),
             );
           })
