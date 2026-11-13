@@ -1507,7 +1507,7 @@ export default class PokemonHerd extends View {
       } else {
         v.redWarn = 0;
         const hit = hitWild(v.pick, pk.dex, Math.random, !!pk.alpha);
-        const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha }, v.pick);
+        const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0 }, v.pick);
         v.fight = { at: now, until: now + (back ? 2400 : 1600), x: v.x, own: drop.addr, ownX: dm.x, ownName: fullName(pk.dex, pk.form), back, ...hit };
         dm.dir = v.x > dm.x ? "r" : "l";
         const anim = reactionAnim("spar", hasOf(dMeta));
