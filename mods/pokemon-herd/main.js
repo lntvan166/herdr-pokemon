@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -265,6 +265,13 @@ function payDexGoals() {
   for (const g of due) payOut(g);
   saveDex({ ...d, goals: [...d.goals, ...due.map((g) => g.n)] });
 }
+// An Alpha: a red glow behind it (breathing), and a red α by its head.
+const ALPHA_RED = "#e5484d";
+const alphaGlow = (mid, ground, box, scale) => div().absolute()
+  .left(mid - (box.w / 2) * scale - 6).top(ground - box.h * scale - 6).w(box.w * scale + 12).h(box.h * scale + 10)
+  .rounded_full().bg(`${ALPHA_RED}70`).loop("opacity", { from: 0.3, to: 0.9, period: 1600 });
+const alphaMark = (x, y) => div().absolute().left(x).top(Math.max(0, y)).h(14).px(3).rounded(4).flex().items_center()
+  .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α");
 const noteEvolved = () => { const b = bag(); saveBag(mark(b, { evolutions: b.marks.evolutions + 1 })); };
 // Deerling and Sawsbuck wear this season's coat (sprites only; its name and pick stay as they are).
 const dressed = (pick) => {
@@ -817,6 +824,7 @@ export default class PokemonHerd extends View {
   // The visitor, drawn as the herd is but with no name: hovering it says what it is.
   renderVisitor(root, grounds, scale) {
     const v = this.visitor;
+    if (v?.pick.alpha) scale *= ALPHA_SIZE; // an Alpha: bigger
     const meta = v?.start && this.spriteFor(v.pick, "idle");
     if (!meta?.walkR) return;
     const t = theme();
@@ -855,7 +863,7 @@ export default class PokemonHerd extends View {
         const tagW = 260;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
-          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} fled!` : `✨ Gotcha! ${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} fled!` : `✨ Gotcha! ${v.pick.alpha ? "Alpha " : ""}${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
       }
       return;
     }
@@ -871,8 +879,10 @@ export default class PokemonHerd extends View {
     root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
       .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
       .child(div()
+        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-        .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)))
+        .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
+        .when(!!v.pick.alpha, (el) => el.child(alphaMark(mid - (s.box.w / 2) * scale - 14, headY + 2))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
         // Hovered (it walks under the pointer, so hover comes and goes): its tag stays up while
@@ -892,9 +902,9 @@ export default class PokemonHerd extends View {
           if (!v.gift) {
             const g = visitorGift();
             v.gift = g.id;
-            v.giftN = g.n;
+            v.giftN = g.n * (v.pick.alpha ? 2 : 1); // an Alpha leaves twice as much
             v.giftAt = Date.now();
-            saveBag(addItem(bag(), g.id, g.n));
+            saveBag(addItem(bag(), g.id, v.giftN));
             research("gift");
             if (v.purse) v.paid = earn("purse", v.purse);
           } else if (Date.now() - v.giftAt > 800) this.throwAt(v);
@@ -922,7 +932,7 @@ export default class PokemonHerd extends View {
     const onStrip = v.x >= 0 && v.x <= this.width;
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = 330;
-      const what = `${v.pick.legend ? "A legendary" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
+      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? "An Alpha" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -2000,7 +2010,7 @@ export default class PokemonHerd extends View {
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       // What it says it's doing stays on the cards: here it ran across the whole strip.
-      const text = full ? `${nameFor(pick)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const text = full ? `${pick.alpha ? "Alpha " : ""}${nameFor(pick)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -2029,7 +2039,7 @@ export default class PokemonHerd extends View {
     const outer = scale;
     for (const a of order) {
       const pick = ids[a.address];
-      const scale = pick.young ? outer * 0.75 : outer; // a sub-agent's Pokémon is smaller
+      const scale = pick.young ? outer * 0.75 : pick.alpha ? outer * ALPHA_SIZE : outer; // a sub-agent's Pokémon is smaller, an Alpha bigger
       const id = pick.dex;
       const m = this.mons[a.address] ?? { x: this.width / 2, target: this.width / 2, dir: "r", moving: false, dur: 0 };
       const mood = m.mood ?? moodOf(a, tabs, now);
@@ -2054,8 +2064,10 @@ export default class PokemonHerd extends View {
         hit = { left: SLOT_MID - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
         const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
         body = div()
+          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale)))
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-          .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale));
+          .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
+          .when(!!pick.alpha, (el) => el.child(alphaMark(SLOT_MID - (s.box.w / 2) * scale - 14, headY + 2)));
       } else {
         // Loading (or no ImageMagick): a little Poké Ball waits in its place.
         const r = 9 * scale;
@@ -2497,7 +2509,7 @@ export default class PokemonHerd extends View {
       .child(div().absolute().left(0).top(0).h_full().w(Math.round(w * r.caught / r.total)).bg(t.accent));
     return v_flex().flex_none().h(h).gap(10)
       .child(h_flex().gap(12).items_stretch()
-        .children([["Seen", d.seen.length], ["Caught", d.caught.length], ["Legendary", legends], ["Shiny", d.shiny.length]].map(([k, n]) => v_flex().flex_1().p(10).gap(2).rounded(10).bg(t.raised)
+        .children([["Seen", d.seen.length], ["Caught", d.caught.length], ["Legendary", legends], ["Shiny", d.shiny.length], ["Alpha", (d.alpha ?? []).length]].map(([k, n]) => v_flex().flex_1().p(10).gap(2).rounded(10).bg(t.raised)
           .child(div().text_size(18).font_semibold().text_color(t.foreground).child(String(n)))
           .child(div().text_size(11.5).text_color(t.muted).child(k === "Caught" ? `Caught of ${DEX_TOTAL}` : k)))))
       // The goals: reached ones ticked; the next with how many to go.
@@ -2873,6 +2885,7 @@ export default class PokemonHerd extends View {
       ["caught", "Caught", (x) => !!x.pick.caught],
       ["shiny", "✨ Shiny", (x) => !!x.pick.shiny],
       ["legend", "Legendary", (x) => isLegendary(x.pick.dex)],
+      ["alpha", "Alpha", (x) => !!x.pick.alpha],
     ];
     const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
     const shown = everyone.filter(filter[2]).filter((x) => !q || fold(nameFor(x.pick)).includes(q) || fold(x.tag ?? "").includes(q) || fold(natureOf(x.pick)?.name ?? "").includes(q));
@@ -2896,6 +2909,7 @@ export default class PokemonHerd extends View {
         .child(div().w_full().px(3).text_center().truncate().text_size(10).text_color(x.tag ? t.accent : t.muted)
           .child(x.tag ? x.tag : `♥ ${heartsText(friendOf(x.pick))}`))
         .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
+        .when(!!x.pick.alpha, (el) => el.child(alphaMark(x.pick.shiny ? 20 : 5, 4)))
         .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt(x.pick.ball ?? "poke-ball", 14))))
         .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
     };
@@ -2908,7 +2922,7 @@ export default class PokemonHerd extends View {
       const c = cardOf(pick);
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
-      const facts = [`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
+      const facts = [pick.alpha ? "Alpha" : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
         pick.caught ? `caught in a ${ITEMS[pick.ball ?? "poke-ball"].name}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()

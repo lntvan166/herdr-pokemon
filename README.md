@@ -114,6 +114,10 @@ more). Berries for catching, as in Pokémon GO, set in the Bag to be fed before 
 (both). The Bag's **Pokédex** tab counts the species seen and caught, by region, and pays as it
 fills: ₽750 at 5, Ultra Balls at 15, a Master Ball at 30, 60, 100 and 200.
 
+**Alphas**, as in Legends: Arceus: one wild visitor in 40 is bigger than the rest, with a red glow
+and a red α. Half as easy to catch, it carries ₽150 and twice the gift; caught, it stays an Alpha
+(bigger on the strip too, α in the Box) and comes with two hearts. The Pokédex counts them.
+
 Catching is what opens things up. **Legendary Pokémon** (Mewtwo, Rayquaza…) can't be chosen in
 the picker (🔒) nor come to new agents until you catch one; one walks by 1 visitor in 150, the
 day's Research calls one, and so does the Azure Flute. They're hard: about 15 balls before one

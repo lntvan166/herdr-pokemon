@@ -43,7 +43,7 @@ export function loadPicks(current, legacy) {
       const nature = p.nature in NATURES ? p.nature : undefined;
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
       const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}) };
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }

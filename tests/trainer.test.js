@@ -227,3 +227,20 @@ test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a powe
   assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.02)).fled, false);
   assert.equal(FLEE, 0.05);
 });
+
+import { ALPHA_ODDS, ALPHA_PURSE } from "../mods/pokemon-herd/trainer.js";
+test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, an Alpha with two hearts", () => {
+  let n = 0;
+  for (let i = 0; i < 4000; i++) if (wildPick(new Set(), Math.random).alpha) n++;
+  assert.ok(n > 4000 / ALPHA_ODDS / 2 && n < 4000 / ALPHA_ODDS * 2, String(n));
+  assert.ok(!wildPick(new Set(), () => 0, { legend: true }).alpha); // a legendary is never one
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1, alpha: true }) - 0.225) < 1e-9);
+  assert.equal(purse({ dex: 1, alpha: true }), ALPHA_PURSE);
+  const p = caughtPick({ dex: 1, alpha: true }, 5, () => 0);
+  assert.equal(p.alpha, true);
+  assert.equal(p.hearts, 2);
+  assert.equal(loadPicks({ v: 2, panes: { b: p } }).panes.b.alpha, true);
+  assert.equal(loadPicks({ v: 2, panes: { b: { dex: 1, alpha: true } } }).panes.b.alpha, undefined); // only a caught one
+  const d = withCaught(loadDex(null), p);
+  assert.deepEqual(loadDex(d).alpha, [1]);
+});

@@ -55,6 +55,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Legendaries** (`LEGENDARY`): locked in the picker and for new agents until one is caught
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
   Azure Flute (₽1,000) and the day's Research call one. About 15 balls before one flees.
+- **Alphas** (`ALPHA_ODDS` 40): a wild one ×1.4 bigger with a breathing red glow and a red α;
+  half the base rate to catch, ₽150 and twice the gift; caught, `alpha: true`, ♥2, still bigger.
 - **Pokédex:** species seen and caught by region; goals at 5, 15, 30, 60, 100, 200 caught pay
   money, Ultra Balls, Master Balls. A species caught shiny can be chosen shiny in the picker.
 - **Today:** three Research tasks a day, drawn from the date (every window agrees), each paying

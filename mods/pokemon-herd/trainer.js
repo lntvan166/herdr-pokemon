@@ -14,6 +14,12 @@ function range(a, b) { return Array.from({ length: b - a + 1 }, (_, i) => a + i)
 export const LEGENDARY = new Set(LEGENDS.filter(isWalkable));
 export const isLegendary = (dex) => LEGENDARY.has(dex);
 export const LEGEND_ODDS = 150; // a wild visitor is legendary 1 time in this many
+// An Alpha (as in Legends: Arceus): a wild one bigger than the rest, a red glow round it, harder to
+// catch (half the base rate), with a fatter purse and twice the gift; caught, it stays an Alpha
+// (bigger on the strip too) and comes with two hearts. One wild visitor in ALPHA_ODDS.
+export const ALPHA_ODDS = 40;
+export const ALPHA_SIZE = 1.4; // drawn this much bigger
+export const ALPHA_PURSE = 150;
 // Locked: a legendary species not caught yet (`d`: the Pokédex, loadDex), unless Settings →
 // Legendaries opened them all (`open`).
 export const isLocked = (dex, d, open = false) => !open && isLegendary(dex) && !d.caught.includes(dex);
@@ -26,7 +32,8 @@ export function wildPick(taken, rnd = Math.random, how = {}) {
   const free = all.filter((dex) => !taken.has(dex));
   const pool = free.length ? free : all;
   const dex = pool[Math.floor(rnd() * pool.length)];
-  return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}), ...(how.legend ? { called: true } : {}) };
+  const alpha = !legend && rnd() * ALPHA_ODDS < 1;
+  return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}), ...(how.legend ? { called: true } : {}), ...(alpha ? { alpha: true } : {}) };
 }
 
 // ---- Poké Balls ---------------------------------------------------------------------
@@ -55,7 +62,7 @@ export function catchChance(ball, pick, bait = null) {
   const mul = BALL_MUL[ball];
   if (!mul) return 0;
   if (mul === Infinity) return 1;
-  return 1 - (1 - baseRate(pick.dex)) ** (mul * (BAIT[bait]?.rate ?? 1));
+  return 1 - (1 - baseRate(pick.dex) * (pick.alpha ? 0.5 : 1)) ** (mul * (BAIT[bait]?.rate ?? 1));
 }
 // A legendary: about 15 balls before it's gone (LEGEND_THROWS), each one far less likely to hold
 // it: over all 15, Poké Balls catch it 4 times in 10, Ultra Balls 6 in 10, Ultra Balls with
@@ -93,7 +100,7 @@ export const PURSE_CHANCE = { rare: 1, often: 1 / 2, lots: 1 / 3 };
 export function purse(pick, rnd = Math.random, chance = 1) {
   if (pick.called) return isLegendary(pick.dex) ? 100 : 0;
   if (isLegendary(pick.dex)) return 400;
-  if (pick.shiny) return 150;
+  if (pick.shiny || pick.alpha) return pick.shiny ? 150 : ALPHA_PURSE;
   if (chance < 1 && rnd() >= chance) return 0;
   return rnd() < 0.1 ? 60 + Math.floor(rnd() * 41) : 10 + Math.floor(rnd() * 21);
 }
@@ -128,8 +135,9 @@ export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
     shiny: wild.shiny === true,
     mega: "auto",
     ...(wild.form ? { form: wild.form } : {}),
-    friend: 20,
-    hearts: 1,
+    friend: wild.alpha ? 40 : 20,
+    hearts: wild.alpha ? 2 : 1,
+    ...(wild.alpha ? { alpha: true } : {}),
     caught: now,
     ...(BALLS.includes(ball) ? { ball } : {}),
     nature: keys[Math.floor(rnd() * keys.length)],
@@ -148,6 +156,7 @@ export function loadDex(raw) {
     caught,
     shiny: ok ? dexList(raw.shiny).filter((d) => caught.includes(d)) : [],
     goals: ok && Array.isArray(raw.goals) ? raw.goals.filter((n) => DEX_GOALS.some((g) => g.n === n)) : [],
+    alpha: ok ? dexList(raw.alpha).filter((d) => caught.includes(d)) : [],
   };
 }
 // The Pokédex having seen these species (null: nothing new).
@@ -157,7 +166,7 @@ export function withSeen(d, dexes) {
 }
 export function withCaught(d, pick) {
   const add = (list, x) => (list.includes(x) ? list : [...list, x]);
-  return { ...d, seen: add(d.seen, pick.dex), caught: add(d.caught, pick.dex), shiny: pick.shiny ? add(d.shiny, pick.dex) : d.shiny };
+  return { ...d, seen: add(d.seen, pick.dex), caught: add(d.caught, pick.dex), shiny: pick.shiny ? add(d.shiny, pick.dex) : d.shiny, alpha: pick.alpha ? add(d.alpha ?? [], pick.dex) : (d.alpha ?? []) };
 }
 // Shiny on purpose: a species caught shiny can be chosen shiny in the picker.
 export const shinyUnlocked = (d, dex) => d.shiny.includes(dex);
