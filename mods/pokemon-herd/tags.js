@@ -58,7 +58,11 @@ export function layoutTags(items, width, opt = {}) {
     };
     // With a cap on lines, a crowded tag gets narrower before it gives up its clear path, and
     // as a last resort sits on the last line over the others, as narrow as it gets.
-    if (place(minW, true) || place(Math.min(minW, 36), true) || place(Math.min(minW, 24), true) || place(Math.min(minW, 24), false)) continue;
+    // Its own least width: what's drawn beside its text (an Alpha's α) comes on top, so even a
+    // squeezed one keeps its letters.
+    const x = it.extra ?? 0;
+    const least = (m) => Math.min(width, m + x);
+    if (place(least(minW), true) || place(least(Math.min(minW, 36)), true) || place(least(Math.min(minW, 24)), true) || place(least(Math.min(minW, 24)), false)) continue;
     const w = Math.min(24, width);
     out.set(it.id, { left: Math.min(Math.max(cx - w / 2, 0), width - w), w, line: maxLines - 1 });
   }

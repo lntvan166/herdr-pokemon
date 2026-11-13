@@ -150,3 +150,9 @@ test("a tag with something beside its text (an Alpha's α) is that much wider", 
   const alpha = layoutTags([{ id: "a", cx: 200, text: "worklog", rank: 1, extra: 16 }], 400).get("a");
   assert.equal(alpha.w, plain.w + 16);
 });
+
+test("a squeezed tag with an α keeps its letters: its least width counts the α", () => {
+  const items = [{ id: "a", cx: 100, text: "openGym", rank: 1 }, { id: "b", cx: 150, text: "worklog", rank: 2, extra: 16 }, { id: "c", cx: 125, text: "rodon", rank: 3 }];
+  const out = layoutTags(items, 400, { maxLines: 2 });
+  assert.ok(out.get("b").w >= 36 + 16, String(out.get("b").w));
+});
