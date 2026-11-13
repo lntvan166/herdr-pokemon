@@ -65,6 +65,8 @@ const CAMP_GAP = 46; // px between seats round the campfire // per tick (4 a sec
 // ---- who is which Pokémon -------------------------------------------------------
 
 const slotOf = (a) => a.pane || a.address;
+// Every entry the picker can list (species and their forms), for fetching icons in the background.
+const ALL_ENTRIES = searchEntries("", Infinity).entries;
 const entryKey = (e) => `${e.dex}${e.form ? `-${e.form}` : ""}`;
 // (A Mega is keyed by the X or Y really shown, so a Mega Y drawn later replaces the X stand-in.)
 const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.form}` : ""}${mega ? `m${megaForm(pick.dex, pick.megaKind)?.kind ?? ""}` : ""}${pick.shiny ? "s" : ""}`;
@@ -426,6 +428,12 @@ export default class PokemonHerd extends View {
       cx.spawn(async (cx) => { await readyArt(); cx.notify(); });
       return;
     }
+    // The picker's icons, every one not downloaded yet, fetched quietly here, one at a time: the
+    // picker then finds them all on disk (fetching many there itself blanked its list).
+    cx.spawn(async () => {
+      const have = await cachedIcons();
+      for (const e of ALL_ENTRIES) if (!have.has(entryKey(e))) await ensureIcon(e.dex, e.form).catch(() => null);
+    });
     this.width = 900;
     this.sized = false; // Pokémon are placed only once the real width is known
     this.height = 112;
@@ -3206,7 +3214,10 @@ export default class PokemonHerd extends View {
     this.sprites ??= {}; // the preview's animations (want / spriteFor)
     this.preview = null; // right-clicked in the list: { dex, form?, shiny }, shown in the card's place
     // The list's renderer can't start downloads; this picks up what scrolled into view.
-    cx.timer.every(250, (cx) => this.fetchIcons(cx));
+    cx.timer.every(300, (cx) => {
+      this.fetchIcons(cx);
+      if (this.iconsDirty) { this.iconsDirty = false; cx.notify(); }
+    });
   }
 
   // The filter chips as searchEntries takes them: the ★ chip is the favourites' keys, read live.
@@ -3226,8 +3237,11 @@ export default class PokemonHerd extends View {
   }
 
   // Icons for what the picker shows, downloaded on demand, a few at a time.
+  // What's shown first (its line, the preview's, the rows in view), then every other one still
+  // missing, in the background: scrolling then meets icons already there.
   fetchIcons(cx) {
-    this.iconQueue = [...this.chainEntries().flat(), ...(this.preview ? this.lineOf(this.preview).flat() : []), ...this.visible].filter((e) => !this.icons[entryKey(e)]);
+    this.iconQueue = [...this.chainEntries().flat(), ...(this.preview ? this.lineOf(this.preview).flat() : []), ...this.visible]
+      .filter((e) => !this.icons[entryKey(e)]);
     while (this.iconActive < ICON_JOBS && this.iconQueue.length) {
       const e = this.iconQueue.shift();
       const key = entryKey(e);
@@ -3242,7 +3256,11 @@ export default class PokemonHerd extends View {
         }
         this.iconActive--;
         this.fetchIcons(cx);
-        cx.notify();
+        // A redraw blanks the grid for a frame (Herdr's virtual list): only for an icon in view
+        // (or its line, or the preview's), and a few at once by the timer. Those fetched in the
+        // background show when scrolled to, with no redraw of their own.
+        const inView = (x) => x.some((f) => entryKey(f) === key);
+        if (inView(this.visible) || inView(this.chainEntries().flat()) || (this.preview && inView(this.lineOf(this.preview).flat()))) this.iconsDirty = true;
       });
     }
   }
