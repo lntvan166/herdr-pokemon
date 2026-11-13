@@ -195,6 +195,22 @@ export async function loadSprite(dex, shiny, form = null, onCore = null) {
   return meta;
 }
 
+// An Alpha's ring on the ground: an ellipse, a bright red rim round a pale red inside, drawn once
+// (a box with round ends looked like a pill, not a ring). Returns its path as drawn.
+export const RING_REL = `${DATA_REL}/art/alpha-ring.png`;
+export async function ensureRing() {
+  const file = `${DATA}/art/alpha-ring.png`;
+  if (await fs.exists(file).catch(() => false)) return RING_REL;
+  if (!(await imageMagick())) throw new Error("ImageMagick not found");
+  await fs.mkdir(`${DATA}/art`, { recursive: true });
+  const tmp = `${file}.part.png`;
+  await im("convert", ["-size", "240x48", "xc:none", "-fill", "#ff5a5a50", "-stroke", "#ff4040", "-strokewidth", "5",
+    "-draw", "ellipse 120,24 114,19 0,360", tmp]);
+  const r = await exec("mv", ["-f", tmp, file]);
+  if (r.code !== 0) throw new Error("ring move failed");
+  return RING_REL;
+}
+
 // The picker's icons: SpriteCollab's 40x40 portrait, doubled when ImageMagick is there.
 // Fetched one at a time, only for the Pokémon the picker shows.
 // A regional form's icon is its own portrait (portrait/<dex>/<form>/).

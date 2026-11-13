@@ -26,7 +26,7 @@ import { typeOf, TYPE_ICON } from "./types.js";
 import { hitWild, hitBack, typesOf, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
+import { ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -278,19 +278,27 @@ const healthBar = (x, top, hp) => div().absolute().left(x - 18).top(Math.max(1, 
 const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + (now - (m.hpAt ?? now)) / OWN_REST) : 1);
 // An Alpha: a red glow behind it (breathing), and a red α by its head.
 const ALPHA_RED = "#e5484d";
+// The ring's picture (sprites.js ensureRing), made once at start.
+const RING = { ready: false };
+ensureRing().then(() => { RING.ready = true; }, () => {});
 const alphaGlow = (mid, ground, box, scale) => {
   // A red ring on the ground under its feet (wider than its shadow), breathing; and a few red
   // motes rising beside it. No box round it.
   const w = Math.max(26, box.w * scale * 1.15), h = Math.max(9, 11 * scale);
-  const motes = [[-0.42, 0.55, 1300], [0.38, 0.35, 1700], [-0.15, 0.2, 2100], [0.2, 0.7, 1500]];
+  // Red motes drifting up round it, each on its own beat: [x across its width, how high it
+  // starts (of its height), how far it rises (px), period ms, size px].
+  const motes = [[-0.5, 0.15, 22, 1900, 3], [0.45, 0.3, 26, 2300, 2], [-0.25, 0.45, 18, 1700, 2],
+    [0.3, 0.1, 24, 2100, 3], [0.05, 0.6, 16, 2600, 2], [-0.4, 0.7, 14, 1500, 2]];
   return div().absolute().left(0).top(0)
-    // A bright red rim round a pale red inside (as the README's GIF): solid red turned muddy
-    // over the shadow and the grass.
-    .child(div().absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).rounded_full()
-      .border_2().border_color("#ff4a4a").bg("#ff5a5a44").loop("opacity", { from: 0.45, to: 1, period: 1400 }))
-    .children(motes.map(([dx, dy, period]) => div().absolute()
-      .left(mid + dx * box.w * scale).top(ground - dy * box.h * scale).size(3).rounded_full()
-      .bg(ALPHA_RED).loop("opacity", { from: 0, to: 0.9, period })));
+    .child((RING.ready ? image(RING_REL) : div().rounded_full().border_2().border_color("#ff4a4a").bg("#ff5a5a44"))
+      .absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).loop("opacity", { from: 0.45, to: 1, period: 1400 }))
+    .children(motes.map(([dx, dy, rise, period, size], k) => {
+      const y = ground - dy * box.h * scale;
+      return div().absolute().left(mid + dx * box.w * scale).top(y).size(size).rounded_full()
+        .bg(k % 3 === 2 ? "#ffb070" : "#ff4a4a")
+        .loop("top", { from: y, to: y - rise, period, easing: "linear" })
+        .loop("opacity", { from: 0, to: 0.95, period: period / 2 });
+    }));
 };
 const alphaMark = (x, y) => div().absolute().left(x).top(Math.max(0, y)).h(14).px(3).rounded(4).flex().items_center()
   .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α");
