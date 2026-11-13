@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { hitWild, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { hitWild, hitBack, typesOf, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -270,6 +270,12 @@ function payDexGoals() {
   for (const g of due) payOut(g);
   saveDex({ ...d, goals: [...d.goals, ...due.map((g) => g.n)] });
 }
+// A health bar (0..1) centred on x: green, amber, then red (blinking: one more hit may be the last).
+const healthBar = (x, top, hp) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
+  .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
+  .child(div().h_full().w(Math.max(1, Math.round(36 * hp))).bg(hp > 0.5 ? "#46c46a" : hp > RED ? "#e8b062" : "#e5484d"));
+// Yours after a wild one hit back: its health (0..1), coming back over OWN_REST.
+const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + (now - (m.hpAt ?? now)) / OWN_REST) : 1);
 // An Alpha: a red glow behind it (breathing), and a red α by its head.
 const ALPHA_RED = "#e5484d";
 const alphaGlow = (mid, ground, box, scale) => {
@@ -762,6 +768,15 @@ export default class PokemonHerd extends View {
       const fx = v.fight;
       v.x = fx.x;
       if (now >= fx.at + 500) v.pick.hp = fx.hp;
+      // It hits back: yours loses health (and faints at 0: it rests OWN_REST, 💫).
+      const own = fx.back && this.mons[fx.own];
+      if (own && !fx.backDone && now >= fx.at + 1500) {
+        fx.backDone = true;
+        own.hp = fx.back.hp;
+        own.hpAt = now;
+        if (fx.back.fainted) { own.restUntil = now + OWN_REST; own.react = { anim: null, until: now + 3000, icon: "💫" }; }
+        else own.react = { anim: null, until: now + 1200, icon: "💢" };
+      }
       if (now < fx.until) return true;
       if (fx.fainted) {
         v.fainted ??= now;
@@ -886,12 +901,16 @@ export default class PokemonHerd extends View {
     const th = v.throw;
     // Its health, once one of yours has hit it: a thin bar over its head (green, amber, red).
     const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
-    const hpBar = (x) => div().absolute().left(x - 18).top(Math.max(1, headY - 6)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
-      .child(div().h_full().w(Math.max(1, Math.round(36 * hp))).bg(hp > 0.5 ? "#46c46a" : hp > 0.2 ? "#e8b062" : "#e5484d"));
+    const hpBar = (x) => healthBar(x, headY - 6, hp);
     if (v.fight) {
       // Standing where it was hit, flinching; fainted: fading, and a word.
       const x = v.fight.x;
-      const hurt = meta.react?.[v.dir === "r" ? "HurtR" : "HurtL"] ?? meta.react?.Hurt ?? s;
+      const fx = v.fight;
+      // Hit first (flinching), then, hitting back, its attack toward yours.
+      const toward = (fx.ownX ?? x) > x ? "R" : "L";
+      const striking = fx.back && now >= fx.at + 1000 && now < fx.at + 1700;
+      const hurt = (striking ? meta.react?.[`Attack${toward}`] ?? meta.react?.[`SpAttack${toward}`] ?? meta.react?.Attack : null)
+        ?? meta.react?.[v.dir === "r" ? "HurtR" : "HurtL"] ?? meta.react?.Hurt ?? s;
       const hl = mid - (hurt.box.x + hurt.box.w / 2) * scale, ht = ground - (hurt.box.y + hurt.box.h) * scale;
       root.child(div().id(`visitor-fight-${v.id}-${v.leg ?? 0}`).absolute().top(0).h(ground + 10).w(sw).left(x - mid)
         .when(!!v.fainted, (el) => el.opacity(0.35))
@@ -899,11 +918,15 @@ export default class PokemonHerd extends View {
         .child(image((now < v.fight.until ? hurt : s).path).absolute().left(now < v.fight.until ? hl : imgLeft).top(now < v.fight.until ? ht : imgTop)
           .w((now < v.fight.until ? hurt : s).w * scale).h((now < v.fight.until ? hurt : s).h * scale)));
       root.child(hpBar(x));
-      if (v.fainted || (now >= v.fight.at + 500 && v.fight.strong)) {
-        const tagW = 260;
+      // What happened, as the games say it: its hit's effect, then the hit back and its effect.
+      const wildName = fullName(v.pick.dex, v.pick.form);
+      const said = v.fainted ? `${wildName} fainted…`
+        : now >= fx.at + 1100 && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= fx.at + 1500 ? ` ${fx.ownName} fainted!` : ""}`
+        : now >= fx.at + 400 && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
+      if (said) {
+        const tagW = 330;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
-          .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-          .child(v.fainted ? `${fullName(v.pick.dex, v.pick.form)} fainted…` : "It's super effective!"));
+          .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground).child(said));
       }
       return;
     }
@@ -998,10 +1021,12 @@ export default class PokemonHerd extends View {
     const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
     // Not once it's walked off the strip (its tag stuck at the edge, saying "click it").
     const onStrip = v.x >= 0 && v.x <= this.width;
-    if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
+    const warned = now - (v.redWarn ?? 0) < 4000;
+    if (onStrip && (hovered || broke || warned || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = 330;
       const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? "An Alpha" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
-      const tail = broke ? " broke free!"
+      const tail = warned ? " is in the red: one more hit may knock it out. Drop again to attack, or throw now."
+        : broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
         : ball ? `: ${shared(BALL_KEY) === ball ? "" : "(Auto) "}click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it flees` : ""}`
@@ -1469,15 +1494,28 @@ export default class PokemonHerd extends View {
       dm.pauseUntil = dm.react.until + rand(1000, 3000);
       changed = true;
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
-      // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying.
+      // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying; the
+      // wild one hits back (hitBack). Not while yours rests after fainting; in the red, the first
+      // drop only warns (one more hit may knock it out), a second within 4 s attacks.
       const v = this.visitor;
       const pk = ids[drop.addr];
-      v.fight = { at: now, until: now + 1600, x: v.x, ...hitWild(v.pick, pk.dex, Math.random, !!pk.alpha) };
-      dm.dir = v.x > dm.x ? "r" : "l";
-      const anim = reactionAnim("spar", hasOf(dMeta));
-      const ms = anim ? Math.max(500, msFor(dMeta)(anim)) : 600;
-      dm.react = { anim, animUntil: now + ms, until: now + ms + 400, face: dm.dir, icon: TYPE_ICON[typeOf(pk.dex)] ?? "💥" };
-      dm.pauseUntil = now + 2500;
+      const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
+      if (now < (dm.restUntil ?? 0)) {
+        this.note(dm, "💫", now, 2500);
+      } else if (hp <= RED && !(now - (v.redWarn ?? 0) < 4000)) {
+        v.redWarn = now;
+      } else {
+        v.redWarn = 0;
+        const hit = hitWild(v.pick, pk.dex, Math.random, !!pk.alpha);
+        const back = hit.fainted ? null : hitBack({ dex: pk.dex, hp: ownHp(dm, now), alpha: !!pk.alpha }, v.pick);
+        v.fight = { at: now, until: now + (back ? 2400 : 1600), x: v.x, own: drop.addr, ownX: dm.x, ownName: fullName(pk.dex, pk.form), back, ...hit };
+        dm.dir = v.x > dm.x ? "r" : "l";
+        const anim = reactionAnim("spar", hasOf(dMeta));
+        const ms = anim ? Math.max(500, msFor(dMeta)(anim)) : 600;
+        const types = typesOf(pk.dex);
+        dm.react = { anim, animUntil: now + ms, until: now + ms + 400, face: dm.dir, icon: TYPE_ICON[types[0]] ?? "💥" };
+        dm.pauseUntil = now + 3000;
+      }
       changed = true;
     } else if (dm && dMeta) {
       const row = rowAt(list[dj], dj);
@@ -1776,8 +1814,9 @@ export default class PokemonHerd extends View {
       ]],
       ["Weaken it first", [
         "Drag one of yours onto a wild one: it attacks. A bar over the wild one shows its health.",
-        "The less health, the easier to catch: three times the chance at a sliver. A type strong against it hits harder (fire on grass); your Alphas hit harder too.",
-        "It hangs on while it's above the red; hit it in the red and it may faint, and it's gone.",
+        "How hard it hits: its best attack against the wild one's best defence (base stats), and the type chart, both types: ×4 extremely effective, ×2 super effective, ×½ not very, ×0 no effect. Your Alphas hit harder.",
+        "The wild one hits back. Yours has a health bar too; at 0 it faints and rests 10 minutes (its hearts are safe). Health comes back by itself.",
+        "The less health, the easier to catch: up to twice the chance. It hangs on while it's above the red; in the red, the first drop only warns, and another hit may make it faint (gone).",
       ]],
       ["Balls and Berries", [
         "Poké Ball, Great (×1.5), Ultra (×2), Master (never fails).",
@@ -2205,7 +2244,9 @@ export default class PokemonHerd extends View {
           .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale)))
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
-          .when(!!pick.alpha, (el) => el.child(alphaMark(SLOT_MID - (s.box.w / 2) * scale - 14, headY + 2)));
+          .when(!!pick.alpha, (el) => el.child(alphaMark(SLOT_MID - (s.box.w / 2) * scale - 14, headY + 2)))
+          // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
+          .when(ownHp(m, now) < 1, (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now))));
       } else {
         // Loading (or no ImageMagick): a little Poké Ball waits in its place.
         const r = 9 * scale;

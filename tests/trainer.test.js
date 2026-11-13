@@ -245,22 +245,37 @@ test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, 
   assert.deepEqual(loadDex(d).alpha, [1]);
 });
 
-import { hitWild, strongAgainst } from "../mods/pokemon-herd/trainer.js";
-test("weakening: hits take its health, a strong type more; weakened, it's easier to catch; at 0 it faints", () => {
+import { hitWild, strongAgainst, powerRatio } from "../mods/pokemon-herd/trainer.js";
+test("weakening: hits by base stats and type; weakened, easier to catch; it hangs on above the red", () => {
   assert.ok(strongAgainst(4, 1)); // Charmander (fire) against Bulbasaur (grass)
   assert.ok(!strongAgainst(1, 4));
-  const h = hitWild({ dex: 1 }, 4, () => 0); // 25% × 1.5
-  assert.ok(Math.abs(h.hp - (1 - 0.375)) < 1e-9 && h.strong && !h.fainted);
-  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0).hp - 0.75) < 1e-9);
-  assert.equal(hitWild({ dex: 1, hp: 0.2 }, 4, () => 0).fainted, true); // hit in the red
-  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 4, () => 1).hp, 0.05); // above it: it hangs on
-  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 4, () => 1).fainted, false);
-  assert.ok(hitWild({ dex: 150 }, 4, () => 0).hp > 0.85); // a legendary takes half
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.2 * 2.8) < 1e-9);
+  assert.ok(powerRatio(150, 129) === 2.5 && powerRatio(129, 143) === 0.35); // Mewtwo on Magikarp; Magikarp on Snorlax
+  const h = hitWild({ dex: 1 }, 4, () => 0);
+  assert.ok(Math.abs(h.hp - (1 - 0.18 * powerRatio(4, 1) * 1.5)) < 1e-9 && h.strong && !h.fainted);
+  assert.equal(hitWild({ dex: 1, hp: 0.2 }, 150, () => 1).fainted, true); // hit in the red
+  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 150, () => 1).hp, 0.05); // above it: it hangs on
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.2 * 1.9) < 1e-9);
   assert.equal(catchChance("poke-ball", { dex: 3, hp: 1 }), catchChance("poke-ball", { dex: 3 }));
   assert.ok(catchChance("poke-ball", { dex: 1, hp: 0 }) <= 0.95);
 });
-
 test("an Alpha of yours hits harder", () => {
-  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0, true).hp - (1 - 0.25 * 1.3)) < 1e-9);
+  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0, true).hp - (1 - 0.18 * powerRatio(1, 4) * 1.3)) < 1e-9);
+});
+
+import { effectOn, bestEffect, EFFECT, hitBack, typesOf } from "../mods/pokemon-herd/trainer.js";
+test("the type chart, both types: extremely, super, not very, no effect", () => {
+  assert.deepEqual(typesOf(130), ["water", "flying"]); // Gyarados
+  assert.equal(effectOn("electric", 130), 4);
+  assert.equal(EFFECT[effectOn("electric", 130)].text, "It's extremely effective!");
+  assert.equal(effectOn("fire", 1), 2); // Bulbasaur: grass ×2, poison ×1
+  assert.equal(effectOn("normal", 94), 0); // Gengar: ghost
+  assert.equal(effectOn("grass", 6), 0.25); // Charizard: fire and flying
+  assert.equal(bestEffect(25, 130), 4); // Pikachu on Gyarados
+  assert.equal(hitWild({ dex: 94 }, 143, () => 0.5).hp, 1); // Snorlax's normal on Gengar: nothing
+});
+test("a wild one hits back; yours faints at 0", () => {
+  const r = hitBack({ dex: 1, hp: 0.1 }, { dex: 6 }, () => 1); // Charizard's fire on Bulbasaur
+  assert.equal(r.eff, 2);
+  assert.equal(r.fainted, true);
+  assert.ok(hitBack({ dex: 1 }, { dex: 7 }, () => 0).hp > 0.8); // Squirtle's water on grass: not very
 });

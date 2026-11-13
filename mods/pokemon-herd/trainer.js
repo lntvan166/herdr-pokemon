@@ -2,6 +2,7 @@
 // legendary Pokémon. Pure.
 import { WALKABLE, REGIONS, regionOf, nameOf, isWalkable, hasShiny, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
+import { BASE } from "./base-stats.js";
 import { typeOf, TYPES } from "./types.js";
 
 // ---- legendary and mythical Pokémon ------------------------------------------------
@@ -58,39 +59,90 @@ export function baseRate(dex) {
   return !pre ? (next ? 0.45 : 0.35) : next ? 0.3 : 0.2;
 }
 // How likely `ball` catches `pick` ({ dex, hp? }), with `bait` fed first. Weakened (hp, 0..1, by
-// one of yours attacking it), the base rate rises as in the main games: × (3 − 2·hp), so three
-// times at a sliver of health.
+// one of yours attacking it), the base rate rises: × (2 − hp), twice at a sliver of health.
 export function catchChance(ball, pick, bait = null) {
   const mul = BALL_MUL[ball];
   if (!mul) return 0;
   if (mul === Infinity) return 1;
   const hp = Number.isFinite(pick.hp) ? Math.max(0, Math.min(1, pick.hp)) : 1;
-  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (3 - 2 * hp));
+  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (2 - hp));
   return 1 - (1 - base) ** (mul * (BAIT[bait]?.rate ?? 1));
 }
 
 // ---- weakening a wild one ---------------------------------------------------------------------
-// Drop one of yours on a wild one: it attacks. Each hit takes 25–45% of its health, half again for
-// a type that's strong against it, less on an Alpha (×0.7) or a legendary (×0.5). It hangs on
-// (5% left) from any hit while it's above 20% (in the red, the bar says stop); a hit in the red
-// can make it faint, and it's gone.
-const STRONG = {
-  fire: ["grass", "ice", "bug", "steel"], water: ["fire", "ground", "rock"], grass: ["water", "ground", "rock"],
-  electric: ["water", "flying"], ice: ["grass", "ground", "flying", "dragon"], fighting: ["normal", "ice", "rock", "dark", "steel"],
-  poison: ["grass", "fairy"], ground: ["fire", "electric", "poison", "rock", "steel"], flying: ["grass", "fighting", "bug"],
-  psychic: ["fighting", "poison"], bug: ["grass", "psychic", "dark"], rock: ["fire", "ice", "flying", "bug"],
-  ghost: ["psychic", "ghost"], dragon: ["dragon"], dark: ["psychic", "ghost"], steel: ["ice", "rock", "fairy"],
-  fairy: ["fighting", "dragon", "dark"], normal: [],
+// Drop one of yours on a wild one: it attacks. A hit takes 18–32% of its health, times how the
+// attacker's best attack (Attack or Sp. Atk) stands to the wild one's best defence (base stats,
+// base-stats.js; ×0.35 to ×2.5): Mewtwo hits hard, Magikarp hardly. Half again for a type strong
+// against it; an Alpha of yours ×1.3, a wild Alpha takes ×0.8. It hangs on (5% left) from any hit
+// while it's above 20%; in the red (RED), a hit can make it faint, and it's gone.
+// The type chart (attacking type: [super effective on, not very effective on, no effect on]).
+const CHART = {
+  normal: [[], ["rock", "steel"], ["ghost"]],
+  fire: [["grass", "ice", "bug", "steel"], ["fire", "water", "rock", "dragon"], []],
+  water: [["fire", "ground", "rock"], ["water", "grass", "dragon"], []],
+  electric: [["water", "flying"], ["electric", "grass", "dragon"], ["ground"]],
+  grass: [["water", "ground", "rock"], ["fire", "grass", "poison", "flying", "bug", "dragon", "steel"], []],
+  ice: [["grass", "ground", "flying", "dragon"], ["fire", "water", "ice", "steel"], []],
+  fighting: [["normal", "ice", "rock", "dark", "steel"], ["poison", "flying", "psychic", "bug", "fairy"], ["ghost"]],
+  poison: [["grass", "fairy"], ["poison", "ground", "rock", "ghost"], ["steel"]],
+  ground: [["fire", "electric", "poison", "rock", "steel"], ["grass", "bug"], ["flying"]],
+  flying: [["grass", "fighting", "bug"], ["electric", "rock", "steel"], []],
+  psychic: [["fighting", "poison"], ["psychic", "steel"], ["dark"]],
+  bug: [["grass", "psychic", "dark"], ["fire", "fighting", "poison", "flying", "ghost", "steel", "fairy"], []],
+  rock: [["fire", "ice", "flying", "bug"], ["fighting", "ground", "steel"], []],
+  ghost: [["psychic", "ghost"], ["dark"], ["normal"]],
+  dragon: [["dragon"], ["steel"], ["fairy"]],
+  dark: [["psychic", "ghost"], ["fighting", "dark", "fairy"], []],
+  steel: [["ice", "rock", "fairy"], ["fire", "water", "electric", "steel"], []],
+  fairy: [["fighting", "dragon", "dark"], ["fire", "poison", "steel"], []],
 };
-export const strongAgainst = (attacker, target) => (STRONG[typeOf(attacker)] ?? []).includes(typeOf(target));
-// One hit: { hp (what's left, 0..1), dmg, strong, fainted }. `alpha`: the attacker is an Alpha
-// of yours: it hits harder (×1.3).
+// A species' types (base-stats.js; its first type alone when unknown).
+export const typesOf = (dex) => { const b = BASE[dex]; return b && b.length > 2 ? b.slice(2) : [typeOf(dex)]; };
+// How effective a type is on a species: 0, ¼, ½, 1, 2 or 4 (both its types count).
+export function effectOn(type, dex) {
+  const [sup, not, none] = CHART[type] ?? [[], [], []];
+  return typesOf(dex).reduce((m, t) => m * (none.includes(t) ? 0 : sup.includes(t) ? 2 : not.includes(t) ? 0.5 : 1), 1);
+}
+// The attacker's best: of its own types, the one that does most to the target (as a move of its type).
+export function bestEffect(attacker, target) {
+  return Math.max(...typesOf(attacker).map((t) => effectOn(t, target)));
+}
+export const strongAgainst = (attacker, target) => bestEffect(attacker, target) > 1;
+// What the games say, and how much of it lands here (×4 and ×2 softened, so no single hit is all).
+export const EFFECT = {
+  4: { text: "It's extremely effective!", mul: 2 },
+  2: { text: "It's super effective!", mul: 1.5 },
+  1: { text: "", mul: 1 },
+  0.5: { text: "It's not very effective…", mul: 0.6 },
+  0.25: { text: "It's not very effective…", mul: 0.4 },
+  0: { text: "It doesn't affect it…", mul: 0 },
+};
+// One attack's share of the target's health: 18–32%, × attack over defence (base stats), × the
+// type's effect; an Alpha hits ×1.3 and takes ×0.8.
+export function damage(attacker, target, rnd = Math.random, how = {}) {
+  const eff = bestEffect(attacker, target);
+  const dmg = (0.18 + 0.14 * rnd()) * powerRatio(attacker, target) * EFFECT[eff].mul * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1);
+  return { dmg, eff, text: EFFECT[eff].text };
+}
+
+export const RED = 0.2;
+const statsOf = (dex) => BASE[dex] ?? [70, 70];
+export const powerRatio = (attacker, target) => Math.max(0.35, Math.min(2.5, statsOf(attacker)[0] / statsOf(target)[1]));
 export function hitWild(wild, attacker, rnd = Math.random, alpha = false) {
   const hp = Number.isFinite(wild.hp) ? wild.hp : 1;
-  const strong = strongAgainst(attacker, wild.dex);
-  const dmg = (0.25 + 0.2 * rnd()) * (strong ? 1.5 : 1) * (wild.alpha ? 0.7 : 1) * (isLegendary(wild.dex) ? 0.5 : 1) * (alpha ? 1.3 : 1);
-  const left = hp > 0.2 ? Math.max(0.05, hp - dmg) : Math.max(0, hp - dmg);
-  return { hp: left, dmg, strong, fainted: left <= 0.001 };
+  const { dmg, eff, text } = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha });
+  const strong = eff > 1;
+  const left = hp > RED ? Math.max(0.05, hp - dmg) : Math.max(0, hp - dmg);
+  return { hp: left, dmg, strong, eff, text, fainted: left <= 0.001 };
+}
+// The wild one hits back at yours (its `hp`, 0..1, kept on the strip): { hp, dmg, eff, text,
+// fainted }. Yours faints at 0 and rests a while (OWN_REST); its hearts are untouched.
+export const OWN_REST = 10 * 60000;
+export function hitBack(own, wild, rnd = Math.random) {
+  const hp = Number.isFinite(own.hp) ? own.hp : 1;
+  const { dmg, eff, text } = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha });
+  const left = Math.max(0, hp - dmg);
+  return { hp: left, dmg, eff, text, fainted: left <= 0.001 };
 }
 // A legendary: about 15 balls before it's gone (LEGEND_THROWS), each one far less likely to hold
 // it: over all 15, Poké Balls catch it 4 times in 10, Ultra Balls 6 in 10, Ultra Balls with
