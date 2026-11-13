@@ -181,8 +181,16 @@ test("Rare Candy evolves a levelling one now; berries add hearts", () => {
   assert.equal(useItem({ dex: 4, mega: "auto" }, "p", "rare-candy", {}, 99).pick.evolvedAt, 99);
   assert.equal(itemUse({ dex: 6 }, "p", "rare-candy"), null); // nothing to become
   assert.equal(itemUse({ dex: 25 }, "p", "rare-candy"), null); // needs a stone
-  assert.equal(useItem({ dex: 4, hearts: 2 }, "p", "berry").pick.friend, 50); // half a heart
-  assert.equal(useItem({ dex: 4, friend: 50 }, "p", "berry").pick.hearts, 3);
+  assert.equal(useItem({ dex: 4, hearts: 2 }, "p", "berry").pick.friend, 45); // a quarter of a heart
+  assert.equal(useItem({ dex: 4, friend: 55 }, "p", "berry").pick.hearts, 3);
+  // Three a day, then it's full.
+  let p = { dex: 4, friend: 0 };
+  for (let i = 0; i < 3; i++) p = useItem(p, "p", "berry", { day: "2026-11-13" }).pick;
+  assert.equal(p.friend, 15);
+  assert.equal(itemUse(p, "p", "berry", { day: "2026-11-13" }), null);
+  assert.equal(itemUse(p, "p", "sitrus-berry", { day: "2026-11-13" }), null);
+  assert.equal(itemUse(p, "p", "berry", { day: "2026-11-14" }), "hearts");
+  assert.deepEqual(loadPicks({ v: 2, panes: { a: p } }).panes.a.fed, { day: "2026-11-13", n: 3 });
   assert.equal(itemUse({ dex: 4, hearts: MAX_HEARTS }, "p", "berry"), null);
   assert.equal(withHearts({ dex: 4, hearts: 1 }, -5).hearts, 0);
 });

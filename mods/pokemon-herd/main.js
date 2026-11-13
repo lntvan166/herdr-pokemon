@@ -23,7 +23,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
@@ -970,7 +970,7 @@ export default class PokemonHerd extends View {
       if (m.hungry) {
         if (bag().items.berry) {
           saveBag(addItem(bag(), "berry", -1));
-          updatePick(a.pane, (p) => withFriend(p, FRIEND.berry));
+          updatePick(a.pane, (p) => withFriend(p, FRIEND.meal));
           this.note(m, ITEMS.berry.icon, now, 5000, "berry");
           research("berry");
         }
@@ -2609,7 +2609,7 @@ export default class PokemonHerd extends View {
     const tab = this.bagTab ?? "items";
     const daily = dailyNow();
     const boxed = boxList(saved, new Set(agents().map((a) => a.pane).filter(Boolean)));
-    const how = { night: isNight() };
+    const how = { night: isNight(), day: dayOf(Date.now()) }; // Berries: three a day each
     const ids = Object.keys(ITEMS);
     const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
     // Usable now: an evolution first (that's news), then hearts.
@@ -2631,11 +2631,11 @@ export default class PokemonHerd extends View {
     const finding = !first ? "Nothing to use right now"
       : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
       : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
-      : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) half a heart`;
+      : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${usable[0] === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
     const use = (id, h) => {
       const live = savedPicks()[h.slot]; // as saved now: never a stale copy (it may have moved since)
       if (!live) return;
-      const r = useItem(live, h.slot, id, { night: isNight() }, Date.now());
+      const r = useItem(live, h.slot, id, { night: isNight(), day: dayOf(Date.now()) }, Date.now());
       if (!r) return;
       savePicks({ [h.slot]: r.pick });
       saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0)); // what it held goes back in
@@ -2926,10 +2926,10 @@ export default class PokemonHerd extends View {
             this.nickInput.focus();
           }))
           // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
-          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && itemUse(pick, slot, id) === "hearts").map((id) =>
+          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { day: dayOf(Date.now()) }) === "hearts").map((id) =>
             pill(`box-feed-${id}-${slot}`, `Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => {
               const live = savedPicks()[slot];
-              const r = live && useItem(live, slot, id, {}, Date.now());
+              const r = live && useItem(live, slot, id, { day: dayOf(Date.now()) }, Date.now());
               if (!r) return;
               savePicks({ [slot]: r.pick });
               saveBag(addItem(bag(), id, -1));
@@ -3320,12 +3320,12 @@ export default class PokemonHerd extends View {
       .when(!ids.length, (el) => el.child(div().text_size(11).text_color(t.dim)
         .child("Nothing for it yet. Idle Pokémon find Berries and stones; a long job earns a Rare Candy.")))
       .children(ids.map((id) => {
-        const use = itemUse(cur, slot, id, { night });
+        const use = itemUse(cur, slot, id, { night, day: dayOf(Date.now()) });
         return div()
           .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().flex_none().gap(4).text_size(11.5).border_1()
           .border_color(t.border).text_color(use ? t.foreground : t.dim)
           .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
-            const r = useItem(this.livePick(), slot, id, { night: isNight() }, Date.now());
+            const r = useItem(this.livePick(), slot, id, { night: isNight(), day: dayOf(Date.now()) }, Date.now());
             if (r && (id === "berry" || id === "sitrus-berry")) research("berry"); // the day's Research
             if (!r) return;
             savePicks({ [slot]: r.pick });

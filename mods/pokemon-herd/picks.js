@@ -42,7 +42,8 @@ export function loadPicks(current, legacy) {
       const caught = Number.isFinite(p.caught) && p.caught > 0 ? p.caught : undefined; // caught in a ball (trainer.js)
       const nature = p.nature in NATURES ? p.nature : undefined;
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}) };
+      const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }
@@ -149,7 +150,12 @@ export function gainJob(pick, slot, how = {}, at = 0) {
 // what it gains (not what it loses). A pick saved before points had only hearts: those count.
 export const HEART_PTS = 20;
 export const FRIEND_MAX = MAX_HEARTS * HEART_PTS;
-export const FRIEND = { pat: 3, quick: 4, spar: 3, berry: 10, sitrus: 20, hungry: -10 };
+// A Berry: an Oran a quarter of a heart, a Sitrus half; three a day at most (FED_MAX), then it's
+// full. A hungry one's meal (when you answer its agent) gives back what hunger took.
+export const FRIEND = { pat: 3, quick: 4, spar: 3, berry: 5, sitrus: 10, meal: 10, hungry: -10 };
+export const FED_MAX = 3;
+// Berries it ate on `day` ("YYYY-MM-DD"): its `fed` is { day, n }.
+export const fedOn = (pick, day) => (day && pick?.fed?.day === day ? pick.fed.n : 0);
 export const friendOf = (pick) => (Number.isInteger(pick.friend) ? pick.friend : (pick.hearts ?? 0) * HEART_PTS);
 export function withFriend(pick, pts) {
   const friend = Math.max(0, Math.min(FRIEND_MAX, friendOf(pick) + (pts > 0 && pick.held === "soothe-bell" ? 2 * pts : pts)));
@@ -160,7 +166,7 @@ export const withHearts = (pick, n) => withFriend(pick, n * HEART_PTS);
 // What an item from the Bag would do for it: "evolve", "hearts", "hold", or null (no use now).
 export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
-  if (id === "berry" || id === "sitrus-berry") return friendOf(pick) < FRIEND_MAX ? "hearts" : null;
+  if (id === "berry" || id === "sitrus-berry") return friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX ? "hearts" : null;
   if (id === "rare-candy") return evolveTarget(pick, slot, { night: how.night, candy: true }) ? "evolve" : null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   return stone && evolveTarget(pick, slot, { stone }) ? "evolve" : null;
@@ -171,7 +177,10 @@ export function itemUse(pick, slot, id, how = {}) {
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
-  if (use === "hearts") return { pick: withFriend(pick, id === "sitrus-berry" ? FRIEND.sitrus : FRIEND.berry), evolved: false };
+  if (use === "hearts") {
+    const fed = how.day ? { fed: { day: how.day, n: fedOn(pick, how.day) + 1 } } : {};
+    return { pick: { ...withFriend(pick, id === "sitrus-berry" ? FRIEND.sitrus : FRIEND.berry), ...fed }, evolved: false };
+  }
   if (use !== "evolve") return null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   const dex = evolveTarget(pick, slot, stone ? { stone } : { night: how.night, candy: true });

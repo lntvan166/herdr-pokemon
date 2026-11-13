@@ -138,8 +138,8 @@ test("the balls are items: sold, described", () => {
 
 import { BAIT } from "../mods/pokemon-herd/trainer.js";
 import { useItem } from "../mods/pokemon-herd/picks.js";
-test("berries: Sitrus is a whole heart; Razz and Golden Razz make a catch likelier; Pinap doubles the gift", () => {
-  assert.equal(useItem({ dex: 4, friend: 0 }, "p", "sitrus-berry").pick.hearts, 1);
+test("berries: Sitrus is half a heart; Razz and Golden Razz make a catch likelier; Pinap doubles the gift", () => {
+  assert.equal(useItem({ dex: 4, friend: 0 }, "p", "sitrus-berry").pick.friend, 10);
   const p = { dex: 25 };
   assert.ok(catchChance("poke-ball", p, "razz-berry") > catchChance("poke-ball", p));
   assert.ok(catchChance("poke-ball", { dex: 150 }, "golden-razz-berry") > 2 * catchChance("poke-ball", { dex: 150 }));

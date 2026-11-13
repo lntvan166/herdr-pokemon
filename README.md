@@ -48,7 +48,7 @@ as it is. Deerling and Sawsbuck change coats with the season.
 
 **Hearts, and the Bag.** Friendship is points, 20 to a heart, 5 hearts at most, and it comes
 slowly: a click on a Pokémon (+3, every 30 minutes at most), an answer to its agent within a
-minute (+4, every 10 minutes at most), sparring (+3), an Oran Berry (+10), a Sitrus Berry (+20). Leave its agent waiting over
+minute (+4, every 10 minutes at most), sparring (+3), an Oran Berry (+5), a Sitrus Berry (+10), three Berries a day each at most. Leave its agent waiting over
 5 minutes and it gets hungry (😢, −10) until you answer, when it eats a Berry if you have one. Idle Pokémon now and then dig something up: Poké Balls, Berries,
 stones, a Rare Candy. A job over 30 minutes earns a Rare Candy too (it evolves one now). Use them in
 the picker or in the **Bag** (right-click the strip, "Bag"): pick an item and it lists who on
