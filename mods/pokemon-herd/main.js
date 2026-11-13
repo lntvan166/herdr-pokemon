@@ -874,7 +874,9 @@ export default class PokemonHerd extends View {
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale)))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
-        .on_hover((h, cx) => { this.visitorHover = h; cx.notify(); })
+        // Hovered (it walks under the pointer, so hover comes and goes): its tag stays up while
+        // the pointer is on it and 2.5 s after, for this visitor only.
+        .on_hover((h, cx) => { this.visitorHover = { id: v.id, until: h ? Infinity : Date.now() + 2500 }; cx.notify(); })
         // Right-click: the next ball to throw (Auto, then each kind you have).
         .on_mouse_down("right", (_e, cx) => {
           cx.stop_propagation();
@@ -901,19 +903,24 @@ export default class PokemonHerd extends View {
       // left; then a ball to throw. A legendary one glows.
       .when(!!v.pick.legend, (el) => el.child(div().absolute().left(mid - 9).top(Math.max(2, headY - 34)).text_size(12)
         .loop("opacity", { from: 0.3, to: 1, period: 600 }).child("✦")))
-      .when(showGift, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18)).text_size(13)
-        .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
-        .child(v.gift ? h_flex().items_center().gap(1).child(this.itemMark(v.gift, 18)).when((v.giftN ?? 1) > 1, (e2) => e2.child(div().text_size(10).font_semibold().text_color("#ffffff").child(`×${v.giftN}`))) : "🎁")))
-      // Its purse beside the gift ("₽25"), then what it paid ("+₽25").
-      .when(showGift && (!v.gift ? v.purse > 0 : v.paid > 0), (el) => el.child(div().absolute().left(mid + 10).top(Math.max(2, headY - 16)).h(14).px(3).rounded(3)
-        .bg("#00000055").text_size(10).font_semibold().text_color(v.pick.legend || v.purse >= 60 ? "#f2c94c" : "#ffffff")
-        .child(v.gift ? `+${money(v.paid)}` : money(v.purse))))
+      // Over its head, side by side and centred: the gift (🎁, then what it left: "×3" for a few)
+      // and its purse ("₽25", then "+₽25" once taken). One row, so neither covers the other.
+      .when(showGift, (el) => el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 18)).h(18).justify_center().items_center().gap(4)
+        .child(div().text_size(13)
+          .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
+          .child(v.gift ? h_flex().items_center().gap(1).child(this.itemMark(v.gift, 18)).when((v.giftN ?? 1) > 1, (e2) => e2.child(div().text_size(10).font_semibold().text_color("#ffffff").child(`×${v.giftN}`))) : "🎁"))
+        .when(!v.gift ? v.purse > 0 : v.paid > 0, (e2) => e2.child(div().h(14).px(3).rounded(3).flex().items_center()
+          .bg("#00000055").text_size(10).font_semibold().text_color(v.pick.legend || v.purse >= 60 ? "#f2c94c" : "#ffffff")
+          .child(v.gift ? `+${money(v.paid)}` : money(v.purse))))))
       .when(!!ball, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18))
         .loop("opacity", { from: 0.5, to: 1, period: 700 })
         .child(this.itemMark(ball, 18)))));
     const broke = v.broke && now - v.broke < 2500;
-    if (this.visitorHover || broke || now - (this.ballSwitched ?? 0) < 1500) {
-      const tagW = 250;
+    const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
+    // Not once it's walked off the strip (its tag stuck at the edge, saying "click it").
+    const onStrip = v.x >= 0 && v.x <= this.width;
+    if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
+      const tagW = 330;
       const what = `${v.pick.legend ? "A legendary" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
