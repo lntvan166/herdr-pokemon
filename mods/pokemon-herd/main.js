@@ -2214,7 +2214,7 @@ export default class PokemonHerd extends View {
       else delete this.since[a.address];
     }
     for (const a of list) {
-      (byRow[rowOf(a)] ??= []).push({ id: a.address, cx: headedTo(a), from: isAt(a), text: label(a), rank: rank(a), settled: was.has(a.address) && this.standing.has(a.address), since: this.since[a.address] });
+      (byRow[rowOf(a)] ??= []).push({ id: a.address, cx: headedTo(a), from: isAt(a), text: label(a), extra: ids[a.address]?.alpha ? 16 : 0, rank: rank(a), settled: was.has(a.address) && this.standing.has(a.address), since: this.since[a.address] });
     }
     for (const row of byRow) if (row) for (const [id, spot] of layoutTags(row, this.width, { maxLines: TAG_LINES })) tags.set(id, spot);
     const heads = []; // per row, where each head and its bubble is: clouds and the moon fade there
@@ -2372,7 +2372,7 @@ export default class PokemonHerd extends View {
           // Hovered: its full name ("Pikachu · api") floats over its neighbours' tags.
           .when(!!spot && hovered, (el) => {
             const full = label(a, true);
-            const w = Math.min(this.width, full.length * 6.2 + 26);
+            const w = Math.min(this.width, full.length * 6.2 + 26 + (pick.alpha ? 16 : 0));
             const left = m.moving ? x - w / 2 : clamp(x - w / 2, 0, Math.max(0, this.width - w));
             return el.child(
               interact(h_flex(), `tag-${a.address}`)
@@ -3259,6 +3259,8 @@ export default class PokemonHerd extends View {
         // A redraw blanks the grid for a frame (Herdr's virtual list): only for an icon in view
         // (or its line, or the preview's), and a few at once by the timer. Those fetched in the
         // background show when scrolled to, with no redraw of their own.
+        // A redraw blanks the grid for a frame (Herdr's virtual list): only for an icon in view
+        // (or its line, or the preview's), and a few at once by the timer.
         const inView = (x) => x.some((f) => entryKey(f) === key);
         if (inView(this.visible) || inView(this.chainEntries().flat()) || (this.preview && inView(this.lineOf(this.preview).flat()))) this.iconsDirty = true;
       });
@@ -3570,6 +3572,10 @@ export default class PokemonHerd extends View {
     const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav || this.only.legend);
     const favKeys = favs();
     const dexNow = pokedex();
+    // Read here, not in the list's renderer: shared state read in there (Herdr's layout pass)
+    // left the whole grid blank.
+    const legendsOpen = settingsNow().legendsOpen;
+    const lockedHere = (e) => !e.form && isLocked(e.dex, dexNow, legendsOpen);
     // A small toggle: the filter row's chips.
     const chip = (id, label, on, flip) => div()
       .id(id).h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11).border_1()
@@ -3683,8 +3689,8 @@ export default class PokemonHerd extends View {
                   .child(div().text_size(9.5).text_color(t.dim).child(dexNo(e.dex)))
                   .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)))
                   .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")))
-                  .when(this.locked(e), (el) => el.opacity(0.4).child(div().absolute().top(4).left(6).text_size(11).child("🔒")))
-                  .when(!this.locked(e) && !e.form && shinyUnlocked(dexNow, e.dex), (el) => el.child(div().absolute().top(4).left(6).text_size(11).child("✨")));
+                  .when(lockedHere(e), (el) => el.opacity(0.4).child(div().absolute().top(4).left(6).text_size(11).child("🔒")))
+                  .when(!lockedHere(e) && !e.form && shinyUnlocked(dexNow, e.dex), (el) => el.child(div().absolute().top(4).left(6).text_size(11).child("✨")));
               })));
             }
             return rows;

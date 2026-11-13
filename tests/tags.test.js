@@ -144,3 +144,9 @@ test("a long name next door doesn't swallow a short one (api → a…)", () => {
   assert.equal(m.get("api").line, 0);
   sane(items, m, 243);
 });
+
+test("a tag with something beside its text (an Alpha's α) is that much wider", () => {
+  const plain = layoutTags([{ id: "a", cx: 200, text: "worklog", rank: 1 }], 400).get("a");
+  const alpha = layoutTags([{ id: "a", cx: 200, text: "worklog", rank: 1, extra: 16 }], 400).get("a");
+  assert.equal(alpha.w, plain.w + 16);
+});

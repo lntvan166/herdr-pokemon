@@ -5,7 +5,8 @@
 
 const DEFAULTS = { charW: 6, pad: 18, minW: 54, maxW: 200, gap: 6, maxLines: Infinity };
 
-// items: [{ id, cx, text, rank, from?, settled?, since? }] (lower rank = more important). A walking Pokémon's tag
+// items: [{ id, cx, text, rank, from?, settled?, since?, extra? }] (lower rank = more important;
+// `extra`: px more it wants for something drawn beside its text, an Alpha's α). A walking Pokémon's tag
 // is laid out at cx, where it's headed, and its line is kept clear all the way from `from`,
 // where it is now, so it never passes over another tag. Returns Map id -> { left, w, line }.
 export function layoutTags(items, width, opt = {}) {
@@ -37,7 +38,7 @@ export function layoutTags(items, width, opt = {}) {
   // takes a neighbour's line on a later render either.
   const since = (it) => (it.settled ? (it.since ?? 0) : 0);
   for (const it of [...items].sort((a, b) => walking(a) - walking(b) || fresh(a) - fresh(b) || since(a) - since(b) || a.rank - b.rank || a.cx - b.cx)) {
-    const want = Math.min(width, Math.max(minW, Math.min(maxW, it.text.length * charW + pad)));
+    const want = Math.min(width, Math.max(minW, Math.min(maxW + (it.extra ?? 0), it.text.length * charW + pad + (it.extra ?? 0))));
     const clampX = (v) => Math.min(Math.max(v, 0), width);
     const cx = clampX(it.cx);
     const shift = clampX(it.from ?? it.cx) - cx; // where the tag is now, relative to where it ends
