@@ -208,7 +208,7 @@ export const TASKS = {
   pet: { goals: [3], text: (n) => `Pet ${n} Pokémon`, pay: () => ({ item: "poke-ball", count: 15 }) },
   catch: { goals: [1, 2], text: (n) => `Catch ${n} wild Pokémon`, pay: () => ({ item: "great-ball", count: 8 }), wild: true },
   gift: { goals: [2, 3], text: (n) => `Take ${n} gifts from visitors`, pay: () => ({ item: "poke-ball", count: 20 }), wild: true },
-  berry: { goals: [1, 2], text: (n) => `Feed ${n} Berr${n === 1 ? "y" : "ies"}`, pay: () => ({ money: 225 }) },
+  berry: { goals: [1, 2], text: (n) => `Feed ${n} Berr${n === 1 ? "y" : "ies"} (Box, Bag, or before a ball)`, pay: () => ({ money: 225 }) },
   spar: { goals: [2, 3], text: (n) => `Watch ${n} spars`, pay: () => ({ money: 180 }) },
 };
 // Balls as pay are worth about what the money tasks pay (₽450–750: 15–20 Poké Balls, 8 Great

@@ -808,6 +808,7 @@ export default class PokemonHerd extends View {
     const bait = ball !== "master-ball" && BAIT[shared(BAIT_KEY)] && b0.items[shared(BAIT_KEY)] ? shared(BAIT_KEY) : null;
     saveBag(addItem(bait ? addItem(b0, bait, -1) : b0, ball, -1));
     v.throws = (v.throws ?? 0) + 1;
+    if (bait) research("berry"); // a Berry fed to a wild one counts too
     const now = Date.now();
     const f = clamp((now - v.start) / v.dur, 0, 1);
     v.throw = { ball, bait, at: now, x: v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait) };
@@ -2924,6 +2925,17 @@ export default class PokemonHerd extends View {
             this.nickInput.set_value(pick.nick ?? "");
             this.nickInput.focus();
           }))
+          // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
+          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && itemUse(pick, slot, id) === "hearts").map((id) =>
+            pill(`box-feed-${id}-${slot}`, `Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => {
+              const live = savedPicks()[slot];
+              const r = live && useItem(live, slot, id, {}, Date.now());
+              if (!r) return;
+              savePicks({ [slot]: r.pick });
+              saveBag(addItem(bag(), id, -1));
+              if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+              research("berry");
+            })))
           .when(!!pick.held, (el) => el.child(pill(`box-take-${slot}`, `Take its ${ITEMS[pick.held].name}`, () => {
             const now = savedPicks()[slot];
             const r = now && takeHeld(now);
@@ -3314,6 +3326,7 @@ export default class PokemonHerd extends View {
           .border_color(t.border).text_color(use ? t.foreground : t.dim)
           .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
             const r = useItem(this.livePick(), slot, id, { night: isNight() }, Date.now());
+            if (r && (id === "berry" || id === "sitrus-berry")) research("berry"); // the day's Research
             if (!r) return;
             savePicks({ [slot]: r.pick });
             saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0));
