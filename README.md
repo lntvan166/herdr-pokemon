@@ -41,6 +41,8 @@ Today and Pokédex), the ball and Berry to throw, and **Settings** (with a **Gui
 
 ## Battle to catch
 
+<p align="center"><img src="docs/demo/catch.gif" alt="A wild Venusaur walks in; Mega Charizard X attacks (It's super effective!), Venusaur hits back (It's not very effective…), a second hit puts it in the red, a Poké Ball flies and shakes three times: Gotcha!" width="592"></p>
+
 A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** and they battle:
 
 - **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
@@ -60,6 +62,8 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 | Master Ball | never fails | Silver Pinap | ×1.8 and twice the gift |
 
 ## Rare Pokémon
+
+<p align="center"><img src="docs/demo/rare.gif" alt="A shiny Pikachu sparkling, an Alpha Gengar bigger with a red ring and α carrying ₽150, and a legendary Mewtwo with gold sparkles carrying ₽400" width="592"></p>
 
 | | How often | What's special |
 |---|---|---|

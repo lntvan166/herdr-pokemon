@@ -717,11 +717,156 @@ def battle(tmp):
     magick("-delay", str(TICK // 10), "-loop", "0", *frames, "-layers", "Optimize", out)
     print(f"{os.path.relpath(out)}: {len(frames)} frames, {os.path.getsize(out) // 1024} KB")
 
+ART_DIR = os.path.expanduser("~/.config/herdr-app/data/pokemon-herd/art")
 
-SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party, "battle": battle}
+
+def hp_bar(cx, top, hp, blink_on=True):
+    """A health bar (as on the strip) centred on cx: green, amber, red."""
+    color = "#46c46a" if hp > 0.5 else "#e8b062" if hp > 0.2 else "#e5484d"
+    args = ["-fill", "#00000099", "-draw", f"rectangle {cx - 16},{top} {cx + 16},{top + 4}"]
+    if blink_on:
+        args += ["-fill", color, "-draw", f"rectangle {cx - 15},{top + 1} {cx - 15 + max(1, round(30 * hp))},{top + 3}"]
+    return args
+
+
+def say(text, cx, y, W, size=14, color="#ffffff"):
+    """A line in a dark pill, centred on cx (scaled image coordinates)."""
+    tw = round(glyph_width(text, size) * 1.05)
+    x0 = max(4, min(W - tw - 24, cx - tw // 2 - 10))
+    return ["-fill", "#000000b0", "-draw", f"roundrectangle {x0},{y} {x0 + tw + 20},{y + size + 12} 7,7",
+            "-font", FONT, "-fill", color, "-pointsize", str(size), "-annotate", f"+{x0 + 10}+{y + size + 3}", text]
+
+
+def catch(tmp):
+    """README: battle to catch. A wild Venusaur walks in; Mega Charizard X attacks (fire on grass:
+    super effective), Venusaur hits back (grass on fire: not very effective), a second hit puts it
+    in the red, a Poké Ball flies, shakes three times: Gotcha."""
+    A = lambda f, n: Anim.get(f, n, tmp)
+    W, H, Z = 296, 118, 2
+    horizon = 88
+    ground = horizon + 4
+    sky_png = bright_sky(W, H, horizon, tmp, "catch")
+    zx, vx0, vx = 92, 330, 206
+    ball = os.path.join(tmp, "catch-ball.png")
+    magick(os.path.join(ART_DIR, "items-poke-ball.png"), "-filter", "point", "-resize", "16x16", ball)
+    frames = []
+    for i in range(200):  # 10 s
+        t = i * TICK
+        # Venusaur: walks in (0-1.5 s), flinches, hits back, flinches; then it's in the ball.
+        x = vx if t >= 1500 else round(vx0 + (vx - vx0) * t / 1500)
+        if t < 1500: v = (A("0003", "walkL"), t)
+        elif 1900 <= t < 2500: v = (A("0003", "react-HurtL"), t - 1900)
+        elif 2900 <= t < 3500: v = (A("0003", "react-AttackL"), t - 2900)
+        elif 4400 <= t < 5000: v = (A("0003", "react-HurtL"), t - 4400)
+        else: v = (A("0003", "idleL"), t)
+        if 1600 <= t < 2200: z = (A("0006-0001", "react-AttackR"), t - 1600)
+        elif 3200 <= t < 3700: z = (A("0006-0001", "react-HurtR"), t - 3200)
+        elif 4100 <= t < 4700: z = (A("0006-0001", "react-AttackR"), t - 4100)
+        else: z = (A("0006-0001", "idleR"), t)
+        args = [sky_png]
+        cast = [(*z, zx)] + ([(*v, x)] if t < 6000 else [])
+        for an, tt, cx in cast:
+            px, py = an.place(cx, ground)
+            args += [an.at(max(0, tt)), "-geometry", f"+{px}+{py}", "-composite"]
+        if 1900 <= t < 2100 or 4400 <= t < 4600: args += burst(vx - 8, ground - 26, 8)
+        if 3200 <= t < 3400: args += burst(zx + 10, ground - 26, 7)
+        # Health: Venusaur's over its head once hit; Charizard's once hit back.
+        vhp = 1 if t < 2000 else 0.45 if t < 4500 else 0.14
+        if 2000 <= t < 6000: args += hp_bar(vx, ground - 64, vhp, not (vhp < 0.2 and (i // 4) % 2))
+        if t >= 3300: args += hp_bar(zx, ground - 64, 0.9)
+        # The ball: thrown in an arc (5.4-6 s), then on the ground, shaking three times.
+        if 5400 <= t < 6000:
+            f = (t - 5400) / 600
+            bx, by = round(40 + (vx - 40) * f), round(20 + (ground - 30 - 20) * f - 40 * f * (1 - f) * 2)
+            args += [ball, "-geometry", f"+{bx - 8}+{by - 8}", "-composite"]
+        if 5900 <= t < 6100: args += burst(vx, ground - 16, 9)
+        if t >= 6000:
+            k = (t - 6200) // 120
+            wob = [-2, 2, -2, 0][k % 4] if 6200 <= t < 8000 and (t - 6200) % 600 < 480 else 0
+            args += [ball, "-geometry", f"+{vx - 8 + wob}+{ground - 16}", "-composite"]
+        if t >= 8100:
+            for j, (dx, dy) in enumerate([(-14, -14), (12, -18), (16, -4), (-16, -2)]):
+                if (i // 3 + j) % 3:
+                    args += star(vx + dx, ground - 8 + dy, 2, "#ffe9a8")
+        args += ["-filter", "point", "-resize", f"{Z * 100}%"]
+        # What the games say.
+        if 2000 <= t < 2900: args += say("It's super effective!", vx * Z, 8, W * Z)
+        elif 3100 <= t < 4000: args += say("Venusaur hit back! It's not very effective…", W, 8, W * Z)
+        elif 4500 <= t < 5400: args += say("In the red: throw now!", vx * Z, 8, W * Z, color="#ff8a80")
+        elif 6200 <= t < 8000: args += say(["Shake…", "Shake… shake…", "Shake… shake… shake…"][min(2, (t - 6200) // 600)], vx * Z, 8, W * Z)
+        elif t >= 8100: args += say("✦ Gotcha! Venusaur → Box", vx * Z, 8, W * Z, color="#f2c94c")
+        for tag, cx, st in [("deploy", zx, "working"), ("wild Venusaur", min(x, vx0 - 20), None)]:
+            if st is None and t >= 6000: continue
+            tw = glyph_width(tag, 14)
+            x0 = cx * Z - (tw + 14) // 2
+            y0 = (ground + 6) * Z
+            if st: args += ["-fill", DOT[st], "-draw", f"circle {x0 + 4},{y0 + 10} {x0 + 8},{y0 + 10}"]
+            args += ["-fill", FG if st else "#f2c94c", "-pointsize", "14", "-annotate", f"+{x0 + 14}+{y0 + 15}", tag]
+        p = os.path.join(tmp, f"catch-{i:04d}.png")
+        magick(*args, p)
+        frames.append(p)
+    out = os.path.join(OUT, "catch.gif")
+    magick("-delay", str(TICK // 10), "-loop", "0", *frames, "-layers", "Optimize", out)
+    print(f"{os.path.relpath(out)}: {len(frames)} frames, {os.path.getsize(out) // 1024} KB")
+
+
+def rare(tmp):
+    """README: the rare ones, walking: a shiny Pikachu (sparkling), an Alpha Gengar (bigger, a red
+    ring breathing under it, α, ₽150), a legendary Mewtwo (gold ✦, ₽400). Names under them."""
+    A = lambda f, n: Anim.get(f, n, tmp)
+    W, H, Z = 296, 118, 2
+    horizon = 88
+    ground = horizon + 4
+    sky_png = bright_sky(W, H, horizon, tmp, "rare")
+    px, gx, mx = 50, 150, 246
+    pika, geng, mew = A("0025s", "walkL"), A("0094", "walkL"), A("0150", "walkL")
+    frames = []
+    for i in range(60):  # 3 s, a loop
+        t = i * TICK
+        args = [sky_png]
+        # The Alpha's red ring, breathing, under its feet.
+        a = 0.5 + 0.45 * abs(((i % 28) / 14) - 1)
+        args += ["-fill", f"rgba(255,90,90,{a * 0.5:.2f})", "-stroke", f"rgba(255,70,70,{a:.2f})", "-strokewidth", "2",
+                 "-draw", f"ellipse {gx},{ground - 1} 32,5 0,360", "-stroke", "none"]
+        for an, cx, big in [(pika, px, 1), (geng, gx, 1.4), (mew, mx, 1)]:
+            frame = an.at(t)
+            if big != 1:
+                scaled = os.path.join(tmp, f"rare-big-{i}.png")
+                magick(frame, "-filter", "point", "-resize", f"{round(big * 100)}%", scaled)
+                b = an.cut["box"]
+                args += [scaled, "-geometry", f"+{round(cx - (b['x'] + b['w'] / 2) * big)}+{round(ground - (b['y'] + b['h']) * big)}", "-composite"]
+            else:
+                x, y = an.place(cx, ground)
+                args += [frame, "-geometry", f"+{x}+{y}", "-composite"]
+        # Shiny sparkles round Pikachu, gold ones round Mewtwo.
+        for j, (dx, dy, r) in enumerate([(-16, -40, 2.2), (14, -32, 1.8), (-14, -14, 1.6), (16, -10, 2.2)]):
+            if (i // 3 + j) % 4 < 2: args += star(px + dx, ground + dy, r, "#ffffff" if j % 2 else "#ffe9a8")
+            if (i // 4 + j) % 4 < 2: args += star(mx + dx * 1.3, ground + dy * 1.2, r, "#ffd75e")
+        # Red motes rising beside the Alpha.
+        for j, (dx, ph) in enumerate([(-28, 0), (26, 9), (-18, 17), (20, 25)]):
+            y = ground - 10 - ((i + ph) % 34) * 1.6
+            if (i + ph) % 34 < 26: args += ["-fill", "#e5484d", "-draw", f"rectangle {gx + dx},{round(y)} {gx + dx + 1},{round(y) + 1}"]
+        args += ["-filter", "point", "-resize", f"{Z * 100}%"]
+        # α by the Alpha; purses over the Alpha and the legendary; what each is, on the soil.
+        args += ["-fill", "#e5484d", "-draw", f"roundrectangle {(gx - 46) * Z},{(ground - 70) * Z} {(gx - 46) * Z + 22},{(ground - 70) * Z + 22} 5,5",
+                 "-font", FONT.replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"), "-fill", "#ffffff", "-pointsize", "15", "-annotate", f"+{(gx - 46) * Z + 6}+{(ground - 70) * Z + 17}", "α"]
+        args += say("₽150", gx * Z + 40, 6, W * Z, 13, "#f2c94c") + say("₽400", mx * Z - 10, 6, W * Z, 13, "#f2c94c")
+        for tag, cx, col in [("Shiny", px, "#ffffff"), ("α Alpha", gx, "#ff8a80"), ("✦ Legendary", mx, "#f2c94c")]:
+            tw = glyph_width(tag, 14)
+            args += ["-font", FONT, "-fill", col, "-pointsize", "14", "-annotate", f"+{cx * Z - tw // 2}+{(ground + 6) * Z + 15}", tag]
+        p = os.path.join(tmp, f"rare-{i:04d}.png")
+        magick(*args, p)
+        frames.append(p)
+    out = os.path.join(OUT, "rare.gif")
+    magick("-delay", str(TICK // 10), "-loop", "0", *frames, "-layers", "Optimize", out)
+    print(f"{os.path.relpath(out)}: {len(frames)} frames, {os.path.getsize(out) // 1024} KB")
+
+
+SCENES = {"herd": herd, "focus": focus, "reactions": reactions, "variety": variety, "charizard-mega": charizard_mega, "seasons": seasons, "preview": preview, "party": party, "battle": battle, "catch": catch, "rare": rare}
 NEEDS = {"herd": ["0025", "0445", "0003", "0493", "0009", "0006-0001"], "focus": ["0025", "0003", "0493"],
          "reactions": ["0003", "0445"], "variety": ["0025", "0025s", "0037-0001", "0006-0001"],
-         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006-0001", "0448", "0094-0001s"], "party": [], "battle": ["0025", "0006-0001", "0448", "0094-0001s"]}
+         "charizard-mega": ["0006", "0006-0001"], "seasons": ["0025", "0009", "0006-0001"], "preview": ["0025", "0006-0001", "0448", "0094-0001s"], "party": [], "battle": ["0025", "0006-0001", "0448", "0094-0001s"],
+         "catch": ["0006-0001", "0003"], "rare": ["0025s", "0094", "0150"]}
 
 
 def main():
