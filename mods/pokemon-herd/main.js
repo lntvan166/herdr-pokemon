@@ -3160,6 +3160,7 @@ export default class PokemonHerd extends View {
   // ---- the picker (opened as a dialog with props { picker, slot, current, tag }) ----
 
   initPicker(cx) {
+    cx.spawn(async (cx) => { await readyArt(); cx.notify(); }); // items' art, for the Box rows in a preview
     this.filter = "";
     this.only = {}; // the filter chips: { region?, mega? }
     this.megaMode = props()?.current?.mega ?? "auto";
@@ -3451,9 +3452,15 @@ export default class PokemonHerd extends View {
         .child(button("preview-close", "✕", false, (_e, cx) => { this.preview = null; cx.notify(); })))
       .when(inBox.length > 0, (el) => el.child(v_flex().gap(4)
         .child(div().text_size(11).text_color(t.muted).child(`In the Box (${inBox.length})`))
-        .children(inBox.map(([slot, b]) => h_flex().gap(8).items_center().h(26)
+        // Each one there as the Box shows it: Alpha, shiny, its name, hearts, nature, jobs, what it
+        // holds and the ball it was caught in.
+        .children(inBox.map(([slot, b]) => h_flex().gap(6).items_center().h(26)
+          .when(!!b.alpha, (el) => el.child(div().h(16).px(4).rounded(4).flex().items_center().flex_none()
+            .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α Alpha")))
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground)
-            .child(`${b.shiny ? "✨ " : ""}${nameFor(b)} · ♥ ${heartsText(friendOf(b))} · ${b.jobs ?? 0} jobs`))
+            .child([`${b.shiny ? "✨ " : ""}${nameFor(b)}`, `♥ ${heartsText(friendOf(b))}`, natureOf(b)?.name, `${b.jobs ?? 0} jobs`].filter(Boolean).join(" · ")))
+          .when(!!b.held, (el) => el.child(this.itemMark(b.held, 18)))
+          .when(!!b.caught, (el) => el.child(this.itemMark(b.ball ?? "poke-ball", 16)))
           .child(button(`bring-${slot}`, "Bring out", false, () => { this.preview = null; this.choose(pv, { slot }); }))))))
       .child(h_flex().gap(8).items_start()
         .child(stage("idleD", "Standing"))
