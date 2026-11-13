@@ -57,12 +57,40 @@ export function baseRate(dex) {
   const pre = EVOLVES_FROM[dex] !== undefined, next = evolutionsOf(dex).length > 0;
   return !pre ? (next ? 0.45 : 0.35) : next ? 0.3 : 0.2;
 }
-// How likely `ball` catches `pick` ({ dex }), with `bait` fed first.
+// How likely `ball` catches `pick` ({ dex, hp? }), with `bait` fed first. Weakened (hp, 0..1, by
+// one of yours attacking it), the base rate rises as in the main games: × (3 − 2·hp), so three
+// times at a sliver of health.
 export function catchChance(ball, pick, bait = null) {
   const mul = BALL_MUL[ball];
   if (!mul) return 0;
   if (mul === Infinity) return 1;
-  return 1 - (1 - baseRate(pick.dex) * (pick.alpha ? 0.5 : 1)) ** (mul * (BAIT[bait]?.rate ?? 1));
+  const hp = Number.isFinite(pick.hp) ? Math.max(0, Math.min(1, pick.hp)) : 1;
+  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (3 - 2 * hp));
+  return 1 - (1 - base) ** (mul * (BAIT[bait]?.rate ?? 1));
+}
+
+// ---- weakening a wild one ---------------------------------------------------------------------
+// Drop one of yours on a wild one: it attacks. Each hit takes 25–45% of its health, half again for
+// a type that's strong against it, less on an Alpha (×0.7) or a legendary (×0.5). It hangs on
+// (5% left) from any hit while it's above 20% (in the red, the bar says stop); a hit in the red
+// can make it faint, and it's gone.
+const STRONG = {
+  fire: ["grass", "ice", "bug", "steel"], water: ["fire", "ground", "rock"], grass: ["water", "ground", "rock"],
+  electric: ["water", "flying"], ice: ["grass", "ground", "flying", "dragon"], fighting: ["normal", "ice", "rock", "dark", "steel"],
+  poison: ["grass", "fairy"], ground: ["fire", "electric", "poison", "rock", "steel"], flying: ["grass", "fighting", "bug"],
+  psychic: ["fighting", "poison"], bug: ["grass", "psychic", "dark"], rock: ["fire", "ice", "flying", "bug"],
+  ghost: ["psychic", "ghost"], dragon: ["dragon"], dark: ["psychic", "ghost"], steel: ["ice", "rock", "fairy"],
+  fairy: ["fighting", "dragon", "dark"], normal: [],
+};
+export const strongAgainst = (attacker, target) => (STRONG[typeOf(attacker)] ?? []).includes(typeOf(target));
+// One hit: { hp (what's left, 0..1), dmg, strong, fainted }. `alpha`: the attacker is an Alpha
+// of yours: it hits harder (×1.3).
+export function hitWild(wild, attacker, rnd = Math.random, alpha = false) {
+  const hp = Number.isFinite(wild.hp) ? wild.hp : 1;
+  const strong = strongAgainst(attacker, wild.dex);
+  const dmg = (0.25 + 0.2 * rnd()) * (strong ? 1.5 : 1) * (wild.alpha ? 0.7 : 1) * (isLegendary(wild.dex) ? 0.5 : 1) * (alpha ? 1.3 : 1);
+  const left = hp > 0.2 ? Math.max(0.05, hp - dmg) : Math.max(0, hp - dmg);
+  return { hp: left, dmg, strong, fainted: left <= 0.001 };
 }
 // A legendary: about 15 balls before it's gone (LEGEND_THROWS), each one far less likely to hold
 // it: over all 15, Poké Balls catch it 4 times in 10, Ultra Balls 6 in 10, Ultra Balls with

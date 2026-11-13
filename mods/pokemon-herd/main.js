@@ -23,9 +23,9 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { hitWild, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
+import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -756,6 +756,25 @@ export default class PokemonHerd extends View {
       this.want(pick, cx);
     }
     if (!v) return false;
+    // Attacked by one of yours: it stands and takes the hit (its health drops halfway through),
+    // then walks on from there; at 0 it faints, and is gone in a moment.
+    if (v.fight) {
+      const fx = v.fight;
+      v.x = fx.x;
+      if (now >= fx.at + 500) v.pick.hp = fx.hp;
+      if (now < fx.until) return true;
+      if (fx.fainted) {
+        v.fainted ??= now;
+        if (now >= v.fainted + 2200) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
+        return true;
+      }
+      v.from = fx.x;
+      v.start = now;
+      v.dur = (Math.abs(v.to - v.from) / VISIT_SPEED) * 1000;
+      v.walkFrom = undefined;
+      v.leg = (v.leg ?? 0) + 1;
+      v.fight = null;
+    }
     // A ball thrown: it holds still while the ball shakes; then caught (gone in a moment), or it
     // breaks out and walks on from there.
     if (v.throw) {
@@ -807,6 +826,15 @@ export default class PokemonHerd extends View {
     return true;
   }
 
+  // A wild one walking by on `row`, near enough to `m` (dropped there) to be attacked; not while
+  // a ball shakes, it's already being hit, or it has fainted.
+  wildNear(m, row, now) {
+    const v = this.visitor;
+    if (!v?.start || v.throw || v.fight || v.fainted || !Number.isFinite(v.x)) return false;
+    const rows = this.grid(herdAgents().length)?.rows ?? 1;
+    return Math.min(v.row, rows - 1) === row && Math.abs(v.x - m.x) <= 70;
+  }
+
   // A wild Pokémon caught: into the Box (a heart, a nature), the Pokédex, the day's Research, and
   // the Pokédex's goals paid.
   caught(v) {
@@ -823,7 +851,7 @@ export default class PokemonHerd extends View {
 
   // A ball thrown at the visitor (the best one for it in the Bag): it stops, the ball shakes.
   throwAt(v) {
-    if (v.throw || !v.start) return;
+    if (v.throw || v.fight || !v.start) return;
     const ball = ballFor(bag().items, v.pick, shared(BALL_KEY));
     if (!ball) return;
     // The Berry set in the Bag goes first, while there are some (none for a Master Ball: no need).
@@ -856,6 +884,29 @@ export default class PokemonHerd extends View {
     const hit = { left: mid - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
     const now = Date.now();
     const th = v.throw;
+    // Its health, once one of yours has hit it: a thin bar over its head (green, amber, red).
+    const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
+    const hpBar = (x) => div().absolute().left(x - 18).top(Math.max(1, headY - 6)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
+      .child(div().h_full().w(Math.max(1, Math.round(36 * hp))).bg(hp > 0.5 ? "#46c46a" : hp > 0.2 ? "#e8b062" : "#e5484d"));
+    if (v.fight) {
+      // Standing where it was hit, flinching; fainted: fading, and a word.
+      const x = v.fight.x;
+      const hurt = meta.react?.[v.dir === "r" ? "HurtR" : "HurtL"] ?? meta.react?.Hurt ?? s;
+      const hl = mid - (hurt.box.x + hurt.box.w / 2) * scale, ht = ground - (hurt.box.y + hurt.box.h) * scale;
+      root.child(div().id(`visitor-fight-${v.id}-${v.leg ?? 0}`).absolute().top(0).h(ground + 10).w(sw).left(x - mid)
+        .when(!!v.fainted, (el) => el.opacity(0.35))
+        .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
+        .child(image((now < v.fight.until ? hurt : s).path).absolute().left(now < v.fight.until ? hl : imgLeft).top(now < v.fight.until ? ht : imgTop)
+          .w((now < v.fight.until ? hurt : s).w * scale).h((now < v.fight.until ? hurt : s).h * scale)));
+      root.child(hpBar(x));
+      if (v.fainted || (now >= v.fight.at + 500 && v.fight.strong)) {
+        const tagW = 260;
+        root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+          .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
+          .child(v.fainted ? `${fullName(v.pick.dex, v.pick.form)} fainted…` : "It's super effective!"));
+      }
+      return;
+    }
     // Its gift first; then, with a ball in the Bag, a ball over its head: click to throw it.
     const ball = !th && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick, shared(BALL_KEY)) : null;
     const showGift = !th && ((!v.gift && now - v.start > 1000) || (v.gift && now - v.giftAt < 2500));
@@ -898,7 +949,8 @@ export default class PokemonHerd extends View {
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
-        .when(!!v.pick.alpha, (el) => el.child(alphaMark(mid - (s.box.w / 2) * scale - 14, headY + 2))))
+        .when(!!v.pick.alpha, (el) => el.child(alphaMark(mid - (s.box.w / 2) * scale - 14, headY + 2)))
+        .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
         // Hovered (it walks under the pointer, so hover comes and goes): its tag stays up while
@@ -956,7 +1008,7 @@ export default class PokemonHerd extends View {
         : ": no Poké Balls (the Shop has them)";
       root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-        .child(`${what}${tail}`));
+        .child(`${what}${hp < 1 ? ` (${Math.round(hp * 100)}%)` : ""}${tail}`));
     }
   }
 
@@ -1416,6 +1468,17 @@ export default class PokemonHerd extends View {
       onDizzy(dm, now, hasOf(dMeta), msFor(dMeta));
       dm.pauseUntil = dm.react.until + rand(1000, 3000);
       changed = true;
+    } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
+      // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying.
+      const v = this.visitor;
+      const pk = ids[drop.addr];
+      v.fight = { at: now, until: now + 1600, x: v.x, ...hitWild(v.pick, pk.dex, Math.random, !!pk.alpha) };
+      dm.dir = v.x > dm.x ? "r" : "l";
+      const anim = reactionAnim("spar", hasOf(dMeta));
+      const ms = anim ? Math.max(500, msFor(dMeta)(anim)) : 600;
+      dm.react = { anim, animUntil: now + ms, until: now + ms + 400, face: dm.dir, icon: TYPE_ICON[typeOf(pk.dex)] ?? "💥" };
+      dm.pauseUntil = now + 2500;
+      changed = true;
     } else if (dm && dMeta) {
       const row = rowAt(list[dj], dj);
       const hit = dropTarget(list.flatMap((b, j) => (b.address === drop.addr || !this.mons[b.address] ? [] : [{ addr: b.address, b, x: this.mons[b.address].x, row: rowAt(b, j) }])), dm.x, row);
@@ -1660,8 +1723,9 @@ export default class PokemonHerd extends View {
     const st = settingsNow();
     const tab = this.settingsTab ?? "strip";
     const kit = this.settingsKit(t, st);
-    const TABS = [["strip", "Strip"], ["herd", "Herd"], ["trainer", "Trainer"], ["sound", "Sound"], ["updates", "Updates"]];
-    const body = tab === "herd" ? this.settingsHerd(kit, st)
+    const TABS = [["guide", "Guide"], ["strip", "Strip"], ["herd", "Herd"], ["trainer", "Trainer"], ["sound", "Sound"], ["updates", "Updates"]];
+    const body = tab === "guide" ? this.settingsGuide(kit, t)
+      : tab === "herd" ? this.settingsHerd(kit, st)
       : tab === "trainer" ? this.settingsTrainer(kit, st, t)
       : tab === "sound" ? this.settingsSound(kit)
       : tab === "updates" ? this.settingsUpdates(kit)
@@ -1684,6 +1748,64 @@ export default class PokemonHerd extends View {
           .when(k === "updates" && !!upd, (el) => el.child(div().size(6).rounded_full().bg(t.accent)));
       })))
       .child(v_flex().id(`settings-${tab}`).flex_1().min_h(0).overflow_y_scrollbar().px(18).pb(18).gap(8).children(body));
+  }
+
+  // Guide: how to play, a topic at a time, each a few lines.
+  settingsGuide({ heading }, t) {
+    const GUIDE = [
+      ["Your herd", [
+        "Every agent is a Pokémon: it walks while its agent works, naps when it's idle, and shows a red \"!\" when the agent needs you.",
+        "Click one to go to its agent. Hover it for its name, hearts and jobs.",
+        "Right-click one to choose another: click a Pokémon to preview it, Replace to take it.",
+        "Drag one to move it; drop it on another and they spar.",
+      ]],
+      ["Hearts and evolution", [
+        "Hearts come from a pat (a click, every 30 min), answering its agent within a minute, sparring, and Berries (Oran ¼, Sitrus ½; three a day each).",
+        "Leave an agent waiting 5 minutes and its Pokémon gets hungry.",
+        "Most evolve after 10 jobs; others need a stone, full hearts or the time of day. A Rare Candy evolves one now; an Everstone stops it.",
+      ]],
+      ["Pokédollars", [
+        "Jobs pay by the time they took: ₽1 and ₽5 a minute, about ₽300 an hour of agents' work.",
+        "More from the day's Research, visitors' purses (up to ₽600 a day) and pats and spars (up to ₽200 a day).",
+        "Spend them in the Shop (right-click the ground → Box → Shop). Anything sells back for half.",
+      ]],
+      ["Catching", [
+        "Wild Pokémon walk across the strip (Settings → Herd → Visitors). Click one for its gift and purse.",
+        "Click it again, with a ball over its head, to throw one: Auto (cheapest; the best for a shiny), or the one you chose in the Bag or the menu. Right-click it to switch.",
+        "The ball shakes; Gotcha! or it breaks free and walks on (1 in 20 flee). Caught ones go to the Box with a heart and a nature.",
+      ]],
+      ["Weaken it first", [
+        "Drag one of yours onto a wild one: it attacks. A bar over the wild one shows its health.",
+        "The less health, the easier to catch: three times the chance at a sliver. A type strong against it hits harder (fire on grass); your Alphas hit harder too.",
+        "It hangs on while it's above the red; hit it in the red and it may faint, and it's gone.",
+      ]],
+      ["Balls and Berries", [
+        "Poké Ball, Great (×1.5), Ultra (×2), Master (never fails).",
+        "Berries fed before each ball (choose one in the menu): Razz ×1.5, Golden Razz ×2.5, Pinap twice the gift, Silver Pinap both.",
+      ]],
+      ["Rare ones", [
+        "Shiny: 1 in 64 (1 in 32 with the Shiny Charm, at 500 jobs). Catch a shiny and you can choose that species shiny in the picker.",
+        "Alpha: 1 wild one in 40, bigger, a red ring and α. Half as easy to catch; ₽150 and twice the gift; caught, it keeps two hearts.",
+        "Legendary: 1 in 150, or call one with the Azure Flute or the day's Research. 15 balls before it flees. Locked in the picker until you catch one (Trainer → Unlock all).",
+      ]],
+      ["Today and the Pokédex", [
+        "Three Research tasks a day, each paying when done; all three: 5 Ultra Balls and a legendary walks by.",
+        "The Pokédex counts what you've seen and caught, by region, and pays at 5, 15, 30, 60, 100 and 200 caught.",
+      ]],
+      ["The Box and Trainer mode", [
+        "The Box holds every Pokémon you have: search, filter, Rename, Feed, Bring out for an agent, Release.",
+        "Trainer mode (Trainer tab): only what you caught, and the three starters, can be chosen or come to new agents.",
+      ]],
+      ["Shortcuts", [
+        "Right-click the strip's ground: the Box, Today, the ball and Berry to throw, Honey, Settings.",
+        "keys.json: alt-shift-p opens the picker for the focused agent, alt-shift-b the Bag.",
+      ]],
+    ];
+    return GUIDE.map(([title, lines]) => v_flex().gap(4).p(12).rounded(10).bg(t.raised)
+      .child(div().text_size(13).font_semibold().text_color(t.foreground).child(title))
+      .children(lines.map((l) => h_flex().gap(6).items_start()
+        .child(div().text_size(12).text_color(t.dim).child("•"))
+        .child(div().flex_1().min_w(0).text_size(12).text_color(t.muted).child(l)))));
   }
 
   // A newer release: what Settings just read from GitHub, else what the strip knew.

@@ -244,3 +244,23 @@ test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, 
   const d = withCaught(loadDex(null), p);
   assert.deepEqual(loadDex(d).alpha, [1]);
 });
+
+import { hitWild, strongAgainst } from "../mods/pokemon-herd/trainer.js";
+test("weakening: hits take its health, a strong type more; weakened, it's easier to catch; at 0 it faints", () => {
+  assert.ok(strongAgainst(4, 1)); // Charmander (fire) against Bulbasaur (grass)
+  assert.ok(!strongAgainst(1, 4));
+  const h = hitWild({ dex: 1 }, 4, () => 0); // 25% × 1.5
+  assert.ok(Math.abs(h.hp - (1 - 0.375)) < 1e-9 && h.strong && !h.fainted);
+  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0).hp - 0.75) < 1e-9);
+  assert.equal(hitWild({ dex: 1, hp: 0.2 }, 4, () => 0).fainted, true); // hit in the red
+  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 4, () => 1).hp, 0.05); // above it: it hangs on
+  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 4, () => 1).fainted, false);
+  assert.ok(hitWild({ dex: 150 }, 4, () => 0).hp > 0.85); // a legendary takes half
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.2 * 2.8) < 1e-9);
+  assert.equal(catchChance("poke-ball", { dex: 3, hp: 1 }), catchChance("poke-ball", { dex: 3 }));
+  assert.ok(catchChance("poke-ball", { dex: 1, hp: 0 }) <= 0.95);
+});
+
+test("an Alpha of yours hits harder", () => {
+  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0, true).hp - (1 - 0.25 * 1.3)) < 1e-9);
+});
