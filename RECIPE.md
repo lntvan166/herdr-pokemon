@@ -68,12 +68,14 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a Mega without data as its species ×1.2 hitting, ×0.85 taking. Damage: real base stats and
   the type chart (×4 and ×2 softened); in the red a hit three times its health knocks it out.
 - **Battle effects** (`fx.js`, drawn by `main.js` with native transitions and loops): a move
-  first gathers at the mouth (`CHARGE_MS` 340: sparks drawn in, a glow swelling), then travels
-  its type's way (`TRAVEL`): a beam for ice, steel, electric and fairy (a rail drawn out to the
-  target, a bright head, then fading thin); thrown in an arc for rock and ground; a volley of
-  three for grass, water, poison, psychic and flying (leaves, bubbles, sludge, rings, gusts);
-  a dash for fighting and normal (it rushes in to strike and back: `dashAt`; a boss never
-  dashes); else a shot. Where it lands, debris by its look: embers rise, drops and rocks fall,
+  first gathers at the mouth (`CHARGE_MS` 340: sparks drawn in, a glow swelling), then goes
+  its own way: a special move flies as `specialParts` draws it (Flamethrower a stream of flame,
+  Surf a wave along the ground, Thunderbolt a jagged bolt, Ice Beam a beam crystals grow from,
+  Sludge Bomb globs lobbed over, Earth Power the ground bursting under it, Psychic waves
+  gripping it, Moonblast a moon over it shot down…, `at` from when it lands, from -`FLY`); a
+  physical one rushes in to strike and back (`dashAt`; a boss never dashes) and leaves its mark
+  (`physicalParts`); a signature move its own scene (`signatureParts`). (`TRAVEL`'s beams, arcs
+  and volleys are the fallback for a move with no type.) Where it lands, debris by its look: embers rise, drops and rocks fall,
   sparks and leaves fly flat. After the hit, for 1.3 s, what it leaves on its target
   (`RESIDUE`): flames flickering (fire), sparks crackling (electric), frost over it (ice),
   bubbles rising (poison), dots circling its head (psychic, ghost, dark), drips (water), leaves
@@ -86,9 +88,16 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   effect…") and the damage floating up ("-23%"; yours hurt in red); a health bar's loss shows
   white, draining away. A plain strike lands lightly in white and gold.
 - **Moves** (`moves.js`): for each type a physical, a special and a signature move (`MOVES`).
-  A fighter uses its best type (`bestType`); physical when its Attack is at least its Sp. Atk
-  (`base-stats.js` `PHYSICAL`, by species and form): it rushes in (a dash), else it fires its
-  type's way. 1 in 8 the signature move (×1.5, gold name), 1 in 16 a critical hit (×1.5, "A
+  A fighter uses its best type (`bestType`); physical 70% of the time (`LEAN`) when its Attack is
+  at least its Sp. Atk (`base-stats.js` `PHYSICAL`, by species and form), 30% otherwise: it rushes
+  in (a dash, `speedLines` trailing it; each type's physical move its own mark on the target,
+  `physicalParts`; a plain strike `slashParts` claw marks), else it fires its
+  type's way. A signature move is drawn its own way instead (fx.js `signatureParts`: parts timed
+  from when it lands, drawn by main.js `fxSig`; `signatureTimes` asks for the frames). Always its own type, resisted or not; damage goes by the move's type
+  (`damage(…, { type })`). A heavy blow (power ≥ 0.85: super effective, a crit, a
+  signature move) holds both still `HITSTOP` (90 ms) before the knock back (`stopOf`, `dashAt`'s
+  `stop`). A miss (`MISS` 1/20, `MISS_ULTIMATE` 1/5) does nothing: "Missed!", the
+  target hops aside (fx.js `MISS_KNOCK`), no burst, flash or sound; a raid hit too. 1 in 8 the signature move (×1.5, gold name), 1 in 16 a critical hit (×1.5, "A
   critical hit!" over the target). The move's name shows over the one using it as it gathers.
 - **The big moments** (`fx.js` EVOLVE_MS, MEGA_MS, HATCH_*): evolving, it pulses while a column
   of light stands over it, motes rising and a ring swelling out, then a gold burst and "✨

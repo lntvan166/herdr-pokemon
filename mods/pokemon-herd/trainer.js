@@ -137,8 +137,9 @@ export const EFFECT = {
 };
 // One attack's share of the target's health: 18–32%, × attack over defence (base stats), × the
 // type's effect; an Alpha hits ×1.3 and takes ×0.8.
+// `how.type`: the move's own type (moves.js; a Normal move when its own types are resisted).
 export function damage(attacker, target, rnd = Math.random, how = {}) {
-  const eff = bestEffect(attacker, target);
+  const eff = how.type ? effectOn(how.type, target) : bestEffect(attacker, target);
   const dmg = (0.18 + 0.14 * rnd()) * powerRatio(attacker, target) * EFFECT[eff].mul * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1)
     * (how.shadowAttacker ? SHADOW_HIT : 1) * (how.shadowTarget ? SHADOW_TAKE : 1) * (how.mul ?? 1); // `mul`: the move's (moves.js)
   return { dmg, eff, text: EFFECT[eff].text };
@@ -153,9 +154,9 @@ export const MEGA_HIT = 1.2, MEGA_TAKE = 0.85;
 // A Shadow Pokémon (1 Alpha in 3, SHADOW_SHARE) hits harder and takes more, as in GO; caught, it
 // stays Shadow till purified (picks.js purified, at PURIFY_HEARTS).
 export const SHADOW_SHARE = 1 / 3, SHADOW_HIT = 1.2, SHADOW_TAKE = 1.2;
-export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false, shadow = false, mul = 1) {
+export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false, shadow = false, mul = 1, type = null) {
   const hp = Number.isFinite(wild.hp) ? wild.hp : 1;
-  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha, shadowAttacker: shadow, shadowTarget: !!wild.shadow, mul });
+  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha, shadowAttacker: shadow, shadowTarget: !!wild.shadow, mul, ...(type ? { type } : {}) });
   const { eff, text } = hit;
   const dmg = hit.dmg * (mega ? MEGA_HIT : 1);
   const strong = eff > 1;
@@ -168,9 +169,9 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega =
 // fainted }. Yours is raised, so a little sturdier: ¾ of the damage, and a touch less for each heart (2%:
 // 5 ♥, 10% less). It faints at 0 and rests a while (OWN_REST); its hearts are untouched.
 export const OWN_REST = 10 * 60000;
-export function hitBack(own, wild, rnd = Math.random, mul = 1) {
+export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
-  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul });
+  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul, ...(type ? { type } : {}) });
   const { eff, text } = hit;
   const dmg = hit.dmg * 0.75 * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
   const left = Math.max(0, hp - dmg);

@@ -660,9 +660,10 @@ def preview(tmp):
 
 
 def battle(tmp):
-    """README's hero: a battle on a bright day. Mega Charizard X and Lucario face off; each strikes,
-    the other flinches; then its special move, a blue fireball, knocks Lucario back. Pikachu sleeps
-    through it; a shiny Mega Gengar watches. 270x130 at 2x, names under their feet."""
+    """README's hero: a battle on a bright day. Mega Charizard X rushes in with Fire Punch (speed
+    lines, its fist of flame, a hitstop: super effective), Lucario strikes back, then Charizard's
+    signature move, Blast Burn, erupts under Lucario. Pikachu sleeps through it; a shiny Mega Gengar
+    watches. 270x130 at 2x, names under their feet."""
     A = lambda f, n: Anim.get(f, n, tmp)
     W, H, Z = 296, 118, 2
     horizon = 88
@@ -685,23 +686,30 @@ def battle(tmp):
         elif 1900 <= t < 2500: l = play("0448", "react-AttackL", 1900)
         elif 3350 <= t < 4300: l = play("0448", "react-HurtL", 3350)
         else: l = play("0448", "idleL", 0)
-        # Knocked back by each blow (fx.js knockOf): a strike lightly, the fireball hard, shaking.
-        p_strike, p_fire = fx("power(1, false)"), fx("power(2)")
-        kl, sl = knock(t - 3350, p_fire) if t >= 3350 else knock(t - 1300, p_strike)
-        kz, sz = knock(t - 2150, p_strike)
-        cast = [(A("0025", "sleep"), t, 34, 0), (*z, zx - kz, sz), (*l, lx + kl, sl), (A("0094-0001s", "idleL"), t, gx, 0)]
+        # Knocked back by each blow (fx.js knockOf), after the hitstop (HITSTOP: both held still).
+        p_strike, p_fire = fx("power(2)"), fx("Math.max(0.85, power(2))")
+        stop = fx("HITSTOP")
+        kl, sl = knock(t - 3350 - stop, p_fire) if t >= 3350 else knock(t - 1300 - stop, p_strike)
+        kz, sz = knock(t - 2150, fx("power(1, false)"))
+        # Fire Punch: it rushes in (fx.js dashAt: to DASH_SHORT short), holds through the hitstop, back.
+        run = lx - zx - fx("DASH_SHORT") * FXK - 62  # its big sprite stops short of Lucario
+        dash = run * ease_in((t - 1000) / 300) if 1000 <= t < 1300 else run if 1300 <= t < 1300 + stop else run * (1 - ease_out((t - 1300 - stop) / 260)) if 1300 + stop <= t < 1560 + stop else 0
+        cast = [(A("0025", "sleep"), t, 34, 0), (*z, zx - kz + dash, sz), (*l, lx + kl, sl), (A("0094-0001s", "idleL"), t, gx, 0)]
         args = [sky_png]
         for an, tt, cx, dy in cast:
             x, y = an.place(round(cx), ground)
             args += [an.at(max(0, tt)), "-geometry", f"+{x}+{y + round(dy)}", "-composite"]
         STRIKE = "{ glow: '#fff6c8', core: '#ffd23a', mid: '#fff2a8', hot: '#ffffff', look: 'star' }"
         FIRE = "moveStyle('fire', true)"
-        if 1300 <= t < 1770: args += fx_burst(STRIKE, p_strike, lx - 6, ground - 26, t - 1300, 3)
-        if 2150 <= t < 2620: args += fx_burst(STRIKE, p_strike, zx + 6, ground - 28, t - 2150, 5)
+        if 1000 <= t < 1300:  # streaks behind it as it rushes in (fx.js speedLines)
+            args += fx_parts_static(fx(f"speedLines({FIRE}, 1)"), zx + dash, ground - 26)
+        args += fx_parts(fx(f"physicalParts('fire', 0, 0, 22, 1, 7, {FIRE})"), t - 1300, lx - 4, ground - 26, 1.4)  # its fist of flame
+        if 1300 <= t < 1770: args += fx_burst(FIRE, p_strike * 0.5, lx - 6, ground - 26, t - 1300, 3)
+        if 2150 <= t < 2620: args += fx_burst(STRIKE, fx("power(1, false)"), zx + 6, ground - 28, t - 2150, 5)
         args += fx_charge(FIRE, zx + 14 * FXK, ground - 26, t - (3000 - fx("CHARGE_MS")))  # it gathers
-        if 3000 <= t < 3350:  # the fireball, across (fx.js shotParts)
-            f = (t - 3000) / 350
-            args += fx_shot(FIRE, 1, zx + 14 * FXK + f * (lx - zx - 26 * FXK), ground - 26, t)
+        # Blast Burn: the ground under Lucario erupts (fx.js signatureParts), landing at 3350.
+        sig_from = -(lx - zx) / FXK
+        args += fx_parts(fx(f"signatureParts('fire', {sig_from / 1.5:.1f}, 0, 0, 11, {FIRE})"), t - 3350, lx, ground - 26 - 4, 1.5)
         if 3350 <= t < 3820: args += fx_burst(FIRE, p_fire, lx - 6, ground - 26, t - 3350, 9)
         args += fx_residue("burn", FIRE, lx + kl, ground - 50, ground, t - 3500)  # it burns a moment
         # The shiny's sparkles, twinkling.
@@ -710,8 +718,12 @@ def battle(tmp):
                 cx, cy = gx + dx * 1.6, ground + dy - 6
                 args += ["-fill", "#ffffff" if j % 2 else "#ffe9a8", "-draw", f"polygon {cx},{cy - r * 2} {cx + r * .5},{cy - r * .5} {cx + r * 2},{cy} {cx + r * .5},{cy + r * .5} {cx},{cy + r * 2} {cx - r * .5},{cy + r * .5} {cx - r * 2},{cy} {cx - r * .5},{cy - r * .5}"]
         args += ["-filter", "point", "-resize", f"{Z * 100}%"]
-        # The games' word over Lucario (Mega Charizard X's fire on steel); zZ over Pikachu; names.
+        # The moves' names over Charizard (a signature move in gold); the games' word over Lucario
+        # (Mega Charizard X's fire on steel); zZ over Pikachu; names.
+        if 660 <= t < 1700: args += say("Fire Punch!", round((zx + dash) * Z), (ground - 78) * Z, W * Z, 13)
+        if 2660 <= t < 3700: args += say("Blast Burn!", zx * Z, (ground - 78) * Z, W * Z, 13, "#ffd23f")
         if t >= 3350: args += fx_word(2, lx * Z, (ground - 64) * Z, t - 3350, W * Z)
+        elif t >= 1300: args += fx_word(2, lx * Z, (ground - 64) * Z, t - 1300, W * Z)
         z_text = ["z", "zZ", "zZz", "zZ"][(t // 700) % 4]
         args += ["-font", FONT, "-gravity", "none", "-fill", "#ffffff", "-pointsize", "18", "-annotate", f"+{34 * Z + 22}+{(ground - 50) * Z}", z_text]
         for tag, cx, st in names:
@@ -790,6 +802,47 @@ def fx_shot(style_expr, dir_, x, y, t):
             args += ["-fill", hexa(p["color"], a), "-draw", f"ellipse {px:.1f},{py:.1f} {w:.1f},{h:.1f} 0,360"]
         else:
             args += ["-fill", hexa(p["color"], a), "-draw", f"rectangle {px - w:.1f},{py - h:.1f} {px + w:.1f},{py + h:.1f}"]
+    return args
+
+
+def ease_in(u):
+    u = max(0.0, min(1.0, u))
+    return u * u
+
+
+def _fx_draw(color, a, px, py, w, h, round_=False, ring=False):
+    if a <= 0.01 or w <= 0 or h <= 0:
+        return []
+    if ring:
+        return ["-fill", "none", "-stroke", hexa(color, a), "-strokewidth", "1.2", "-draw", f"ellipse {px:.1f},{py:.1f} {w / 2:.1f},{h / 2:.1f} 0,360", "-stroke", "none"]
+    if round_:
+        return ["-fill", hexa(color, a), "-draw", f"ellipse {px:.1f},{py:.1f} {w / 2:.1f},{h / 2:.1f} 0,360"]
+    return ["-fill", hexa(color, a), "-draw", f"rectangle {px - w / 2:.1f},{py - h / 2:.1f} {px + w / 2:.1f},{py + h / 2:.1f}"]
+
+
+def fx_parts(parts, t, ox, oy, k=1.0):
+    """A signature move or a physical move's mark (fx.js signatureParts / physicalParts), `t` ms
+    from when it lands: each part from `a` to `b` over its ms, eased as the strip eases it."""
+    args = []
+    for p in parts:
+        u = (t - p["at"]) / p["ms"]
+        if u < 0 or u > 1:
+            continue
+        ease = p.get("ease", "ease-out")
+        e = ease_out(u) if ease == "ease-out" else ease_in(u) if ease == "ease-in" else u
+        a, b = p["a"], p["b"]
+        lerp = lambda k, f=e: a[k] + (b[k] - a[k]) * f
+        o = a.get("o", 1) + (b.get("o", 1) - a.get("o", 1)) * ease_in(u)
+        K = FXK * k
+        args += _fx_draw(p["color"], o, ox + lerp("x") * K, oy + lerp("y") * K, lerp("w") * K, lerp("h") * K, p.get("round"), p.get("ring"))
+    return args
+
+
+def fx_parts_static(parts, ox, oy):
+    """Parts drawn as they are (fx.js shotParts' shape: { x, y, w, h, color, opacity? })."""
+    args = []
+    for p in parts:
+        args += _fx_draw(p["color"], p.get("opacity", 1), ox + p["x"] * FXK, oy + p["y"] * FXK, p["w"] * FXK, p["h"] * FXK, p.get("round"), p.get("ring"))
     return args
 
 

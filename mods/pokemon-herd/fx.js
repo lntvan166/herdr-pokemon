@@ -184,12 +184,44 @@ export const launchSound = (type, physical = false) => (travelOf(type, physical)
 export const blowWord = (eff, crit = false) => (crit ? ["A critical hit!", "#ff8a3c"] : effectWord(eff));
 // A dash: how far it rushes (to `DASH_SHORT` short of the target) and back, `t` ms after it sets
 // off; `ms` its run. { px, ms }: its offset now and how long to get there.
-export function dashAt(from, to, launch, land, now) {
+export function dashAt(from, to, launch, land, now, stop = 0) {
   const run = to - from - Math.sign(to - from) * DASH_SHORT;
-  if (now < launch || now >= land + 260) return null;
-  return now < land ? { px: run, ms: Math.max(1, land - now) } : { px: 0, ms: 260 };
+  if (now < launch || now >= land + stop + 260) return null;
+  if (now < land) return { px: run, ms: Math.max(1, land - now) };
+  return now < land + stop ? { px: run, ms: 1 } : { px: 0, ms: 260 }; // held there through a hitstop
 }
+// Hitstop: a heavy blow (super effective, a critical hit, a signature move, the last one) holds
+// both still for a moment before it's knocked back, as fighting games do; never a miss.
+export const HITSTOP = 90;
+export const stopOf = (b) => (b && !b.miss && b.p >= 0.85 ? HITSTOP : 0);
+export const stopOfMove = (m) => (m && !m.miss && (m.crit || m.ultimate || (m.eff ?? 1) >= 2) ? HITSTOP : 0);
 export const hitSound = (p) => (p >= 0.8 ? "bighit" : "hit");
+
+// A move that misses: the target hops aside (a few px away from it, no shake), "Missed!" over it;
+// no burst, no number, no flash.
+export const MISS_WORD = ["Missed!", "#c8ccd4"];
+export const MISS_KNOCK = { px: 6, shake: false };
+// A physical move landing: claw marks across the target, three slashes a pixel-step at a time
+// (dir: the way the blow goes, 1 or -1), drawn whole and fading. Parts { x, y, w, h, color }
+// round (0, 0); `p` the blow's power makes them longer.
+export function slashParts(style, dir = 1, p = 0.6) {
+  const steps = Math.round(5 + 4 * p), cell = 3;
+  const out = [];
+  for (let k = 0; k < 3; k++) {
+    for (let i = 0; i < steps; i++) {
+      // top-left to bottom-right going right (mirrored going left), each slash 6 px after the last
+      const x = dir * (i * cell - (steps * cell) / 2 + (k - 1) * 6 - k * 2);
+      const y = i * cell - (steps * cell) / 2 + (k - 1) * 2;
+      const edge = i === 0 || i === steps - 1;
+      out.push({ x, y, w: edge ? 2 : cell, h: edge ? 2 : cell, color: i % 2 ? style.hot : style.core });
+    }
+  }
+  return out;
+}
+// Rushing in: streaks trailing behind it (dir: the way it runs), in its move's colours.
+export function speedLines(style, dir = 1) {
+  return [[-6, 24], [4, 34], [14, 18]].map(([dy, len], k) => ({ x: -dir * (22 + len / 2 + k * 4), y: dy, w: len, h: 2, color: k === 1 ? style.glow : style.mid, opacity: 0.75 }));
+}
 
 // ---- the big moments: evolving, Mega Evolving, a catch, a raid egg hatching -------------------
 export const EVOLVE_MS = 3000, EVOLVE_BURST = 2000; // a light column, then it bursts (and stays)
@@ -210,3 +242,393 @@ export const RESIDUE = {
 };
 export const residueOf = (type) => RESIDUE[type] ?? null;
 export const RESIDUE_FROM = 150, RESIDUE_MS = 1300, RESIDUE_FADE = 260;
+
+// ---- signature moves: each its own look, as in the games ------------------------------------
+// A signature move (moves.js, names[2]) is drawn its own way instead of its type's shot. Each
+// part: { at, ms, a, b, color, round?, ring?, ease? }: drawn as `a` ({ x, y, w, h, o }: centre,
+// size, opacity) `at` ms after it lands (negative: before), moving to `b` over `ms`.
+// x0: where it's fired from, x1: the target, y: their middle; the sky is above y - 30, the ground
+// at y + 16. Seeded: the same move looks the same on every frame.
+export const SIG_GROUND = 16;
+const P = (at, ms, a, b, color, more = {}) => ({ at, ms, a, b, color, ...more });
+const O = (x, y, w, h, o = 1) => ({ x, y, w, h, o });
+export function signatureParts(type, x0, x1, y, seed = 1, style = null) {
+  let s = seed % 2147483647 || 1;
+  const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  const st = style ?? MOVE[type] ?? MOVE.normal; // its colours (Mega Charizard X: blue fire)
+  const dir = x1 >= x0 ? 1 : -1, dist = Math.abs(x1 - x0), mid = (x0 + x1) / 2;
+  const g = y + SIG_GROUND, sky = Math.max(2, y - 46);
+  const ring = (at, x, yy, d0, d1, color, ms = 420, o = 0.9) => P(at, ms, O(x, yy, d0, d0, o), O(x, yy, d1, d1, 0), color, { round: true, ring: true });
+  const flash = (at, x, yy, d, color, ms = 260) => P(at, ms, O(x, yy, d * 0.4, d * 0.4, 1), O(x, yy, d, d, 0), color, { round: true });
+  const out = [];
+  switch (type) {
+    case "normal": // Giga Impact: a white blast charging across, a shockwave where it lands
+      out.push(P(-300, 300, O(x0, y, 14, 14, 1), O(x1, y, 30, 30, 1), st.hot, { round: true, ease: "ease-in" }),
+        P(-300, 300, O(x0, y, 6, 22, 0.5), O(x1 - dir * 18, y, 40, 10, 0.4), st.core, { round: true, ease: "ease-in" }),
+        flash(0, x1, y, 46, st.hot), ring(0, x1, y, 12, 80, st.core, 480), ring(70, x1, y, 8, 54, st.hot, 380));
+      break;
+    case "fire": // Blast Burn: the ground under it erupts in pillars of flame
+      for (let i = 0; i < 5; i++) {
+        const x = x1 + (i - 2) * 9, h = 30 + rnd() * 18;
+        out.push(P(-80 + Math.abs(i - 2) * 50, 420, O(x, g, 8, 2, 1), O(x, g - h / 2, 11, h, 0), [st.core, st.mid, st.hot][i % 3], { ease: "ease-out" }));
+      }
+      out.push(P(-140, 200, O(x1, g, 10, 3, 0.9), O(x1, g, 60, 6, 0.9), st.glow, { round: true }), flash(40, x1, y, 54, st.mid, 320));
+      break;
+    case "water": // Hydro Cannon: a thick jet across, splashing
+      out.push(P(-260, 260, O(x0, y, 6, 14, 1), O(mid, y, dist, 14, 1), st.core, { round: true, ease: "linear" }),
+        P(-260, 260, O(x0, y, 4, 6, 1), O(mid, y, dist, 6, 1), st.hot, { round: true, ease: "linear" }),
+        P(0, 320, O(mid, y, dist, 14, 1), O(mid, y, dist, 2, 0), st.mid, { round: true }));
+      for (let i = 0; i < 6; i++) out.push(P(0, 420, O(x1, y, 5, 5, 1), O(x1 + (rnd() - 0.2) * 40 * dir, y - 10 - rnd() * 20, 3, 3, 0), st.mid, { round: true }));
+      out.push(ring(0, x1, y, 10, 50, st.glow));
+      break;
+    case "grass": // Frenzy Plant: vines bursting out of the ground, one after another, to it
+      for (let i = 0; i < 6; i++) {
+        const x = x0 + dir * (dist * (0.3 + 0.14 * i)), h = 14 + i * 4;
+        out.push(P(-360 + i * 60, 360, O(x, g, 5, 2, 1), O(x, g - h / 2, 6, h, 0), i % 2 ? st.core : st.glow, { ease: "ease-out" }),
+          P(-340 + i * 60, 340, O(x, g, 3, 3, 1), O(x + 5, g - h, 6, 4, 0), st.mid, { round: true }));
+      }
+      out.push(flash(0, x1, y, 40, st.hot));
+      break;
+    case "electric": { // Thunder: a dark cloud over it, a bolt out of the sky
+      out.push(P(-420, 380, O(x1, sky - 4, 20, 6, 0), O(x1, sky - 4, 46, 12, 0.85), "#3a3f55", { round: true }));
+      const n = 5, seg = (y - sky) / n;
+      for (let i = 0; i < n; i++) {
+        const xa = x1 + (i % 2 ? 5 : -4);
+        out.push(P(-60, 320, O(xa, sky + seg * (i + 0.5), 4, seg + 2, 1), O(xa, sky + seg * (i + 0.5), 2, seg + 2, 0), i % 2 ? st.hot : st.core));
+      }
+      out.push(flash(0, x1, y, 44, st.mid), ring(0, x1, g, 10, 60, st.glow, 380));
+      break;
+    }
+    case "ice": // Blizzard: a storm of snow blowing over it, a frost cloud
+      out.push(P(-380, 380, O(x1 - dir * 40, y, 20, 18, 0), O(x1, y, 64, 30, 0.3), st.mid, { round: true }));
+      for (let i = 0; i < 12; i++) {
+        const dy = (rnd() - 0.5) * 40;
+        out.push(P(-380 + i * 32, 360, O(x1 - dir * (70 + rnd() * 30), y + dy - 10, 3, 3, 1), O(x1 + dir * (20 + rnd() * 20), y + dy + 6, 4, 4, 0), i % 3 ? "#ffffff" : st.core, { round: true, ease: "linear" }));
+      }
+      out.push(P(0, 500, O(x1, y, 64, 30, 0.3), O(x1, y, 84, 36, 0), st.hot, { round: true }));
+      break;
+    case "fighting": // Close Combat: a flurry of blows landing all over it
+      for (let i = 0; i < 7; i++) {
+        const x = x1 + (rnd() - 0.5) * 30, yy = y + (rnd() - 0.5) * 26;
+        out.push(ring(-300 + i * 50, x, yy, 4, 22, i % 2 ? st.hot : st.core, 220, 1), flash(-300 + i * 50, x, yy, 12, st.mid, 160));
+      }
+      break;
+    case "poison": // Gunk Shot: a great glob lobbed over, splattering into a pool
+      out.push(P(-340, 170, O(x0, y, 10, 10, 1), O(mid, y - 34, 16, 14, 1), st.core, { round: true, ease: "ease-out" }),
+        P(-170, 170, O(mid, y - 34, 16, 14, 1), O(x1, y, 20, 18, 1), st.core, { round: true, ease: "ease-in" }),
+        P(0, 520, O(x1, g, 14, 4, 0.9), O(x1, g, 64, 8, 0), st.glow, { round: true }));
+      for (let i = 0; i < 6; i++) out.push(P(0, 380, O(x1, y, 6, 6, 1), O(x1 + (rnd() - 0.5) * 56, y - 6 - rnd() * 22, 4, 4, 0), i % 2 ? st.mid : st.core, { round: true }));
+      break;
+    case "ground": // Precipice Blades: blades of rock rising out of the ground, up to it
+      for (let i = 0; i < 5; i++) {
+        const x = x0 + dir * dist * (0.35 + 0.16 * i), h = 18 + i * 5;
+        out.push(P(-300 + i * 60, 380, O(x, g, 10, 2, 1), O(x, g - h / 2, 10, h, 0), i % 2 ? "#8a5a34" : "#b0703c", { ease: "ease-out" }),
+          P(-300 + i * 60, 380, O(x, g, 4, 2, 1), O(x, g - h - 4, 4, 10, 0), "#ff6a3a", { ease: "ease-out" }));
+      }
+      out.push(P(-120, 380, O(x1, g, 20, 4, 0.8), O(x1, g, 70, 8, 0), "#c8bca8", { round: true }));
+      break;
+    case "flying": // Hurricane: a whirlwind round it
+      for (let i = 0; i < 5; i++) {
+        const yy = g - i * 10;
+        out.push(P(-360 + i * 40, 520, O(x1, yy, 10 + i * 6, 5, 0.9), O(x1, yy - 8, 30 + i * 10, 7, 0), i % 2 ? st.hot : st.glow, { round: true, ring: true }));
+      }
+      for (let i = 0; i < 5; i++) out.push(P(-300 + i * 60, 400, O(x1 - 18 + i * 8, g, 3, 3, 1), O(x1 + 18 - i * 8, y - 30, 3, 3, 0), st.core, { round: true, ease: "linear" }));
+      break;
+    case "psychic": // Psystrike: rings closing in on it from all round, then a pulse
+      for (let i = 0; i < 3; i++) out.push(P(-380 + i * 100, 340, O(x1, y, 90, 90, 0.15), O(x1, y, 10, 10, 1), i % 2 ? st.hot : st.core, { round: true, ring: true, ease: "ease-in" }));
+      out.push(flash(0, x1, y, 40, st.mid), ring(0, x1, y, 12, 90, st.glow, 520));
+      break;
+    case "bug": // Megahorn: a great horn of light driving across
+      out.push(P(-220, 220, O(x0, y, 26, 4, 1), O(x1, y, 26, 4, 1), st.hot, { ease: "ease-in" }),
+        P(-220, 220, O(x0 - dir * 10, y, 20, 10, 0.7), O(x1 - dir * 14, y, 30, 12, 0.7), st.core, { round: true, ease: "ease-in" }),
+        P(-220, 260, O(x0, y, 10, 2, 0.6), O(mid, y, dist, 2, 0), st.glow, { ease: "ease-in" }),
+        flash(0, x1, y, 40, st.mid), ring(0, x1, y, 10, 56, st.core));
+      break;
+    case "rock": // Head Smash: boulders crashing down on it
+      for (let i = 0; i < 3; i++) {
+        const dx = (i - 1) * 14, d = 12 - Math.abs(i - 1) * 3;
+        out.push(P(-260 + i * 70, 260, O(x1 + dx - dir * 20, sky - 10, d, d, 1), O(x1 + dx, y + 4, d, d, 1), i % 2 ? "#8a7a5a" : "#a8946a", { round: true, ease: "ease-in" }));
+      }
+      out.push(P(0, 420, O(x1, g, 16, 4, 0.8), O(x1, g, 70, 8, 0), "#c8bca8", { round: true }), flash(0, x1, y, 36, "#e8dcc0"));
+      break;
+    case "ghost": // Shadow Force: a rift tearing open behind it, the dark lunging out
+      out.push(P(-380, 300, O(x1 + dir * 14, y, 2, 6, 1), O(x1 + dir * 14, y, 14, 46, 0.95), "#120a1e", { round: true }),
+        P(-380, 300, O(x1 + dir * 14, y, 2, 4, 1), O(x1 + dir * 14, y, 18, 52, 0.7), st.core, { round: true, ring: true }),
+        P(0, 340, O(x1 + dir * 14, y, 14, 46, 0.95), O(x1 + dir * 14, y, 2, 6, 0), "#120a1e", { round: true }),
+        P(-40, 260, O(x1 + dir * 10, y, 10, 10, 0.9), O(x1 - dir * 22, y, 34, 34, 0), st.glow, { round: true, ease: "ease-in" }));
+      break;
+    case "dragon": // Draco Meteor: meteors raining down on it
+      for (let i = 0; i < 4; i++) {
+        const dx = (i - 1.5) * 12, at = -320 + i * 80;
+        out.push(P(at, 240, O(x1 + dx - dir * 46, sky - 10, 9, 9, 1), O(x1 + dx, y + 6, 9, 9, 1), i % 2 ? "#ff9a3c" : st.core, { round: true, ease: "ease-in" }),
+          P(at, 240, O(x1 + dx - dir * 54, sky - 18, 5, 5, 0.7), O(x1 + dx - dir * 8, y - 2, 5, 5, 0.3), st.glow, { round: true, ease: "ease-in" }),
+          flash(at + 240, x1 + dx, y + 6, 22, "#ffd23f", 220));
+      }
+      break;
+    case "dark": { // Night Daze: a dark shockwave swelling out from where it stands to it
+      const w = dist * 2 + 10, h = Math.min(50, dist * 0.4 + 18); // reaching it
+      out.push(P(-300, 300, O(x0, y, 10, 10, 0.6), O(x0, y, w, h, 0.3), "#1a0e1e", { round: true, ease: "ease-out" }),
+        P(-300, 300, O(x0, y, 10, 10, 1), O(x0, y, w + 4, h + 4, 0.8), "#c0304a", { round: true, ring: true, ease: "ease-out" }),
+        P(0, 300, O(x0, y, w + 4, h + 4, 0.8), O(x0, y, w + 30, h + 14, 0), "#c0304a", { round: true, ring: true }));
+      break;
+    }
+    case "steel": // Meteor Mash: a steel star streaking down on it like a comet
+      out.push(P(-300, 300, O(x0, sky, 12, 12, 1), O(x1, y, 14, 14, 1), st.hot, { round: true, ease: "ease-in" }),
+        P(-300, 320, O(x0 - dir * 8, sky - 6, 8, 8, 0.6), O(x1 - dir * 14, y - 8, 8, 8, 0), st.core, { round: true, ease: "ease-in" }),
+        flash(0, x1, y, 42, st.hot), ring(0, x1, y, 10, 60, st.glow));
+      for (let i = 0; i < 6; i++) out.push(P(0, 360, O(x1, y, 3, 3, 1), O(x1 + Math.cos(i) * 26, y + Math.sin(i) * 18, 2, 2, 0), "#ffffff"));
+      break;
+    case "fairy": // Light of Ruin: a column of pink light from the sky onto it
+      out.push(P(-380, 340, O(x1, sky, 4, 4, 0.2), O(x1, sky, 16, 16, 1), st.hot, { round: true }),
+        P(-40, 140, O(x1, (sky + g) / 2, 2, g - sky, 1), O(x1, (sky + g) / 2, 16, g - sky, 1), st.core),
+        P(100, 360, O(x1, (sky + g) / 2, 16, g - sky, 1), O(x1, (sky + g) / 2, 2, g - sky, 0), st.hot),
+        flash(0, x1, y, 48, st.mid, 360));
+      for (let i = 0; i < 5; i++) out.push(P(40 + i * 30, 420, O(x1 + (rnd() - 0.5) * 30, g - 4, 3, 3, 1), O(x1 + (rnd() - 0.5) * 40, y - 30, 3, 3, 0), "#ffffff", { round: true }));
+      break;
+  }
+  return out;
+}
+// When a signature move's parts set off, ms after it lands (frames are asked for then).
+export const signatureTimes = (type) => [...new Set(signatureParts(type, 0, 100, 40).flatMap((p) => [p.at, p.at + 40]))];
+
+// ---- physical moves: each its own mark where it lands ------------------------------------------
+// The physical move of each type (moves.js, names[0]) leaves its own mark on the target as it
+// lands, parts as signatureParts ({ at, ms, a, b, color, round?, ring?, ease? }, `at` from when it
+// lands). x, y: the target's middle, g its ground; dir: the way the blow goes.
+// A slash a pixel-step at a time, from (x, y) `n` steps of (sx, sy): small squares, drawn at once.
+const steps = (at, ms, x, y, n, sx, sy, colors, size = 3) => Array.from({ length: n }, (_, i) =>
+  P(at, ms, O(x + i * sx, y + i * sy, size, size, 1), O(x + i * sx, y + i * sy, size, size, 0), colors[i % colors.length]));
+export function physicalParts(type, x, y, g, dir = 1, seed = 1, style = null) {
+  let s = seed % 2147483647 || 1;
+  const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  const st = style ?? MOVE[type] ?? MOVE.normal;
+  const ring = (at, xx, yy, d0, d1, color, ms = 380, o = 0.9) => P(at, ms, O(xx, yy, d0, d0, o), O(xx, yy, d1, d1, 0), color, { round: true, ring: true });
+  const puff = (at, xx, yy, d, color, ms = 300, o = 1) => P(at, ms, O(xx, yy, d * 0.4, d * 0.4, o), O(xx, yy, d, d, 0), color, { round: true });
+  const fist = (color, glow) => [P(-120, 120, O(x - dir * 26, y, 10, 10, 1), O(x - dir * 4, y, 12, 12, 1), color, { round: true, ease: "ease-in" }),
+    P(-120, 120, O(x - dir * 30, y, 16, 16, 0.5), O(x - dir * 6, y, 20, 20, 0.6), glow, { round: true, ease: "ease-in" })];
+  const out = [];
+  switch (type) {
+    case "normal": // Body Slam: it lands flat on it, a squash of white and dust
+      out.push(P(0, 300, O(x, y + 4, 20, 8, 1), O(x, y + 6, 54, 6, 0), st.hot, { round: true }), ring(0, x, g, 10, 64, "#c8bca8", 420));
+      break;
+    case "fire": // Fire Punch: a fist of flame, flames licking up off it
+      out.push(...fist(st.core, st.glow));
+      for (let i = 0; i < 5; i++) out.push(P(20 + i * 30, 380, O(x + (i - 2) * 6, y, 6, 6, 1), O(x + (i - 2) * 8, y - 22 - rnd() * 10, 4, 10, 0), [st.core, st.mid, st.hot][i % 3], { round: true }));
+      break;
+    case "water": // Waterfall: a column of water crashing up under it
+      out.push(P(-40, 360, O(x, g, 16, 4, 1), O(x, (g + y - 30) / 2, 18, g - y + 30, 0), st.core, { ease: "ease-out" }),
+        P(-40, 360, O(x, g, 8, 4, 1), O(x, (g + y - 30) / 2, 8, g - y + 30, 0), st.hot, { ease: "ease-out" }));
+      for (let i = 0; i < 5; i++) out.push(P(80, 360, O(x, y - 24, 4, 4, 1), O(x + (rnd() - 0.5) * 40, y - 6, 3, 3, 0), st.mid, { round: true }));
+      break;
+    case "grass": // Leaf Blade: one long green cut, leaves scattering
+      out.push(...steps(0, 420, x - dir * 16, y - 16, 11, dir * 3, 3, [st.hot, st.core, st.glow], 4));
+      for (let i = 0; i < 4; i++) out.push(P(40, 420, O(x, y, 5, 3, 1), O(x + dir * (10 + rnd() * 24), y - 14 + rnd() * 28, 5, 3, 0), st.mid));
+      break;
+    case "electric": // Thunder Punch: a fist of sparks, bolts jumping off it
+      out.push(...fist(st.hot, st.core));
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + 0.4;
+        out.push(...steps(0, 260, x + Math.cos(a) * 6, y + Math.sin(a) * 6, 4, Math.round(Math.cos(a) * 4) + (k % 2 ? 1 : -1), Math.round(Math.sin(a) * 4), [st.hot, st.core], 2));
+      }
+      break;
+    case "ice": // Ice Punch: a fist of frost, ice crystals left on it
+      out.push(...fist(st.hot, st.core), ring(0, x, y, 10, 44, st.glow));
+      for (let i = 0; i < 5; i++) out.push(P(0, 560, O(x + (rnd() - 0.5) * 24, y + (rnd() - 0.5) * 24, 5, 5, 1), O(x + (rnd() - 0.5) * 30, y + (rnd() - 0.5) * 30, 2, 2, 0), i % 2 ? st.hot : st.mid));
+      break;
+    case "fighting": // Brick Break: a chop coming down on it, cracks
+      out.push(P(-110, 110, O(x - dir * 6, y - 30, 6, 18, 1), O(x - dir * 2, y - 6, 6, 18, 1), st.hot, { ease: "ease-in" }));
+      out.push(...steps(0, 380, x - 2, y - 2, 4, -3, 3, [st.core]), ...steps(0, 380, x + 2, y - 2, 4, 3, 3, [st.core]), ...steps(0, 380, x, y + 2, 4, 0, 3, [st.core]));
+      break;
+    case "poison": // Poison Jab: a quick purple jab, bubbles of poison
+      out.push(P(-90, 90, O(x - dir * 30, y, 22, 3, 1), O(x - dir * 4, y, 22, 3, 1), st.hot, { ease: "ease-in" }));
+      for (let i = 0; i < 5; i++) out.push(P(30 + i * 40, 420, O(x + (rnd() - 0.5) * 20, y + 6, 4, 4, 1), O(x + (rnd() - 0.5) * 26, y - 20 - rnd() * 10, 7, 7, 0), i % 2 ? st.mid : st.core, { round: true, ring: i % 2 === 0 }));
+      break;
+    case "ground": // Earthquake: the ground cracks out from under it, dust thrown up
+      out.push(...steps(0, 520, x, g, 7, 4, 0, ["#5a3a1c"]).map((p, i) => ({ ...p, a: { ...p.a, y: g + (i % 2) }, b: { ...p.b, y: g + (i % 2) } })),
+        ...steps(0, 520, x, g, 7, -4, 0, ["#5a3a1c"]).map((p, i) => ({ ...p, a: { ...p.a, y: g - (i % 2) }, b: { ...p.b, y: g - (i % 2) } })));
+      for (const d of [-1, 1]) for (let i = 0; i < 3; i++) out.push(puff(40 + i * 60, x + d * (8 + i * 12), g - 6, 16, "#c8bca8", 420, 0.9));
+      break;
+    case "flying": // Brave Bird: wings of light closing on it, feathers
+      out.push(P(0, 380, O(x, y, 14, 30, 0.9), O(x, y, 64, 44, 0), st.hot, { round: true, ring: true }), puff(0, x, y, 30, st.glow));
+      for (let i = 0; i < 4; i++) out.push(P(40, 520, O(x, y, 6, 3, 1), O(x + (rnd() - 0.5) * 50, y + 10 + rnd() * 12, 6, 3, 0), "#ffffff"));
+      break;
+    case "psychic": // Zen Headbutt: a pink pulse off its head, stars
+      out.push(ring(0, x - dir * 8, y - 8, 8, 50, st.core, 420), ring(80, x - dir * 8, y - 8, 6, 36, st.hot, 340));
+      for (let i = 0; i < 3; i++) out.push(P(60, 520, O(x, y - 16, 4, 4, 1), O(x + (i - 1) * 14, y - 26, 4, 4, 0), "#ffd23f"));
+      break;
+    case "bug": // X-Scissor: an X cut across it
+      out.push(...steps(0, 420, x - 12, y - 12, 9, 3, 3, [st.hot, st.core], 3), ...steps(40, 420, x + 12, y - 12, 9, -3, 3, [st.hot, st.core], 3));
+      break;
+    case "rock": // Stone Edge: sharp stones jabbing up round it
+      for (let i = 0; i < 4; i++) {
+        const xx = x + (i - 1.5) * 10, h = 14 + (i % 2) * 8;
+        out.push(P(i * 30, 400, O(xx, g, 6, 2, 1), O(xx, g - h / 2, 6, h, 0), i % 2 ? "#a8946a" : "#8a7a5a", { ease: "ease-out" }));
+      }
+      break;
+    case "ghost": // Shadow Claw: three long claws of shadow
+      for (let k = 0; k < 3; k++) out.push(...steps(k * 30, 460, x - dir * 18 + dir * k * 7, y - 18, 10, dir * 3, 4, ["#120a1e", st.core], 4));
+      break;
+    case "dragon": // Dragon Claw: three glowing claws
+      for (let k = 0; k < 3; k++) out.push(...steps(k * 30, 420, x - dir * 16 + dir * k * 7, y - 16, 9, dir * 3, 4, [st.hot, st.core, st.glow], 3));
+      out.push(puff(0, x, y, 30, st.glow, 260, 0.6));
+      break;
+    case "dark": { // Crunch: jaws snapping shut on it
+      for (let i = 0; i < 5; i++) {
+        const xx = x + (i - 2) * 6;
+        out.push(P(-120, 120, O(xx, y - 26, 4, 6, 1), O(xx, y - 5, 4, 6, 1), "#ffffff", { ease: "ease-in" }),
+          P(-120, 120, O(xx + 3, y + 22, 4, 6, 1), O(xx + 3, y + 3, 4, 6, 1), "#ffffff", { ease: "ease-in" }));
+      }
+      out.push(P(0, 300, O(x, y, 34, 18, 0.9), O(x, y, 44, 4, 0), "#c0304a", { round: true }));
+      break;
+    }
+    case "steel": // Iron Head: a hard metal clang, glints
+      out.push(ring(0, x - dir * 6, y - 6, 8, 40, st.hot, 300), puff(0, x - dir * 6, y - 6, 26, st.core, 220));
+      for (let i = 0; i < 4; i++) {
+        const xx = x + (i - 1.5) * 12, yy = y - 14 + (i % 2) * 18;
+        out.push(P(40 + i * 40, 300, O(xx, yy, 2, 10, 1), O(xx, yy, 1, 2, 0), "#ffffff"), P(40 + i * 40, 300, O(xx, yy, 10, 2, 1), O(xx, yy, 2, 1, 0), "#ffffff"));
+      }
+      break;
+    case "fairy": // Play Rough: a cartoon scuffle cloud, stars and hearts flying
+      for (let i = 0; i < 5; i++) out.push(puff(i * 40, x + (rnd() - 0.5) * 26, y + (rnd() - 0.5) * 18, 22, i % 2 ? "#ffffff" : st.mid, 360, 0.9));
+      for (let i = 0; i < 4; i++) out.push(P(60, 460, O(x, y, 4, 4, 1), O(x + (rnd() - 0.5) * 50, y - 18 - rnd() * 14, 4, 4, 0), i % 2 ? "#ffd23f" : st.core, { round: i % 2 === 0 }));
+      break;
+  }
+  return out;
+}
+// When a physical move's marks set off, ms after it lands.
+export const physicalTimes = (type) => [...new Set(physicalParts(type, 50, 40, 56).flatMap((p) => [p.at, p.at + 40]))];
+
+// ---- special moves: each its own look as it flies ----------------------------------------------
+// The special move of each type (moves.js, names[1]), fired from where it stands: parts as
+// signatureParts, `at` from when it lands (from -FLY: the shortest flight, 320 ms), x0 → x1 at y.
+export const FLY = 320;
+export function specialParts(type, x0, x1, y, seed = 1, style = null) {
+  let s = seed % 2147483647 || 1;
+  const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  const st = style ?? MOVE[type] ?? MOVE.normal;
+  const dir = x1 >= x0 ? 1 : -1, dist = Math.abs(x1 - x0), mid = (x0 + x1) / 2;
+  const g = y + SIG_GROUND;
+  const ring = (at, x, yy, d0, d1, color, ms = 360, o = 0.9) => P(at, ms, O(x, yy, d0, d0, o), O(x, yy, d1, d1, 0), color, { round: true, ring: true });
+  const flash = (at, x, yy, d, color, ms = 240) => P(at, ms, O(x, yy, d * 0.4, d * 0.4, 1), O(x, yy, d, d, 0), color, { round: true });
+  // Something flying x0 → x1 (dy up or down), from `at` till it lands.
+  const fly = (at, w, h, color, more = {}, dy = 0, o = 1) => P(at, -at, O(x0, y + dy, w, h, o), O(x1, y + dy, w, h, o), color, { ease: "linear", ...more });
+  const out = [];
+  switch (type) {
+    case "normal": // Hyper Voice: rings of sound rolling out to it
+      for (let i = 0; i < 3; i++) out.push(P(-FLY + i * 70, FLY - i * 70, O(x0, y, 6, 12, 1), O(x1, y, 14, 34, 0.5), i % 2 ? st.hot : st.core, { round: true, ring: true, ease: "linear" }));
+      out.push(ring(0, x1, y, 10, 44, st.hot));
+      break;
+    case "fire": // Flamethrower: a stream of flame, puff after puff, from it to the other
+      for (let i = 0; i < 10; i++) {
+        const at = -FLY + i * 24, c = [st.hot, st.mid, st.core][i % 3];
+        out.push(P(at, 200, O(x0, y, 5, 5, 1), O(x0 + dir * Math.min(dist, 200 / FLY * dist * 1.3), y - 2 + (rnd() - 0.5) * 6, 13, 11, 0.4), c, { round: true, ease: "linear" }));
+      }
+      out.push(P(-80, 300, O(x1, y, 10, 10, 1), O(x1, y - 10, 26, 26, 0), st.core, { round: true }), flash(0, x1, y, 30, st.mid));
+      break;
+    case "water": // Surf: a wave rolling along the ground onto it, white on its crest
+      out.push(P(-FLY, FLY, O(x0, g - 6, 8, 12, 0.9), O(x1, g - 12, 22, 26, 1), st.core, { round: true, ease: "linear" }),
+        P(-FLY, FLY, O(x0 + dir * 2, g - 12, 6, 4, 1), O(x1 + dir * 4, g - 24, 18, 5, 1), st.hot, { round: true, ease: "linear" }),
+        P(0, 380, O(x1, g - 12, 22, 26, 1), O(x1 + dir * 10, g - 4, 50, 8, 0), st.mid, { round: true }));
+      for (let i = 0; i < 4; i++) out.push(P(0, 360, O(x1, y - 4, 4, 4, 1), O(x1 + (rnd() - 0.3) * dir * 34, y - 20 - rnd() * 12, 3, 3, 0), "#ffffff", { round: true }));
+      break;
+    case "grass": // Energy Ball: a ball of light, ringed, swirling motes
+      out.push(fly(-FLY, 16, 16, st.glow, { round: true }, 0, 0.6), fly(-FLY, 10, 10, st.mid, { round: true }), fly(-FLY, 5, 5, st.hot, { round: true }),
+        fly(-FLY, 20, 20, st.core, { round: true, ring: true }), flash(0, x1, y, 36, st.mid), ring(0, x1, y, 10, 46, st.core));
+      break;
+    case "electric": { // Thunderbolt: a bolt jagging across, crackling
+      const n = 7, seg = dist / n;
+      for (let i = 0; i < n; i++) {
+        const xa = x0 + dir * seg * (i + 0.5), dy = i % 2 ? -5 : 5;
+        out.push(P(-120 + i * 12, 240, O(xa, y + dy, seg + 2, 3, 1), O(xa, y + dy, seg + 2, 1, 0), i % 2 ? st.hot : st.core));
+      }
+      out.push(P(-120, 240, O(mid, y, dist, 12, 0.35), O(mid, y, dist, 2, 0), st.glow), flash(0, x1, y, 34, st.hot), ring(0, x1, y, 8, 40, st.core, 300));
+      break;
+    }
+    case "ice": // Ice Beam: a cold beam reaching across, ice crystals growing on it
+      out.push(P(-200, 200, O(x0, y, 4, 5, 1), O(mid, y, dist, 5, 1), st.hot, { ease: "linear" }),
+        P(-200, 200, O(x0, y, 4, 11, 0.5), O(mid, y, dist, 11, 0.5), st.glow, { ease: "linear" }),
+        P(0, 260, O(mid, y, dist, 11, 0.6), O(mid, y, dist, 1, 0), st.mid));
+      for (let i = 0; i < 5; i++) {
+        const xx = x1 + (rnd() - 0.5) * 24, yy = y + (rnd() - 0.5) * 26;
+        out.push(P(20 + i * 30, 500, O(xx, yy, 2, 2, 1), O(xx, yy, 7, 7, 0), i % 2 ? "#ffffff" : st.core));
+      }
+      break;
+    case "fighting": // Aura Sphere: a sphere of blue aura, homing in
+      out.push(P(-FLY, FLY, O(x0, y - 8, 14, 14, 0.5), O(x1, y, 18, 18, 0.6), "#4f8cff", { round: true, ease: "ease-in" }),
+        P(-FLY, FLY, O(x0, y - 8, 8, 8, 1), O(x1, y, 10, 10, 1), "#cfe4ff", { round: true, ease: "ease-in" }),
+        P(-FLY, FLY, O(x0, y - 8, 20, 20, 0.8), O(x1, y, 24, 24, 0.8), "#2a6cff", { round: true, ring: true, ease: "ease-in" }),
+        flash(0, x1, y, 40, "#cfe4ff"), ring(0, x1, y, 10, 50, "#4f8cff"));
+      break;
+    case "poison": // Sludge Bomb: globs of sludge lobbed up and over, splattering
+      for (let i = 0; i < 3; i++) {
+        const at = -FLY + i * 50, half = (-at) / 2, d = 9 - i * 2, dx = (i - 1) * 6;
+        out.push(P(at, half, O(x0, y, d, d, 1), O(mid, y - 26 - i * 4, d, d, 1), st.core, { round: true, ease: "ease-out" }),
+          P(at + half, half, O(mid, y - 26 - i * 4, d, d, 1), O(x1 + dx, y, d + 2, d, 1), i % 2 ? st.mid : st.core, { round: true, ease: "ease-in" }));
+      }
+      out.push(P(0, 420, O(x1, g, 12, 4, 0.9), O(x1, g, 46, 6, 0), st.glow, { round: true }), flash(0, x1, y, 28, st.mid));
+      break;
+    case "ground": // Earth Power: the ground under it glows, then bursts up
+      out.push(P(-FLY, FLY, O(x1, g, 6, 3, 0.4), O(x1, g, 40, 6, 1), "#ff8a3c", { round: true, ease: "ease-in" }),
+        P(0, 360, O(x1, g, 18, 4, 1), O(x1, g - 22, 22, 44, 0), "#b0703c"),
+        P(0, 300, O(x1, g, 8, 4, 1), O(x1, g - 26, 8, 52, 0), "#ffb43a"));
+      for (let i = 0; i < 5; i++) out.push(P(20, 420, O(x1, g - 4, 5, 5, 1), O(x1 + (rnd() - 0.5) * 40, g - 20 - rnd() * 24, 4, 4, 0), "#8a5a34"));
+      break;
+    case "flying": // Air Slash: blades of air, one after another
+      for (let i = 0; i < 3; i++) {
+        const at = -FLY + i * 60, dy = (i - 1) * 7;
+        out.push(P(at, -at, O(x0, y + dy, 4, 14, 1), O(x1, y + dy, 6, 18, 1), i % 2 ? st.hot : st.glow, { round: true, ring: true, ease: "linear" }));
+      }
+      out.push(...steps(0, 300, x1 - 8, y - 8, 6, 3, 3, [st.hot, st.glow], 2));
+      break;
+    case "psychic": // Psychic: waves of power round it, pulsing, as it's gripped
+      for (let i = 0; i < 4; i++) out.push(P(-FLY + i * 80, 260, O(x1, y, 50, 50, 0.1), O(x1, y, 16, 16, 0.9), i % 2 ? st.hot : st.core, { round: true, ring: true, ease: "ease-in" }));
+      out.push(P(-FLY, FLY, O(x0, y - 16, 6, 6, 1), O(x0, y - 16, 18, 18, 0), st.core, { round: true, ring: true }), flash(0, x1, y, 34, st.mid));
+      break;
+    case "bug": // Bug Buzz: waves of buzzing, green, a little ragged
+      for (let i = 0; i < 4; i++) out.push(P(-FLY + i * 55, FLY - i * 55, O(x0, y + (i % 2 ? -3 : 3), 4, 10, 1), O(x1, y + (i % 2 ? 3 : -3), 10, 30, 0.5), i % 2 ? st.mid : st.core, { round: true, ring: true, ease: "linear" }));
+      out.push(ring(0, x1, y, 8, 40, st.glow, 300));
+      break;
+    case "rock": // Power Gem: shining gems flying across, sparkling
+      for (let i = 0; i < 4; i++) {
+        const at = -FLY + i * 30, dy = (i - 1.5) * 6, c = ["#ff6a9a", "#6ad0ff", "#ffd23f", "#9aff8a"][i];
+        out.push(P(at, -at, O(x0, y + dy, 5, 5, 1), O(x1, y + dy * 0.3, 6, 6, 1), c, { ease: "linear" }), P(at, -at, O(x0, y + dy, 2, 2, 1), O(x1, y + dy * 0.3, 2, 2, 1), "#ffffff", { ease: "linear" }));
+      }
+      out.push(flash(0, x1, y, 32, "#ffffff"));
+      for (let i = 0; i < 4; i++) out.push(P(20, 360, O(x1, y, 2, 6, 1), O(x1 + (i - 1.5) * 10, y - 12 + (i % 2) * 20, 1, 2, 0), "#ffffff"));
+      break;
+    case "ghost": // Shadow Ball: a dark ball, wisps trailing
+      out.push(fly(-FLY, 18, 18, "#1a0e2a", { round: true }, 0, 0.85), fly(-FLY, 18, 18, st.core, { round: true, ring: true }), fly(-FLY, 7, 7, st.mid, { round: true }));
+      for (let i = 0; i < 3; i++) out.push(P(-FLY + 60 + i * 60, 200, O(x0 + dir * dist * (0.2 + 0.25 * i), y, 6, 6, 0.8), O(x0 + dir * dist * (0.1 + 0.25 * i), y - 8, 3, 3, 0), st.core, { round: true }));
+      out.push(flash(0, x1, y, 38, st.core), ring(0, x1, y, 10, 48, "#1a0e2a"));
+      break;
+    case "dragon": { // Dragon Pulse: a stream of draconic light, weaving
+      for (let i = 0; i < 8; i++) {
+        const at = -FLY + i * 22, dy = Math.sin(i * 1.2) * 6;
+        out.push(P(at, -at, O(x0, y + dy, 8 - i * 0.5, 8 - i * 0.5, 1), O(x1, y - dy, 8 - i * 0.5, 8 - i * 0.5, 0.6), i % 2 ? st.glow : st.core, { round: true, ease: "linear" }));
+      }
+      out.push(flash(0, x1, y, 36, st.mid), ring(0, x1, y, 10, 46, st.glow));
+      break;
+    }
+    case "dark": // Dark Pulse: rings of dark rolling out from it, one after another
+      for (let i = 0; i < 3; i++) {
+        const at = -FLY + i * 70, r = dist * 2 + 10;
+        out.push(P(at, -at + 40, O(x0, y, 8, 8, 0.9), O(x0, y, r, Math.min(46, r * 0.4), 0.2), i % 2 ? "#c0304a" : "#5a2a5a", { round: true, ring: true, ease: "linear" }));
+      }
+      out.push(flash(0, x1, y, 30, "#5a2a5a"));
+      break;
+    case "steel": // Flash Cannon: a blinding flash, then a silver beam
+      out.push(flash(-FLY, x0, y, 30, "#ffffff", 200),
+        P(-200, 200, O(x0, y, 4, 9, 1), O(mid, y, dist, 9, 1), st.hot, { ease: "linear" }),
+        P(-200, 200, O(x0, y, 4, 15, 0.5), O(mid, y, dist, 15, 0.5), st.core, { ease: "linear" }),
+        P(0, 240, O(mid, y, dist, 15, 0.8), O(mid, y, dist, 1, 0), st.hot), ring(0, x1, y, 8, 44, st.hot, 300));
+      break;
+    case "fairy": // Moonblast: a moon gathering over it, then its light shot down at the other
+      out.push(P(-FLY, 160, O(x0, y - 34, 4, 4, 0.3), O(x0, y - 34, 16, 16, 1), "#fff4f8", { round: true }),
+        P(-FLY + 160, FLY - 160, O(x0, y - 34, 16, 16, 1), O(x1, y, 18, 18, 1), st.core, { round: true, ease: "ease-in" }),
+        P(-FLY + 160, FLY - 160, O(x0, y - 34, 24, 24, 0.5), O(x1, y, 26, 26, 0.4), st.glow, { round: true, ease: "ease-in" }),
+        flash(0, x1, y, 44, "#fff4f8", 300), ring(0, x1, y, 10, 54, st.core));
+      break;
+  }
+  return out;
+}
+export const specialTimes = (type) => [...new Set(specialParts(type, 0, 100, 40).flatMap((p) => [p.at, p.at + 40]))];

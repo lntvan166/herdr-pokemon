@@ -131,3 +131,52 @@ test("every type leaves something on its target for a moment", () => {
   assert.ok(RESIDUE_FADE < RESIDUE_MS);
   assert.ok(new Set(Object.values(RESIDUE)).size >= 8);
 });
+
+test("every signature move has its own look, landing as it hits", async () => {
+  const { signatureParts, signatureTimes, MOVE } = await import("../mods/pokemon-herd/fx.js");
+  const seen = new Set();
+  for (const t of Object.keys(MOVE)) {
+    const p = signatureParts(t, 20, 140, 40, 7);
+    assert.ok(p.length >= 3, t);
+    assert.ok(p.every((x) => x.ms >= 100 && x.at >= -420 && x.at <= 300 && x.color && x.a && x.b), t);
+    assert.deepEqual(signatureParts(t, 20, 140, 40, 7), p); // the same on every frame
+    assert.ok(signatureTimes(t).length > 0);
+    seen.add(JSON.stringify(p.map((x) => [x.at, x.ms, x.a.w, x.b.h])));
+  }
+  assert.equal(seen.size, Object.keys(MOVE).length); // all different
+  // Mirrored going left: Thunder still strikes the target.
+  const l = signatureParts("electric", 140, 20, 40);
+  assert.ok(l.some((x) => Math.abs(x.b.x - 20) < 8));
+});
+
+test("every physical move leaves its own mark; heavy blows hold a moment", async () => {
+  const { physicalParts, physicalTimes, MOVE, stopOf, stopOfMove, HITSTOP, dashAt } = await import("../mods/pokemon-herd/fx.js");
+  const seen = new Set();
+  for (const t of Object.keys(MOVE)) {
+    const p = physicalParts(t, 60, 40, 56, 1, 3);
+    assert.ok(p.length >= 2 && p.every((x) => x.ms >= 90 && x.at >= -150 && Number.isFinite(x.a.x + x.a.y + x.b.x + x.b.y)), t);
+    assert.ok(physicalTimes(t).length > 0);
+    seen.add(JSON.stringify(p.map((x) => [x.at, x.ms, x.a.w, x.b.h])));
+  }
+  assert.equal(seen.size, Object.keys(MOVE).length);
+  assert.equal(stopOf({ p: 0.85 }), HITSTOP);
+  assert.equal(stopOf({ p: 0.6 }), 0);
+  assert.equal(stopOf({ p: 1, miss: true }), 0);
+  assert.equal(stopOfMove({ crit: true }), HITSTOP);
+  assert.equal(stopOfMove({ eff: 1 }), 0);
+  // The one rushing in holds where it struck through the hitstop, then goes back.
+  assert.deepEqual(dashAt(0, 100, 0, 300, 350, HITSTOP), { px: 70, ms: 1 });
+  assert.deepEqual(dashAt(0, 100, 0, 300, 400, HITSTOP), { px: 0, ms: 260 });
+});
+
+test("every special move flies its own way", async () => {
+  const { specialParts, specialTimes, MOVE, FLY } = await import("../mods/pokemon-herd/fx.js");
+  const seen = new Set();
+  for (const t of Object.keys(MOVE)) {
+    const p = specialParts(t, 20, 140, 40, 5);
+    assert.ok(p.length >= 4 && p.every((x) => x.ms > 0 && x.at >= -FLY && Number.isFinite(x.a.x + x.a.y + x.b.x + x.b.y)), t);
+    assert.ok(specialTimes(t).length > 0);
+    seen.add(JSON.stringify(p.map((x) => [x.at, x.ms, x.a.w, x.b.h])));
+  }
+  assert.equal(seen.size, Object.keys(MOVE).length);
+});

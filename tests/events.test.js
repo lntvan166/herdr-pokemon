@@ -105,3 +105,13 @@ test("beaten: a reward, and the boss to catch, weakened", () => {
   assert.equal(p.alpha, true);
   assert.equal(p.raid, true);
 });
+
+test("a raid move that misses does nothing to the boss", async () => {
+  const { pickMove } = await import("../mods/pokemon-herd/moves.js");
+  const r = newRaid(0, () => 0.5);
+  const move = { ...pickMove(6, r.boss.dex, () => 0.9), miss: true, mul: 0 };
+  const { raid, hit } = raidHit(r, 6, "p1", "fire", 10, () => 0.5, { move });
+  assert.equal(hit.dmg, 0);
+  assert.equal(hit.miss, true);
+  assert.equal(raid.hp, 1);
+});

@@ -51,11 +51,14 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 - **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
   and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
-- **Named moves.** Each uses its best type's move, by its stats: a physical fighter rushes in
-  (Brick Break, Fire Punch), a special one fires from where it stands (Flamethrower, Psychic). Now
-  and then a signature move (Blast Burn, Hydro Cannon: ×1.5), and 1 in 16 "A critical hit!" (×1.5).
+- **Named moves.** Each uses its best type's move: rushing in (streaks behind it, and each
+  move its own mark: Fire Punch's fist of flame, Crunch's jaws, Earthquake's cracks, X-Scissor's X) or firing from where it stands (Flamethrower, Psychic),
+  mostly by its stats but mixed up. Now and then a signature move (×1.5), each with its own look: Thunder strikes out
+  of the sky, Blast Burn erupts from the ground, Draco Meteor rains down, Shadow Force tears a rift,
+  and 1 in 16 "A critical hit!" (×1.5). 1 in 20 misses ("Missed!", it hops aside), a signature move 1 in 5.
 - **Moves you can see.** Yours steps off a little, gathers power and uses its best type against
-  it: a fireball with a trail of embers, an ice or steel beam, bubbles, leaves, rings… A hit
+  it, each move its own way: Flamethrower a stream of fire, Surf a wave, Thunderbolt a jagged
+  bolt, Ice Beam a beam that freezes, Sludge Bomb globs lobbed over, Moonblast a moon… A hit
   flashes, throws sparks and knocks it back, the damage floats up and the health bar drains; a
   super-effective one shakes it. Sounds too, a click away (🔇 in the strip's corner). Megas and regional forms fight with their own types
   and stats (Mega Charizard X: Fire/Dragon, blue fire).
