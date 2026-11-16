@@ -366,3 +366,25 @@ test("a legendary walking by is one not caught yet, while any are left", () => {
   // Others aren't steered by the Pokédex.
   assert.ok(!isLegendary(wildPick(new Set(), () => 0.5, { caught }).dex));
 });
+
+import { SHADOW_SHARE, SHADOW_HIT } from "../mods/pokemon-herd/trainer.js";
+import { canPurify, purified, PURIFY_HEARTS, HEART_PTS as HP, loadPicks as lp } from "../mods/pokemon-herd/picks.js";
+test("Shadow: some Alphas, hitting and taking harder; purified at enough hearts, still an Alpha", () => {
+  let a = 0, s = 0;
+  for (let i = 0; i < 20000; i++) { const p = wildPick(new Set(), Math.random); if (p.alpha) a++; if (p.shadow) { s++; assert.ok(p.alpha); } }
+  assert.ok(Math.abs(s / a - SHADOW_SHARE) < 0.08, `${s}/${a}`);
+  const plain = damage(6, 3, () => 0.5).dmg;
+  assert.ok(Math.abs(damage(6, 3, () => 0.5, { shadowAttacker: true }).dmg / plain - SHADOW_HIT) < 1e-9);
+  assert.ok(damage(6, 3, () => 0.5, { shadowTarget: true }).dmg > plain);
+  const c = caughtPick({ dex: 94, alpha: true, shadow: true }, 1, () => 0);
+  assert.equal(c.shadow, true);
+  assert.equal(caughtPick({ dex: 94, shadow: true }, 1, () => 0).shadow, undefined); // only an Alpha is
+  assert.equal(lp({ v: 2, panes: { b: c } }).panes.b.shadow, true); // kept when read back
+  assert.equal(canPurify(c), false); // 2 hearts
+  const trusted = { ...c, friend: PURIFY_HEARTS * HP };
+  assert.equal(canPurify(trusted), true);
+  const p = purified(trusted);
+  assert.equal(p.shadow, undefined);
+  assert.equal(p.alpha, true);
+  assert.equal(p.hearts, PURIFY_HEARTS + 1);
+});

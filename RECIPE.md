@@ -135,6 +135,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
   Azure Flute (₽1,000) and the day's Research call one: always one not caught yet, while any are
   left (`wildPick` with the Pokédex's caught). About 15 balls before one flees.
+- **Shadow Alphas** (`SHADOW_SHARE` 1 in 3 Alphas; `shadow: true`): dark violet flames behind it and
+  violet motes; it hits ×1.2 and takes ×1.2 (`SHADOW_HIT`, `SHADOW_TAKE`), wild or caught. In the
+  Box (filter Shadow), at ♥4 (`PURIFY_HEARTS`) a Purify pill: no longer Shadow, still an Alpha, a
+  heart more and ₽100 (`purified`, `PURIFY_PAY`).
 - **Alphas** (`ALPHA_ODDS` 40): a wild one ×1.4 bigger with a breathing red glow and a red α;
   half the base rate to catch, ₽150 and twice the gift; caught, `alpha: true`, ♥2, still bigger.
 - **Pokédex:** species seen and caught by region; goals at 5, 15, 30, 60, 100, 200 caught pay

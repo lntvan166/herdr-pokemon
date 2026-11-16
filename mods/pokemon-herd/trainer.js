@@ -38,7 +38,8 @@ export function wildPick(taken, rnd = Math.random, how = {}) {
   const pool = free.length ? free : wanted;
   const dex = pool[Math.floor(rnd() * pool.length)];
   const alpha = !legend && rnd() * ALPHA_ODDS < 1;
-  return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}), ...(how.legend ? { called: true } : {}), ...(alpha ? { alpha: true } : {}) };
+  const shadow = alpha && rnd() < SHADOW_SHARE; // some Alphas are Shadow Pokémon
+  return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}), ...(how.legend ? { called: true } : {}), ...(alpha ? { alpha: true } : {}), ...(shadow ? { shadow: true } : {}) };
 }
 
 // ---- Poké Balls ---------------------------------------------------------------------
@@ -138,7 +139,8 @@ export const EFFECT = {
 // type's effect; an Alpha hits ×1.3 and takes ×0.8.
 export function damage(attacker, target, rnd = Math.random, how = {}) {
   const eff = bestEffect(attacker, target);
-  const dmg = (0.18 + 0.14 * rnd()) * powerRatio(attacker, target) * EFFECT[eff].mul * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1);
+  const dmg = (0.18 + 0.14 * rnd()) * powerRatio(attacker, target) * EFFECT[eff].mul * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1)
+    * (how.shadowAttacker ? SHADOW_HIT : 1) * (how.shadowTarget ? SHADOW_TAKE : 1);
   return { dmg, eff, text: EFFECT[eff].text };
 }
 
@@ -148,9 +150,12 @@ const statsOf = (dex) => baseOf(dex) ?? [70, 70];
 export const powerRatio = (attacker, target) => Math.max(0.35, Math.min(2.5, statsOf(attacker)[0] / statsOf(target)[1]));
 // `mega`: the attacker fights Mega Evolved: it hits ×1.2 (and, hit back, takes ×0.85: hitBack).
 export const MEGA_HIT = 1.2, MEGA_TAKE = 0.85;
-export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false) {
+// A Shadow Pokémon (1 Alpha in 3, SHADOW_SHARE) hits harder and takes more, as in GO; caught, it
+// stays Shadow till purified (picks.js purified, at PURIFY_HEARTS).
+export const SHADOW_SHARE = 1 / 3, SHADOW_HIT = 1.2, SHADOW_TAKE = 1.2;
+export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false, shadow = false) {
   const hp = Number.isFinite(wild.hp) ? wild.hp : 1;
-  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha });
+  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha, shadowAttacker: shadow, shadowTarget: !!wild.shadow });
   const { eff, text } = hit;
   const dmg = hit.dmg * (mega ? MEGA_HIT : 1);
   const strong = eff > 1;
@@ -165,7 +170,7 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega =
 export const OWN_REST = 10 * 60000;
 export function hitBack(own, wild, rnd = Math.random) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
-  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha });
+  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow });
   const { eff, text } = hit;
   const dmg = hit.dmg * 0.75 * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
   const left = Math.max(0, hp - dmg);
@@ -259,6 +264,7 @@ export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
     friend: wild.alpha ? 40 : 20,
     hearts: wild.alpha ? 2 : 1,
     ...(wild.alpha ? { alpha: true } : {}),
+    ...(wild.alpha && wild.shadow ? { shadow: true } : {}),
     caught: now,
     caughtAs: wild.dex, // the species it was caught as (withEvolved)
     ...(BALLS.includes(ball) ? { ball } : {}),

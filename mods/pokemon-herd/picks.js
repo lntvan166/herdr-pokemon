@@ -44,7 +44,7 @@ export function loadPicks(current, legacy) {
       const nature = p.nature in NATURES ? p.nature : undefined;
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
       const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(caught && isWalkable(p.caughtAs) ? { caughtAs: p.caughtAs } : {}) };
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(caught && isWalkable(p.caughtAs) ? { caughtAs: p.caughtAs } : {}) };
     }
     if (Object.keys(panes).length) return { panes, migrated: false };
   }
@@ -169,6 +169,15 @@ export function withFriend(pick, pts) {
   return { ...pick, friend, hearts: Math.floor(friend / HEART_PTS) };
 }
 export const withHearts = (pick, n) => withFriend(pick, n * HEART_PTS);
+// A Shadow Pokémon (a caught Alpha, 1 in 3: trainer.js SHADOW_SHARE) is purified once it trusts
+// you: at PURIFY_HEARTS hearts, the Box's Purify. It stays an Alpha, no longer Shadow, and gains a
+// heart (PURIFY_PAY Pokédollars too, paid by the Box).
+export const PURIFY_HEARTS = 4, PURIFY_PAY = 100;
+export const canPurify = (pick) => !!pick?.shadow && Math.floor(friendOf(pick) / HEART_PTS) >= PURIFY_HEARTS;
+export function purified(pick) {
+  const { shadow: _s, ...rest } = pick;
+  return withFriend(rest, HEART_PTS);
+}
 
 // What an item from the Bag would do for it: "evolve", "hearts", "hold", or null (no use now).
 const candied = (pick) => ({ ...pick, jobs: (pick.jobs ?? 0) + CANDY_JOBS });

@@ -109,12 +109,12 @@ export const COUNTER_MS = 1200, BOSS_PUSH = 150; // (its own move gathers first:
 export const RAID_BACK = 0.75; // the boss's answer hurts ¾ of a wild one's hit back
 export const RAID_REST = 2 * 60000; // fainted in a raid: back in 2 minutes (not a wild fight's 10)
 export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {
-  const d = damage(key, r.boss.dex, rnd, { alphaTarget: !!r.boss.alpha });
+  const d = damage(key, r.boss.dex, rnd, { alphaTarget: !!r.boss.alpha, shadowAttacker: !!how.shadow });
   // Even a weak or wrong-typed one chips it: at least RAID_CHIP of a one-agent boss, before its bulk.
   const dmg = Math.max(RAID_CHIP * RAID_HP, d.dmg * (how.working ? WORKING_HIT : 1)) / (r.bulk ?? RAID_HP);
   const hp = Math.max(0, r.hp - dmg);
   const bossType = bestType(r.boss.dex, key);
-  const b = damage(r.boss.dex, key, rnd, { alphaAttacker: !!r.boss.alpha, alphaTarget: !!how.alpha });
+  const b = damage(r.boss.dex, key, rnd, { alphaAttacker: !!r.boss.alpha, alphaTarget: !!how.alpha, shadowTarget: !!how.shadow });
   const back = hp > 0 ? { type: bossType, eff: b.eff, dmg: b.dmg * 0.75 * RAID_BACK * (1 - 0.02 * Math.min(5, how.hearts ?? 0)) } : null;
   const hit = { at: now, pane, key, type, eff: d.eff, dmg, ...(back ? { back } : {}), ...(how.drop ? { drop: true } : {}) };
   return { raid: { ...r, hp, hits: [...r.hits, hit].slice(-12), ...(hp <= 0 ? { beaten: now } : {}) }, hit };

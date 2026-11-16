@@ -17,7 +17,7 @@ const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -449,7 +449,8 @@ const ALPHA_RED = "#e5484d";
 // The ring's picture (sprites.js ensureRing), made once at start.
 const RING = { ready: false };
 ensureRing().then(() => { RING.ready = true; }, () => {});
-const alphaGlow = (mid, ground, box, scale) => {
+// `shadow`: a Shadow Pokémon's (some Alphas): its motes dark violet, a dark aura flickering behind it.
+const alphaGlow = (mid, ground, box, scale, shadow = false) => {
   // A red ring on the ground under its feet (wider than its shadow), breathing; and a few red
   // motes rising beside it. No box round it.
   const w = Math.max(26, box.w * scale * 1.15), h = Math.max(9, 11 * scale);
@@ -463,10 +464,16 @@ const alphaGlow = (mid, ground, box, scale) => {
     .children(motes.map(([dx, dy, rise, period, size], k) => {
       const y = ground - dy * box.h * scale;
       return div().absolute().left(mid + dx * box.w * scale).top(y).size(size).rounded_full()
-        .bg(k % 3 === 2 ? "#ffb070" : "#ff4a4a")
+        .bg(shadow ? (k % 2 ? "#3a1a5a" : "#9a5aff") : k % 3 === 2 ? "#ffb070" : "#ff4a4a")
         .loop("top", { from: y, to: y - rise, period, easing: "linear" })
         .loop("opacity", { from: 0, to: 0.95, period: period / 2 });
-    }));
+    }))
+    // Shadow: dark violet flames standing behind it, slowly.
+    .when(shadow, (el) => el.children([[-0.32, 0.9, 1700], [0, 1.05, 2100], [0.3, 0.85, 1900]].map(([dx, hh, period]) => {
+      const fw = Math.max(8, box.w * scale * 0.34), fh = box.h * scale * hh;
+      return div().absolute().left(mid + dx * box.w * scale - fw / 2).top(ground - fh).w(fw).h(fh).rounded(fw / 2).bg("#5a2a8a")
+        .loop("opacity", { from: 0.12, to: 0.4, period });
+    })));
 };
 // The α in an Alpha's name tag (before its name).
 const alphaTag = () => div().flex_none().h(12).px(3).rounded(3).flex().items_center().bg(ALPHA_RED).text_size(9).font_bold().text_color("#ffffff").child("α");
@@ -500,7 +507,7 @@ const openSettings = (update) => openOverlay({ mod: MOD, kind: "dialog", width: 
 let lastCry = 0;
 // What makes a wild one rare, for the note in the corner: a legendary, an Alpha, a shiny; or null.
 const rareOf = (pick) => isLegendary(pick.dex) ? { mark: "✦", what: "Legendary", color: "#f2c94c" }
-  : pick.alpha ? { mark: "α", what: "Alpha", color: "#ff8a80" }
+  : pick.alpha ? { mark: "α", what: pick.shadow ? "Shadow Alpha" : "Alpha", color: pick.shadow ? "#c08aff" : "#ff8a80" }
   : pick.shiny ? { mark: "✨", what: "Shiny", color: "#ffffff" } : null;
 // `quiet`: the soft one (a rare wild one walking in), not the one that calls you to an agent.
 function cry(dex, quiet = false) {
@@ -1225,7 +1232,7 @@ export default class PokemonHerd extends View {
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
-    const { raid } = raidHit(r, key, a.pane, bestType(key, r.boss.dex), at, Math.random, { alpha: !!live.alpha, hearts: live.hearts ?? 0, working: a.status === "working", drop: true });
+    const { raid } = raidHit(r, key, a.pane, bestType(key, r.boss.dex), at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
   }
@@ -1530,7 +1537,7 @@ export default class PokemonHerd extends View {
       const cl = mid - (cur.box.x + cur.box.w / 2) * scale, ct = ground - (cur.box.y + cur.box.h) * scale;
       const wildBody = div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, cur.box, scale)))
+        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, cur.box, scale, !!v.pick.shadow)))
         .child(image(cur.path).absolute().left(cl).top(ct).w(cur.w * scale).h(cur.h * scale))
         .when(true, (el) => {
           if (fx.blow) for (const n of ["HurtL", "HurtR", "Hurt"]) this.wantWhite(meta.react?.[n]?.path);
@@ -1630,7 +1637,7 @@ export default class PokemonHerd extends View {
         const tagW = 260;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
-          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${v.pick.alpha ? "Alpha " : ""}${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
       }
       return;
     }
@@ -1647,13 +1654,13 @@ export default class PokemonHerd extends View {
       .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
       .child(div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale)))
+        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale, !!v.pick.shadow)))
         .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
             .child(alphaTag())
-            .child(div().text_size(10.5).text_color(t.muted).child(fullName(v.pick.dex, v.pick.form))))))
+            .child(div().text_size(10.5).text_color(v.pick.shadow ? "#c08aff" : t.muted).child(`${v.pick.shadow ? "Shadow " : ""}${fullName(v.pick.dex, v.pick.form)}`)))))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
@@ -1704,7 +1711,7 @@ export default class PokemonHerd extends View {
     const onStrip = v.x >= 0 && v.x <= this.width;
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = 330;
-      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? "An Alpha" : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
+      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -2255,8 +2262,8 @@ export default class PokemonHerd extends View {
         const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
-        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus);
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, hearts: pk.hearts ?? 0, mega: bonus }, wild);
+        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow);
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild);
         // It steps off to battle from a little way (FX_GAP), so the two never stand on each other.
         const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), FX_GAP);
         if (Math.abs(spot - dm.x) >= 1) {
@@ -3030,7 +3037,7 @@ export default class PokemonHerd extends View {
         const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
         body = div()
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale))) // over its shadow, not darkened by it
+          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale, !!pick.shadow))) // over its shadow, not darkened by it
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
           // A blow landing: it flashes white (and the hurt pose's silhouette is made ahead).
           .when(true, (el) => {
@@ -3964,6 +3971,7 @@ export default class PokemonHerd extends View {
       ["shiny", "✨ Shiny", (x) => !!x.pick.shiny],
       ["legend", "Legendary", (x) => isLegendary(x.pick.dex)],
       ["alpha", "Alpha", (x) => !!x.pick.alpha],
+      ["shadow", "Shadow", (x) => !!x.pick.shadow],
     ];
     const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
     const shown = sortBox(everyone.filter(filter[2]).filter((x) => !q || fold(nameFor(x.pick)).includes(q) || fold(x.tag ?? "").includes(q) || fold(natureOf(x.pick)?.name ?? "").includes(q)), this.boxSort ?? "new");
@@ -4018,6 +4026,7 @@ export default class PokemonHerd extends View {
           .child(x.tag ? x.tag : `♥ ${heartsText(friendOf(x.pick))}`))
         .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
         .when(!!x.pick.alpha, (el) => el.child(alphaMark(x.pick.shiny ? 20 : 5, 4)))
+        .when(!!x.pick.shadow, (el) => el.child(div().absolute().top(38).left(5).size(8).rounded_full().bg("#9a5aff")))
         .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt(x.pick.ball ?? "poke-ball", 14))))
         .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
     };
@@ -4030,7 +4039,7 @@ export default class PokemonHerd extends View {
       const c = cardOf(pick);
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
-      const facts = [pick.alpha ? "Alpha" : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
+      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
         pick.caught ? `caught in a ${ITEMS[pick.ball ?? "poke-ball"].name}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
@@ -4041,6 +4050,15 @@ export default class PokemonHerd extends View {
               : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${tag ? ` · with ${tag}` : ""}`))
             .child(div().text_size(11.5).text_color(t.muted).truncate().child(facts))))
         .child(h_flex().gap(6).flex_wrap().items_center()
+          // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).
+          .when(!!pick.shadow && canPurify(pick), (el) => el.child(pill(`box-purify-${slot}`, `✨ Purify (+${money(PURIFY_PAY)})`, () => {
+            const live = savedPicks()[slot];
+            if (!live || !canPurify(live)) return;
+            savePicks({ [slot]: purified(live) });
+            saveBag(addMoney(bag(), PURIFY_PAY));
+            this.purifiedAt = { slot, at: Date.now() };
+          })))
+          .when(this.purifiedAt?.slot === slot && Date.now() - this.purifiedAt.at < 4000, (el) => el.child(div().text_size(12).font_semibold().text_color("#ffd23f").child("✨ Purified! It trusts you now.")))
           // Locked: never released, alone or in a batch.
           .child(pill(`box-lock-${slot}`, pick.locked ? "🔒 Unlock" : "Lock", () => {
             const live = savedPicks()[slot];
