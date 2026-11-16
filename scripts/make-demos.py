@@ -698,10 +698,12 @@ def battle(tmp):
         FIRE = "moveStyle('fire', true)"
         if 1300 <= t < 1770: args += fx_burst(STRIKE, p_strike, lx - 6, ground - 26, t - 1300, 3)
         if 2150 <= t < 2620: args += fx_burst(STRIKE, p_strike, zx + 6, ground - 28, t - 2150, 5)
+        args += fx_charge(FIRE, zx + 14 * FXK, ground - 26, t - (3000 - fx("CHARGE_MS")))  # it gathers
         if 3000 <= t < 3350:  # the fireball, across (fx.js shotParts)
             f = (t - 3000) / 350
             args += fx_shot(FIRE, 1, zx + 14 * FXK + f * (lx - zx - 26 * FXK), ground - 26, t)
         if 3350 <= t < 3820: args += fx_burst(FIRE, p_fire, lx - 6, ground - 26, t - 3350, 9)
+        args += fx_residue("burn", FIRE, lx + kl, ground - 50, ground, t - 3500)  # it burns a moment
         # The shiny's sparkles, twinkling.
         for j, (dx, dy, r) in enumerate([(-15, -38, 2.2), (12, -30, 1.8), (-12, -14, 1.6), (15, -10, 2.2)]):
             if (i // 3 + j) % 4 < 2:
@@ -727,10 +729,15 @@ def battle(tmp):
 ART_DIR = os.path.expanduser("~/.config/herdr-app/data/pokemon-herd/art")
 
 
-def hp_bar(cx, top, hp, blink_on=True):
-    """A health bar (as on the strip) centred on cx: green, amber, red."""
+def hp_bar(cx, top, hp, blink_on=True, prev=None, since=None):
+    """A health bar (as on the strip) centred on cx: green, amber, red; `prev` and `since` (ms)
+    just after a hit: what it lost white, draining away (250 ms on, over 450)."""
     color = "#46c46a" if hp > 0.5 else "#e8b062" if hp > 0.2 else "#e5484d"
     args = ["-fill", "#00000099", "-draw", f"rectangle {cx - 16},{top} {cx + 16},{top + 4}"]
+    if prev is not None and since is not None and since < 700:
+        f = min(1, max(0, (since - 250) / 450))
+        w = prev + (hp - prev) * f * f
+        args += ["-fill", "#ffffffd8", "-draw", f"rectangle {cx - 15},{top + 1} {cx - 15 + max(1, round(30 * w))},{top + 3}"]
     if blink_on:
         args += ["-fill", color, "-draw", f"rectangle {cx - 15},{top + 1} {cx - 15 + max(1, round(30 * hp))},{top + 3}"]
     return args
@@ -839,6 +846,59 @@ def fx_word(eff, cx, head_y, t, W):
             "-annotate", f"+{x0 + 6}+{y0 + 14}", text, "-font", FONT]
 
 
+def fx_charge(style_expr, x, y, t):
+    """A move gathering at (x, y), `t` ms into CHARGE_MS: sparks drawn in, a glow swelling (fx.js)."""
+    charge = fx("CHARGE_MS")
+    if not 0 <= t < charge:
+        return []
+    st = fx(style_expr)
+    u = min(1, t / (charge - 40))
+    k = u * u
+    args = []
+    for p in fx(f"chargeParts({style_expr}, 5)"):
+        px, py, r = x + p["dx"] * (1 - k) * FXK, y + p["dy"] * (1 - k) * FXK, p["size"] * FXK / 2
+        args += ["-fill", hexa(p["color"], 0.25 + 0.75 * u), "-draw", f"ellipse {px:.1f},{py:.1f} {r:.1f},{r:.1f} 0,360"]
+    g, c = (4 + 20 * k) * FXK / 2, (2 + 8 * k) * FXK / 2
+    return args + ["-fill", hexa(st["glow"], 0.15 + 0.3 * u), "-draw", f"ellipse {x},{y} {g:.1f},{g:.1f} 0,360",
+                   "-fill", hexa(st["hot"], 0.4 + 0.6 * u), "-draw", f"ellipse {x},{y} {c:.1f},{c:.1f} 0,360"]
+
+
+def fx_number(dmg, eff, own, x, y, t):
+    """The damage floating up from (x, y) (scaled image coordinates), `t` ms after (fx.js damageText)."""
+    if not 0 <= t < 1000:
+        return []
+    text, color = fx(f"damageText({dmg}, {eff}, {'true' if own else 'false'})")
+    a = 1 if t < 450 else max(0, 1 - (t - 450) / 450)
+    yy = y - 22 * ease_out(t / 900)
+    tw = round(glyph_width(text, 12) * 1.1)
+    return ["-fill", hexa("#000000", 0.5 * a), "-draw", f"roundrectangle {x - tw / 2 - 4},{yy - 13} {x + tw / 2 + 4},{yy + 3} 4,4",
+            "-font", FONT.replace("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"), "-fill", hexa(color, a), "-pointsize", "12",
+            "-annotate", f"+{x - tw / 2:.0f}+{yy:.0f}", text, "-font", FONT]
+
+
+def fx_residue(kind, style_expr, cx, head, ground, t):
+    """What a move leaves on its target, `t` ms in (fx.js RESIDUE): flames for a burn, falling leaves."""
+    span, fade = fx("[RESIDUE_MS, RESIDUE_FADE]")
+    if not 0 <= t < span:
+        return []
+    st = fx(style_expr)
+    a = 1 if t < span - fade else max(0, (span - t) / fade)
+    mid = (head + ground) / 2
+    args = []
+    if kind == "burn":
+        for k, (dx, dy, period) in enumerate([(-10, 4, 230), (9, -6, 270), (0, -14, 310)]):
+            fl = 0.25 + 0.75 * (0.5 + 0.5 * math.sin(2 * math.pi * t / period))
+            yy = mid + dy - 4 * (0.5 + 0.5 * math.sin(2 * math.pi * t / (period * 2)))
+            args += ["-fill", hexa(st["mid"] if k % 2 else st["core"], a * fl), "-draw", f"ellipse {cx + dx},{yy:.1f} 2.5,4 0,360"]
+    elif kind == "leaf":
+        for k, (dx, period) in enumerate([(-12, 700), (3, 820), (12, 760)]):
+            f = (t % period) / period
+            yy = head + 4 + (ground - head - 10) * f
+            xx = cx + dx + 3 * math.sin(2 * math.pi * t / (period / 2))
+            args += ["-fill", hexa(st["core"] if k % 2 else st["mid"], a), "-draw", f"rectangle {xx - 3:.1f},{yy - 1.5:.1f} {xx + 3:.1f},{yy + 1.5:.1f}"]
+    return args
+
+
 def catch(tmp):
     """README: battle to catch, as the strip plays it (fx.js). Mega Charizard X is dropped by a wild
     Venusaur and steps off; its blue fire flies over (fire on grass: super effective), a flash,
@@ -895,21 +955,32 @@ def catch(tmp):
             px, py = A("0003", "idleL").place(vx, ground)
             args += [A("0003", "idleL").at(t), "-geometry", f"+{px}+{py}", "-composite"]
         mid_v, mid_z = ground - 24, ground - 28
+        charge = fx("CHARGE_MS")
         for (a0, l0, h0, bl, bh) in rounds:
+            # Charizard gathers, then its blue fire flies; it lands: a burst, then it burns a moment.
+            args += fx_charge(FIRE, zx + 14 * FXK, mid_z, t - (l0 - charge))
             if l0 <= t < h0:
                 f = (t - l0) / (h0 - l0)
                 args += fx_shot(FIRE, 1, zx + 14 * FXK + f * (vx - zx - 26 * FXK), mid_z, t)
             if h0 <= t < h0 + 470: args += fx_burst(FIRE, p_fire, vx - 6, mid_v, t - h0, h0)
-            if bl <= t < bh:
-                f = (t - bl) / (bh - bl)
-                args += fx_shot(LEAF, -1, vx - 14 * FXK - f * (vx - zx - 26 * FXK), mid_v, t)
+            args += fx_residue("burn", FIRE, vx, ground - 52, ground, t - h0 - 150)
+            # Venusaur gathers, then fires three leaves (a grass move's volley); Charizard: leaves falling.
+            args += fx_charge(LEAF, vx - 14 * FXK, mid_v, t - (bl - charge))
+            for delay, dy in fx("VOLLEY"):
+                if bl + delay <= t < bh + delay:
+                    f = (t - bl - delay) / (bh - bl)
+                    args += fx_shot(LEAF, -1, vx - 14 * FXK - f * (vx - zx - 26 * FXK), mid_v + dy * FXK, t)
             if bh <= t < bh + 470: args += fx_burst(LEAF, p_leaf, zx + 6, mid_z, t - bh, bh)
+            args += fx_residue("leaf", LEAF, zx, ground - 60, ground, t - bh - 150)
         # Health: Venusaur's once hit, Charizard's once hit back.
         vhp = 1
         for at, hp in hp_v:
             if t >= at: vhp = hp
-        if 2440 <= t < THROW: args += hp_bar(vx, ground - 64, vhp, not (vhp < 0.2 and (i // 4) % 2))
-        if t >= 3600: args += hp_bar(zx, ground - 64, 0.9 if t < 6000 else 0.8)
+        vprev = {2440: 1, 4840: 0.45}
+        vat = max([a for a, _ in hp_v if a <= t], default=None)
+        if 2440 <= t < THROW: args += hp_bar(vx, ground - 64, vhp, not (vhp < 0.2 and (i // 4) % 2), vprev.get(vat), t - vat if vat else None)
+        zat = 6000 if t >= 6000 else 3600
+        if t >= 3600: args += hp_bar(zx, ground - 64, 0.9 if t < 6000 else 0.8, True, 1 if zat == 3600 else 0.9, t - zat)
         # The ball: up from the left, over, down onto it; it drops to the ground and wobbles thrice.
         tb = t - THROW
         if 0 <= tb:
@@ -937,9 +1008,12 @@ def catch(tmp):
                     args += star(vx + dx, ground - 8 + dy, 2, "#ffe9a8")
         args += ["-filter", "point", "-resize", f"{Z * 100}%"]
         # The games' words over each, and what happened, on a line at the top.
-        for (a0, l0, h0, bl, bh) in rounds:
+        for k, (a0, l0, h0, bl, bh) in enumerate(rounds):
             if t >= h0: args += fx_word(2, vx * Z, (ground - 64) * Z, t - h0, W * Z)
             if t >= bh: args += fx_word(0.5, zx * Z, (ground - 64) * Z, t - bh, W * Z)
+            # The damage, floating up on the far side of each.
+            args += fx_number([0.55, 0.31][k], 2, False, (vx + 30) * Z, (ground - 40) * Z, t - h0)
+            args += fx_number(0.1, 0.5, True, (zx - 30) * Z, (ground - 40) * Z, t - bh)
         r = rounds
         # (How effective each hit was: the word over its head, as on the strip.)
         if r[1][2] + 1300 <= t < THROW: args += say("In the red: throw now!", vx * Z, 8, W * Z, color="#ff8a80")
