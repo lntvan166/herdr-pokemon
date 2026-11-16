@@ -2288,7 +2288,7 @@ export default class PokemonHerd extends View {
         if (!a || !b || !mc || !mp || a.status !== "working" || b.status !== "working") continue;
         if (now - (mp.lastCombo ?? -Infinity) < COMBO_GAP || (mc.react && now < mc.react.until) || (mp.react && now < mp.react.until)) continue;
         const dir = Math.random() < 0.5 ? "l" : "r";
-        [[b, mp, "⚡"], [a, mc, null]].forEach(([ag, m, icon]) => {
+        [[b, mp, "💪"], [a, mc, null]].forEach(([ag, m, icon]) => {
           const meta = this.spriteFor(ids[ag.address], ag.status);
           if (m.moving) {
             // Stop where it is now, mid-walk (not back where the walk began).
@@ -3278,7 +3278,7 @@ export default class PokemonHerd extends View {
           // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
           .when(!!reactIcon(m, now), (el) =>
             el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - 12)).text_size(12)
-              .loop("opacity", { from: 0.5, to: 1, period: 700 }).child(reactIcon(m, now))))
+              .child(reactIcon(m, now)))) // still: GPUI drew a looping emoji without its colours
           // A battle's special move: its type's icon flies across to the other (one transition,
           // set once: from where it starts on the first frame, to the other on the next ones).
           // (fx.js: its type's colours and look, a glow, a tail), landing as the other is hit.
@@ -3300,7 +3300,7 @@ export default class PokemonHerd extends View {
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
               .when(!m.note, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 900 }))
-              .child(m.note?.item ? this.itemMark(m.note.item, 18) : (m.note?.icon ?? "😢"))))
+              .child(m.note?.item ? this.itemMark(m.note.item, 18) : (m.note?.icon ?? "🥺"))))
           // Tired (the 5-hour limit is near): working ones sweat.
           .when(!!this.tired && mood === "working", (el) =>
             el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
@@ -3308,7 +3308,7 @@ export default class PokemonHerd extends View {
           // Working in the same folder as another agent: crossed swords, pulsing, over its head.
           .when(!!m.rival, (el) =>
             el.child(div().absolute().left(sw / 2 - 8).top(Math.max(2, headY - 30)).text_size(13)
-              .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("⚔️")))
+              .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("🤺")))
           // Evolving: a column of light, motes, rings; then a burst and "Evolved!" (fx.js EVOLVE_MS).
           .when(!!m.evolveFx && now - m.evolveFx.at < EVOLVE_MS, (el) => {
             const t = now - m.evolveFx.at, key = `evo-${a.address}-${m.evolveFx.at}`;

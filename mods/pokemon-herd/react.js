@@ -34,9 +34,9 @@ const FIDGET_FALLBACK = ["Hop", "Rotate"];
 // that says what it is about, whichever animation it got.
 export const SEASON_KINDS = [
   { kind: "sniff", icon: "🌸" },
-  { kind: "bask", icon: "☀️" },
+  { kind: "bask", icon: "🌻" },
   { kind: "lookUp", icon: "🍂" },
-  { kind: "shiver", icon: "❄️" },
+  { kind: "shiver", icon: "🥶" },
 ];
 export const SEASON_MS = 2000; // a seasonal reaction plays its animation over again for this long
 
@@ -285,7 +285,7 @@ export function onPoke(m, s, now, has, sHas, msOf, sMsOf) {
   const anim = reactionAnim("poke", has);
   const ms = anim ? Math.max(100, msOf(anim)) : NO_ANIM_MS;
   const until = now + ms * Math.max(1, Math.ceil(800 / ms));
-  m.react = { anim, animUntil: until, until, icon: "😜" };
+  m.react = { anim, animUntil: until, until, icon: "🤪" };
   s.dir = m.x > s.x ? "r" : "l";
   const wake = reactionAnim("wake", sHas);
   const wUntil = Math.max(until, now + (wake ? sMsOf(wake) : NO_ANIM_MS));

@@ -320,7 +320,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   campfire): about every 2 min while an idle Pokémon (not a sub-agent's) stands still on a row
   with one asleep, neither sparred in 10 min, one at a time. It walks (1.5× idle speed) to 40 px
   beside the nearest sleeper, on its own side (the other at the edge), turns and pokes (Head,
-  Pull, Double, Attack, else Hop; at least 0.8 s, 😜); the sleeper wakes (Wake, 💢) and stays
+  Pull, Double, Attack, else Hop; at least 0.8 s, 🤪); the sleeper wakes (Wake, 💢) and stays
   up 20 s; then they battle (below; no hearts). Called off if on arrival it isn't idle or the
   other moved or woke.
 - **Fidgets** (`fidgetAnim`, `onFidget` in `react.js`): an idle Pokémon about to stroll, after
@@ -355,7 +355,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Summer, Autumn or Winter form folder in those seasons (names and picks unchanged).
 - **Hearts** (`hearts` on a pane's pick, 0..5, from its friendship points below): a click on it
   (at most every 30 min), its agent answered within a minute of asking (at most every 10 min);
-  waiting over 5 min makes it hungry (😢 pulsing beside its head); answered while hungry, it eats
+  waiting over 5 min makes it hungry (🥺 pulsing beside its head); answered while hungry, it eats
   a Berry from the Bag if there is one (🍓). Picker: red ♥ for each, grey for the rest.
 - **The Bag** (`items.js`, shared state `pokemon-herd-bag`, `{ v: 1, items: { <id>: count },
   marks: { evolutions, nightJob, fullHearts } }`, up to 999 each): Berry, Rare Candy and the ten
@@ -548,7 +548,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   the fire and stays (pauseUntil kept a minute ahead). Ends (seats dropped) when any agent works.
 - **Combo** (`onCombo`, `COMBO_GAP` in `react.js`): an agent and its sub-agent (`family`) both
   working: 1 in 480 per tick, at most every 5 min per pair, both stop where they are, face one
-  random way and play their attack ("spar" animations) for about 2 s, ⚡ over the agent's.
+  random way and play their attack ("spar" animations) for about 2 s, 💪 over the agent's.
 - **Preview** (`showPreview`, `renderPreview`): right-clicking a grid cell (the list's
   `on_item_secondary_click`, the column from the pointer's x) shows that Pokémon in the card's
   place: name, dex and region, "☆ Favorite", "✨ Shiny" (if it has one), Choose (as a left click) and ✕; its
@@ -575,7 +575,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Seasonal reactions** (Scenery on): an idle Pokémon about to stroll on reacts to the season
   instead, 3 times in 10: spring `sniff` (Eat, Nod, Hop), summer `bask` (Laying, Sit, DeepBreath,
   Hop), autumn `lookUp` (LookUp, Rotate), winter `shiver` (Shake, Cringe, Hurt): the first
-  animation its sprite has, played over for about 2 s, with 🌸 ☀️ 🍂 ❄️ pulsing beside its head.
+  animation its sprite has, played over for about 2 s, with 🌸 🌻 🍂 🥶 beside its head (emoji Herdr's fallback font, DejaVu Sans, lacks, so they come in colour).
   Only some sprites have the fitting animations, so each list ends in one nearly all have. Then it
   rests 3–8 s. It falls asleep after 3 minutes idle by day, 1 minute by night.
 

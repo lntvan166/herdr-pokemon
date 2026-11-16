@@ -130,7 +130,7 @@ test("onSeason: plays the season's animation for about 2 s with its icon, not lo
   const m = mon();
   assert.equal(onSeason(m, 3, 1000, new Set(["Hurt"]), () => 600), true);
   assert.equal(m.react.anim, "Hurt");
-  assert.equal(m.react.icon, "❄️");
+  assert.equal(m.react.icon, "🥶");
   assert.equal(m.react.animUntil, 1000 + 2400); // 600 ms, played 4 times: at least SEASON_MS
   assert.equal(m.react.until, m.react.animUntil);
   assert.ok(SEASON_MS <= 2400);
@@ -235,7 +235,7 @@ test("onPoke: it pokes, the sleeper wakes with a start and stays up", () => {
   assert.equal(m.dir, "r");
   assert.equal(s.dir, "l");
   assert.equal(m.react.anim, "Head");
-  assert.equal(m.react.icon, "😜");
+  assert.equal(m.react.icon, "🤪");
   assert.equal(s.react.anim, "Wake");
   assert.equal(s.react.icon, "💢");
   assert.equal(end, 1900);
