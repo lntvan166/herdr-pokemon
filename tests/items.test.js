@@ -16,7 +16,8 @@ test("addItem counts up and down within limits", () => {
   assert.equal(b.items.berry, 2);
   b = addItem(b, "berry", -5);
   assert.equal(b.items.berry, undefined);
-  assert.equal(addItem(b, "berry", 500).items.berry, MAX_ITEM);
+  assert.equal(addItem(b, "berry", 500).items.berry, 500);
+  assert.equal(addItem(b, "berry", 5000).items.berry, MAX_ITEM);
   assert.equal(mark(b, { nightJob: true }).marks.nightJob, true);
 });
 
@@ -165,13 +166,14 @@ test("money in the Bag: kept, capped, never negative", () => {
   assert.equal(addMoney({ money: MAX_MONEY - 1 }, 10).money, MAX_MONEY);
   assert.equal(money(1234), "₽1,234");
 });
-test("buy: costs its price, needs the money, 99 at most; every item is for sale", () => {
+test("buy: costs its price, needs the money, 999 at most; every item is for sale", () => {
   const b = { v: 1, items: {}, money: 250, marks: {} };
   const after = buy(b, "x-speed");
   assert.equal(after.money, 100);
   assert.equal(after.items["x-speed"], 1);
   assert.equal(buy({ ...after, money: 50 }, "x-speed"), null); // ₽50 left
-  assert.equal(buy({ ...b, money: 9999, items: { berry: 99 } }, "berry"), null);
+  assert.equal(buy({ ...b, money: 99999, items: { berry: 999 } }, "berry"), null);
+  assert.equal(buy({ ...b, money: 99999, items: { berry: 99 } }, "berry").items.berry, 100); // past the old 99
   assert.deepEqual(Object.keys(ITEMS).filter((id) => !PRICE[id]), []);
 });
 test("boosts: 10 min each, stacking up to an hour ahead; only boosts, only live ones", () => {
@@ -204,10 +206,10 @@ test("a visitor's gift: balls about half the time, Poké Balls three at once", (
 
 import { maxBuy, GROUPS, groupOf, grouped } from "../mods/pokemon-herd/items.js";
 test("buy several at once, as many as the money and the Bag allow", () => {
-  const b = { v: 1, items: { "poke-ball": 95 }, money: 1000, marks: {} };
-  assert.equal(buy(b, "poke-ball", 4).items["poke-ball"], 99);
+  const b = { v: 1, items: { "poke-ball": 995 }, money: 1000, marks: {} };
+  assert.equal(buy(b, "poke-ball", 4).items["poke-ball"], 999);
   assert.equal(buy(b, "poke-ball", 4).money, 1000 - 120);
-  assert.equal(buy(b, "poke-ball", 5), null); // past 99
+  assert.equal(buy(b, "poke-ball", 5), null); // past 999
   assert.equal(maxBuy(b, "poke-ball"), 4);
   assert.equal(maxBuy({ ...b, items: {}, money: 100 }, "poke-ball"), 3);
   assert.equal(buy({ ...b, items: {}, money: 100 }, "poke-ball", 4), null); // not enough

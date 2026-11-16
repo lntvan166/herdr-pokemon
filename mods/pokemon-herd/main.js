@@ -18,7 +18,7 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
@@ -3022,7 +3022,7 @@ export default class PokemonHerd extends View {
             .child(`Buy ${qty} for ${money(price * qty)}`))
           .child(div().flex_1().min_w(0).text_size(11.5).text_color(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? t.accent : t.dim)
             .child(this.bought?.id === sel && Date.now() - this.bought.at < 3000 ? `Bought ${this.bought.n}.`
-              : have >= 99 ? "The Bag holds 99 at most."
+              : have >= MAX_ITEM ? `The Bag holds ${MAX_ITEM} at most.`
               : can ? `You have ${money(b.money)}.` : `${money(price * qty - (b.money ?? 0))} more to go.`)))
         .child(div().flex_1())
         .child(div().text_size(11.5).text_color(t.muted)
@@ -3122,7 +3122,7 @@ export default class PokemonHerd extends View {
               .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(n ? t.foreground : t.dim).child(ITEMS[id].name))
               .when(takers[id].length > 0, (el) => el.child(div().size(6).rounded_full().bg(t.accent)))
               .when((heldAll[id]?.length ?? 0) > 0, (el) => el.child(div().text_size(11).text_color(t.muted).child(`${heldAll[id].length} held`)))
-              .child(div().w(22).text_right().text_size(12.5).text_color(n ? t.foreground : t.dim).child(String(n)))];
+              .child(div().w(28).text_right().text_size(12.5).text_color(n ? t.foreground : t.dim).child(String(n)))]; // up to 999
           })))
         // The chosen item: what it does, and who on screen can take it now.
         .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()

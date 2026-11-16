@@ -252,7 +252,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   waiting over 5 min makes it hungry (😢 pulsing beside its head); answered while hungry, it eats
   a Berry from the Bag if there is one (🍓). Picker: red ♥ for each, grey for the rest.
 - **The Bag** (`items.js`, shared state `pokemon-herd-bag`, `{ v: 1, items: { <id>: count },
-  marks: { evolutions, nightJob, fullHearts } }`, up to 99 each): Berry, Rare Candy and the ten
+  marks: { evolutions, nightJob, fullHearts } }`, up to 999 each): Berry, Rare Candy and the ten
   stones. Pickup: every 1 to 2 hours per Pokémon, if its agent is idle then, it finds one (Berry
   70, each stone 2, Rare Candy 10 by weight), its icon beside its head for 8 s. A job of 30 min or
   more earns a Rare Candy (🍬). The picker's "Bag" row lists Berries, Rare Candy and the stones it
@@ -376,7 +376,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   an Amulet Coin, "+₽n" as its note for 4 s. A Bag with no `money` key yet gets, once, what the
   stats summary would have paid (₽5 a job + ₽2 a minute, ₽150 a job at most). Shown in the Bag's
   title row (₽1,234). **Shop** (third Bag tab): every item and its `PRICE`, the chosen one's
-  card and "Buy for ₽n" (dim without the money or at 99; "₽n more to go").
+  card and "Buy for ₽n" (dim without the money or at 999; "₽n more to go").
 - **Boosts** (`loadBoosts`, `withBoost`; shared `pokemon-herd-boosts` = { id: until }): used from
   the Bag ("Use it", "Use another (+10 min)"), 10 min each, stacking to 1 h ahead. X Speed:
   walks ×1.6, idle pauses 0.8–2.5 s. Poké Flute: once per use, those asleep play their wake and

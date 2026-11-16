@@ -75,7 +75,7 @@ export function sell(bag, id, n = 1) {
 }
 export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });
 
-// The bag after buying one `id`, or null: not enough money, or already 99.
+// The bag after buying one `id`, or null: not enough money, or already MAX_ITEM.
 export function buy(bag, id, n = 1) {
   const price = PRICE[id];
   if (!price || n < 1 || (bag.money ?? 0) < price * n || (bag.items[id] ?? 0) + n > MAX_ITEM) return null;
@@ -156,7 +156,7 @@ export function takersOf(id, herd, how = {}) {
     return use ? [{ ...h, use, after: useItem(h.pick, h.slot, id, how).pick }] : [];
   });
 }
-export const MAX_ITEM = 99;
+export const MAX_ITEM = 999; // as the newer games' Bag
 
 // Pickup (what an idle Pokémon digs up, and a visitor's gift), out of 100, after the games'
 // Pickup tables: Poké Balls and Berries mostly, a stone now and then, rarely a Rare Candy or
