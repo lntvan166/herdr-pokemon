@@ -230,6 +230,17 @@ export function speedLines(style, dir = 1) {
 
 // ---- the big moments: evolving, Mega Evolving, a catch, a raid egg hatching -------------------
 export const EVOLVE_MS = 3000, EVOLVE_BURST = 2000; // a light column, then it bursts (and stays)
+// Evolving, as the games show it: its old form turns to white light (EVOLVE_WHITE), then the white
+// shape switches between the old form's and the new one's, faster and faster (EVOLVE_SWAPS: when
+// each switch comes, ms in), till the burst shows the new form.
+export const EVOLVE_WHITE = 500;
+export const EVOLVE_SWAPS = (() => {
+  const out = [];
+  for (let t = EVOLVE_WHITE + 150, gap = 300; t < EVOLVE_BURST - 40; gap = Math.max(60, gap * 0.75)) { out.push(Math.round(t)); t += gap; }
+  return out;
+})();
+// Which white shape shows `t` ms in: "old" or "new" (every switch flips it).
+export const evolveShape = (t) => (EVOLVE_SWAPS.filter((s) => s <= t).length % 2 ? "new" : "old");
 export const MEGA_MS = 1500, MEGA_BURST = 1100; // a sphere and orbiting colours, then a burst
 export const HATCH_SHAKE = 3000, HATCH_MS = 900; // an egg's last seconds; its hatching
 export const RAINBOW = ["#ff5a5a", "#ffb43a", "#ffe14a", "#7bd65a", "#4fb4ff", "#b070ff"];
@@ -639,10 +650,10 @@ export function specialParts(type, x0, x1, y, seed = 1, style = null) {
 export const specialTimes = (type) => [...new Set(specialParts(type, 0, 100, 40).flatMap((p) => [p.at, p.at + 40]))];
 
 // ---- Mega Evolution, as the games play it ----------------------------------------------------
-// Full (its first Mega of the day, or Mega Evolving for a battle): the Key Stone's rainbow beams
+// Full (as its agent starts working): the Key Stone's rainbow beams
 // come down from the sky onto it; it turns to white light inside a cocoon of light; the Mega
 // symbol shines over it; the cocoon bursts (shards, a rainbow shockwave) and its Mega form stands
-// there, its name over it. Short (any other time: its agent starts working often): the cocoon,
+// there, its name over it. Short (for a battle: it shouldn't wait): the cocoon,
 // then the burst. Out of its Mega: only a small flash. Times from when it starts (ms).
 export const MEGA_FULL = { beams: 0, cocoon: 300, symbol: 850, burst: 1300, total: 2200 };
 export const MEGA_SHORT = { beams: null, cocoon: 0, symbol: null, burst: 450, total: 1150 };
@@ -666,6 +677,10 @@ export function megaParts(full, cx, mid, r) {
   out.push(P2(T.cocoon, T.burst - T.cocoon, { x: cx, y: mid, w: cw * 0.6, h: ch * 0.6, o: 0.25 }, { x: cx, y: mid, w: cw * 1.15, h: ch * 1.15, o: 0.55 }, "#f3e8ff", { round: true }),
     P2(T.cocoon, T.burst - T.cocoon, { x: cx, y: mid, w: cw * 0.6, h: ch * 0.6, o: 0.6 }, { x: cx, y: mid, w: cw * 1.2, h: ch * 1.2, o: 1 }, "#c8a0ff", { round: true, ring: true }),
     P2(T.cocoon + 100, T.burst - T.cocoon - 100, { x: cx, y: mid, w: cw * 0.7, h: ch * 0.7, o: 0.4 }, { x: cx, y: mid, w: cw * 1.3, h: ch * 1.3, o: 0.9 }, "#7aa2f7", { round: true, ring: true }));
+  // The burst: the cocoon flares solid white and melts away (its Mega form comes out of the light:
+  // no silhouette of one form over the other, which never lined up), shards, a rainbow shockwave.
+  out.push(P2(T.burst - 60, 60, { x: cx, y: mid, w: cw * 1.15, h: ch * 1.15, o: 0.6 }, { x: cx, y: mid, w: cw * 1.25, h: ch * 1.25, o: 1 }, "#ffffff", { round: true, ease: "linear" }),
+    P2(T.burst, 380, { x: cx, y: mid, w: cw * 1.25, h: ch * 1.25, o: 1 }, { x: cx, y: mid, w: cw * 1.7, h: ch * 1.5, o: 0 }, "#ffffff", { round: true, ease: "ease-in" }));
   // The burst: shards of the cocoon flying out, a rainbow shockwave.
   for (let k = 0; k < 10; k++) {
     const a = (k / 10) * Math.PI * 2;

@@ -11,7 +11,8 @@ import { statusChange, record, loadStats, summary, duration, statLine } from "./
 
 const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer, shouldAutoUpdate } from "./update.js";
-import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
+import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf, hasForm } from "./dex.js";
+import { EVOLVES_FROM } from "./species.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
 const GUIDE_KEY = `${MOD}-guide-seen`; // Settings opened once: it opens on the Guide that time
 const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
@@ -30,7 +31,7 @@ import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL } from "./sprites.js";
@@ -38,6 +39,7 @@ import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, en
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const AMBIENT_MS = 1000; // snow, leaves, a rainbow: redrawn once a second (each redraw is the whole window)
+const APPEAR_MS = 3500; // "A wild … appeared!" in the corner it walks in from, this long
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
 const WRAP_CHANCE = 0.3; // with rows: how often a walk goes off the edge onto the next row
 const OFF = 40; // how far past the edge it walks before it turns up on the next row
@@ -1286,6 +1288,15 @@ export default class PokemonHerd extends View {
     const w = this.boostNow();
     return move && boosts(w, move.type) ? { ...move, mul: move.mul * WEATHER_HIT, boosted: w.icon } : move;
   }
+  // How many notes stand in the top-left corner (the raid's, the outbreak's, the boosts'): the
+  // next one goes under them.
+  leftNotes(now) {
+    const st = settingsNow();
+    const raidUp = st.raids && !!raidPhase(loadRaid(shared(RAID_KEY)), now);
+    const obUp = st.outbreaks && VISIT_EVERY[st.visitors] && !!outbreakAt(now, shared(OUTBREAK_KEY));
+    const boosts = Object.keys(loadBoosts(shared(BOOSTS_KEY), now)).length > 0;
+    return (raidUp ? 1 : 0) + (obUp ? 1 : 0) + (boosts ? 1 : 0);
+  }
   // How wide a Pokémon is drawn on the strip (px): its sprite's box at its scale (a sub-agent's
   // smaller, an Alpha bigger); 40 before its sprite is in.
   drawnWidth(pick, status) {
@@ -1336,11 +1347,12 @@ export default class PokemonHerd extends View {
       if (sh && now < m.react.until + 400) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until, sh.move?.physical, sh.move?.ultimate);
     }
     const v = this.visitor;
+    if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
     if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
     for (const m of Object.values(this.mons ?? {})) {
-      if (m.evolveFx) times.push(m.evolveFx.at + 40, m.evolveFx.at + EVOLVE_BURST, m.evolveFx.at + EVOLVE_BURST + 40, m.evolveFx.at + EVOLVE_MS - 300, m.evolveFx.at + EVOLVE_MS);
+      if (m.evolveFx) times.push(m.evolveFx.at + 40, m.evolveFx.at + EVOLVE_WHITE, ...EVOLVE_SWAPS.map((s) => m.evolveFx.at + s), m.evolveFx.at + EVOLVE_BURST - 60, m.evolveFx.at + EVOLVE_BURST, m.evolveFx.at + EVOLVE_BURST + 40, m.evolveFx.at + EVOLVE_MS - 300, m.evolveFx.at + EVOLVE_MS);
       if (m.megaFx) for (const t of m.megaFx.on ? [...megaTimes(m.megaFx.full), megaTiming(m.megaFx.full).total, megaTiming(m.megaFx.full).total - 300] : [40, 470]) times.push(m.megaFx.at + t);
     }
     for (const [addr, m] of Object.entries(this.mons ?? {})) if (m.faintAt) sounds.push([`faint-${addr}-${m.faintAt}`, m.faintAt, "faint"]);
@@ -1406,6 +1418,13 @@ export default class PokemonHerd extends View {
     setShared(RAID_KEY, newRaid(now, Math.random, { caught: new Set(pokedex().caught), agents: agentsNow, day, eggs: laid }));
   }
   // One of yours (`a`, its agent; `pick`) hits the boss at `at` (harder while its agent works).
+  // Strikes held for a Mega Evolution, each made when its time comes (tick).
+  pendingRaid(now) {
+    if (!this.pendingStrikes?.length) return;
+    const due = this.pendingStrikes.filter((x) => now >= x.at - 320);
+    this.pendingStrikes = this.pendingStrikes.filter((x) => now < x.at - 320);
+    for (const x of due) this.raidStrike(x.a, x.pick, x.at);
+  }
   raidStrike(a, pick, at) {
     const r = loadRaid(shared(RAID_KEY));
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
@@ -2155,11 +2174,10 @@ export default class PokemonHerd extends View {
       const meta = this.spriteFor(ids[a.address], this.megaStatus(a));
       // Mega Evolution (or back): a flash of sparkles.
       const mega = meta?.megaShown === true;
-      // In full its first Mega of the day, or Mega Evolving for a battle; else the short one (its
-      // agent starts working often). (No ✨ flash with it: the effect is its own.)
+      // In full as its agent starts working; the short one for a battle (it shouldn't wait on it).
+      // (No ✨ flash with it: the effect is its own.)
       if (m.mega !== undefined && mega !== m.mega) {
-        const day = dayOf(now), full = mega && ((m.battleUntil ?? 0) > now || this.megaDay?.[a.address] !== day);
-        if (mega) (this.megaDay ??= {})[a.address] = day;
+        const full = mega && (m.battleUntil ?? 0) <= now;
         m.megaFx = { at: now, on: mega, full };
         changed = true;
       }
@@ -2167,7 +2185,16 @@ export default class PokemonHerd extends View {
       // It just evolved (here, or in the picker): sparkles.
       const evolvedAt = ids[a.address]?.evolvedAt ?? 0;
       if (now - evolvedAt < 3000 && (m.flashUntil ?? 0) < evolvedAt + 3000) { m.flashUntil = evolvedAt + 3000; changed = true; }
-      if (now - evolvedAt < EVOLVE_MS && m.evolveFx?.at !== evolvedAt) { m.evolveFx = { at: evolvedAt }; changed = true; }
+      if (now - evolvedAt < EVOLVE_MS && m.evolveFx?.at !== evolvedAt) {
+        // What it was (the species it evolved from, in the same regional form if that one has it):
+        // drawn till the burst, its white shape switching with the new one's.
+        const p = ids[a.address], prevDex = EVOLVES_FROM[p?.dex];
+        const from = prevDex ? { ...p, dex: prevDex, form: p.form && hasForm(prevDex, p.form) ? p.form : undefined } : null;
+        if (from && !from.form) delete from.form;
+        if (from) this.want(from, cx);
+        m.evolveFx = { at: evolvedAt, from };
+        changed = true;
+      }
       if (m.flashUntil && now >= m.flashUntil) { m.flashUntil = 0; changed = true; }
       const rival = !!rivals[a.address];
       if (rival !== !!m.rival) { m.rival = rival; changed = true; }
@@ -2342,7 +2369,17 @@ export default class PokemonHerd extends View {
         m.moving = true;
         m.backstep = true;
       }
-      battle(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now, Math.random, back ? { ...spots, back: BACK } : spots);
+      // Either Mega Evolving for it: the battle waits till that's done (it was fought under it),
+      // longer when its Mega sprites aren't in yet (asked for now).
+      let wait = 0;
+      for (const [a, m] of [[a1, m1], [a2, m2]]) {
+        const p = ids[a.address];
+        if (!p || !megaShown(p, "working") || m.mega) continue;
+        const ready = !!this.sprites[spriteKey(dressed(p), true)]?.walkR;
+        if (!ready) this.want(p, cx, true);
+        wait = Math.max(wait, MEGA_SHORT.burst + (ready ? 500 : 1800));
+      }
+      battle(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, Math.random, back ? { ...spots, back: BACK } : spots);
       // The blows that land on each (fx.js): knocked away from the other; the special one by its type.
       for (const [m, o] of [[m1, m2], [m2, m1]]) {
         for (const st of m.react.seq) {
@@ -2445,7 +2482,19 @@ export default class PokemonHerd extends View {
         dm.dur = 300;
         dm.moving = true;
         dm.backstep = true;
-        this.raidStrike(list[dj], ids[drop.addr], now + 320);
+        // Mega Evolving for it: it does that first, then strikes (the hit is written then: the
+        // boss's health doesn't drop before the blow lands).
+        const pk = ids[drop.addr];
+        const willMega = !!pk && megaShown(pk, "working") && !dm.mega;
+        if (!willMega) this.raidStrike(list[dj], pk, now + 320);
+        else {
+          const ready = !!this.sprites[spriteKey(dressed(pk), true)]?.walkR;
+          if (!ready) this.want(pk, cx, true);
+          const at = now + 320 + MEGA_SHORT.burst + (ready ? 500 : 1800);
+          dm.battleUntil = at + 6000; // it Mega Evolves now (megaStatus)
+          dm.pauseUntil = at + 6000;
+          (this.pendingStrikes ??= []).push({ a: list[dj], pick: pk, at });
+        }
       }
       changed = true;
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
@@ -2484,7 +2533,14 @@ export default class PokemonHerd extends View {
         }
         // Then: its move (its type that does most) flies over and lands; the wild one flinches,
         // knocked back; then it lets fly back with its own, and yours takes it.
-        const at = now + 340;
+        // It Mega Evolves for the fight (megaStatus): the fight waits till that's over (its form shown
+        // after the cocoon bursts), not played under it.
+        // Its Mega set not in yet (the first time): asked for now, and the wait is longer, as its
+        // Mega Evolution begins once that's in.
+        const willMega = mega && !dm.mega;
+        const megaReady = !!this.sprites[spriteKey(dressed(pk), true)]?.walkR;
+        if (willMega && !megaReady) this.want(pk, cx, true);
+        const at = now + 340 + (willMega ? MEGA_SHORT.burst + (megaReady ? 500 : 1800) : 0);
         dm.dir = v.x > spot ? "r" : "l";
         const sp = reactionAnim("special", hasOf(dMeta)) ?? reactionAnim("spar", hasOf(dMeta));
         const ms = sp ? Math.max(600, msFor(dMeta)(sp)) : 700;
@@ -2577,6 +2633,7 @@ export default class PokemonHerd extends View {
       }
     }
     if (this.visit(list, ids, g, now, cx)) changed = true;
+    this.pendingRaid(now); // strikes held for a Mega Evolution
     if (this.raidTick(list, ids, now, cx)) changed = true;
     if (this.leader && now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
@@ -3254,7 +3311,17 @@ export default class PokemonHerd extends View {
       const id = pick.dex;
       const m = this.mons[a.address] ?? { x: this.width / 2, target: this.width / 2, dir: "r", moving: false, dur: 0 };
       const mood = m.mood ?? moodOf(a, tabs, now);
-      const meta = this.spriteFor(pick, this.megaStatus(a));
+      // Mega Evolving: its own form till the cocoon bursts, then its Mega form (it showed the Mega
+      // form from the start, under the beams).
+      // (And before its Mega Evolution has even begun: dropped on a wild one, it hopped off in its
+      // Mega form for a tick before the effect started.)
+      const want = this.spriteFor(pick, this.megaStatus(a));
+      const base = this.sprites[spriteKey(dressed(pick))];
+      const preMega = (m.megaFx?.on && now - m.megaFx.at < megaTiming(m.megaFx.full).burst) || (want?.megaShown && m.mega === false);
+      // Evolving: its old form till the burst (it showed the new one from the start).
+      const evoT = m.evolveFx ? now - m.evolveFx.at : Infinity;
+      const oldMeta = evoT < EVOLVE_BURST && m.evolveFx.from ? this.sprites[spriteKey(dressed(m.evolveFx.from))] : null;
+      const meta = oldMeta?.walkR ? oldMeta : preMega && base?.walkR ? base : want;
       const tag = tagOf(a, tabs);
       const x = m.moving ? m.target : m.x;
       const spot = tags.get(a.address);
@@ -3286,21 +3353,32 @@ export default class PokemonHerd extends View {
             return wf ? el.child(wf) : el;
           })
           // Evolving: its white silhouette pulses over it, as in the games, till the burst.
-          .when(!!m.evolveFx && now - m.evolveFx.at < EVOLVE_BURST, (el) => {
+          .when(!!m.evolveFx && evoT < EVOLVE_BURST, (el) => {
+            // The same pose of the new form (its own box: feet and middle where the old one's were).
+            const pose = Object.keys(meta).find((k) => meta[k] === s) ?? "idleR";
+            const n = (oldMeta?.walkR ? want : null)?.[pose] ?? (oldMeta?.walkR ? want?.idleR : null);
             this.wantWhite(s.path);
-            return this.whites?.[s.path] === "ready" ? el.child(image(whitePath(s.path)).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale)
-              .loop("opacity", { from: 0, to: 0.95, period: 300 })) : el;
+            if (n) this.wantWhite(n.path);
+            const key = `evow-${a.address}-${m.evolveFx.at}`;
+            const shape = evoT < EVOLVE_WHITE || !n ? "old" : evolveShape(evoT);
+            const c = shape === "new" ? n : s;
+            if (this.whites?.[c.path] !== "ready") return el;
+            const cl = SLOT_MID - (c.box.x + c.box.w / 2) * scale, ct = ground - (c.box.y + c.box.h) * scale;
+            // First its old form whitening; then each shape at full white as it comes.
+            const id = evoT < EVOLVE_WHITE ? `${key}-in` : `${key}-${shape}`, first = evoT < EVOLVE_WHITE && this.fxFirst(id);
+            return el.child(image(whitePath(c.path)).id(id).absolute().left(cl).top(ct).w(c.w * scale).h(c.h * scale)
+              .opacity(first ? 0 : 0.97).transition("opacity", { duration: EVOLVE_WHITE - 50, easing: "ease-in" }));
           })
           // Mega Evolving: white light in its cocoon, till the cocoon bursts and it fades off its new form.
-          .when(!!m.megaFx?.on && now - m.megaFx.at < megaTiming(m.megaFx.full).burst + 450, (el) => {
+          .when(!!m.megaFx?.on && now - m.megaFx.at < megaTiming(m.megaFx.full).burst, (el) => {
             const T = megaTiming(m.megaFx.full), t = now - m.megaFx.at, key = `megaw-${a.address}-${m.megaFx.at}`;
             // Every pose it may take meanwhile (it turns, sleeps, walks), made ahead: a pose without
             // its white let its colours show through mid-cocoon.
             for (const c of [s, meta.idleR, meta.idleL, meta.idleD, meta.walkR, meta.walkL, meta.sleep]) if (c?.path) this.wantWhite(c.path);
             if (this.whites?.[s.path] !== "ready" || t < T.cocoon) return el;
-            const after = t >= T.burst, id = `${key}-${after ? 2 : 1}`, first = this.fxFirst(id);
+            const id = `${key}-1`, first = this.fxFirst(id);
             return el.child(image(whitePath(s.path)).id(id).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale)
-              .opacity(after ? (first ? 0.95 : 0) : (first ? 0 : 0.95)).transition("opacity", { duration: after ? 420 : 280, easing: "ease-out" }));
+              .opacity(first ? 0 : 0.95).transition("opacity", { duration: 280, easing: "ease-out" }));
           })
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
           .when(ownHp(m, now) < 1, (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))));
@@ -3373,7 +3451,7 @@ export default class PokemonHerd extends View {
           // short move (a step aside, a jump), or none at all after a gap.
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
           .child(this.withBlows(`mon-${a.address}`, m.blows,
-            m.evolveFx && now - m.evolveFx.at < EVOLVE_BURST ? body.loop("opacity", { from: 0.35, to: 1, period: 260 }) : body, SLOT_MID, headY, ground, now,
+            m.evolveFx && now - m.evolveFx.at >= EVOLVE_WHITE && now - m.evolveFx.at < EVOLVE_BURST && m.evolveFx.from ? body.opacity(0) : body, SLOT_MID, headY, ground, now,
             m.react?.shot && travelOf(m.react.shot.move?.type, m.react.shot.move?.physical) === "dash" ? lungeOf(dashAt(m.react.shot.from, m.react.shot.to, m.react.shot.at, m.react.shot.until, now, stopOfMove(m.react.shot.move)), m.react.shot.move, m.react.shot.at) : null))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
@@ -3417,6 +3495,15 @@ export default class PokemonHerd extends View {
             const t = now - m.evolveFx.at, key = `evo-${a.address}-${m.evolveFx.at}`;
             return el.child(fxEvolve(key, SLOT_MID, headY, ground, t, this.fxFirst(`${key}-r`)))
               .when(t >= EVOLVE_BURST && t < EVOLVE_BURST + 470, (e2) => e2.child(fxBurst(`${key}-b`, GOLD_STYLE, 1, SLOT_MID, (headY + ground) / 2, this.fxFirst(`${key}-b`), 31)))
+              // A flare of white the new form comes out of (the switch from one shape to the other hidden).
+              .when(t >= EVOLVE_BURST - 60 && t < EVOLVE_BURST + 420, (e2) => {
+                const fid = `${key}-flare${t >= EVOLVE_BURST ? 2 : 1}`, f = this.fxFirst(fid), after = t >= EVOLVE_BURST;
+                const w = Math.max(30, (ground - headY) * 1.1), h = Math.max(34, (ground - headY) * 1.25), mid = (headY + ground) / 2;
+                const d = after && !f ? 1.5 : 1;
+                return e2.child(div().id(fid).absolute().left(SLOT_MID - (w * d) / 2).top(mid - (h * d) / 2).w(w * d).h(h * d).rounded_full().bg("#ffffff")
+                  .opacity(after ? (f ? 1 : 0) : 1).transition("opacity", { duration: 380, easing: "ease-in" })
+                  .transition("width", { duration: 380 }).transition("height", { duration: 380 }).transition("left", { duration: 380 }).transition("top", { duration: 380 }));
+              })
               .when(t >= EVOLVE_BURST, (e2) => e2.child(fxWord(`${key}-w`, ["✨ Evolved!", "#ffd23f"], SLOT_MID, Math.max(2, headY - 30),
                 this.fxFirst(`${key}-w`) ? 0 : t < EVOLVE_MS - 300 ? 1 : 2)));
           })
@@ -3510,9 +3597,7 @@ export default class PokemonHerd extends View {
     const on = Object.entries(loadBoosts(shared(BOOSTS_KEY), now));
     if (on.length) {
       // Under the raid's and the outbreak's notes, when they're up (it was drawn over them).
-      const raidUp = settingsNow().raids && !!raidPhase(loadRaid(shared(RAID_KEY)), now);
-      const obUp = settingsNow().outbreaks && VISIT_EVERY[settingsNow().visitors] && !!outbreakAt(now, shared(OUTBREAK_KEY));
-      root.child(h_flex().absolute().left(6).top(4 + 18 * ((raidUp ? 1 : 0) + (obUp ? 1 : 0))).gap(4).children(on.map(([id, until]) =>
+      root.child(h_flex().absolute().left(6).top(4 + 18 * (this.leftNotes(now) - 1)).gap(4).children(on.map(([id, until]) =>
         div().id(`boost-${id}`).h(16).px(6).rounded(8).flex().items_center().gap(3).text_size(10)
           .bg("#00000059").text_color("#ffffff").tooltip(`${ITEMS[id].name}: ${Math.ceil((until - now) / 60000)} min left`)
           .child(`${ITEMS[id].icon} ${Math.ceil((until - now) / 60000)}m`))));
@@ -3533,6 +3618,16 @@ export default class PokemonHerd extends View {
           .loop("opacity", { from: 0.2, to: 1, period: 400 })
           .child(["🎆", "🎇", "✨"][k % 3]));
       }
+    }
+    // One just come in: "A wild Pikachu appeared!" on the side it walks in from, for APPEAR_MS (a
+    // rare one has its own note on the right, below).
+    const av = this.visitor;
+    if (av?.start && !av.leg && now - av.start < APPEAR_MS && !(rareOf(av.pick) && settingsNow().cryRare && av.dir === "l")) {
+      const who = av.pick.legend ? "A legendary" : av.pick.alpha ? (av.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild";
+      const text = `${who} ${av.pick.shiny ? "✨ " : ""}${fullName(av.pick.dex, av.pick.form)} appeared!`;
+      const note = div().id(`appear-${av.id}`).absolute().top(av.dir === "r" ? this.leftNotes(now) * 18 + 4 : 4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(rareOf(av.pick)?.color ?? "#ffffff").child(sparkled(text));
+      root.child(av.dir === "r" ? note.left(6) : note.right(update ? 134 : 50));
     }
     // A rare one walking by (shiny, Alpha, legendary): a note in the corner while it's here.
     const rv = this.visitor;

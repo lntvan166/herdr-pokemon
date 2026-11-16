@@ -209,3 +209,13 @@ test("Mega Evolution: in full (beams, cocoon, the symbol, the burst), or short; 
   assert.ok(megaParts(true, 64, 40, 30).length > megaParts(false, 64, 40, 30).length); // beams only in full
   assert.ok(MEGA_FULL.total <= 2500 && MEGA_SHORT.total <= 1250);
 });
+
+test("evolving: its old form whitens, then the two shapes switch faster and faster till the burst", async () => {
+  const { EVOLVE_SWAPS, EVOLVE_WHITE, EVOLVE_BURST, evolveShape } = await import("../mods/pokemon-herd/fx.js");
+  assert.ok(EVOLVE_SWAPS.length >= 6 && EVOLVE_SWAPS[0] > EVOLVE_WHITE && EVOLVE_SWAPS.at(-1) < EVOLVE_BURST);
+  const gaps = EVOLVE_SWAPS.slice(1).map((t, i) => t - EVOLVE_SWAPS[i]);
+  assert.ok(gaps.every((g, i) => i === 0 || g <= gaps[i - 1])); // faster and faster
+  assert.equal(evolveShape(EVOLVE_WHITE), "old");
+  assert.equal(evolveShape(EVOLVE_SWAPS[0]), "new");
+  assert.equal(evolveShape(EVOLVE_SWAPS[1]), "old");
+});
