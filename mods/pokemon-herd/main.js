@@ -13,17 +13,17 @@ const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer, shouldAutoUpdate } from "./update.js";
 import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
-const LEADER_KEY = `${MOD}-leader`; // which strip counts (electLeader)
+const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, electLeader, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove } from "./moves.js";
-import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
+import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
@@ -988,7 +988,9 @@ export default class PokemonHerd extends View {
     this.legendSeen = legend;
     // A raid on: no other visitors meanwhile (its boss is the one to watch).
     const raidOn = ["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now));
-    if (!v && now >= this.visitAt && !raidOn) {
+    // Only the leader's strip has wild ones: one per window, each catchable, made one Azure Flute
+    // or Honey a catch per window.
+    if (!v && now >= this.visitAt && !raidOn && this.leader) {
       let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught), boost: this.boostNow().types, share: WEATHER_SHARE });
       this.legendNext = false;
       if (outbreak) pick = outbreakPick(pick, outbreak);
@@ -1330,9 +1332,10 @@ export default class PokemonHerd extends View {
   raidEgg(before, after, now) {
     if (!settingsNow().raids) return;
     const r = loadRaid(shared(RAID_KEY));
-    if (!laysEgg(before, after, raidPhase(r, now), herdAgents().filter((x) => x.pane).length)) return;
+    const day = dayOf(now), laid = eggsOn(r, day); // the day's eggs so far: 2 at most, however many agents
+    if (!laysEgg(before, after, raidPhase(r, now), herdAgents().filter((x) => x.pane).length, laid)) return;
     const agentsNow = herdAgents().filter((x) => x.pane && x.status === "working").length; // its bulk: by the agents working
-    setShared(RAID_KEY, newRaid(now, Math.random, { caught: new Set(pokedex().caught), agents: agentsNow }));
+    setShared(RAID_KEY, newRaid(now, Math.random, { caught: new Set(pokedex().caught), agents: agentsNow, day, eggs: laid }));
   }
   // One of yours (`a`, its agent; `pick`) hits the boss at `at` (harder while its agent works).
   raidStrike(a, pick, at) {
@@ -1419,7 +1422,7 @@ export default class PokemonHerd extends View {
       if (hp <= 0.001) { m.restUntil = now + RAID_REST; m.faintAt = now; m.react = { anim: null, until: now + 3000, icon: "💫" }; }
     }
     // Beaten: the boss walks off slowly, a sliver of health, for the Ultra Balls it paid.
-    if (ph === "beaten" && !r.caught && this.raidVisitor !== r.id) {
+    if (ph === "beaten" && !r.caught && this.raidVisitor !== r.id && this.leader) { // one boss to catch, not one per window
       this.raidVisitor = r.id;
       const dir = Math.random() < 0.5 ? "r" : "l";
       const to = dir === "r" ? this.width + OFF : -OFF;
@@ -1601,7 +1604,8 @@ export default class PokemonHerd extends View {
 
   // A ball thrown at the visitor (the best one for it in the Bag): it stops, the ball shakes.
   throwAt(v) {
-    if (v.throw || v.fight || !v.start) return;
+    // Not one already gone (a click on an old element of it): the ball would be spent for nothing.
+    if (v !== this.visitor || v.throw || v.fight || !v.start) return;
     const ball = ballFor(bag().items, v.pick, shared(BALL_KEY));
     if (!ball) return;
     // The Berry set in the Bag goes first, while there are some (none for a Master Ball: no need).
@@ -1613,6 +1617,9 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const f = clamp((now - v.start) / v.dur, 0, 1);
     v.throw = { ball, bait, at: now, x: v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait) };
+    // Caught: into the Box now, as the ball decides it; the shakes are only for show (the strip
+    // could drop the visitor meanwhile: an update reloading it, the window narrowed, Visitors off).
+    if (v.throw.caught) { v.throw.saved = true; this.caught(v); }
   }
 
   // The visitor, drawn as the herd is but with no name: hovering it says what it is.
@@ -1921,9 +1928,7 @@ export default class PokemonHerd extends View {
     const tabs = tabsById();
     // One strip counts (jobs, finds, hunger, Berries, gifts, new agents' Pokémon): the leader.
     this.me ??= `${now}-${Math.random().toString(36).slice(2, 8)}`;
-    const el = electLeader(shared(LEADER_KEY), this.me, now);
-    this.leader = el.leader;
-    if (el.write && now - (this.leaderWrote ?? 0) >= 1000) { this.leaderWrote = now; setShared(LEADER_KEY, el.write); }
+    this.leader = leaderOf(COPIES, this.me, now);
     // A new player (no Pokémon saved yet, the first time): their agents as cards in the sidebar.
     if (this.leader && !shared(CARDS_KEY)) {
       setShared(CARDS_KEY, now);
@@ -2530,14 +2535,15 @@ export default class PokemonHerd extends View {
   // Update by itself: the newer version, once (a failed one waits for Update now, by hand).
   autoUpdate() {
     if (!this.leader || this.autoUpdating) return;
-    if (!shouldAutoUpdate(settingsNow().autoUpdate, this.latest, VERSION, shared(AUTO_KEY)?.tried)) return;
+    if (!shouldAutoUpdate(settingsNow().autoUpdate, this.latest, VERSION, shared(AUTO_KEY))) return;
     this.autoUpdating = true;
     const to = this.latest;
     // Noted before: the copy reloads as soon as the new files land, maybe before this goes on.
     // The new one shows "Updated to" only if it is that version (so it did update).
     setShared(AUTO_KEY, { tried: to, at: Date.now() });
     setShared(UPDATED_KEY, { from: VERSION, to, at: Date.now() });
-    updateNow().catch(() => {}).finally(() => { this.autoUpdating = false; });
+    // Failed (a write refused halfway?): tried again in a few hours (update.js RETRY_MS).
+    updateNow().catch(() => setShared(AUTO_KEY, { tried: to, at: Date.now(), failed: true })).finally(() => { this.autoUpdating = false; });
   }
 
   // The update waiting on GitHub (its version), or null.
@@ -3308,7 +3314,7 @@ export default class PokemonHerd extends View {
           // Working in the same folder as another agent: crossed swords, pulsing, over its head.
           .when(!!m.rival, (el) =>
             el.child(div().absolute().left(sw / 2 - 8).top(Math.max(2, headY - 30)).text_size(13)
-              .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("🤺")))
+              .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("⚔️")))
           // Evolving: a column of light, motes, rings; then a burst and "Evolved!" (fx.js EVOLVE_MS).
           .when(!!m.evolveFx && now - m.evolveFx.at < EVOLVE_MS, (el) => {
             const t = now - m.evolveFx.at, key = `evo-${a.address}-${m.evolveFx.at}`;
@@ -3716,7 +3722,7 @@ export default class PokemonHerd extends View {
     const boss = r ? `${r.boss.alpha ? "Alpha " : ""}${fullName(r.boss.dex)}` : "";
     const agentsN = Math.max(1, herdAgents().filter((x) => x.pane).length);
     const per = (daily.count.work ?? 0) / agentsN;
-    const laid = Math.min(MAX_EGGS, Math.floor(per / RAID_WORK));
+    const laid = Math.min(MAX_EGGS, eggsOn(r, dayOf(now))); // the eggs laid today (kept with the raid)
     if (!st.raids) out.push(["⚔", "Raids are off", "Settings → Trainer → Events", null, false]);
     else if (ph === "egg") out.push(["🥚", `A raid egg: it hatches in ${left(r.hatch - now)}`, "Then drag your Pokémon onto its boss", 1 - (r.hatch - now) / EGG_MS, true]);
     else if (ph === "battle") out.push(["⚔", `Raid on: ${boss} · ${left(r.until - now)} left`, `${Math.round(100 * r.hp)}% of its health left · drag yours onto it`, 1 - r.hp, true]);

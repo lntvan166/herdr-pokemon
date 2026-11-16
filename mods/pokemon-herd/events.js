@@ -76,12 +76,21 @@ export function newRaid(now, rnd = Math.random, how = {}) {
   }
   if (rnd() * 64 < 1 && hasShiny(boss.dex)) boss.shiny = true;
   const bulk = RAID_HP + RAID_HP_PER * Math.max(0, (how.agents ?? 1) - 1);
-  return { v: 1, id: `${now}-${boss.dex}`, at: now, hatch: now + EGG_MS, until: now + EGG_MS + RAID_MS, boss, bulk, hp: 1, hits: [] };
+  // `day`/`eggs`: the eggs laid that day, this one counted (how.eggs: the ones before it).
+  return { v: 1, id: `${now}-${boss.dex}`, at: now, hatch: now + EGG_MS, until: now + EGG_MS + RAID_MS, boss, bulk, hp: 1, hits: [], last: {},
+    ...(how.day ? { day: how.day, eggs: (how.eggs ?? 0) + 1 } : {}) };
 }
+// Eggs laid on `day` so far (the last raid's count, if it was that day's).
+export const eggsOn = (r, day) => (r?.day === day && Number.isInteger(r.eggs) ? r.eggs : 0);
 export function loadRaid(raw) {
   if (raw?.v !== 1 || typeof raw.id !== "string" || !raw.boss || !WALKABLE.includes(raw.boss.dex)) return null;
   if (![raw.at, raw.hatch, raw.until].every(Number.isFinite)) return null;
-  return { ...raw, hp: Math.max(0, Math.min(1, Number.isFinite(raw.hp) ? raw.hp : 1)), hits: Array.isArray(raw.hits) ? raw.hits.slice(-12) : [] };
+  const hits = Array.isArray(raw.hits) ? raw.hits.filter((h) => h && typeof h === "object" && Number.isFinite(h.at) && typeof h.pane === "string").slice(-12) : [];
+  // Each pane's last hit, for its cooldown: kept apart from `hits` (only the last 12, for drawing).
+  const last = raw.last && typeof raw.last === "object" ? Object.fromEntries(Object.entries(raw.last).filter(([, at]) => Number.isFinite(at))) : {};
+  for (const h of hits) last[h.pane] = Math.max(last[h.pane] ?? -Infinity, h.at);
+  const bulk = Number.isFinite(raw.bulk) && raw.bulk >= RAID_HP ? raw.bulk : RAID_HP;
+  return { ...raw, bulk, hp: Math.max(0, Math.min(1, Number.isFinite(raw.hp) ? raw.hp : 1)), hits, last };
 }
 // Where a raid is: "egg", "battle", "beaten" (its boss, weakened, walks off to be caught), "gone"
 // (it got away, or long over), or null (none).
@@ -95,10 +104,12 @@ export function raidPhase(r, now) {
 }
 // Whether work done lays an egg: the day's minutes of work (all agents') went from `before` to
 // `after` past a multiple of RAID_WORK × `agents` (MAX_EGGS a day at most), and none is on now.
-export function laysEgg(before, after, phase, agents = 1) {
+// `laid`: the eggs laid today already (eggsOn): never more than MAX_EGGS, however the number of
+// agents changes through the day (it moves the multiples).
+export function laysEgg(before, after, phase, agents = 1, laid = 0) {
   const per = RAID_WORK * Math.max(1, agents);
   const a = Math.floor(before / per), b = Math.floor(after / per);
-  return b > a && b >= 1 && b <= MAX_EGGS && (phase === null || phase === "gone");
+  return laid < MAX_EGGS && b > a && b >= 1 && b <= MAX_EGGS && (phase === null || phase === "gone");
 }
 
 // One of yours hits the boss (its fighter key; `pane` its agent's): its best type, the damage a wild
@@ -120,11 +131,12 @@ export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {
   const back = hp > 0 ? { type: bm.type, name: bm.name, crit: bm.crit, ultimate: bm.ultimate, miss: bm.miss, eff: b.eff, dmg: b.dmg * 0.75 * RAID_BACK * (1 - 0.02 * Math.min(5, how.hearts ?? 0)) } : null;
   const mv = how.move ? { name: how.move.name, physical: how.move.physical, crit: how.move.crit, ultimate: how.move.ultimate, miss: how.move.miss, ...(how.move.boosted ? { boosted: how.move.boosted } : {}) } : {};
   const hit = { at: now, pane, key, type, eff: d.eff, dmg, ...mv, ...(back ? { back } : {}), ...(how.drop ? { drop: true } : {}) };
-  return { raid: { ...r, hp, hits: [...r.hits, hit].slice(-12), ...(hp <= 0 ? { beaten: now } : {}) }, hit };
+  return { raid: { ...r, hp, hits: [...r.hits, hit].slice(-12), last: { ...(r.last ?? {}), [pane]: now }, ...(hp <= 0 ? { beaten: now } : {}) }, hit };
 }
 // How long till `pane`'s Pokémon can hit again (ms; 0: now): once a RAID_COOLDOWN.
 export function cooldownLeft(r, pane, now) {
-  const last = Math.max(-Infinity, ...r.hits.filter((h) => h.pane === pane).map((h) => h.at));
+  // Its last hit (`last`: every pane's, not only the 12 hits kept for drawing).
+  const last = Math.max(r.last?.[pane] ?? -Infinity, ...r.hits.filter((h) => h.pane === pane).map((h) => h.at));
   return Math.max(0, last + RAID_COOLDOWN - now);
 }
 // What beating it pays: money, and Ultra Balls to catch it with.

@@ -415,12 +415,19 @@ test("fromFolders moves a Pokémon to the new pane: the old pane is listed to fo
 });
 
 import { trimPanes } from "../mods/pokemon-herd/picks.js";
-test("trimPanes: the oldest forgotten, what they held handed back", () => {
-  const panes = { a: { dex: 6, held: "lucky-egg" }, b: { dex: 4 }, c: { dex: 25, held: "soothe-bell" }, d: { dex: 1 } };
+test("trimPanes: the oldest plain picks forgotten; never one in the Box", () => {
+  const panes = { a: { dex: 6 }, b: { dex: 4 }, c: { dex: 25, held: "soothe-bell" }, d: { dex: 1 } };
   const r = trimPanes(panes, 2);
   assert.deepEqual(Object.keys(r.panes), ["c", "d"]);
-  assert.deepEqual(r.returned, ["lucky-egg"]);
   assert.deepEqual(trimPanes(panes, 10), { panes, returned: [] });
+  // A caught, locked shiny Mewtwo outlives 300 catches after it.
+  const box = { "box-1-150": { dex: 150, shiny: true, caught: 1, locked: true } };
+  for (let i = 0; i < 305; i++) box[`box-${i + 2}-16`] = { dex: 16, caught: i + 2 };
+  box.agent = { dex: 7 };
+  const t = trimPanes(box, 300);
+  assert.ok(t.panes["box-1-150"]);
+  assert.equal(Object.keys(t.panes).length, 306); // only the plain one goes
+  assert.equal(t.panes.agent, undefined);
 });
 
 import { fromBox, raised } from "../mods/pokemon-herd/picks.js";
@@ -517,4 +524,15 @@ test("boxOnSwitch: Box it takes any, the same species too; Bring out the same sp
   assert.equal(boxOnSwitch({ dex: 6, shiny: true, mega: "auto" }, { dex: 25 }, 1).key, "box-1-6"); // a shiny is always kept
   assert.equal(boxOnSwitch({ dex: 6, mega: "auto" }, { dex: 6 }, 1, { same: true }), null); // Bring out: not raised
   assert.equal(boxOnSwitch({ dex: 6, jobs: 2, mega: "auto" }, { dex: 6 }, 1, { same: true }).pick.jobs, 2);
+});
+
+import { leaderOf } from "../mods/pokemon-herd/picks.js";
+test("leaderOf: the first copy still ticking leads, in memory; the next takes over when it stops", () => {
+  const copies = new Map();
+  assert.equal(leaderOf(copies, "a", 0), true);
+  assert.equal(leaderOf(copies, "b", 100), false);
+  assert.equal(leaderOf(copies, "a", 1000), true);
+  assert.equal(leaderOf(copies, "b", 1100), false); // still a
+  assert.equal(leaderOf(copies, "b", 5000), true); // a went quiet
+  assert.equal(copies.has("a"), false);
 });

@@ -69,8 +69,10 @@ export const sellPrice = (id) => Math.floor((PRICE[id] ?? 0) / 2);
 // The bag after selling `n` of `id` (as many as there are, at most), or null: none to sell.
 export function sell(bag, id, n = 1) {
   const have = bag.items[id] ?? 0;
-  const k = Math.min(have, n);
-  if (!k || !sellPrice(id)) return null;
+  // Only as many as the purse can take (MAX_MONEY): none sold for nothing.
+  const room = Math.floor((MAX_MONEY - (bag.money ?? 0)) / Math.max(1, sellPrice(id)));
+  const k = Math.min(have, n, room);
+  if (!(k > 0) || !sellPrice(id)) return null;
   return addMoney(addItem(bag, id, -k), k * sellPrice(id));
 }
 export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });

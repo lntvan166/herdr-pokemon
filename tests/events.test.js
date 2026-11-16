@@ -115,3 +115,23 @@ test("a raid move that misses does nothing to the boss", async () => {
   assert.equal(hit.miss, true);
   assert.equal(raid.hp, 1);
 });
+
+test("2 eggs a day, however the number of agents changes; every pane's cooldown kept; junk raids cleaned", async () => {
+  const { eggsOn } = await import("../mods/pokemon-herd/events.js");
+  // One agent, then two, three, four through the day: the multiples move, the count doesn't.
+  let r = null, laid = 0;
+  const steps = [[0, 160, 1], [160, 310, 2], [310, 460, 3], [460, 610, 4]];
+  for (const [b, a, n] of steps) {
+    if (laysEgg(b, a, null, n, eggsOn(r, 100))) { r = newRaid(0, () => 0.5, { day: 100, eggs: eggsOn(r, 100) }); laid++; }
+  }
+  assert.equal(laid, MAX_EGGS);
+  assert.equal(eggsOn(r, 101), 0); // a new day
+  // 13 panes hit: the first one's cooldown is still on.
+  let raid = { ...newRaid(0, () => 0.5), hatch: 0, until: 1e9 };
+  for (let i = 0; i < 13; i++) raid = raidHit(raid, 6, `p${i}`, "fire", 1000 + i, () => 0.5).raid;
+  assert.ok(cooldownLeft(loadRaid(raid), "p0", 2000) > 50000);
+  // A broken hit or a bad bulk can't break it.
+  const junk = loadRaid({ ...raid, hits: [null, { at: "x" }, ...raid.hits], bulk: -1 });
+  assert.ok(junk.hits.every((h) => h && Number.isFinite(h.at)));
+  assert.equal(junk.bulk, RAID_HP);
+});

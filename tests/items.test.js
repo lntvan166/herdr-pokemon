@@ -219,3 +219,13 @@ test("every item is in one group", () => {
   assert.equal(grouped(Object.keys(ITEMS)).length, Object.keys(ITEMS).length);
   assert.equal(grouped(Object.keys(ITEMS))[0], "poke-ball");
 });
+
+test("sell: never more than the purse can take; loaders refuse Object.prototype names", async () => {
+  const { sell, MAX_MONEY, loadBag } = await import("../mods/pokemon-herd/items.js");
+  const full = { ...loadBag(null), money: MAX_MONEY - 1, items: { "ultra-ball": 5 } };
+  assert.equal(sell(full, "ultra-ball", 5), null); // no room for even one
+  const { loadSettings } = await import("../mods/pokemon-herd/settings.js");
+  assert.notEqual(loadSettings({ v: 1, visitors: "toString" }).visitors, "toString");
+  const { loadPicks } = await import("../mods/pokemon-herd/picks.js");
+  assert.equal(loadPicks({ panes: { p: { dex: 25, nature: "constructor", caught: 1 } } }).panes.p.nature, undefined);
+});

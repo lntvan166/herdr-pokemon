@@ -33,7 +33,7 @@ export function loadSettings(raw) {
   // Visitors was a switch before it had a pace: on is the default pace, off stays off.
   if (raw.newFrom === "favorites") out.newFrom = "favorites";
   if (raw.visitors === false) out.visitors = "off";
-  else if (typeof raw.visitors === "string" && raw.visitors in VISIT_EVERY) out.visitors = raw.visitors;
+  else if (typeof raw.visitors === "string" && Object.hasOwn(VISIT_EVERY, raw.visitors)) out.visitors = raw.visitors;
   return out;
 }
 

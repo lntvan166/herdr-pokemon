@@ -434,7 +434,7 @@ export function loadDaily(raw, now, how = {}) {
   const day = dayOf(now);
   const ok = raw?.v === 1 && typeof raw.day === "string" && Array.isArray(raw.tasks);
   if (ok && raw.day === day) {
-    const tasks = raw.tasks.filter((t) => TASKS[t?.id] && Number.isInteger(t.goal)).map((t) => ({ id: t.id, goal: t.goal, n: Math.min(t.goal, num(t.n)), ...(TYPES.includes(t.type) ? { type: t.type } : {}) }));
+    const tasks = raw.tasks.filter((t) => typeof t?.id === "string" && Object.hasOwn(TASKS, t.id) && Number.isInteger(t.goal)).map((t) => ({ id: t.id, goal: t.goal, n: Math.min(t.goal, num(t.n)), ...(TYPES.includes(t.type) ? { type: t.type } : {}) }));
     return { v: 1, day, tasks, count: cleanCount(raw.count), bonus: raw.bonus === true, ...(raw.yesterday ? { yesterday: raw.yesterday } : {}) };
   }
   const fresh = { v: 1, day, tasks: rollTasks(day, how), count: { top: {} }, bonus: false };

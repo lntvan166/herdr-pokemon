@@ -42,7 +42,7 @@ export function loadPicks(current, legacy) {
       const held = HELD_IDS.includes(p.held) ? p.held : undefined;
       const nick = cleanNick(p.nick) ?? undefined;
       const caught = Number.isFinite(p.caught) && p.caught > 0 ? p.caught : undefined; // caught in a ball (trainer.js)
-      const nature = p.nature in NATURES ? p.nature : undefined;
+      const nature = typeof p.nature === "string" && Object.hasOwn(NATURES, p.nature) ? p.nature : undefined; // not "constructor"…
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
       const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
       panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
@@ -429,13 +429,16 @@ export function switchedPick(cur, entry, mega, megaKind, shiny = false) {
 // The saved picks kept to `max` panes, the least recently saved forgotten first (savePicks puts
 // every pane it saves last), and the items those forgotten Pokémon held, for the Bag.
 // `keep`: panes never to drop (on screen, or being saved now); the oldest of the rest go first.
+// Never one in the Box (`raised`: caught, or kept for its hearts, jobs, shiny, held item, Lock):
+// only an agent's plain pick, nothing earned, is ever forgotten. (The Box was trimmed with the
+// rest before: a caught, locked shiny Mewtwo went after 300 more catches.)
 export function trimPanes(panes, max, keep = new Set()) {
   const out = { ...panes };
   const returned = [];
   let over = Object.keys(out).length - max;
   for (const k of Object.keys(panes)) {
     if (over <= 0) break;
-    if (keep.has(k)) continue;
+    if (keep.has(k) || raised(panes[k]) || panes[k]?.locked) continue;
     if (out[k]?.held) returned.push(out[k].held);
     delete out[k];
     over--;
@@ -478,6 +481,18 @@ export function expShareTarget(picks, giver) {
 // name); each would count every job, Berry and find again. They elect one through shared state
 // `cur` ({ id, at }): the leader writes `at` each tick; another takes over once it's quiet for
 // `ttl`. Returns { leader, write } (write: what to save, or null).
+// Every window's strip runs in one Herdr process and shares this module, so the leader is chosen
+// here, in memory, with no shared-state write (that was a write every second, all day, each one
+// redrawing every mod in every window). `copies`: a Map of copy id -> when it last ticked, kept
+// by the module; the first one still ticking (within `ttl`) leads, so it stays the same one.
+export function leaderOf(copies, me, now, ttl = 3000) {
+  copies.set(me, now);
+  for (const [id, at] of copies) {
+    if (now - at < ttl) return id === me;
+    copies.delete(id); // gone quiet: closed, or its window gone
+  }
+  return true;
+}
 export function electLeader(cur, me, now, ttl = 3000) {
   const free = !cur || typeof cur.id !== "string" || !(now - cur.at < ttl);
   if (free || cur.id === me) return { leader: true, write: { id: me, at: now } };

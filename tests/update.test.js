@@ -78,7 +78,7 @@ test("installUpdate: updates the running copy wherever it is installed, keeping 
 test("installUpdate: no copy runs this version: every copy of this repo is updated; none at all: an error", async () => {
   const f = fake();
   const a = f.copy("pokemon-herd", "pokemon-herd", "1.5.0");
-  assert.deepEqual(await update(f, "9.9.9"), [{ dir: `${f.app}/mods/pokemon-herd`, version: "1.9.0" }]);
+  assert.deepEqual(await update(f, "1.4.0"), [{ dir: `${f.app}/mods/pokemon-herd`, version: "1.9.0" }]);
   assert.equal(read(join(a, "main.js"), "utf8"), "// new\n");
   await assert.rejects(update(fake(), "1.0.0"), /wasn't found/);
 });
@@ -97,7 +97,7 @@ test("installUpdate: Pokémon Sidebar beside it is installed, then updated keepi
   assert.equal(read(join(to, "views", "agents.js"), "utf8"), "// cards\n");
   // The person's settings stay; the version moves on.
   writeFileSync(join(to, "mod.json"), '{\n  "version": "1.0.0",\n  "settings": { "combined": false }\n}\n');
-  await update(f, "1.9.0");
+  await installUpdate(io, { app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.9.0", src: f.src, force: true }); // again, by hand
   const json = JSON.parse(read(join(to, "mod.json"), "utf8"));
   assert.equal(json.version, "1.1.0");
   assert.deepEqual(json.settings, { combined: false });
@@ -111,4 +111,25 @@ test("update by itself: when on, newer, and not tried already", () => {
   assert.equal(shouldAutoUpdate(true, "2.5.4", "2.5.5", undefined), false); // a local build ahead of GitHub
   assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", "2.5.6"), false); // tried: the pill, by hand
   assert.equal(shouldAutoUpdate(true, null, "2.5.5", undefined), false);
+});
+
+test("installUpdate: never one that isn't newer; a broken download touches nothing; main.js written last", async () => {
+  const f = fake();
+  const a = f.copy("pokemon-herd", "pokemon-herd", "1.9.0");
+  await assert.rejects(update(f, "1.9.0"), /not newer/); // a reinstall
+  await assert.rejects(update(f, "2.0.0"), /not newer/); // a downgrade
+  assert.equal(read(join(a, "main.js"), "utf8"), "// old\n");
+  // The order files go in: main.js after every module it imports.
+  const order = [];
+  const spy = { ...io, writeFile: (p, d) => { order.push(p.split("/").pop()); return io.writeFile(p, d); } };
+  const g = fake();
+  g.copy("pokemon-herd", "pokemon-herd", "1.6.1");
+  await installUpdate(spy, { app: g.app, repo: "lntvan166/herdr-pokemon", running: "1.6.1", src: g.src });
+  assert.equal(order.at(-1), "main.js");
+});
+
+test("update by itself: a failed try is tried again hours later, not never", () => {
+  assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", { tried: "2.5.6", at: 0, failed: true }, 1000), false);
+  assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", { tried: "2.5.6", at: 0, failed: true }, 7 * 3600000), true);
+  assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", { tried: "2.5.6", at: 0 }, 7 * 3600000), false); // tried, not failed
 });

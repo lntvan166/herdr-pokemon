@@ -525,8 +525,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Nicknames** (`cleanNick`, `nameFor` in `picks.js`; a pick's `nick`): Rename in the Box
   opens a text field (Enter saves; empty clears). The nickname replaces the species name on the
   strip's hover tag, the sidebar cards, the Party, the Bag's rows and the picker.
-- **One strip counts** (`electLeader` in `picks.js`, shared `pokemon-herd-leader` { id, at }):
-  each strip elects itself unless another wrote within 3 s; the leader rewrites it every second.
+- **One strip counts** (`leaderOf` in `picks.js`): every window's strip runs in one Herdr process
+  and shares the module, so a module-level Map of copies and when each last ticked elects the
+  first one still ticking (3 s), with no shared-state write (it was one a second, all day,
+  redrawing every mod). Only the leader's strip has wild visitors and a beaten raid boss (one
+  Azure Flute, one Honey: one catch, not one per window).
   Only the leader writes: job stats, evolution counts, hunger, Berries, Pickup, Rare Candy, badge
   gifts, sparring hearts, "since" times, cries, sidebar cards, new agents' Pokémon and the
   folders' (assignAll `write`). Dialogs and other strips read the same answers.

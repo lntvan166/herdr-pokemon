@@ -24,7 +24,14 @@ export function isNewer(remote, local) {
 // Update by itself (Settings → Updates): whether to install `latest` now. Not when it's off, not
 // newer, or tried already (`tried`: the version last tried, so a failed one isn't tried again and
 // again: the Update pill stays for a hand).
-export const shouldAutoUpdate = (on, latest, running, tried) => !!on && isNewer(latest, running) && tried !== latest;
+// `tried` may be the record { tried, at, failed }: a try that failed (a write refused halfway) is
+// tried again RETRY_MS later, not never (it could have left the mod half updated).
+export const RETRY_MS = 6 * 3600000;
+export function shouldAutoUpdate(on, latest, running, tried, now = Date.now()) {
+  if (!on || !isNewer(latest, running)) return false;
+  const rec = tried && typeof tried === "object" ? tried : { tried };
+  return rec.tried !== latest || (!!rec.failed && now - (rec.at ?? 0) >= RETRY_MS);
+}
 
 // Installs an unpacked release (`src`: its mods/pokemon-herd) over this mod, wherever it is
 // installed under `app`/mods and whatever it is called: the copies of this repo running
@@ -33,17 +40,35 @@ export const shouldAutoUpdate = (on, latest, running, tried) => !!on && isNewer(
 // its version moves on). No shell: `io` reads and writes files (Herdr's fs/promises, or Node's
 // in the tests), so it works on Windows too. Returns [{ dir, version }]; throws when no copy is
 // found.
-export async function installUpdate(io, { app, repo, running, src }) {
+//
+// Herdr's fs has no rename, so the folder can't be swapped in one step. Instead: never one that
+// isn't newer than `running` (no downgrade, no reinstall; `force` for a hand-run reinstall), every
+// file read into memory first (a broken download fails before anything is touched), then written
+// with main.js last (Herdr reloads the mod as its files change: till main.js lands, the old one runs).
+export async function installUpdate(io, { app, repo, running, src, force = false }) {
   const read = (p) => io.readFile(p, "utf8");
   const has = (p) => io.exists(p);
-  const copyTree = async (from, to) => {
-    await io.mkdir(to, { recursive: true });
+  // A folder's files, read: [[relative path, contents]], main.js last.
+  const load = async (from, rel = "") => {
+    const out = [];
     for (const e of await io.readdir(from, { withFileTypes: true })) {
-      if (e.isDirectory()) await copyTree(`${from}/${e.name}`, `${to}/${e.name}`);
-      else await io.writeFile(`${to}/${e.name}`, await io.readFile(`${from}/${e.name}`));
+      const p = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) out.push(...(await load(`${from}/${e.name}`, p)));
+      else out.push([p, await io.readFile(`${from}/${e.name}`)]);
+    }
+    return out.sort(([a], [b]) => (a === "main.js") - (b === "main.js"));
+  };
+  const writeAll = async (files, to) => {
+    for (const [p, data] of files) {
+      const dir = p.includes("/") ? `${to}/${p.slice(0, p.lastIndexOf("/"))}` : to;
+      await io.mkdir(dir, { recursive: true });
+      await io.writeFile(`${to}/${p}`, data);
     }
   };
+  const copyTree = async (from, to) => writeAll(await load(from), to);
   const version = versionIn(await read(`${src}/id.js`));
+  if (!force && !isNewer(version, running)) throw new Error(`the download is ${version ?? "no version"}, not newer than ${running}`);
+  const files = await load(src); // all of it, before a single file is written
   const mods = `${app}/mods`;
   const mine = [], all = [];
   for (const e of await io.readdir(mods, { withFileTypes: true }).catch(() => [])) {
@@ -58,11 +83,11 @@ export async function installUpdate(io, { app, repo, running, src }) {
   const out = [];
   for (const dir of targets) {
     const name = /^export const MOD = "(.*)";/m.exec(await read(`${dir}/id.js`))?.[1];
-    await copyTree(src, dir);
-    if (name) {
-      const id = await read(`${dir}/id.js`);
-      await io.writeFile(`${dir}/id.js`, id.replace(/^export const MOD = .*$/m, `export const MOD = "${name}";`));
-    }
+    // Its own MOD name kept in id.js as it's written (not after: no moment with another name).
+    const dec = new TextDecoder();
+    const mineFiles = files.map(([p, data]) => (p === "id.js" && name
+      ? [p, (typeof data === "string" ? data : dec.decode(data)).replace(/^export const MOD = .*$/m, `export const MOD = "${name}";`)] : [p, data]));
+    await writeAll(mineFiles, dir);
     out.push({ dir, version });
   }
   // Pokémon Sidebar, beside it in the release.
