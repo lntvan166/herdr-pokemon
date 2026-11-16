@@ -136,8 +136,10 @@ async function cut(sheet, anim, row, scale, out) {
 // Fast the first time: every sheet downloads at once; the six it walks, stands and sleeps with
 // are cut together and handed to `onCore` (with no reactions yet) so it can show at once; its
 // reactions are cut after, four at a time.
+// `form` "female": its female sprite (gender.js femaleSprite), sprite/<dex>/0000/<0000|0001>/0002.
 export async function loadSprite(dex, shiny, form = null, onCore = null) {
-  const folder = `${pad(dex)}${form ? `-${form}` : ""}${shiny ? "s" : ""}`;
+  const female = form === "female";
+  const folder = `${pad(dex)}${female ? "-f" : form ? `-${form}` : ""}${shiny ? "s" : ""}`;
   const dir = `${DATA}/sprites/${folder}`;
   const metaFile = `${dir}/meta.json`;
   if (await fs.exists(metaFile).catch(() => false)) {
@@ -147,7 +149,8 @@ export async function loadSprite(dex, shiny, form = null, onCore = null) {
     } catch {}
   }
   await fs.mkdir(dir, { recursive: true });
-  const base = `${PMD}/${pad(dex)}${form ? `/${form}` : ""}${shiny ? (form ? "/0001" : "/0000/0001") : ""}`;
+  const base = female ? `${PMD}/${pad(dex)}/0000/${shiny ? "0001" : "0000"}/0002`
+    : `${PMD}/${pad(dex)}${form ? `/${form}` : ""}${shiny ? (form ? "/0001" : "/0000/0001") : ""}`;
   await curl([[`${dir}/AnimData.xml`, `${base}/AnimData.xml`]]);
   const anims = parseAnims(await fs.readFile(`${dir}/AnimData.xml`, "utf8"));
   const walk = resolve(anims, "Walk");

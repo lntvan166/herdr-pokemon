@@ -87,6 +87,11 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 | ⇕ **XXL / XXS** | 1 wild one in 40 each (XL / XS 1 in 8) | Its size under its feet. Not stronger: an XXS is hard to hit (moves miss it 1 in 8), an XXL is heavy (knocked back less, knocks the other further). Caught, it keeps its size (in the Box); the Pokédex keeps each species' biggest and smallest. |
 | ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) or by finishing the day's Research | Mewtwo, Rayquaza… always one you haven't caught yet, till you have them all. Locked in the picker until you catch one. Very hard: 15 balls before it runs away. |
 
+**Genders.** Each Pokémon is ♂ or ♀ as its species is in the games (Chansey always ♀, Tauros
+always ♂, Magnemite neither). 59 species look different as females, and the strip draws them so:
+Pikachu's heart-tipped tail, Venusaur's seed. Some evolve by gender: Kirlia ♂ into Gallade, Snorunt
+♀ into Froslass, only a female Combee into Vespiquen. The Pokédex counts species caught as both.
+
 **Weather.** The strip's sky boosts some types, as in Pokémon GO: rain (an agent waiting on you)
 Water, Electric and Bug; night Dark, Ghost and Poison; by day the season: spring Fairy, Normal and
 Flying, summer Fire, Grass and Ground, autumn Dragon, Psychic and Fighting, winter Ice, Steel and

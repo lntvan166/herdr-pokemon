@@ -30,6 +30,7 @@ import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, b
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul } from "./weather.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
@@ -78,7 +79,9 @@ const slotOf = (a) => a.pane || a.address;
 const ALL_ENTRIES = searchEntries("", Infinity).entries;
 const entryKey = (e) => `${e.dex}${e.form ? `-${e.form}` : ""}`;
 // (A Mega is keyed by the X or Y really shown, so a Mega Y drawn later replaces the X stand-in.)
-const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.form}` : ""}${mega ? `m${megaForm(pick.dex, pick.megaKind)?.kind ?? ""}` : ""}${pick.shiny ? "s" : ""}`;
+// Drawn with its own female sprite (gender.js): a female of one of the 59, in its usual form.
+const asFemale = (pick, mega = false) => !mega && !pick.form && pick.gender === "f" && femaleSprite(pick.dex, pick.shiny);
+const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.form}` : ""}${mega ? `m${megaForm(pick.dex, pick.megaKind)?.kind ?? ""}` : ""}${asFemale(pick, mega) ? "g" : ""}${pick.shiny ? "s" : ""}`;
 
 // Saved picks, live: the picker (another copy of this mod) writes them too.
 const savedPicks = () => loadPicks(shared(MOD), null).panes;
@@ -789,7 +792,7 @@ export default class PokemonHerd extends View {
   want(pick, cx, mega = false) {
     pick = dressed(pick);
     const key = spriteKey(pick, mega);
-    const form = mega ? megaForm(pick.dex, pick.megaKind)?.form : (pick.form ?? null); // its Mega (X or Y), or its regional form
+    const form = mega ? megaForm(pick.dex, pick.megaKind)?.form : asFemale(pick) ? "female" : (pick.form ?? null); // its Mega (X or Y), its female sprite, or its regional form
     const cur = this.sprites[key];
     if (cur === "loading" || (cur && !cur.error)) return;
     if (cur?.error && Date.now() - cur.at < 60000) return;
@@ -799,6 +802,7 @@ export default class PokemonHerd extends View {
         // It shows as soon as it can walk; its reactions come in a moment later.
         const early = (meta) => { if (this.sprites[key] === "loading") { this.sprites[key] = meta; cx.notify(); } };
         this.sprites[key] = await loadSprite(pick.dex, pick.shiny, form, early).catch((e) => {
+          if (form === "female") return loadSprite(pick.dex, pick.shiny, null, early); // no female sprite after all: its usual one
           if (!pick.shiny) throw e;
           return loadSprite(pick.dex, false, form, early);
         });
@@ -982,7 +986,7 @@ export default class PokemonHerd extends View {
       let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught), boost: this.boostNow().types, share: WEATHER_SHARE });
       this.legendNext = false;
       if (outbreak) pick = outbreakPick(pick, outbreak);
-      pick = { ...pick, size: rollSize() }; // XXS..XXL (weather.js)
+      pick = { ...pick, size: rollSize(), ...((g) => (g ? { gender: g } : {}))(rollGender(pick.dex)) }; // XXS..XXL (weather.js), ♂/♀ (gender.js)
       dev?.wild?.(pick, devApi); // dev.js: a wild one asked for
       const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
       if (seen) saveDex(seen);
@@ -1743,7 +1747,7 @@ export default class PokemonHerd extends View {
         const tagW = 260;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
-          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${sizeClass(v.pick.size) ? `${sizeClass(v.pick.size)} ` : ""}${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${sizeClass(v.pick.size) ? `${sizeClass(v.pick.size)} ` : ""}${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
       }
       return;
     }
@@ -1820,7 +1824,7 @@ export default class PokemonHerd extends View {
     const onStrip = v.x >= 0 && v.x <= this.width;
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = 330;
-      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}`;
+      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}${sizeClass(v.pick.size)?.length === 3 ? ` · ${sizeClass(v.pick.size)}` : ""}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -3089,7 +3093,7 @@ export default class PokemonHerd extends View {
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       // What it says it's doing stays on the cards: here it ran across the whole strip.
-      const text = full ? `${sizeClass(pick.size)?.length === 3 ? `${sizeClass(pick.size)} ` : ""}${pick.alpha ? "Alpha " : ""}${nameFor(pick)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const text = full ? `${sizeClass(pick.size)?.length === 3 ? `${sizeClass(pick.size)} ` : ""}${pick.alpha ? "Alpha " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -3716,7 +3720,7 @@ export default class PokemonHerd extends View {
       .child(div().absolute().left(0).top(0).h_full().w(Math.round(w * r.caught / r.total)).bg(t.accent));
     return v_flex().flex_none().h(h).gap(10)
       .child(h_flex().gap(12).items_stretch()
-        .children([["Seen", d.seen.length], ["Caught", d.caught.length], ["Legendary", legends], ["Shiny", d.shiny.length], ["Alpha", (d.alpha ?? []).length]].map(([k, n]) => v_flex().flex_1().p(10).gap(2).rounded(10).bg(t.raised)
+        .children([["Seen", d.seen.length], ["Caught", d.caught.length], ["Legendary", legends], ["Shiny", d.shiny.length], ["Alpha", (d.alpha ?? []).length], ["♂ and ♀", (d.male ?? []).filter((x) => (d.female ?? []).includes(x)).length]].map(([k, n]) => v_flex().flex_1().p(10).gap(2).rounded(10).bg(t.raised)
           .child(div().text_size(18).font_semibold().text_color(t.foreground).child(String(n)))
           .child(div().text_size(11.5).text_color(t.muted).child(k === "Caught" ? `Caught of ${DEX_TOTAL}` : k)))))
       // The goals: reached ones ticked; the next with how many to go.
@@ -4151,6 +4155,7 @@ export default class PokemonHerd extends View {
         .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
         .when(!!x.pick.alpha, (el) => el.child(alphaMark(x.pick.shiny ? 20 : 5, 4)))
         .when(!!x.pick.shadow, (el) => el.child(div().absolute().top(38).left(5).size(8).rounded_full().bg("#9a5aff")))
+        .when(!!x.pick.gender, (el) => el.child(div().absolute().top(40).left(x.pick.shadow ? 16 : 5).text_size(11).font_bold().text_color(GENDER_COLOR[x.pick.gender]).child(genderMark(x.pick.gender))))
         .when(!!sizeClass(x.pick.size), (el) => el.child(div().absolute().top(40).right(4).px(3).rounded(3).bg("#000000a0").text_size(8.5).font_bold().text_color("#ffd23f").child(sizeClass(x.pick.size))))
         .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt(x.pick.ball ?? "poke-ball", 14))))
         .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
@@ -4172,7 +4177,7 @@ export default class PokemonHerd extends View {
           .child(v_flex().flex_1().min_w(0).gap(2)
             .child(this.renaming === slot
               ? Input.new(this.nickInput).h(26).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12.5).text_color(t.foreground)
-              : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${tag ? ` · with ${tag}` : ""}`))
+              : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""}${tag ? ` · with ${tag}` : ""}`))
             .child(div().text_size(11.5).text_color(t.muted).truncate().child(facts))))
         .child(h_flex().gap(6).flex_wrap().items_center()
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).

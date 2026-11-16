@@ -150,6 +150,14 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
   Azure Flute (₽1,000) and the day's Research call one: always one not caught yet, while any are
   left (`wildPick` with the Pokédex's caught). About 15 balls before one flees.
+- **Genders** (`gender.js`, data `gender-data.js` from `scripts/gen-gender.mjs`: PokeAPI's
+  female rate in eighths, -1 genderless; SpriteCollab's female sprites): a wild one rolled one
+  (`rollGender`); a saved one without, given one by its slot (`genderFrom(hash(pane:gender))`,
+  `loadPicks`, `assign`), so it never changes. A female of the 59 with their own sprite is drawn
+  with it (`loadSprite` form "female": `sprite/<dex>/0000/<0000|0001>/0002`; sprite key "g").
+  `GENDER_EVOLVE`: Gallade ♂, Froslass ♀, Vespiquen ♀, Salazzle ♀, Wormadam ♀, Mothim ♂
+  (`evolveTarget`). ♂/♀ by its name (hover, Gotcha, Box); the Pokédex's `male`/`female` lists
+  and a "♂ and ♀" count.
 - **Weather** (`weather.js` `weatherNow`): rain or a storm (scene.js `weatherOf`) Water, Electric,
   Bug; else night (`nightness` ≥ 0.5) Dark, Ghost, Poison; else the season (`seasonAt`): spring
   Fairy, Normal, Flying; summer Fire, Grass, Ground; autumn Dragon, Psychic, Fighting; winter Ice,

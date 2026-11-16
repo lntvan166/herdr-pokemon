@@ -271,6 +271,7 @@ export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
     ...(wild.alpha ? { alpha: true } : {}),
     ...(wild.alpha && wild.shadow ? { shadow: true } : {}),
     ...(Number.isFinite(wild.size) ? { size: wild.size } : {}), // its size (weather.js rollSize)
+    ...(wild.gender === "m" || wild.gender === "f" ? { gender: wild.gender } : {}), // gender.js
     caught: now,
     caughtAs: wild.dex, // the species it was caught as (withEvolved)
     ...(BALLS.includes(ball) ? { ball } : {}),
@@ -291,6 +292,9 @@ export function loadDex(raw) {
     shiny: ok ? dexList(raw.shiny).filter((d) => caught.includes(d)) : [],
     goals: ok && Array.isArray(raw.goals) ? raw.goals.filter((n) => DEX_GOALS.some((g) => g.n === n)) : [],
     alpha: ok ? dexList(raw.alpha).filter((d) => caught.includes(d)) : [],
+    // Species caught as a male, as a female (gender.js): both, and that one's "♂♀" in the Pokédex.
+    male: ok ? dexList(raw.male).filter((d) => caught.includes(d)) : [],
+    female: ok ? dexList(raw.female).filter((d) => caught.includes(d)) : [],
     // Each species' smallest and biggest caught (weather.js withRecord): { [dex]: [min, max] }.
     sizes: ok && raw.sizes && typeof raw.sizes === "object" ? Object.fromEntries(Object.entries(raw.sizes).filter(([k, v]) => caught.includes(Number(k)) && Array.isArray(v) && v.length === 2 && v.every((x) => Number.isFinite(x) && x >= 0.5 && x <= 1.5))) : {},
   };
@@ -302,7 +306,8 @@ export function withSeen(d, dexes) {
 }
 export function withCaught(d, pick) {
   const add = (list, x) => (list.includes(x) ? list : [...list, x]);
-  return { ...d, seen: add(d.seen, pick.dex), caught: add(d.caught, pick.dex), shiny: pick.shiny ? add(d.shiny, pick.dex) : d.shiny, alpha: pick.alpha ? add(d.alpha ?? [], pick.dex) : (d.alpha ?? []) };
+  return { ...d, seen: add(d.seen, pick.dex), caught: add(d.caught, pick.dex), shiny: pick.shiny ? add(d.shiny, pick.dex) : d.shiny, alpha: pick.alpha ? add(d.alpha ?? [], pick.dex) : (d.alpha ?? []),
+    male: pick.gender === "m" ? add(d.male ?? [], pick.dex) : (d.male ?? []), female: pick.gender === "f" ? add(d.female ?? [], pick.dex) : (d.female ?? []) };
 }
 // Pokémon you caught, as they are now (`picks`: every saved one): one that evolved since is that
 // species caught too, as the games register an evolution (and its shiny or Alpha with it), and so
@@ -316,7 +321,8 @@ export function withEvolved(d, picks) {
     // What it is now (with its shiny or Alpha), then each stage before it not in yet, back to one
     // that is (the one it was caught as, or an earlier catch of that line).
     const newShiny = p.shiny && !next.shiny.includes(p.dex), newAlpha = p.alpha && !(next.alpha ?? []).includes(p.dex);
-    if (!next.caught.includes(p.dex) || newShiny || newAlpha) next = withCaught(next, p);
+    const newGender = (p.gender === "m" && !(next.male ?? []).includes(p.dex)) || (p.gender === "f" && !(next.female ?? []).includes(p.dex));
+    if (!next.caught.includes(p.dex) || newShiny || newAlpha || newGender) next = withCaught(next, p);
     // Only one that evolved since it was caught (`caughtAs`, or for one caught before that was
     // kept, an evolvedAt): an Emboar caught as an Emboar has no Tepig behind it.
     if (p.caughtAs === p.dex || (p.caughtAs === undefined && !p.evolvedAt)) continue;
