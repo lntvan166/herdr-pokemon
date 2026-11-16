@@ -69,3 +69,13 @@ test("a size is feel, not strength: small ones dodge, big ones are heavy", async
   assert.equal(knockMul(undefined, undefined), 1);
   assert.equal(knockMul(1.5, 0.5), 1.6);
 });
+
+test("a size is said only when it is a record: an XXL biggest yet, an XXS smallest yet", async () => {
+  const { recordSize } = await import("../mods/pokemon-herd/weather.js");
+  assert.equal(recordSize({}, { dex: 25, size: 1.0 }), null); // average: never
+  assert.equal(recordSize({}, { dex: 25, size: 1.2 }), null); // XL: never
+  assert.equal(recordSize({}, { dex: 25, size: 1.4 }), "XXL"); // the first one caught
+  assert.equal(recordSize({ 25: [0.9, 1.45] }, { dex: 25, size: 1.4 }), null); // not the biggest
+  assert.equal(recordSize({ 25: [0.9, 1.35] }, { dex: 25, size: 1.4 }), "XXL");
+  assert.equal(recordSize({ 25: [0.6, 1.2] }, { dex: 25, size: 0.55 }), "XXS");
+});

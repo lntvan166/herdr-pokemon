@@ -31,7 +31,7 @@ import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
-import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul } from "./weather.js";
+import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -495,6 +495,11 @@ const alphaGlow = (mid, ground, box, scale, shadow = false) => {
     })));
 };
 // The α in an Alpha's name tag (before its name).
+// The shiny mark, in colour as the games draw it (Herdr's font draws ✨ in one colour, the text's).
+const SHINY_GOLD = "#ffd23f";
+// A line with ✨ in it: each ✨ gold, the rest as the text around it.
+const sparkled = (text) => (typeof text !== "string" || !text.includes("✨") ? text
+  : h_flex().min_w(0).items_center().children(text.split(/(✨)/).filter(Boolean).map((part) => part === "✨" ? div().flex_none().text_color(SHINY_GOLD).child("✨") : div().flex_none().child(part))));
 const alphaTag = () => div().flex_none().h(12).px(3).rounded(3).flex().items_center().bg(ALPHA_RED).text_size(9).font_bold().text_color("#ffffff").child("α");
 const alphaMark = (x, y) => div().absolute().left(x).top(Math.max(0, y)).h(14).px(3).rounded(4).flex().items_center()
   .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α");
@@ -1583,6 +1588,7 @@ export default class PokemonHerd extends View {
     v.nature = pick.nature;
     savePicks({ [`box-${now}-${pick.dex}`]: pick });
     if (v.raid) { const r = loadRaid(shared(RAID_KEY)); if (r?.id === v.raid) setShared(RAID_KEY, { ...r, caught: Date.now() }); }
+    v.recordTag = recordSize(pokedex().sizes, pick); // an XXL/XXS beating its species' record
     const dx = withCaught(pokedex(), pick);
     v.record = withRecord(dx.sizes, pick); // its species' biggest or smallest yet
     saveDex(v.record ? { ...dx, sizes: v.record } : dx);
@@ -1747,7 +1753,7 @@ export default class PokemonHerd extends View {
         const tagW = 260;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
-          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${sizeClass(v.pick.size) ? `${sizeClass(v.pick.size)} ` : ""}${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""} → Box${v.recordTag ? ` · ${v.recordTag}, the ${v.recordTag === "XXL" ? "biggest" : "smallest"} yet!` : ""}${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
       }
       return;
     }
@@ -1771,9 +1777,10 @@ export default class PokemonHerd extends View {
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
             .child(alphaTag())
             .child(div().text_size(10.5).text_color(v.pick.shadow ? "#c08aff" : t.muted).child(`${v.pick.shadow ? "Shadow " : ""}${fullName(v.pick.dex, v.pick.form)}`)))))
-        // An XXL or XXS one: its size under its feet, so it's never taken for an Alpha.
-        .when(!v.pick.alpha && !!sizeClass(v.pick.size) && sizeClass(v.pick.size).length === 3, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
-          .child(div().h(LABEL_H).px(5).rounded(4).flex().items_center().bg(t.chrome).text_size(10.5).font_bold().text_color(t.muted).child(sizeClass(v.pick.size)))))
+        // An XXL or XXS that would be its species' biggest or smallest yet: that, under its feet.
+        // Any other's size is only in the Box.
+        .when(!v.pick.alpha && !!(v.sizeTag ??= recordSize(pokedex().sizes, v.pick) ?? ""), (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
+          .child(div().h(LABEL_H).px(5).rounded(4).flex().items_center().bg(t.chrome).text_size(10.5).font_bold().text_color("#ffd23f").child(`${v.sizeTag} · ${v.sizeTag === "XXL" ? "biggest" : "smallest"} yet`))))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
@@ -1824,7 +1831,7 @@ export default class PokemonHerd extends View {
     const onStrip = v.x >= 0 && v.x <= this.width;
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = 330;
-      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}${sizeClass(v.pick.size)?.length === 3 ? ` · ${sizeClass(v.pick.size)}` : ""}`;
+      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -1832,7 +1839,7 @@ export default class PokemonHerd extends View {
         : ": no Poké Balls (the Shop has them)";
       root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-        .child(`${what}${hp < 1 ? ` (${Math.round(hp * 100)}%)` : ""}${tail}`));
+        .child(sparkled(`${what}${hp < 1 ? ` (${Math.round(hp * 100)}%)` : ""}${tail}`)));
     }
   }
 
@@ -3089,11 +3096,11 @@ export default class PokemonHerd extends View {
       // Hovered: this one's own jobs ("Pikachu · api · ♥2 · 7 jobs"), not its species' totals
       // (a new Rayquaza showed every Rayquaza's "13 done", as if it had kept them).
       const line = full ? `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}` : "";
-      const hearts = (full && pick.hearts ? ` · ♥${pick.hearts}` : "") + (full && natureOf(pick) ? ` · ${natureOf(pick).name}` : "");
+      const hearts = full && pick.hearts ? ` · ♥${pick.hearts}` : ""; // its nature, size…: in the Box
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       // What it says it's doing stays on the cards: here it ran across the whole strip.
-      const text = full ? `${sizeClass(pick.size)?.length === 3 ? `${sizeClass(pick.size)} ` : ""}${pick.alpha ? "Alpha " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const text = full ? `${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -3312,7 +3319,7 @@ export default class PokemonHerd extends View {
               .child(
                 div().min_w(0).truncate().text_size(10.5)
                   .text_color(hovered || a.focused ? t.foreground : t.muted)
-                  .child(label(a)),
+                  .child(sparkled(label(a))),
               ),
           ))
           // Hovered: its full name ("Pikachu · api") floats over its neighbours' tags.
@@ -3327,7 +3334,7 @@ export default class PokemonHerd extends View {
                 .rounded(5).bg(t.popover).border_1().border_color(t.border)
                 .child(div().flex_none().size(6).rounded_full().bg(t[a.status] ?? t.idle))
                 .when(!!pick.alpha, (e2) => e2.child(alphaTag()))
-                .child(div().min_w(0).truncate().text_size(10.5).text_color(t.foreground).child(full)),
+                .child(div().min_w(0).truncate().text_size(10.5).text_color(t.foreground).child(sparkled(full))),
             );
           })
       );
@@ -3449,7 +3456,7 @@ export default class PokemonHerd extends View {
       .child(v_flex().flex_1().min_w(0).gap(1)
         .child(div().truncate().font_semibold().text_size(13).text_color(t.foreground).child(p.title ?? ""))
         .when(!!pick || !!p.body, (el) => el.child(div().truncate().text_size(12).text_color(t.muted)
-          .child(pick ? `${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}${p.body ? ` · ${p.body}` : ""}` : p.body))));
+          .child(sparkled(pick ? `${pick.shiny ? "✨ " : ""}${fullName(pick.dex, pick.form)}${p.body ? ` · ${p.body}` : ""}` : p.body)))));
   }
 
   // ---- the Party panel (a block with props { view: "party" }; Settings → Party panel) ----
@@ -3541,7 +3548,7 @@ export default class PokemonHerd extends View {
             .child(div().flex_1().min_w(0).truncate().text_size(14.5).font_semibold().text_color(t.foreground).child(tagOf(a, tabs)))
             .child(this.partyStatus(t, a.status)))
           .child(h_flex().gap(6).items_center().text_size(11)
-            .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.held ? ` ${ITEMS[pick.held].icon}` : ""}`))
+            .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.held ? ` ${ITEMS[pick.held].icon}` : ""}`)))
             .child(h_flex().flex_none().gap(2).items_center()
               .child(div().text_color(c.hearts ? HEART : t.border).child("♥"))
               .child(div().text_color(t.muted).child(String(c.hearts))))
@@ -4152,7 +4159,7 @@ export default class PokemonHerd extends View {
         .child(div().w_full().px(3).text_center().truncate().text_size(11).text_color(t.foreground).child(x.pick.nick ?? nameOf(x.pick.dex)))
         .child(div().w_full().px(3).text_center().truncate().text_size(10).text_color(x.tag ? t.accent : t.muted)
           .child(x.tag ? x.tag : `♥ ${heartsText(friendOf(x.pick))}`))
-        .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
+        .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).text_color(SHINY_GOLD).child("✨")))
         .when(!!x.pick.alpha, (el) => el.child(alphaMark(x.pick.shiny ? 20 : 5, 4)))
         .when(!!x.pick.shadow, (el) => el.child(div().absolute().top(38).left(5).size(8).rounded_full().bg("#9a5aff")))
         .when(!!x.pick.gender, (el) => el.child(div().absolute().top(40).left(x.pick.shadow ? 16 : 5).text_size(11).font_bold().text_color(GENDER_COLOR[x.pick.gender]).child(genderMark(x.pick.gender))))
@@ -4177,7 +4184,7 @@ export default class PokemonHerd extends View {
           .child(v_flex().flex_1().min_w(0).gap(2)
             .child(this.renaming === slot
               ? Input.new(this.nickInput).h(26).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12.5).text_color(t.foreground)
-              : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""}${tag ? ` · with ${tag}` : ""}`))
+              : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""}${tag ? ` · with ${tag}` : ""}`)))
             .child(div().text_size(11.5).text_color(t.muted).truncate().child(facts))))
         .child(h_flex().gap(6).flex_wrap().items_center()
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).
@@ -4234,7 +4241,7 @@ export default class PokemonHerd extends View {
             .text_size(11.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; this.boxSel = null; cx.notify(); })
             .child(icon(x.pick, 20))
-            .child(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`)))));
+            .child(sparkled(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`))))));
     };
     return v_flex().id("bag-box").flex_none().h(h).gap(8)
       .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
@@ -4461,7 +4468,7 @@ export default class PokemonHerd extends View {
           .child(
             v_flex().flex_1().min_w(0).gap(2)
               .child(h_flex().gap(6).items_center()
-                .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`))
+                .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`)))
                 .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
               .child(h_flex().min_w(0).gap(1).items_center()
@@ -4564,7 +4571,7 @@ export default class PokemonHerd extends View {
       .child(h_flex().gap(10).items_center()
         .child(v_flex().flex_1().min_w(0).gap(2)
           .child(h_flex().gap(6).items_center()
-            .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`))
+            .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`)))
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
           .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research calls one), or open them all in Settings."
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
@@ -4601,7 +4608,7 @@ export default class PokemonHerd extends View {
           .when(!!b.alpha, (el) => el.child(div().h(16).px(4).rounded(4).flex().items_center().flex_none()
             .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α Alpha")))
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground)
-            .child([`${b.shiny ? "✨ " : ""}${nameFor(b)}`, `♥ ${heartsText(friendOf(b))}`, natureOf(b)?.name, `${b.jobs ?? 0} jobs`].filter(Boolean).join(" · ")))
+            .child(sparkled([`${b.shiny ? "✨ " : ""}${nameFor(b)}`, `♥ ${heartsText(friendOf(b))}`, natureOf(b)?.name, `${b.jobs ?? 0} jobs`].filter(Boolean).join(" · "))))
           .when(!!b.held, (el) => el.child(this.itemMark(b.held, 18)))
           .when(!!b.caught, (el) => el.child(this.itemMark(b.ball ?? "poke-ball", 16)))
           .child(button(`bring-${slot}`, "Bring out", false, () => { this.preview = null; this.choose(pv, { slot }); }))))))
@@ -4793,7 +4800,7 @@ export default class PokemonHerd extends View {
                   .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)))
                   .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")))
                   .when(lockedHere(e), (el) => el.opacity(0.4).child(div().absolute().top(4).left(6).text_size(11).child("🔒")))
-                  .when(!lockedHere(e) && !e.form && shinyUnlocked(dexNow, e.dex), (el) => el.child(div().absolute().top(4).left(6).text_size(11).child("✨")));
+                  .when(!lockedHere(e) && !e.form && shinyUnlocked(dexNow, e.dex), (el) => el.child(div().absolute().top(4).left(6).text_size(11).text_color(SHINY_GOLD).child("✨")));
               })));
             }
             return rows;

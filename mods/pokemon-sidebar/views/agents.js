@@ -775,7 +775,9 @@ export class Agents {
               .gap(6)
               .items_center()
               .text_size(TEXT.caption)
-              .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(`${card.shiny ? "✨ " : ""}${card.name ?? ""}`))
+              // Shiny: ✨ in gold, as the games draw it (the font draws it in the text's colour).
+              .when(!!card.shiny, (el) => el.child(div().flex_none().text_color("#ffd23f").child("✨")))
+              .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(card.name ?? ""))
               .when(Boolean(card.warn), (el) => el.child(
                 div().id(`warn-${a.address}`).flex_none().text_color(t.working).tooltip(card.warn).child("⚔"),
               ))

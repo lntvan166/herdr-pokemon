@@ -80,6 +80,14 @@ export function withRecord(records, pick) {
   if (cur && s >= cur[0] && s <= cur[1]) return null;
   return { ...(records ?? {}), [pick.dex]: cur ? [Math.min(cur[0], s), Math.max(cur[1], s)] : [s, s] };
 }
+// Worth saying: an XXL or XXS that is (or would be, caught) its species' biggest or smallest
+// yet. Anything else's size is only in the Box. "XXL" / "XXS", or null.
+export function recordSize(records, pick) {
+  const c = sizeClass(pick?.size);
+  if (c !== "XXL" && c !== "XXS") return null;
+  const cur = records?.[pick.dex];
+  return !cur || (c === "XXL" ? pick.size > cur[1] : pick.size < cur[0]) ? c : null;
+}
 // "XXL · 1.42× its species' size", and whether it is the species' record.
 export function sizeText(size, record = null) {
   const c = sizeClass(size);

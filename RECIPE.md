@@ -168,7 +168,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   XL 1/8, XXL 1/40 (1.3–1.5), else 0.9–1.1. Feel, not strength (that's an Alpha's): moves miss an
   XXS 1 in 8, an XS 1 in 12 (`sizeMiss`, `pickMove` `targetSize`); a blow knocks back by the
   hitter's size over the target's (`knockMul`, 0.6–1.6, a blow's `kb`). Drawn ×`drawSize` (0.3 of
-  the difference: ×1.15 at most) with XXL/XXS under a wild one's feet, never taken for an Alpha;
+  the difference: ×1.15 at most) never taken for an Alpha; its size shown only in the Box, unless an XXL/XXS would be its species'
+  biggest/smallest yet (`recordSize`: under a wild one's feet, on the Gotcha line);
   kept when caught (`size`), shown on its Box tile and in its facts; the Pokédex keeps each
   species' smallest and biggest (`sizes`, `withRecord`).
 - **Shadow Alphas** (`SHADOW_SHARE` 1 in 3 Alphas; `shadow: true`): dark violet flames behind it and
