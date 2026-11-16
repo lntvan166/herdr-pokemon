@@ -22,6 +22,7 @@ import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, v
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
+import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
@@ -54,6 +55,8 @@ const DAILY_KEY = `${MOD}-daily`; // the day's Research (trainer.js loadDaily)
 const AUTO_KEY = `${MOD}-auto-update`; // { tried: version, at }: the version last updated to by itself
 const UPDATED_KEY = `${MOD}-updated`; // { from, to, at }: just updated by itself (the strip says so)
 const BALL_KEY = `${MOD}-ball`; // the ball chosen to throw (Bag, or right-click a visitor); none: Auto
+const RAID_KEY = `${MOD}-raid`; // the raid on now (events.js), the same in every window
+const OUTBREAK_KEY = `${MOD}-outbreak`; // an outbreak called on top of the day's: { dex, from, until }
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
@@ -228,7 +231,7 @@ function updatePick(slot, f) {
 // dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
 let dev = null;
 import("./dev.js").then((m) => { dev = m; }, () => {});
-const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t) => openBag(t) };
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t) => openBag(t), herdAgents: () => herdAgents(), picks: () => savedPicks() };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => loadDex(shared(DEX_KEY));
@@ -398,8 +401,9 @@ const ART_READY = new Set();
 const ART_ASKED = new Set();
 // Every item's art, looked up (and fetched if missing) once; resolves when they're all known.
 let artAll = null;
+const EGG_ART = "pokemon/egg"; // a raid's egg
 function readyArt() {
-  artAll ??= Promise.all(Object.values(ITEMS).map((x) => x.art).map((a) => ensureArt(a).then(() => { ART_READY.add(a); ART_ASKED.add(a); }).catch(() => null)));
+  artAll ??= Promise.all([...Object.values(ITEMS).map((x) => x.art), EGG_ART].map((a) => ensureArt(a).then(() => { ART_READY.add(a); ART_ASKED.add(a); }).catch(() => null)));
   return artAll;
 }
 // What the right-click menu offers from the Bag: the balls and catching Berries there are (and
@@ -720,7 +724,11 @@ export default class PokemonHerd extends View {
     m.run = c.run;
     if (!this.leader) return; // another strip counts
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
-    if (c.ms && a.pane) research("work", c.ms / 60000);
+    if (c.ms && a.pane) {
+      const before = dailyNow().count.work ?? 0;
+      research("work", c.ms / 60000);
+      this.raidEgg(before, dailyNow().count.work ?? 0, now); // every 4 hours of work, an egg
+    }
     if (!c.job) return;
     if (a.pane) research("job", 1, pick?.dex); // the day's Research: a job, and its Pokémon's type
     // Paid for the job, by how long it took (twice with an Amulet Coin): "+₽25" over its head.
@@ -810,8 +818,12 @@ export default class PokemonHerd extends View {
   // Visitors (Settings → Visitors): now and then a wild Pokémon nobody has walks across a row,
   // edge to edge, and is gone. Idle ones near it turn to watch it go by. Returns whether to redraw.
   visit(list, ids, g, now, cx) {
-    const every = VISIT_EVERY[settingsNow().visitors]; // [from, to] minutes; null: off
-    if (!every || !this.sized || this.width < 200) { this.visitor = null; return false; }
+    const pace = VISIT_EVERY[settingsNow().visitors]; // [from, to] minutes; null: off
+    if (!pace || !this.sized || this.width < 200) { this.visitor = null; return false; }
+    // A Mass Outbreak (events.js): its species walks by every 2–3 minutes while it lasts.
+    const outbreak = settingsNow().outbreaks ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
+    const every = outbreak ? outbreakPace(pace) : pace;
+    if (outbreak && this.outbreakFrom !== outbreak.from) { this.outbreakFrom = outbreak.from; this.visitAt = Math.min(this.visitAt ?? Infinity, now + 15000); }
     const next = () => now + rand(every[0], every[1]) * 60000;
     // The first within 5 minutes; a faster pace chosen since: the next one comes at that pace.
     if (this.visitAt === undefined || this.visitAt > now + every[1] * 60000) this.visitAt = Math.min(next(), now + rand(2, 5) * 60000);
@@ -827,9 +839,12 @@ export default class PokemonHerd extends View {
     const legend = shared(LEGEND_KEY) ?? 0;
     if (this.legendSeen !== undefined && legend > this.legendSeen) { this.legendNext = true; this.coming = "legend"; if (!v) this.visitAt = now; }
     this.legendSeen = legend;
-    if (!v && now >= this.visitAt) {
-      const pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught) });
+    // A raid on: no other visitors meanwhile (its boss is the one to watch).
+    const raidOn = ["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now));
+    if (!v && now >= this.visitAt && !raidOn) {
+      let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught) });
       this.legendNext = false;
+      if (outbreak) pick = outbreakPick(pick, outbreak);
       dev?.wild?.(pick, devApi); // dev.js: a wild one asked for
       const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
       if (seen) saveDex(seen);
@@ -969,6 +984,11 @@ export default class PokemonHerd extends View {
       times.push(f.at, f.hitAt, f.backAt, f.backLaunch, f.backHit, f.backHit + 70);
       if (f.blow) blowTimes(f.blow);
     }
+    // A raid's blows: each hit, the boss's answer, the push back.
+    for (const b of this.bossBlows ?? []) blowTimes(b);
+    const raid = loadRaid(shared(RAID_KEY));
+    for (const h of raid?.hits ?? []) times.push(h.at, h.at + 150, h.at + 450, h.at + COUNTER_MS, h.at + COUNTER_MS + 350, h.at + COUNTER_MS + 470);
+    for (const m of Object.values(this.mons ?? {})) if (m.raidPush) times.push(m.raidPush.at);
     if (v?.throw) {
       const a = v.throw.at;
       times.push(a + THROW_UP, a + THROW_UP + THROW_DOWN, a + throwEnd(v.throw.shakes), a + throwEnd(v.throw.shakes) + 520);
@@ -982,7 +1002,193 @@ export default class PokemonHerd extends View {
     }
     // Forget old ones: blows, effects drawn.
     for (const m of Object.values(this.mons ?? {})) if (m.blows?.length) m.blows = m.blows.filter((b) => now < b.at + 3000);
+    if (this.bossBlows?.length) this.bossBlows = this.bossBlows.filter((b) => now < b.at + 3000);
     if (this.fxSeen) for (const [id, at] of this.fxSeen) if (now - at > 15000) this.fxSeen.delete(id);
+  }
+
+  // ---- raids (events.js) ----
+  // A fighter's key for a pick, as it looks in a battle (its Mega, its regional form).
+  keyFor(pick) {
+    return fighterKey(pick.dex, { form: pick.form, mega: megaShown(pick, "working") ? (megaForm(pick.dex, pick.megaKind)?.kind ?? "") : null });
+  }
+  // The day's work went from `before` to `after` minutes (the counting strip): every 2½ hours of
+  // work per agent (2 a day at most), with none on, an egg; its boss as sturdy as the agents working.
+  raidEgg(before, after, now) {
+    if (!settingsNow().raids) return;
+    const r = loadRaid(shared(RAID_KEY));
+    if (!laysEgg(before, after, raidPhase(r, now), herdAgents().filter((x) => x.pane).length)) return;
+    const agentsNow = herdAgents().filter((x) => x.pane && x.status === "working").length; // its bulk: by the agents working
+    setShared(RAID_KEY, newRaid(now, Math.random, { caught: new Set(pokedex().caught), agents: agentsNow }));
+  }
+  // One of yours (`a`, its agent; `pick`) hits the boss at `at` (harder while its agent works).
+  raidStrike(a, pick, at) {
+    const r = loadRaid(shared(RAID_KEY));
+    if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
+    const key = this.keyFor(pick);
+    const live = savedPicks()[a.pane] ?? pick;
+    const { raid } = raidHit(r, key, a.pane, bestType(key, r.boss.dex), at, Math.random, { alpha: !!live.alpha, hearts: live.hearts ?? 0, working: a.status === "working", drop: true });
+    setShared(RAID_KEY, raid);
+    if (raid.beaten) this.raidWon(raid);
+  }
+  // Beaten: paid once (money, Ultra Balls), wherever the last blow landed.
+  raidWon(r) {
+    if (r.paid) return;
+    payOut(raidReward(r.boss));
+    setShared(RAID_KEY, { ...r, paid: true });
+  }
+  // Every strip: its boss's sprite fetched; each hit played out (yours fires its type at the boss,
+  // which flinches; then the boss fires back, and yours is knocked away from it and loses health);
+  // beaten, the boss walks off weakened, to be caught. Returns whether to redraw.
+  raidTick(list, ids, now, cx) {
+    const r = loadRaid(shared(RAID_KEY));
+    const ph = raidPhase(r, now);
+    if (!ph) return false;
+    const pick = bossPick(r.boss);
+    this.want(pick, cx);
+    const bx = this.width / 2;
+    // The egg's picture (PokeAPI), fetched once.
+    if (!ART_ASKED.has(EGG_ART)) { ART_ASKED.add(EGG_ART); ensureArt(EGG_ART).then(() => { ART_READY.add(EGG_ART); }).catch(() => null); }
+    const hiX = Math.max(EDGE, this.width - EDGE);
+    this.raidSeen ??= new Set();
+    for (const h of r.hits) {
+      const k = `${r.id}-${h.at}`;
+      if (this.raidSeen.has(k)) continue;
+      this.raidSeen.add(k);
+      if (now - h.at > 2500) continue;
+      const a = list.find((x) => x.pane === h.pane);
+      const m = a && this.mons[a.address];
+      if (!m) continue;
+      // It stops where it is (or where it's headed), faces the boss and lets fly.
+      const x = m.moving ? m.target : m.x;
+      m.x = m.from = m.target = x;
+      m.moving = false;
+      m.dur = 150;
+      m.dir = bx > x ? "r" : "l";
+      const meta = this.spriteFor(ids[a.address], a.status);
+      const has = new Set(Object.keys(meta?.react ?? {}));
+      const sp = reactionAnim("special", has) ?? reactionAnim("spar", has);
+      const ms = sp && meta?.react?.[sp] ? Math.max(600, meta.react[sp].ms) : 700;
+      const land = h.at + 450;
+      const seq = [{ at: h.at, until: h.at + ms, anim: sp }];
+      const blue = h.key === "6mX";
+      (this.bossBlows ??= []).push({ at: land, dir: bx > x ? 1 : -1, p: power(h.eff), style: moveStyle(h.type, blue), word: effectWord(h.eff) });
+      if (h.back) {
+        // The boss's answer lands on it; it's thrown back, away from the boss.
+        const hitBackAt = h.at + COUNTER_MS + 350;
+        seq.push({ at: hitBackAt, until: hitBackAt + 600, anim: reactionAnim("startle", has) });
+        (m.blows ??= []).push({ at: hitBackAt, dir: bx > x ? -1 : 1, p: Math.max(0.85, power(h.back.eff)), style: moveStyle(h.back.type), word: effectWord(h.back.eff) });
+        // Away from the boss: to BOSS_PUSH from it, or 30 px further if it stood further off already.
+        const away = x < bx ? Math.min(x - 30, bx - BOSS_PUSH) : Math.max(x + 30, bx + BOSS_PUSH);
+        m.raidPush = { at: hitBackAt + 120, to: clamp(away, EDGE, hiX), back: h.back.dmg };
+      }
+      m.react = { seq, until: (h.back ? h.at + COUNTER_MS + 1100 : h.at + ms + 200), face: m.dir, shot: { at: h.at + 150, until: land, from: x, to: bx, move: { type: h.type, eff: h.eff, blue } } };
+      m.pauseUntil = h.at + 6000;
+      m.battleUntil = h.at + 6000; // it Mega Evolves for it
+    }
+    // Thrown back: it slides away from the boss and loses health (at 0 it faints and rests).
+    for (const m of Object.values(this.mons)) {
+      const p = m.raidPush;
+      if (!p || now < p.at) continue;
+      m.raidPush = null;
+      clearWalk(m);
+      m.from = m.x;
+      m.target = p.to;
+      m.start = now;
+      m.dur = 420;
+      m.moving = true;
+      m.backstep = true;
+      const hp = Math.max(0, ownHp(m, now) - p.back);
+      m.hp = hp;
+      m.hpAt = now;
+      if (hp <= 0.001) { m.restUntil = now + RAID_REST; m.react = { anim: null, until: now + 3000, icon: "💫" }; }
+    }
+    // Beaten: the boss walks off slowly, a sliver of health, for the Ultra Balls it paid.
+    if (ph === "beaten" && !r.caught && this.raidVisitor !== r.id) {
+      this.raidVisitor = r.id;
+      const dir = Math.random() < 0.5 ? "r" : "l";
+      const to = dir === "r" ? this.width + OFF : -OFF;
+      this.visitor = { id: `raid-${r.id}`, purse: 0, pick, dir, row: 0, from: bx, to, start: 0, dur: (Math.abs(to - bx) / (VISIT_SPEED / 2)) * 1000, asked: now,
+        gift: "ultra-ball", giftN: 0, giftAt: now - 5000, raid: r.id };
+      const seen = withSeen(pokedex(), [pick.dex]);
+      if (seen) saveDex(seen);
+    }
+    return true;
+  }
+
+  // The raid in the strip: the egg (wobbling as it's about to hatch), or the boss (big, its health
+  // bar, its blows), and a note in the corner.
+  renderRaid(root, grounds, scale, now, t) {
+    const r = loadRaid(shared(RAID_KEY));
+    const ph = settingsNow().raids ? raidPhase(r, now) : null;
+    if (!ph) return 0;
+    const ground = grounds[0];
+    const bx = this.width / 2;
+    const name = `${r.boss.alpha ? "Alpha " : ""}${r.boss.shiny ? "✨ " : ""}${fullName(r.boss.dex)}`;
+    const mins = (ms) => `${Math.max(1, Math.ceil(ms / 60000))}m`;
+    const note = ph === "egg" ? `🥚 Raid egg · hatches in ${mins(r.hatch - now)}`
+      : ph === "battle" ? `⚔ Raid: ${name} · ${mins(r.until - now)} left · drag yours onto it (each once a minute)`
+      : ph === "beaten" ? (r.caught ? `⚔ Raid won: ${name} caught!` : `⚔ Raid won! ${money(raidReward(r.boss).money)}, 3 Ultra Balls · catch it before it's gone`)
+      : `${name} got away…`;
+    root.child(div().id("pokemon-raid").absolute().left(6).top(4).h(16).px(6).rounded(8)
+      .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(ph === "gone" ? "#c8ccd4" : "#ffd23f")
+      .when(ph === "egg" || ph === "battle", (el) => el.loop("opacity", { from: 0.7, to: 1, period: 1400 }))
+      .child(note));
+    if (ph === "egg") {
+      // The games' Egg (PokeAPI's sprite: 96 px, the egg itself 28×30 at 34,34), on the ground.
+      const soon = r.hatch - now < 30000;
+      const k = 1.2 * scale, d = 96 * k, x0 = bx - 48 * k;
+      root.child(div().id(`raid-egg-${r.id}`).absolute().left(x0).top(ground - 64 * k).w(d).h(d)
+        .when(soon, (el) => el.loop("left", { from: x0 - 2, to: x0 + 2, period: 260 }))
+        .child(ART_READY.has(EGG_ART) ? image(artPath(EGG_ART)).w(d).h(d)
+          : div().absolute().left(34 * k).top(34 * k).w(28 * k).h(30 * k).rounded_full().bg("#f4efe4").border_1().border_color("#3a3328")));
+      return 1;
+    }
+    if (ph !== "battle") return 1;
+    const meta = this.spriteFor(bossPick(r.boss), "idle");
+    if (!meta?.walkR) return 1;
+    // It faces whoever hit it last; flinches as a blow lands; turns and strikes as it answers.
+    const xOf = (pane) => { const a = herdAgents().find((x) => x.pane === pane); const m = a && this.mons[a.address]; return m ? (m.moving ? m.target : m.x) : null; };
+    const last = [...r.hits].reverse().find((h) => h.at <= now);
+    const lx = last ? xOf(last.pane) : null;
+    const face = lx === null ? null : lx > bx ? "R" : "L";
+    const answering = last?.back && now >= last.at + COUNTER_MS - 250 && now < last.at + COUNTER_MS + 450;
+    const flinching = last && now >= last.at + 450 && now < last.at + 1000;
+    const pickAnim = (...names) => names.map((n) => meta.react?.[`${n}${face ?? ""}`] ?? meta.react?.[n]).find(Boolean);
+    const s = (answering && face ? pickAnim("SpAttack", "Shoot", "Attack") : flinching && face ? pickAnim("Hurt") : null)
+      ?? (face ? meta[`idle${face}`] : null) ?? meta.idleD ?? meta.idleL;
+    const k = scale * BOSS_SIZE;
+    const mid = SLOT / 2;
+    const headY = ground - s.box.h * k;
+    const body = div()
+      .child(div().absolute().left(mid - s.box.w * 0.4 * k).top(ground - 3 * k).w(s.box.w * 0.8 * k).h(6 * k).rounded_full().bg("#00000035"))
+      .when(!!r.boss.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, k)))
+      .child(image(s.path).absolute().left(mid - (s.box.x + s.box.w / 2) * k).top(ground - (s.box.y + s.box.h) * k).w(s.w * k).h(s.h * k));
+    const barW = 80;
+    const hpColor = r.hp > 0.5 ? "#46c46a" : r.hp > 0.2 ? "#e8b062" : "#e5484d";
+    root.child(div().id(`raid-boss-${r.id}`).absolute().top(0).h(ground + 10).w(SLOT).left(bx - mid)
+      .child(this.withBlows(`boss-${r.id}`, this.bossBlows, body, mid, headY, ground, now))
+      .child(div().absolute().left(mid - barW / 2).top(Math.max(2, headY - 10)).w(barW).h(6).rounded(3).bg("#00000088").overflow_hidden()
+        .child(div().h_full().w(Math.max(2, Math.round(barW * r.hp))).bg(hpColor).transition("width", { duration: 400, easing: "ease-out" }))));
+    // The boss's answers, flying at whoever hit it.
+    for (const h of r.hits) {
+      if (!h.back) continue;
+      const a = herdAgents().find((x) => x.pane === h.pane);
+      const m = a && this.mons[a.address];
+      const from = h.at + COUNTER_MS, until = from + 350;
+      if (!m || now < from || now >= until + 60) continue;
+      const tx = m.moving ? m.from : m.x;
+      const key = `bossshot-${r.id}-${h.at}`;
+      const first = this.fxFirst(key);
+      const dir = tx > bx ? 1 : -1;
+      root.child(fxShot(key, moveStyle(h.back.type), bx + dir * 22, tx - dir * 12, Math.round((headY + ground) / 2), until - now, first));
+    }
+    return 1;
+  }
+
+  // The raid's boss in battle, on the first row, near enough to `m` (dropped there) to be hit.
+  raidNear(m, row, now) {
+    if (!settingsNow().raids || row !== 0) return false;
+    return raidPhase(loadRaid(shared(RAID_KEY)), now) === "battle" && Math.abs(m.x - this.width / 2) <= 90;
   }
 
   // A wild one walking by on `row`, near enough to `m` (dropped there) to be attacked; not while
@@ -1001,6 +1207,7 @@ export default class PokemonHerd extends View {
     const pick = caughtPick(v.pick, now, Math.random, v.throw?.ball);
     v.nature = pick.nature;
     savePicks({ [`box-${now}-${pick.dex}`]: pick });
+    if (v.raid) { const r = loadRaid(shared(RAID_KEY)); if (r?.id === v.raid) setShared(RAID_KEY, { ...r, caught: Date.now() }); }
     saveDex(withCaught(pokedex(), pick));
     research("catch");
     payDexGoals();
@@ -1704,10 +1911,41 @@ export default class PokemonHerd extends View {
       o.moving = false;
       o.dur = 150;
     };
-    if (dm && dMeta && drop.dizzy) {
+    const onBoss = dm && dMeta && this.raidNear(dm, rowAt(list[dj], dj), now); // a quick drag onto the boss isn't a shake
+    if (dm && dMeta && drop.dizzy && !onBoss) {
       dm.tease = null;
       onDizzy(dm, now, hasOf(dMeta), msFor(dMeta));
       dm.pauseUntil = dm.react.until + rand(1000, 3000);
+      changed = true;
+    } else if (onBoss) {
+      // Dropped on the raid's boss: it steps off and hits it, once a minute each (one whose agent
+      // is working, harder); the boss answers (raidTick). Too soon: how long to wait; resting: 💫.
+      const r = loadRaid(shared(RAID_KEY));
+      const pane = list[dj].pane;
+      const wait = pane ? cooldownLeft(r, pane, now) : 0;
+      const resting = now < (dm.restUntil ?? 0);
+      if (!pane || resting || wait > 0) {
+        // Not now: it says why, and hops back off the boss (no need to drag it away).
+        this.note(dm, resting ? `💫 rests ${Math.ceil((dm.restUntil - now) / 60000)}m` : `⏳ ${Math.ceil(wait / 1000)}s`, now, 3000);
+        const bx = this.width / 2;
+        clearWalk(dm);
+        dm.from = dm.x;
+        dm.target = clamp(bx + (dm.x < bx ? -1 : 1) * BOSS_PUSH, EDGE, hiFor(this.width));
+        dm.start = now;
+        dm.dur = 350;
+        dm.moving = true;
+        dm.backstep = true;
+      } else {
+        const spot = wildSpot(dm.x, this.width / 2, EDGE, hiFor(this.width), FX_GAP + 30);
+        clearWalk(dm);
+        dm.from = dm.x;
+        dm.target = spot;
+        dm.start = now;
+        dm.dur = 300;
+        dm.moving = true;
+        dm.backstep = true;
+        this.raidStrike(list[dj], ids[drop.addr], now + 320);
+      }
       changed = true;
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
       // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying; the
@@ -1834,6 +2072,7 @@ export default class PokemonHerd extends View {
       }
     }
     if (this.visit(list, ids, g, now, cx)) changed = true;
+    if (this.raidTick(list, ids, now, cx)) changed = true;
     if (this.leader && now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
     this.fxSchedule(cx, now);
@@ -2230,6 +2469,13 @@ export default class PokemonHerd extends View {
               })
               .child(sure ? "Sure? Unlock them all" : "Unlock all")),
       ),
+      heading("Events"),
+      panel(
+        line("Raids", "Every 2½ hours of work per agent in a day (2 at most), an egg; 5 minutes on, a boss: drag your Pokémon onto it, each once a minute (harder while its agent works). Beat it to catch it.",
+          swtch("set-raids", st.raids, () => setSetting("raids", !st.raids))),
+        line("Mass Outbreaks", "Once a day, one species walks by again and again for 20 minutes, shinies likelier.",
+          swtch("set-outbreaks", st.outbreaks, () => setSetting("outbreaks", !st.outbreaks))),
+      ),
       heading("Pokédex"),
       panel(line(`${d.caught.length} caught · ${d.seen.length} seen · ${d.shiny.length} shiny`, "A shiny caught can be chosen shiny in the picker. Goals pay balls and Master Balls.",
         button("open-dex", "Open Pokédex", true, () => openBag("dex")))),
@@ -2453,6 +2699,15 @@ export default class PokemonHerd extends View {
       (byRow[rowOf(a)] ??= []).push({ id: a.address, cx: headedTo(a), from: isAt(a), text: label(a), extra: ids[a.address]?.alpha ? 16 : 0, rank: rank(a), settled: was.has(a.address) && this.standing.has(a.address), since: this.since[a.address] });
     }
     for (const row of byRow) if (row) for (const [id, spot] of layoutTags(row, this.width, { maxLines: TAG_LINES })) tags.set(id, spot);
+    // A raid's battle on: over each of yours, how long till it can hit again, or its rest.
+    const raidNow = settingsNow().raids ? loadRaid(shared(RAID_KEY)) : null;
+    const raidBattle = raidPhase(raidNow, now) === "battle";
+    const raidBadge = (pane, m) => {
+      if (!raidBattle || !pane) return null;
+      if (now < (m.restUntil ?? 0)) return `💫 ${Math.ceil((m.restUntil - now) / 60000)}m`;
+      const w = cooldownLeft(raidNow, pane, now);
+      return w > 0 ? `⏳ ${Math.ceil(w / 1000)}s` : null;
+    };
     const heads = []; // per row, where each head and its bubble is: clouds and the moon fade there
     const outer = scale;
     for (const a of order) {
@@ -2575,6 +2830,9 @@ export default class PokemonHerd extends View {
             return el.child(fxShot(`shot-${a.address}-${sh.at}`, style, sw / 2 + dir * 14, sw / 2 + (sh.to - sh.from) - dir * 12,
               Math.round((headY + ground) / 2) - 2, sh.until - sh.drawnAt, first));
           })
+          // A raid on: whether it can hit the boss yet (⏳ 35s) or rests after fainting (💫 1m).
+          .when(!!raidBadge(a.pane, m), (el) => el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 30)).justify_center()
+            .child(div().px(5).h(15).rounded(5).bg("#000000a8").flex().items_center().text_size(10).font_semibold().text_color("#ffd23f").child(raidBadge(a.pane, m)))))
           // A find, a heart, a berry; or hungry, waiting on you too long.
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
@@ -2671,6 +2929,14 @@ export default class PokemonHerd extends View {
         .loop("opacity", { from: 0.55, to: 1, period: 700 })
         .child(`${rareOf(rv.pick).mark} ${rareOf(rv.pick).what} ${fullName(rv.pick.dex, rv.pick.form)} is walking by!`));
     }
+    // A Mass Outbreak on: its species and how long it lasts (under the raid's note, if one is on).
+    const ob = settingsNow().outbreaks && VISIT_EVERY[settingsNow().visitors] ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
+    if (ob) {
+      const under = settingsNow().raids && raidPhase(loadRaid(shared(RAID_KEY)), now);
+      root.child(div().id("pokemon-outbreak").absolute().left(6).top(under ? 22 : 4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color("#8fd3ff")
+        .child(`🌊 Outbreak: ${fullName(ob.dex)} · ${Math.max(1, Math.ceil((ob.until - now) / 60000))}m left · shinies 1 in 16`));
+    }
     // Called with Honey or the Azure Flute: on its way (the first time a species comes, its
     // sprite is fetched, which can take half a minute).
     if (this.coming) {
@@ -2680,6 +2946,7 @@ export default class PokemonHerd extends View {
         .loop("opacity", { from: 0.5, to: 1, period: 900 })
         .child(this.visitor?.start && this.coming === "legend" ? "✦ A legendary Pokémon comes after this one…" : txt));
     }
+    this.renderRaid(root, grounds, scale, now, t);
     this.renderVisitor(root, grounds, scale);
     // An effect drawn for the first time (where it starts): a frame right after sets it moving.
     if (this.fxKick) {
@@ -2917,7 +3184,7 @@ export default class PokemonHerd extends View {
         .child(daily.yesterday ? recapText(daily.yesterday) : "Today's Research: three tasks from your day's work. New ones at midnight."))
       .children(daily.tasks.map((x, i) => {
         const done = x.n >= x.goal;
-        return h_flex().id(`task-${i}`).h(64).px(14).gap(12).items_center().rounded(10).bg(t.raised)
+        return h_flex().id(`task-${i}`).h(58).px(14).gap(12).items_center().rounded(10).bg(t.raised)
           .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none()
             .bg(done ? t.accent : t.border).text_color(done ? t.accent_foreground : t.muted).text_size(13)
             .child(done ? "✓" : String(i + 1)))
@@ -2928,15 +3195,57 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11.5).text_color(t.muted).child(done ? "Done, paid" : shown(x)))))
           .child(reward(taskPay(x)));
       }))
-      .child(h_flex().h(64).px(14).gap(12).items_center().rounded(10).bg(t.raised).border_1().border_color(all ? t.accent : t.raised)
+      .child(h_flex().h(58).px(14).gap(12).items_center().rounded(10).bg(t.raised).border_1().border_color(all ? t.accent : t.raised)
         .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none().text_size(14)
           .when(!all, (el) => el.loop("opacity", { from: 0.4, to: 1, period: 1400 })).child("✦"))
         .child(v_flex().flex_1().min_w(0).gap(3)
           .child(div().text_size(13).text_color(t.foreground).child(all ? "All three done: a legendary Pokémon is on its way" : "All three: a legendary Pokémon walks by"))
           .child(div().text_size(11.5).text_color(t.muted).child(settingsNow().visitors === "off" ? "Visitors are off (Settings): it can't come." : "Have a Master Ball or an Ultra Ball ready.")))
         .child(reward(BONUS)))
+      // The day's events: how far to the next raid egg (or the raid on), and the day's outbreak.
+      .children(this.todayEvents(daily).map(([icon, title, sub, frac, live], k) => h_flex().id(`event-${k}`).h(50).px(14).gap(12).items_center().rounded(10).bg(t.raised)
+        .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none().text_size(14)
+          .when(!!live, (el) => el.loop("opacity", { from: 0.5, to: 1, period: 1100 })).child(icon))
+        .child(v_flex().flex_1().min_w(0).gap(4)
+          .child(div().text_size(12.5).text_color(t.foreground).truncate().child(title))
+          .child(h_flex().gap(8).items_center()
+            .when(frac !== null, (el) => el.child(bar(frac, 120)))
+            .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted).child(sub))))))
       .child(div().flex_1())
       .child(div().text_size(11.5).text_color(t.muted).child("Tasks change at midnight; each pays the moment it's done."));
+  }
+
+  // Today's events, each [icon, title, what's next, progress 0..1 or null, on now?].
+  todayEvents(daily) {
+    const now = Date.now();
+    const st = settingsNow();
+    const hm = (min) => `${Math.floor(min / 60)}h${String(Math.floor(min % 60)).padStart(2, "0")}`;
+    const left = (ms) => `${Math.max(1, Math.ceil(ms / 60000))}m`;
+    const out = [];
+    // Raids: the egg's hatching, the boss's health, or the work (per agent) to the next egg.
+    const r = loadRaid(shared(RAID_KEY));
+    const ph = raidPhase(r, now);
+    const boss = r ? `${r.boss.alpha ? "Alpha " : ""}${fullName(r.boss.dex)}` : "";
+    const agentsN = Math.max(1, herdAgents().filter((x) => x.pane).length);
+    const per = (daily.count.work ?? 0) / agentsN;
+    const laid = Math.min(MAX_EGGS, Math.floor(per / RAID_WORK));
+    if (!st.raids) out.push(["⚔", "Raids are off", "Settings → Trainer → Events", null, false]);
+    else if (ph === "egg") out.push(["🥚", `A raid egg: it hatches in ${left(r.hatch - now)}`, "Then drag your Pokémon onto its boss", 1 - (r.hatch - now) / EGG_MS, true]);
+    else if (ph === "battle") out.push(["⚔", `Raid on: ${boss} · ${left(r.until - now)} left`, `${Math.round(100 * r.hp)}% of its health left · drag yours onto it`, 1 - r.hp, true]);
+    else if (laid >= MAX_EGGS) out.push(["🥚", `Raids: both of today's eggs laid`, "More tomorrow", 1, false]);
+    else out.push(["🥚", `Next raid egg: egg ${laid + 1} of ${MAX_EGGS} today`, `${hm(per % RAID_WORK)} of ${hm(RAID_WORK)} of work per agent`, (per % RAID_WORK) / RAID_WORK, false]);
+    // The outbreak: called or on now, coming at a time today, or over.
+    const on = st.outbreaks ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
+    const d = new Date(now);
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const o = outbreakOfDay(dayOf(now));
+    const at = new Date(midnight + o.from);
+    const clock = `${at.getHours()}:${String(at.getMinutes()).padStart(2, "0")}`;
+    if (!st.outbreaks || !VISIT_EVERY[st.visitors]) out.push(["🌊", "Outbreaks are off", st.outbreaks ? "Visitors are off (Settings)" : "Settings → Trainer → Events", null, false]);
+    else if (on) out.push(["🌊", `Outbreak now: ${fullName(on.dex)}`, `${left(on.until - now)} left · shinies 1 in 16`, (now - on.from) / (on.until - on.from), true]);
+    else if (now < midnight + o.from) out.push(["🌊", `Today's outbreak: ${fullName(o.dex)} at ${clock}`, `In ${hm((midnight + o.from - now) / 60000)} · 20 minutes, shinies 1 in 16`, null, false]);
+    else out.push(["🌊", `Today's outbreak (${fullName(o.dex)}) is over`, "Another tomorrow", 1, false]);
+    return out;
   }
 
   // The Bag's Pokédex tab: species seen and caught, by region; what the next goal gives.

@@ -16,6 +16,8 @@ export const DEFAULTS = {
   newFrom: "any", // new agents' Pokémon: from every species ("any") or from the favourites ("favorites")
   autoUpdate: true, // a newer version out on GitHub: installed by itself (else the Update pill)
   trainer: false, // Trainer mode: only Pokémon you caught (and the starters) can be chosen or come to new agents
+  raids: true, // every 20 jobs a day, a Raid egg: its boss is hit by your agents' finished jobs
+  outbreaks: true, // once a day, a Mass Outbreak: one species walks by for 20 minutes
   legendsOpen: false, // legendary Pokémon open to everyone, without catching one first
   sidebar: false, // publish shared "agent-icons" / "agent-cards" for Better Sidebar (opt-in: it needs a patch)
 };

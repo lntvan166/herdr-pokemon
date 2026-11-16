@@ -31,6 +31,8 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 | **Wild Pokémon** | One walks by every few minutes. **Click** it for its gift and ₽; **click again** to throw a ball. |
 | **Weaken it** | **Drag** one of yours onto it: they battle, and a health bar shows. Lower health, easier catch (up to ×2). **Stop at the red**, or it may faint. |
 | **Balls & Berries** | Poké, Great ×1.5, Ultra ×2, Master (never fails). A Berry before each ball: Razz ×1.5, Golden Razz ×2.5, Pinap for twice the gift. On Auto, the best ball and Berry go to rare ones, and a rare one cries as it walks in. |
+| **Raids** | Every 2½ hours of work per agent in a day (2 at most), an egg hatches into a big boss (an Alpha, now and then a legendary). Drag your Pokémon onto it to hit it, each once a minute (harder while its agent works); the boss strikes back and throws it off. Beat it in 30 minutes for ₽300 and 3 Ultra Balls, then catch it. |
+| **Mass Outbreak** | Once a day, for 20 minutes, one species keeps walking by; shinies 1 in 16. |
 | **Box** | Sort it, Lock (🔒) the ones you love, and release many at once (Select → Duplicates keeps the best of each species). Each one released leaves ₽10, ₽50 for a shiny or an Alpha. |
 | **Rare ones** | Shiny 1 in 64 · Alpha 1 in 40 (½ as easy, ₽150, ♥2) · Legendary 1 in 150, or call one with the Azure Flute. |
 | **Today** | Three Research tasks a day, each paying ₽ or balls; all three: 5 Ultra Balls and a legendary. |
