@@ -105,7 +105,7 @@ export function laysEgg(before, after, phase, agents = 1) {
 // Unless that blow beats it, the boss strikes back at once (COUNTER_MS after): its best type at
 // the attacker (`back`: its effect, and the share of health it takes, as a wild one's hit back), and
 // knocks it away (BOSS_PUSH px from the boss): no one crowds round it.
-export const COUNTER_MS = 900, BOSS_PUSH = 150;
+export const COUNTER_MS = 1200, BOSS_PUSH = 150; // (its own move gathers first: fx.js CHARGE_MS)
 export const RAID_BACK = 0.75; // the boss's answer hurts ¾ of a wild one's hit back
 export const RAID_REST = 2 * 60000; // fainted in a raid: back in 2 minutes (not a wild fight's 10)
 export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {

@@ -66,13 +66,28 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   or a regional form with its own stats and types (`base-stats.js` `FORM_BASE`, `fighterKey`),
   a Mega without data as its species ×1.2 hitting, ×0.85 taking. Damage: real base stats and
   the type chart (×4 and ×2 softened); in the red a hit three times its health knocks it out.
-- **Battle effects** (`fx.js`, drawn by `main.js` with native transitions and loops): a special
-  move is a shot in its type's colours and look (an orb with an ember tail for fire, bubbles,
+- **Battle effects** (`fx.js`, drawn by `main.js` with native transitions and loops): a move
+  first gathers at the mouth (`CHARGE_MS` 340: sparks drawn in, a glow swelling), then travels
+  its type's way (`TRAVEL`): a beam for ice, steel, electric and fairy (a rail drawn out to the
+  target, a bright head, then fading thin); thrown in an arc for rock and ground; a volley of
+  three for grass, water, poison, psychic and flying (leaves, bubbles, sludge, rings, gusts);
+  a dash for fighting and normal (it rushes in to strike and back: `dashAt`; a boss never
+  dashes); else a shot. Where it lands, debris by its look: embers rise, drops and rocks fall,
+  sparks and leaves fly flat. After the hit, for 1.3 s, what it leaves on its target
+  (`RESIDUE`): flames flickering (fire), sparks crackling (electric), frost over it (ice),
+  bubbles rising (poison), dots circling its head (psychic, ghost, dark), drips (water), leaves
+  falling (grass, bug), dust at its feet (rock, ground, fighting), sparkles (the rest). A wild
+  one knocked out sinks and fades, smoke rising. A shot is in its type's colours and look (an orb with an ember tail for fire, bubbles,
   leaves, sparks, shards, rings, wind, a star; Mega Charizard X's fire blue) with a glow. Where
   any blow lands: a white flash and a ring swelling and fading, sparks flying out; the target
   knocked back (3–16 px by how hard) and back; a shake only for a super-effective one or a
   knockout; over its head the games' word ("Super effective!", "Not very effective…", "No
-  effect…"). A plain strike lands lightly in white and gold. The strip asks for a frame at each
+  effect…") and the damage floating up ("-23%"; yours hurt in red); a health bar's loss shows
+  white, draining away. A plain strike lands lightly in white and gold.
+- **Battle sounds** (Settings → Sound, and the 🔇/🔊 in the strip's top-right corner; off by
+  default): gathering, a whoosh or a zap as it flies, a hit (a big one deeper), a ball thrown,
+  landing, each shake, caught or broken out (`sfx/*.mp3`, synthesized by `scripts/make-sfx.py`),
+  played by the leading strip right on time. The strip asks for a frame at each
   of these moments (`fxSchedule`), so nothing waits for its quarter-second tick.
 - **Mass Outbreak** (`events.js`; Settings → Trainer → Events): once a day, at a time drawn
   from the date between 9:30 and 17:00 (the same in every window), for 20 minutes, a first-stage

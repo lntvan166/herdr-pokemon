@@ -68,3 +68,65 @@ test("a ball wobbles once per shake, then rests; done after its shakes", () => {
   assert.equal(throwEnd(3), SHAKE_FROM + 3 * SHAKE_EVERY);
   assert.equal(throwEnd(0), SHAKE_FROM + SHAKE_EVERY); // breaks out at once: still a beat
 });
+
+import { CHARGE_MS, BEAMS, travelOf, chargeParts, damageText, SOUNDS, launchSound, hitSound } from "../mods/pokemon-herd/fx.js";
+import { existsSync } from "node:fs";
+test("a move gathers, then flies as a shot or a beam", () => {
+  assert.ok(CHARGE_MS >= 200 && CHARGE_MS <= 500);
+  assert.equal(travelOf("ice"), "beam");
+  assert.equal(travelOf("electric"), "beam");
+  assert.equal(travelOf("fire"), "orb");
+  assert.equal(travelOf(undefined), "orb");
+  for (const t of BEAMS) assert.ok(TYPES.includes(t));
+  const c = chargeParts(MOVE.fire, 3);
+  assert.equal(c.length, 8);
+  assert.deepEqual(chargeParts(MOVE.fire, 3), c); // seeded
+  for (const p of c) assert.ok(Math.hypot(p.dx, p.dy) > 10 && p.size > 0);
+});
+test("the damage floats up as a percentage, coloured by how it went", () => {
+  assert.deepEqual(damageText(0.234, 2), ["-23%", "#ffd23f"]);
+  assert.equal(damageText(0.001)[0], "-1%"); // never -0%
+  assert.equal(damageText(0.1, 0.5)[1], "#c8ccd4");
+  assert.equal(damageText(0.1, 1, true)[1], "#ff8a80"); // yours hurt
+});
+test("every battle sound is shipped", () => {
+  for (const s of SOUNDS) assert.ok(existsSync(new URL(`../mods/pokemon-herd/sfx/${s}.mp3`, import.meta.url)), s);
+  assert.equal(launchSound("ice"), "zap");
+  assert.equal(launchSound("fire"), "whoosh");
+  assert.equal(hitSound(0.85), "bighit");
+  assert.equal(hitSound(0.3), "hit");
+});
+
+import { TRAVEL, VOLLEY, dashAt, DASH_SHORT } from "../mods/pokemon-herd/fx.js";
+test("each type travels its own way", () => {
+  assert.equal(travelOf("rock"), "arc");
+  assert.equal(travelOf("grass"), "volley");
+  assert.equal(travelOf("fighting"), "dash");
+  assert.equal(travelOf("fire"), "orb");
+  for (const t of Object.keys(TRAVEL)) assert.ok(TYPES.includes(t), t);
+  assert.equal(VOLLEY.length, 3);
+});
+test("a dash rushes in short of the target and comes back", () => {
+  assert.equal(dashAt(100, 200, 1000, 1300, 900), null); // not yet
+  assert.deepEqual(dashAt(100, 200, 1000, 1300, 1100), { px: 100 - DASH_SHORT, ms: 200 });
+  assert.deepEqual(dashAt(300, 200, 1000, 1300, 1000), { px: -(100 - DASH_SHORT), ms: 300 }); // leftward
+  assert.deepEqual(dashAt(100, 200, 1000, 1300, 1400), { px: 0, ms: 260 }); // back
+  assert.equal(dashAt(100, 200, 1000, 1300, 1600), null);
+});
+test("debris by its look: embers rise, drops and rocks fall", () => {
+  const avg = (b) => b.sparks.reduce((s, x) => s + x.dy, 0) / b.sparks.length;
+  assert.ok(avg(burstParts(MOVE.fire, 0.8, 4)) < avg(burstParts(MOVE.water, 0.8, 4)));
+  assert.ok(avg(burstParts(MOVE.rock, 0.8, 4)) > 0);
+  const spark = burstParts(MOVE.electric, 0.8, 4).sparks[0];
+  assert.ok(spark.w > spark.h); // a streak
+});
+
+import { RESIDUE, residueOf, RESIDUE_MS, RESIDUE_FADE } from "../mods/pokemon-herd/fx.js";
+test("every type leaves something on its target for a moment", () => {
+  for (const t of TYPES) assert.ok(residueOf(t), t);
+  assert.equal(residueOf("fire"), "burn");
+  assert.equal(residueOf("ice"), "freeze");
+  assert.equal(residueOf(undefined), null); // a plain strike leaves nothing
+  assert.ok(RESIDUE_FADE < RESIDUE_MS);
+  assert.ok(new Set(Object.values(RESIDUE)).size >= 8);
+});

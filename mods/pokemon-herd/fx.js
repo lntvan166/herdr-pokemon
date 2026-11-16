@@ -96,7 +96,10 @@ export function burstParts(style, p = 0.6, seed = 1) {
     const a = (i / n) * Math.PI * 2 + (rnd() - 0.5) * 0.7;
     const d = reach * (0.55 + 0.45 * rnd());
     const size = Math.round(2 + 3 * rnd() + 2 * p);
-    sparks.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d * 0.8 - 3, size, color: [style.hot, style.mid, style.core][i % 3], round: style.look !== "shard" && style.look !== "spark" });
+    // Debris by its look: embers rise, drops and rocks fall, sparks and leaves fly flat.
+    const lift = { orb: -8, bubble: 9, shard: 10, leaf: -2, spark: 0, wind: -2, ring: 0, star: -3 }[style.look] ?? 0;
+    const [w, h] = style.look === "spark" ? [size + 3, Math.max(1, size - 2)] : style.look === "leaf" || style.look === "wind" ? [size + 2, Math.max(2, size - 1)] : [size, size];
+    sparks.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d * 0.8 - 3 + lift * p, size, w, h, color: [style.hot, style.mid, style.core][i % 3], round: style.look !== "shard" && style.look !== "spark" && style.look !== "leaf" });
   }
   return { flash: { from: 6, to: Math.round(22 + 26 * p), color: style.hot }, ring: { from: 8, to: Math.round(20 + 30 * p), color: style.glow }, sparks };
 }
@@ -139,3 +142,61 @@ export const wobbling = (t, shakes) => {
 };
 // When the ball is done: caught (clicks shut), or it breaks out.
 export const throwEnd = (shakes) => SHAKE_FROM + Math.max(1, shakes) * SHAKE_EVERY;
+
+// ---- a move's phases: gathering power, its flight, what it leaves ----------------------------
+// Before it flies, the move gathers at the mouth: sparks drawn in from round it, a glow swelling.
+export const CHARGE_MS = 340;
+// How each type's move travels: a beam (a rail from one to the other, then fading), an arc (a
+// rock thrown up and down onto it), a volley (three in a row, a little apart: leaves, bubbles,
+// sludge, rings, gusts), a dash (it rushes in and strikes, no shot), else an orb (a shot).
+export const TRAVEL = {
+  ice: "beam", steel: "beam", electric: "beam", fairy: "beam",
+  rock: "arc", ground: "arc",
+  grass: "volley", water: "volley", poison: "volley", psychic: "volley", flying: "volley",
+  fighting: "dash", normal: "dash",
+};
+export const BEAMS = new Set(Object.keys(TRAVEL).filter((t) => TRAVEL[t] === "beam"));
+export const travelOf = (type) => TRAVEL[type] ?? "orb";
+export const VOLLEY = [[0, 0], [70, -5], [140, 5]]; // each shot: [ms after the first, px up or down]
+export const ARC_PEAK = 34; // how high a thrown rock goes over its path
+export const DASH_SHORT = 30; // a dash stops this far short of the target
+// The sparks gathering: each from (dx, dy) round the mouth to it, seeded.
+export function chargeParts(style, seed = 1) {
+  let s = seed % 2147483647 || 1;
+  const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  return Array.from({ length: 8 }, (_, i) => {
+    const a = (i / 8) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
+    const r = 18 + 10 * rnd();
+    return { dx: Math.cos(a) * r, dy: Math.sin(a) * r * 0.8, size: Math.round(2 + 3 * rnd()), color: i % 2 ? style.hot : style.mid };
+  });
+}
+// The damage a blow did, floating up from the target: "-23%", coloured by how effective
+// (yours hurt: red).
+export function damageText(dmg, eff = 1, own = false) {
+  const pct = Math.max(1, Math.round(100 * dmg));
+  const color = own ? "#ff8a80" : eff >= 2 ? "#ffd23f" : eff < 1 ? "#c8ccd4" : "#ffffff";
+  return [`-${pct}%`, color];
+}
+// Which sound goes with each moment (mods/pokemon-herd/sfx/<name>.mp3, scripts/make-sfx.py).
+export const SOUNDS = ["charge", "whoosh", "zap", "hit", "bighit", "faint", "throw", "absorb", "shake", "gotcha", "break"];
+export const launchSound = (type) => (travelOf(type) === "beam" ? "zap" : "whoosh");
+// A dash: how far it rushes (to `DASH_SHORT` short of the target) and back, `t` ms after it sets
+// off; `ms` its run. { px, ms }: its offset now and how long to get there.
+export function dashAt(from, to, launch, land, now) {
+  const run = to - from - Math.sign(to - from) * DASH_SHORT;
+  if (now < launch || now >= land + 260) return null;
+  return now < land ? { px: run, ms: Math.max(1, land - now) } : { px: 0, ms: 260 };
+}
+export const hitSound = (p) => (p >= 0.8 ? "bighit" : "hit");
+
+// ---- what a move leaves on its target for a moment ------------------------------------------
+// After the hit, by the move's type: burning, shocked, frosted, poisoned, dizzy, dripping,
+// leaves falling, dust, sparkles. RESIDUE_MS from a little after the blow, fading at the end.
+export const RESIDUE = {
+  fire: "burn", electric: "shock", ice: "freeze", poison: "poison",
+  psychic: "dizzy", ghost: "dizzy", dark: "dizzy", water: "drip", grass: "leaf", bug: "leaf",
+  rock: "dust", ground: "dust", fighting: "dust",
+  dragon: "sparkle", fairy: "sparkle", steel: "sparkle", normal: "sparkle", flying: "sparkle",
+};
+export const residueOf = (type) => RESIDUE[type] ?? null;
+export const RESIDUE_FROM = 150, RESIDUE_MS = 1300, RESIDUE_FADE = 260;

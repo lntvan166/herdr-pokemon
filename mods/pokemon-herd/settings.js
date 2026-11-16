@@ -4,7 +4,8 @@
 export const DEFAULTS = {
   cryBlocked: false, // its Pokémon cries when an agent needs you
   cryDone: false, // and when one finishes
-  cryRare: true, // and a rare wild one (shiny, Alpha, legendary) as it walks in
+  cryRare: true,
+  battleSounds: false, // battles' sounds (gathering, a shot, a hit, a ball's shakes): the 🔇 on the strip // and a rare wild one (shiny, Alpha, legendary) as it walks in
   evolve: true, // Pokémon evolve as their agents work
   pickup: true, // idle Pokémon find items
   weather: true, // rain while agents wait on you, a storm when they wait long
