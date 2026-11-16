@@ -663,49 +663,6 @@ export default class PokemonHerd extends View {
     });
   }
 
-  // Little lives in the sky, by the hour and the season: butterflies on spring and summer days,
-  // fireflies on nights but winter's, now and then a shooting star at night. Native loops: they
-  // flutter and blink without the strip redrawing.
-  critters(line, night, season, sec, row) {
-    const s = season.t < 0.5 ? season.a : season.b; // 0 spring, 1 summer, 2 autumn, 3 winter
-    const w = this.width, out = [];
-    const spot = (k, lo, hi) => { const r = Math.sin((row + 1) * 91.7 + k * 12.9898) * 43758.5453; return lo + (r - Math.floor(r)) * (hi - lo); };
-    if (night < 0.5 && s <= 1) {
-      // Butterflies: two wings beating (their width), wandering slowly over a stretch of sky.
-      for (let k = 0; k < 3; k++) {
-        const x = spot(k, 40, Math.max(60, w - 120)), y = spot(k + 7, 10, Math.max(14, line - 40));
-        const color = ["#ffffff", "#ffe27a", "#ffb0d8"][k];
-        out.push(div().absolute().left(x).top(y).w(11).h(7)
-          .loop("left", { from: x, to: x + 60 + k * 25, period: 7000 + k * 1700, easing: "ease-in-out" })
-          .loop("top", { from: y, to: y + 8, period: 1300 + k * 300 })
-          .child(div().absolute().left(0).top(0).w(5).h(6).rounded(2).bg(color).loop("width", { from: 1, to: 5, period: 240 + k * 30 }))
-          .child(div().absolute().left(6).top(0).w(5).h(6).rounded(2).bg(color).loop("width", { from: 1, to: 5, period: 240 + k * 30 })));
-      }
-    }
-    if (night >= 0.5 && s !== 3) {
-      // Fireflies: blinking, drifting low over the grass.
-      for (let k = 0; k < 5; k++) {
-        const x = spot(k + 20, 20, Math.max(40, w - 40)), y = spot(k + 30, line - 34, line - 8);
-        out.push(div().absolute().left(x).top(y).size(2).rounded_full().bg("#d8ff7a")
-          .loop("opacity", { from: 0.05, to: 1, period: 1200 + k * 260 })
-          .loop("left", { from: x, to: x + 18 + k * 4, period: 5200 + k * 900 })
-          .loop("top", { from: y, to: y - 6, period: 2100 + k * 400 }));
-      }
-    }
-    if (night >= 0.5) {
-      // A shooting star, every 45 s for a moment, across the upper sky (fxSchedule asks for its frames).
-      const n = Math.floor(sec / 45), t = sec - n * 45;
-      if (t < 0.9) {
-        const x0 = spot(n % 97, w * 0.2, w * 0.8), y0 = spot(n % 89, 4, Math.max(6, line * 0.3));
-        const first = this.fxFirst(`star-${row}-${n}`);
-        out.push(div().id(`star-${row}-${n}`).absolute().left(first ? x0 : x0 - 120).top(first ? y0 : y0 + 30).w(26).h(2).rounded(1).bg("#fff6c8")
-          .opacity(first ? 0.95 : 0).transition("left", { duration: 700, easing: "ease-in" }).transition("top", { duration: 700, easing: "ease-in" })
-          .transition("opacity", { duration: 750, easing: "ease-in" }));
-      }
-    }
-    return out;
-  }
-
   // One row's Scenery: a flat sky, stars and moon (night) or clouds (day), hills, then grass on
   // the ground line. It stops just under the grass: the names below keep the strip's colour.
   scenery(top, ground, row) {
@@ -772,8 +729,6 @@ export default class PokemonHerd extends View {
         .opacity(p.snow >= p.leaves ? p.snow * (light ? 0.9 : 0.55) : p.leaves * (light ? 0.9 : 0.7))
         .transition("top", { duration: 300, easing: "linear" })
         .transition("left", { duration: 300, easing: "linear" }))))
-      // Butterflies, fireflies, a shooting star: over the sky and the trees, under the rain.
-      .children(this.critters(line, nightness(hour), seasonAt(now), sec, row))
       // Weather (agents waiting on you): the sky darkens, rain falls; a storm slants it and flashes.
       .when(weather !== "clear", (el) => el
         .child(div().absolute().left(0).top(0).w(this.width).h(line + 6).bg("#0b1020").opacity(storm ? 0.32 : 0.18))
@@ -1195,7 +1150,6 @@ export default class PokemonHerd extends View {
       if (sh && now < m.react.until + 400) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until);
     }
     const v = this.visitor;
-    { const n = Math.ceil(now / 45000) * 45000; times.push(n + 30, n + 80); } // a shooting star's start (at night)
     if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
