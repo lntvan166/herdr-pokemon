@@ -271,7 +271,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   under them, when a newer release is out, how to update. Each row closes the menu and opens its
   dialog.
 - **Settings** (`settings.js`, shared state `pokemon-herd-settings`; dialog 520×740, props
-  `{ settings }`, command `pokemon-herd.settings`): stays open, every change applies at once.
+  `{ settings }`, command `pokemon-herd.settings`; `pokemon-herd.about` opens its About tab):
+  stays open, every change applies at once. About: the version, Open on GitHub, a ★ Star, Open an
+  issue (`cx.open_url`), and the credits.
   "Strip" panel: Place (Sidebar / Bottom / Right panel), Rows (1 2 3), Background (Plain /
   Scenery), as accent-bordered choices (greyed in a built-in layout, with the clone hint).
   "Sounds": "Cry when an agent needs you", "Cry when an agent finishes" (both off by default),

@@ -525,7 +525,7 @@ const petAt = {}; // pane -> when it last got a heart from a click or a quick an
 // The Settings dialog's choices, live (any window may change them).
 const settingsNow = () => loadSettings(shared(SETTINGS_KEY));
 const setSetting = (key, value) => setShared(SETTINGS_KEY, withSetting(settingsNow(), key, value));
-const openSettings = (update) => openOverlay({ mod: MOD, kind: "dialog", width: 520, height: 600, props: { settings: true, update } });
+const openSettings = (update, tab) => openOverlay({ mod: MOD, kind: "dialog", width: 520, height: 600, props: { settings: true, update, ...(tab ? { tab } : {}) } });
 // A Pokémon's cry (downloaded and converted once); at most one every 2 s, so a burst of agents
 // finishing together doesn't turn into a chorus.
 let lastCry = 0;
@@ -669,6 +669,7 @@ export default class PokemonHerd extends View {
         if (c === "bag") { openBag(); continue; }
         if (dev?.command?.(c, devApi)) continue; // dev.js, on this machine only
         if (c === "settings") { openSettings(this.update()); continue; }
+        if (c === "about") { openSettings(this.update(), "about"); continue; } // Settings → About
         if (c !== "pick") continue;
         const list = herdAgents();
         const a = list.find((x) => x.focused) ?? list[0];
@@ -2687,12 +2688,13 @@ export default class PokemonHerd extends View {
     const st = settingsNow();
     const tab = this.settingsTab ?? "strip";
     const kit = this.settingsKit(t, st);
-    const TABS = [["guide", "Guide"], ["strip", "Strip"], ["herd", "Herd"], ["trainer", "Trainer"], ["sound", "Sound"], ["updates", "Updates"]];
+    const TABS = [["guide", "Guide"], ["strip", "Strip"], ["herd", "Herd"], ["trainer", "Trainer"], ["sound", "Sound"], ["updates", "Updates"], ["about", "About"]];
     const body = tab === "guide" ? this.settingsGuide(kit, t)
       : tab === "herd" ? this.settingsHerd(kit, st)
       : tab === "trainer" ? this.settingsTrainer(kit, st, t)
       : tab === "sound" ? this.settingsSound(kit)
       : tab === "updates" ? this.settingsUpdates(kit)
+      : tab === "about" ? this.settingsAbout(kit, t)
       : this.settingsStrip(kit, st);
     const upd = this.newerVersion();
     // The title and the tabs stay; the tab's page scrolls (a short window shows it all, a step at a time).
@@ -2971,6 +2973,24 @@ export default class PokemonHerd extends View {
             });
           }))]),
       ),
+    ];
+  }
+
+  // About: what this is, where it lives, and a word for those who like it (a star, an idea).
+  settingsAbout({ line, button, panel }, t) {
+    const url = `https://github.com/${REPO}`;
+    const star = () => div().flex_none().text_color(SHINY_GOLD).child("★"); // in gold: the font draws ⭐ in one colour
+    return [
+      panel(
+        line(`Pokerdr ${VERSION}`, "Your coding agents as Pokémon: a free, open-source Herdr mod (MIT).",
+          button("about-github", "Open on GitHub", true, (cx) => cx.open_url(url))),
+        line(h_flex().gap(5).items_center().child(star()).child("Like it? Star it on GitHub"), "A star helps others find it, and keeps it going. Thank you!",
+          button("about-star", h_flex().gap(4).items_center().child(star()).child("Star"), true, (cx) => cx.open_url(url))),
+        line("Ideas, bugs, a Pokémon you want", "Open an issue, or send a pull request: they're very welcome.",
+          button("about-issues", "Open an issue", true, (cx) => cx.open_url(`${url}/issues`))),
+      ),
+      div().pt(4).text_size(11.5).text_color(t.dim)
+        .child("Built on mathieucroset's original Pokémon mod for Herdr. Sprites: PMD SpriteCollab (CC BY-NC 4.0); data: PokeAPI. An unofficial fan project, not affiliated with Nintendo, Game Freak or The Pokémon Company."),
     ];
   }
 
