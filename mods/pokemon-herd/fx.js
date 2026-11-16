@@ -189,6 +189,14 @@ export function dashAt(from, to, launch, land, now) {
 }
 export const hitSound = (p) => (p >= 0.8 ? "bighit" : "hit");
 
+// ---- the big moments: evolving, Mega Evolving, a catch, a raid egg hatching -------------------
+export const EVOLVE_MS = 3000, EVOLVE_BURST = 2000; // a light column, then it bursts (and stays)
+export const MEGA_MS = 1500, MEGA_BURST = 1100; // a sphere and orbiting colours, then a burst
+export const HATCH_SHAKE = 3000, HATCH_MS = 900; // an egg's last seconds; its hatching
+export const RAINBOW = ["#ff5a5a", "#ffb43a", "#ffe14a", "#7bd65a", "#4fb4ff", "#b070ff"];
+export const MEGA_STYLE = { glow: "#c8a0ff", core: "#ff70c0", mid: "#7aa2f7", hot: "#ffffff", look: "star" };
+export const GOLD_STYLE = { glow: "#ffe9a8", core: "#ffd75e", mid: "#fff2c0", hot: "#ffffff", look: "star" };
+
 // ---- what a move leaves on its target for a moment ------------------------------------------
 // After the hit, by the move's type: burning, shocked, frosted, poisoned, dizzy, dripping,
 // leaves falling, dust, sparkles. RESIDUE_MS from a little after the blow, fading at the end.

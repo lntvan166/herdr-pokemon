@@ -84,6 +84,13 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   knockout; over its head the games' word ("Super effective!", "Not very effective…", "No
   effect…") and the damage floating up ("-23%"; yours hurt in red); a health bar's loss shows
   white, draining away. A plain strike lands lightly in white and gold.
+- **The big moments** (`fx.js` EVOLVE_MS, MEGA_MS, HATCH_*): evolving, it pulses while a column
+  of light stands over it, motes rising and a ring swelling out, then a gold burst and "✨
+  Evolved!" (3 s); Mega Evolving, a sphere of light round it and the Key Stone's six colours
+  orbiting, then a burst (1.5 s; back from a Mega, a small one); caught, the ball clicks shut (a
+  ring snapping in), glows and gold stars float up; a raid egg shakes hard and cracks in its last
+  3 s, then hatches in a flash with rays of light and the shell flying apart, its boss growing
+  from a third of its size.
 - **Battle sounds** (Settings → Sound, and the 🔇/🔊 in the strip's top-right corner; off by
   default): gathering, a whoosh or a zap as it flies, a hit (a big one deeper), a ball thrown,
   landing, each shake, caught or broken out (`sfx/*.mp3`, synthesized by `scripts/make-sfx.py`),

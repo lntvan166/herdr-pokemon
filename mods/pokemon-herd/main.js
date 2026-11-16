@@ -28,7 +28,7 @@ import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -394,6 +394,42 @@ function fxResidue(id, kind, style, cx, headY, ground, t, first) {
   }[kind];
   return div().id(id).absolute().left(0).top(0).opacity(fading ? 0 : 1).transition("opacity", { duration: RESIDUE_FADE })
     .children(parts ? parts() : []);
+}
+// A one-shot part: drawn as `a` the first time, then moving to `b` under transitions (ms).
+const fxOnce = (id, first, a, b, ms, extra = (el) => el) => {
+  const s = first ? a : b;
+  return extra(div().id(id).absolute().left(s.x - s.w / 2).top(s.y - s.h / 2).w(s.w).h(s.h).opacity(s.o ?? 1)
+    .transition("left", { duration: ms, easing: "ease-out" }).transition("top", { duration: ms, easing: "ease-out" })
+    .transition("width", { duration: ms, easing: "ease-out" }).transition("height", { duration: ms, easing: "ease-out" })
+    .transition("opacity", { duration: ms, easing: "ease-in" }));
+};
+// Evolving (`t` ms in): a column of light over it, motes rising, rings swelling out; the burst
+// comes at EVOLVE_BURST (fxBurst, drawn by the caller) and "Evolved!".
+function fxEvolve(id, cx, headY, ground, t, firstRing) {
+  const top = Math.max(0, headY - 34), h = ground - top;
+  const glowing = t < EVOLVE_BURST;
+  const col = (k, w, color, p) => div().id(`${id}-col${k}`).absolute().left(cx - w / 2).top(top).w(w).h(h).rounded(w / 2).bg(color)
+    .opacity(glowing ? 0.85 : 0).transition("opacity", { duration: 400 }).when(glowing, (el) => el.loop("opacity", { from: 0.3, to: 0.85, period: p }));
+  const motes = [[-14, 700], [-6, 900], [5, 800], [13, 1000], [-10, 1100], [10, 650]].map(([dx, p], k) =>
+    div().id(`${id}-m${k}`).absolute().left(cx + dx - 1.5).top(ground - 6).size(3).rounded_full().bg(k % 2 ? "#fff2a8" : "#ffffff")
+      .opacity(glowing ? 1 : 0).transition("opacity", { duration: 300 }).when(glowing, (el) => el.loop("top", { from: ground - 6, to: top, period: p })));
+  const ring = (k, first) => fxOnce(`${id}-r${k}`, first, { x: cx, y: (headY + ground) / 2, w: 10, h: 8, o: 0.9 }, { x: cx, y: (headY + ground) / 2, w: 90, h: 60, o: 0 }, 900,
+    (el) => el.rounded_full().border_2().border_color("#ffe9a8"));
+  return div().absolute().left(0).top(0)
+    .child(col(0, 22, "#ffe9a855", 500)).child(col(1, 10, "#fff6c8", 380)).child(col(2, 4, "#ffffff", 300))
+    .children(motes)
+    .when(t < 1000, (el) => el.child(ring(0, firstRing)));
+}
+// Mega Evolving (`t` ms in): a sphere of light round it and the colours of a Key Stone orbiting
+// it; the burst at MEGA_BURST (drawn by the caller).
+function fxMega(id, cx, headY, ground, t) {
+  const mid = (headY + ground) / 2, r = Math.max(22, (ground - headY) * 0.62);
+  const on = t < MEGA_BURST;
+  return div().absolute().left(0).top(0).opacity(on ? 1 : 0).transition("opacity", { duration: 250 })
+    .child(div().id(`${id}-sphere`).absolute().left(cx - r).top(mid - r).size(2 * r).rounded_full().border_2().border_color("#e0c8ff")
+      .bg("#b070ff22").loop("opacity", { from: 0.4, to: 1, period: 360 }))
+    .children(RAINBOW.map((c, k) => div().id(`${id}-o${k}`).absolute().left(cx).top(mid).size(5).rounded_full().bg(c)
+      .loop("left", { from: cx - r, to: cx + r - 5, period: 420 + k * 70 }).loop("top", { from: mid - r * 0.7, to: mid + r * 0.6, period: 300 + k * 55 })));
 }
 // A gentle style for a plain strike (no type): white and gold.
 const STRIKE = { glow: "#fff6c8", core: "#ffd23a", mid: "#fff2a8", hot: "#ffffff", look: "star" };
@@ -1108,6 +1144,12 @@ export default class PokemonHerd extends View {
     }
     const v = this.visitor;
     if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
+    const egg = loadRaid(shared(RAID_KEY));
+    if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
+    for (const m of Object.values(this.mons ?? {})) {
+      if (m.evolveFx) times.push(m.evolveFx.at + 40, m.evolveFx.at + EVOLVE_BURST, m.evolveFx.at + EVOLVE_BURST + 40, m.evolveFx.at + EVOLVE_MS - 300, m.evolveFx.at + EVOLVE_MS);
+      if (m.megaFx) times.push(m.megaFx.at + 40, m.megaFx.at + MEGA_BURST, m.megaFx.at + MEGA_BURST + 40, m.megaFx.at + MEGA_MS);
+    }
     for (const [addr, m] of Object.entries(this.mons ?? {})) if (m.faintAt) sounds.push([`faint-${addr}-${m.faintAt}`, m.faintAt, "faint"]);
     if (v?.fight) {
       const f = v.fight;
@@ -1265,6 +1307,29 @@ export default class PokemonHerd extends View {
     return true;
   }
 
+  // The boss's picture; just hatched (HATCH_MS), it grows from a third of its size, feet on the
+  // ground.
+  bossImage(r, s, mid, ground, k, now) {
+    const growing = now - r.hatch < HATCH_MS;
+    const first = growing && this.fxFirst(`boss-grow-${r.id}`);
+    const kk = first ? k * 0.3 : k;
+    const ms = 450;
+    return image(s.path).id(`boss-img-${r.id}`).absolute().left(mid - (s.box.x + s.box.w / 2) * kk).top(ground - (s.box.y + s.box.h) * kk).w(s.w * kk).h(s.h * kk)
+      .when(growing, (el) => el.transition("left", { duration: ms, easing: "ease-out" }).transition("top", { duration: ms, easing: "ease-out" })
+        .transition("width", { duration: ms, easing: "ease-out" }).transition("height", { duration: ms, easing: "ease-out" }));
+  }
+  // The egg hatching (`t` ms in): a flash and a burst, rays of light, the shell flying apart.
+  fxHatch(r, bx, ground, t) {
+    const y = ground - 22, key = `hatch-${r.id}`;
+    const f = this.fxFirst(`${key}-shell`);
+    const ray = (j, w, h) => fxOnce(`${key}-ray${j}`, f, { x: bx, y, w: w * 0.2, h: h * 0.2, o: 1 }, { x: bx, y, w, h, o: 0 }, 700, (el) => el.rounded(3).bg("#fff6c8"));
+    return div().absolute().left(0).top(0)
+      .when(t < 470, (el) => el.child(fxBurst(`${key}-b`, GOLD_STYLE, 1, bx, y, this.fxFirst(`${key}-b`), 41)))
+      .child(ray(0, 150, 4)).child(ray(1, 4, 90)).child(ray(2, 100, 3)).child(ray(3, 3, 70))
+      .children([[-34, -26], [30, -30], [-22, 10], [26, 6], [0, -40]].map(([dx, dy], j) =>
+        fxOnce(`${key}-s${j}`, f, { x: bx, y, w: 9, h: 7, o: 1 }, { x: bx + dx, y: y + dy + 26, w: 7, h: 5, o: 0 }, 650 + j * 40, (el) => el.rounded(2).bg(j % 2 ? "#f4efe4" : "#a8d88a"))));
+  }
+
   // The raid in the strip: the egg (wobbling as it's about to hatch), or the boss (big, its health
   // bar, its blows), and a note in the corner.
   renderRaid(root, grounds, scale, now, t) {
@@ -1285,15 +1350,21 @@ export default class PokemonHerd extends View {
       .child(note));
     if (ph === "egg") {
       // The games' Egg (PokeAPI's sprite: 96 px, the egg itself 28×30 at 34,34), on the ground.
-      const soon = r.hatch - now < 30000;
+      const soon = r.hatch - now < 30000, hatching = r.hatch - now < HATCH_SHAKE;
       const k = 1.2 * scale, d = 96 * k, x0 = bx - 48 * k;
       root.child(div().id(`raid-egg-${r.id}`).absolute().left(x0).top(ground - 64 * k).w(d).h(d)
-        .when(soon, (el) => el.loop("left", { from: x0 - 2, to: x0 + 2, period: 260 }))
+        .when(soon, (el) => el.loop("left", hatching ? { from: x0 - 4, to: x0 + 4, period: 120 } : { from: x0 - 2, to: x0 + 2, period: 260 }))
+        // About to hatch: cracks across it, glowing.
+        .when(hatching, (el) => el.child(div().absolute().left(0).top(0).size_full()
+          .children([[40, 46, 7, 2], [45, 44, 2, 6], [50, 50, 6, 2], [42, 56, 5, 2]].map(([cx2, cy2, w2, h2], j) =>
+            div().absolute().left(cx2 * k).top(cy2 * k).w(w2 * k).h(h2 * k).bg(j % 2 ? "#fff6c8" : "#3a3328")
+              .loop("opacity", { from: 0.4, to: 1, period: 180 + j * 40 })))))
         .child(ART_READY.has(EGG_ART) ? image(artPath(EGG_ART)).w(d).h(d)
           : div().absolute().left(34 * k).top(34 * k).w(28 * k).h(30 * k).rounded_full().bg("#f4efe4").border_1().border_color("#3a3328")));
       return 1;
     }
     if (ph !== "battle") return 1;
+    if (now - r.hatch < HATCH_MS) root.child(this.fxHatch(r, bx, ground, now - r.hatch));
     const meta = this.spriteFor(bossPick(r.boss), "idle");
     if (!meta?.walkR) return 1;
     // It faces whoever hit it last; flinches as a blow lands; turns and strikes as it answers.
@@ -1315,7 +1386,7 @@ export default class PokemonHerd extends View {
       .children(poses.map((p) => image(p.path).absolute().left(0).top(0).w(p.w * k).h(p.h * k).opacity(0)))
       .child(div().absolute().left(mid - s.box.w * 0.4 * k).top(ground - 3 * k).w(s.box.w * 0.8 * k).h(6 * k).rounded_full().bg("#00000035"))
       .when(!!r.boss.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, k)))
-      .child(image(s.path).absolute().left(mid - (s.box.x + s.box.w / 2) * k).top(ground - (s.box.y + s.box.h) * k).w(s.w * k).h(s.h * k));
+      .child(this.bossImage(r, s, mid, ground, k, now));
     // Its health as the blows land (not as they're thrown), the last one's loss white, draining.
     const barW = 80;
     const landAt = (h) => h.at + CHARGE_MS + 260;
@@ -1504,6 +1575,17 @@ export default class PokemonHerd extends View {
       if (settled && tt < end + 520) {
         const caughtFx = th.caught ? GOLD : MOVE.normal;
         root.child(fxBurst(`ball-end-${key}`, caughtFx, th.caught ? 0.9 : 0.6, x, ground - size / 2, this.fxFirst(`ball-end-${key}`), th.at % 99991));
+      }
+      // Caught: the ball clicks shut (a ring snapping in), glows, and gold stars float up from it.
+      if (settled && th.caught && tt < end + 1600) {
+        const by = ground - size / 2, f1 = this.fxFirst(`ball-lock-${key}`), f2 = this.fxFirst(`ball-stars-${key}`);
+        root.child(fxOnce(`ball-lock-${key}`, f1, { x, y: by, w: size * 3, h: size * 3, o: 0.9 }, { x, y: by, w: size, h: size, o: 0 }, 220,
+          (el) => el.rounded_full().border_2().border_color("#fff2c0")));
+        root.child(div().id(`ball-glow-${key}`).absolute().left(x - size).top(by - size).size(size * 2).rounded_full().bg("#ffe9a8")
+          .opacity(tt < end + 1300 ? 0.45 : 0).transition("opacity", { duration: 300 }).loop("opacity", { from: 0.15, to: 0.5, period: 500 }));
+        root.child(div().absolute().left(0).top(0).children([[-16, 46, 900], [-6, 58, 1100], [6, 52, 1000], [16, 42, 850], [0, 66, 1200]].map(([dx, rise, ms], k) =>
+          fxOnce(`ball-star-${key}-${k}`, f2, { x: x + dx * 0.3, y: by, w: 5, h: 5, o: 1 }, { x: x + dx, y: by - rise, w: 3, h: 3, o: 0 }, ms,
+            (el) => el.rounded_full().bg(k % 2 ? "#ffd75e" : "#ffffff")))));
       }
       if (settled && (th.caught || th.fled)) {
         const tagW = 260;
@@ -1834,11 +1916,12 @@ export default class PokemonHerd extends View {
       const meta = this.spriteFor(ids[a.address], this.megaStatus(a));
       // Mega Evolution (or back): a flash of sparkles.
       const mega = meta?.megaShown === true;
-      if (m.mega !== undefined && mega !== m.mega) { m.flashUntil = now + 1500; changed = true; }
+      if (m.mega !== undefined && mega !== m.mega) { m.flashUntil = now + 1500; m.megaFx = { at: now, on: mega }; changed = true; }
       m.mega = mega;
       // It just evolved (here, or in the picker): sparkles.
       const evolvedAt = ids[a.address]?.evolvedAt ?? 0;
       if (now - evolvedAt < 3000 && (m.flashUntil ?? 0) < evolvedAt + 3000) { m.flashUntil = evolvedAt + 3000; changed = true; }
+      if (now - evolvedAt < EVOLVE_MS && m.evolveFx?.at !== evolvedAt) { m.evolveFx = { at: evolvedAt }; changed = true; }
       if (m.flashUntil && now >= m.flashUntil) { m.flashUntil = 0; changed = true; }
       const rival = !!rivals[a.address];
       if (rival !== !!m.rival) { m.rival = rival; changed = true; }
@@ -2980,7 +3063,8 @@ export default class PokemonHerd extends View {
           // Walking: over what is left of its walk (from where it is drawn now); standing: its own
           // short move (a step aside, a jump), or none at all after a gap.
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
-          .child(this.withBlows(`mon-${a.address}`, m.blows, body, SLOT_MID, headY, ground, now,
+          .child(this.withBlows(`mon-${a.address}`, m.blows,
+            m.evolveFx && now - m.evolveFx.at < EVOLVE_BURST ? body.loop("opacity", { from: 0.35, to: 1, period: 260 }) : body, SLOT_MID, headY, ground, now,
             m.react?.shot && travelOf(m.react.shot.move?.type) === "dash" ? dashAt(m.react.shot.from, m.react.shot.to, m.react.shot.at, m.react.shot.until, now) : null))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
@@ -3014,6 +3098,21 @@ export default class PokemonHerd extends View {
           .when(!!m.rival, (el) =>
             el.child(div().absolute().left(sw / 2 - 8).top(Math.max(2, headY - 30)).text_size(13)
               .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("⚔️")))
+          // Evolving: a column of light, motes, rings; then a burst and "Evolved!" (fx.js EVOLVE_MS).
+          .when(!!m.evolveFx && now - m.evolveFx.at < EVOLVE_MS, (el) => {
+            const t = now - m.evolveFx.at, key = `evo-${a.address}-${m.evolveFx.at}`;
+            return el.child(fxEvolve(key, SLOT_MID, headY, ground, t, this.fxFirst(`${key}-r`)))
+              .when(t >= EVOLVE_BURST && t < EVOLVE_BURST + 470, (e2) => e2.child(fxBurst(`${key}-b`, GOLD_STYLE, 1, SLOT_MID, (headY + ground) / 2, this.fxFirst(`${key}-b`), 31)))
+              .when(t >= EVOLVE_BURST, (e2) => e2.child(fxWord(`${key}-w`, ["✨ Evolved!", "#ffd23f"], SLOT_MID, Math.max(2, headY - 30),
+                this.fxFirst(`${key}-w`) ? 0 : t < EVOLVE_MS - 300 ? 1 : 2)));
+          })
+          // Mega Evolving: a sphere, the Key Stone's colours orbiting; then a burst.
+          .when(!!m.megaFx && now - m.megaFx.at < MEGA_MS, (el) => {
+            const t = now - m.megaFx.at, key = `mega-${a.address}-${m.megaFx.at}`;
+            return el.when(m.megaFx.on, (e1) => e1.child(fxMega(key, SLOT_MID, headY, ground, t)))
+              .when(t >= (m.megaFx.on ? MEGA_BURST : 0) && t < (m.megaFx.on ? MEGA_BURST : 0) + 470, (e2) =>
+                e2.child(fxBurst(`${key}-b`, MEGA_STYLE, m.megaFx.on ? 1 : 0.5, SLOT_MID, (headY + ground) / 2, this.fxFirst(`${key}-b`), 17)));
+          })
           // A shiny shows off when it first turns up.
           .when((m.sparkleUntil > now && this.showsShiny(pick)) || m.flashUntil > now, (el) =>
             el.child(div().absolute().left(sw / 2 + 10).top(Math.max(2, headY - 10)).text_size(13)
