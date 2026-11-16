@@ -195,6 +195,19 @@ export async function loadSprite(dex, shiny, form = null, onCore = null) {
   return meta;
 }
 
+// A sprite's white silhouette (the same GIF, every pixel white, its see-through kept): what a
+// Pokémon flashes as a blow lands, made once beside it ("<name>-w.gif"). `rel`: its path as
+// meta.json has it.
+export const whitePath = (rel) => rel.replace(/\.gif$/, "-w.gif");
+export async function ensureWhite(rel) {
+  const src = `${appHome()}/${rel}`, out = `${appHome()}/${whitePath(rel)}`;
+  if (await fs.exists(out).catch(() => false)) return;
+  const tmp = out.replace(/\.gif$/, ".part.gif");
+  await im("convert", [src, "-coalesce", "-fill", "white", "-colorize", "100", "-set", "dispose", "Background", tmp]);
+  const r = await exec("mv", ["-f", tmp, out]);
+  if (r.code !== 0) throw new Error("white move failed");
+}
+
 // An Alpha's ring on the ground: an ellipse, a bright red rim round a pale red inside, drawn once
 // (a box with round ends looked like a pill, not a ring). Returns its path as drawn.
 export const RING_REL = `${DATA_REL}/art/alpha-ring.png`;

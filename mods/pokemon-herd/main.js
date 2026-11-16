@@ -29,7 +29,7 @@ import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, b
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
-import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
+import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -1386,7 +1386,13 @@ export default class PokemonHerd extends View {
       .children(poses.map((p) => image(p.path).absolute().left(0).top(0).w(p.w * k).h(p.h * k).opacity(0)))
       .child(div().absolute().left(mid - s.box.w * 0.4 * k).top(ground - 3 * k).w(s.box.w * 0.8 * k).h(6 * k).rounded_full().bg("#00000035"))
       .when(!!r.boss.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, k)))
-      .child(this.bossImage(r, s, mid, ground, k, now));
+      .child(this.bossImage(r, s, mid, ground, k, now))
+      .when(true, (el) => {
+        for (const n of ["HurtL", "HurtR", "Hurt"]) this.wantWhite(meta.react?.[n]?.path);
+        const lb = (this.bossBlows ?? []).filter((b) => now >= b.at - 1500 && now < b.at + 200).at(-1);
+        const wf = lb && this.whiteFlash(`boss-${r.id}`, s.path, mid - (s.box.x + s.box.w / 2) * k, ground - (s.box.y + s.box.h) * k, s.w * k, s.h * k, lb.at, now);
+        return wf ? el.child(wf) : el;
+      });
     // Its health as the blows land (not as they're thrown), the last one's loss white, draining.
     const barW = 80;
     const landAt = (h) => h.at + CHARGE_MS + 260;
@@ -1412,6 +1418,26 @@ export default class PokemonHerd extends View {
       root.children(this.fxMove(`bossshot-${r.id}-${h.at}`, { type: h.back.type, eff: h.back.eff }, bx + dir * 22, tx - dir * 12, Math.round((headY + ground) / 2), from, until, now, true));
     }
     return 1;
+  }
+
+  // White silhouettes (sprites.js ensureWhite), made the first time one is wanted.
+  wantWhite(path) {
+    if (!path) return;
+    this.whites ??= {};
+    if (this.whites[path]) return;
+    this.whites[path] = "loading";
+    ensureWhite(path).then(() => { this.whites[path] = "ready"; }, () => { this.whites[path] = "failed"; });
+  }
+  // As a blow lands (`at`), the sprite drawn at (left, top) flashes white and fades (170 ms).
+  // Its silhouette not made yet: asked for, and no flash this once.
+  whiteFlash(key, path, left, top, w, h, at, now) {
+    if (at === undefined || now < at - 1500 || now >= at + 200) return null;
+    if (this.whites?.[path] !== "ready") { this.wantWhite(path); return null; }
+    if (now < at) return null;
+    const id = `wf-${key}-${at}`;
+    const first = this.fxFirst(id);
+    return image(whitePath(path)).id(id).absolute().left(left).top(top).w(w).h(h).opacity(first ? 0.95 : 0)
+      .transition("opacity", { duration: 170, easing: "ease-in" });
   }
 
   // The raid's boss in battle, on the first row, near enough to `m` (dropped there) to be hit.
@@ -1497,7 +1523,12 @@ export default class PokemonHerd extends View {
       const wildBody = div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, cur.box, scale)))
-        .child(image(cur.path).absolute().left(cl).top(ct).w(cur.w * scale).h(cur.h * scale));
+        .child(image(cur.path).absolute().left(cl).top(ct).w(cur.w * scale).h(cur.h * scale))
+        .when(true, (el) => {
+          if (fx.blow) for (const n of ["HurtL", "HurtR", "Hurt"]) this.wantWhite(meta.react?.[n]?.path);
+          const wf = fx.blow && this.whiteFlash(`w-${v.id}`, cur.path, cl, ct, cur.w * scale, cur.h * scale, fx.blow.at, now);
+          return wf ? el.child(wf) : el;
+        });
       // Fainted: it sinks and fades, smoke rising from where it was.
       const fainting = !!v.fainted;
       const ff = fainting && this.fxFirst(`faint-${v.id}`);
@@ -2993,6 +3024,19 @@ export default class PokemonHerd extends View {
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
           .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale))) // over its shadow, not darkened by it
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
+          // A blow landing: it flashes white (and the hurt pose's silhouette is made ahead).
+          .when(true, (el) => {
+            const lb = (m.blows ?? []).filter((b) => now >= b.at - 1500 && now < b.at + 200).at(-1);
+            if (lb) for (const n of ["HurtL", "HurtR", "Hurt"]) this.wantWhite(meta.react?.[n]?.path);
+            const wf = lb && this.whiteFlash(`m-${a.address}`, s.path, left, top, s.w * scale, s.h * scale, lb.at, now);
+            return wf ? el.child(wf) : el;
+          })
+          // Evolving: its white silhouette pulses over it, as in the games, till the burst.
+          .when(!!m.evolveFx && now - m.evolveFx.at < EVOLVE_BURST, (el) => {
+            this.wantWhite(s.path);
+            return this.whites?.[s.path] === "ready" ? el.child(image(whitePath(s.path)).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale)
+              .loop("opacity", { from: 0, to: 0.95, period: 300 })) : el;
+          })
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
           .when(ownHp(m, now) < 1, (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))));
       } else {
