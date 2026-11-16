@@ -29,7 +29,7 @@ import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, b
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
-import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
+import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
@@ -502,11 +502,12 @@ let lastCry = 0;
 const rareOf = (pick) => isLegendary(pick.dex) ? { mark: "✦", what: "Legendary", color: "#f2c94c" }
   : pick.alpha ? { mark: "α", what: "Alpha", color: "#ff8a80" }
   : pick.shiny ? { mark: "✨", what: "Shiny", color: "#ffffff" } : null;
-function cry(dex) {
+// `quiet`: the soft one (a rare wild one walking in), not the one that calls you to an agent.
+function cry(dex, quiet = false) {
   const now = Date.now();
   if (now - lastCry < 2000) return;
   lastCry = now;
-  ensureCry(dex).then((path) => { if (path) playSound(path); }).catch(() => null);
+  (quiet ? ensureQuietCry(dex) : ensureCry(dex)).then((path) => { if (path) playSound(path); }).catch(() => null);
 }
 // The Bag: a dialog of its own (menu, or keys.json "pokemon-herd.bag").
 // Item art known to be on disk (ensureArt), shared by every view: the strip, the menu, dialogs.
@@ -1029,7 +1030,7 @@ export default class PokemonHerd extends View {
         if (now - v.ready >= 500) {
           v.start = now;
           // A rare one: its cry (once, from the leading strip), so it isn't missed while you work.
-          if (rareOf(v.pick) && this.leader && settingsNow().cryRare) cry(v.pick.dex);
+          if (rareOf(v.pick) && this.leader && settingsNow().cryRare) cry(v.pick.dex, true); // softly
           if (this.coming === "honey" || (this.coming === "legend" && v.pick.legend)) this.coming = null;
         }
       } else if (now - v.asked > 60000) {

@@ -283,6 +283,17 @@ export async function ensureCry(dex) {
   return r.code === 0 ? cryPath(dex) : null;
 }
 
+// The same cry, soft (a quarter of the volume, easing in): for a rare wild one walking in, so it
+// says so without making you jump. "<dex>-q.mp3" beside it.
+export async function ensureQuietCry(dex) {
+  const loud = await ensureCry(dex);
+  if (!loud) return null;
+  const rel = `${DATA_REL}/cries/${dex}-q.mp3`, file = `${DATA}/cries/${dex}-q.mp3`;
+  if (await fs.exists(file).catch(() => false)) return rel;
+  const r = await exec("ffmpeg", ["-loglevel", "error", "-y", "-i", `${DATA}/cries/${dex}.mp3`, "-af", "volume=0.25,afade=t=in:d=0.25", "-q:a", "5", file]);
+  return r.code === 0 ? rel : null;
+}
+
 // The Megas drawn since this release: SpriteCollab's tracker, read at most once a day and boiled
 // down to data/pokemon-herd/megas.json ({ v: 2, at, megas }).
 const TRACKER = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/tracker.json";

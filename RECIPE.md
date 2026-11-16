@@ -51,7 +51,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   before each ball (Razz ×1.5, Golden Razz ×2.5, Pinap: twice the gift, Silver Pinap: both): the
   one set in the Bag or the menu, None, or Auto (the default; `baitFor`: none with a Master Ball,
   the best there is for a rare one, a Razz for any other only when the ball alone is under 50%).
-  A rare one walking in (shiny, Alpha, legendary) cries once and a note blinks in the strip's
+  A rare one walking in (shiny, Alpha, legendary) cries once, softly (a quarter of the volume,
+  easing in: `ensureQuietCry`), and a note blinks in the strip's
   corner ("✨ Shiny Wooloo is walking by!"; Settings → Sound → When a rare one walks by). The
   visitor stops while the ball shakes (up to three times), then "Gotcha!" or it breaks free and
   walks on. Caught: into the Box (`box-<when>-<dex>`) with ♥1, a nature (Hasty, Lazy, Calm, Brave,
