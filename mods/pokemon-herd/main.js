@@ -21,9 +21,10 @@ import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
+import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
-import { withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
@@ -381,6 +382,10 @@ const openSettings = (update) => openOverlay({ mod: MOD, kind: "dialog", width: 
 // A Pokémon's cry (downloaded and converted once); at most one every 2 s, so a burst of agents
 // finishing together doesn't turn into a chorus.
 let lastCry = 0;
+// What makes a wild one rare, for the note in the corner: a legendary, an Alpha, a shiny; or null.
+const rareOf = (pick) => isLegendary(pick.dex) ? { mark: "✦", what: "Legendary", color: "#f2c94c" }
+  : pick.alpha ? { mark: "α", what: "Alpha", color: "#ff8a80" }
+  : pick.shiny ? { mark: "✨", what: "Shiny", color: "#ffffff" } : null;
 function cry(dex) {
   const now = Date.now();
   if (now - lastCry < 2000) return;
@@ -407,7 +412,7 @@ function menuParts(b = bag()) {
   return {
     balls, baits,
     ball: balls.includes(chosen) ? chosen : null,
-    bait: baits.includes(fed) ? fed : null,
+    bait: baits.includes(fed) ? fed : fed === null ? null : AUTO_BAIT, // unset: Auto
     calls: visitors ? ["honey", "azure-flute"].filter((id) => b.items[id]) : [],
   };
 }
@@ -823,7 +828,7 @@ export default class PokemonHerd extends View {
     if (this.legendSeen !== undefined && legend > this.legendSeen) { this.legendNext = true; this.coming = "legend"; if (!v) this.visitAt = now; }
     this.legendSeen = legend;
     if (!v && now >= this.visitAt) {
-      const pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds() });
+      const pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught) });
       this.legendNext = false;
       dev?.wild?.(pick, devApi); // dev.js: a wild one asked for
       const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
@@ -894,6 +899,8 @@ export default class PokemonHerd extends View {
         v.ready ??= now;
         if (now - v.ready >= 500) {
           v.start = now;
+          // A rare one: its cry (once, from the leading strip), so it isn't missed while you work.
+          if (rareOf(v.pick) && this.leader && settingsNow().cryRare) cry(v.pick.dex);
           if (this.coming === "honey" || (this.coming === "legend" && v.pick.legend)) this.coming = null;
         }
       } else if (now - v.asked > 60000) {
@@ -1008,7 +1015,7 @@ export default class PokemonHerd extends View {
     if (!ball) return;
     // The Berry set in the Bag goes first, while there are some (none for a Master Ball: no need).
     const b0 = bag();
-    const bait = ball !== "master-ball" && BAIT[shared(BAIT_KEY)] && b0.items[shared(BAIT_KEY)] ? shared(BAIT_KEY) : null;
+    const bait = baitFor(b0.items, v.pick, ball, shared(BAIT_KEY)); // the one set, or Auto's pick
     saveBag(addItem(bait ? addItem(b0, bait, -1) : b0, ball, -1));
     v.throws = (v.throws ?? 0) + 1;
     if (bait) research("berry"); // a Berry fed to a wild one counts too
@@ -1137,7 +1144,7 @@ export default class PokemonHerd extends View {
     v.walkFrom ??= now;
     const left = placed ? v.to : v.from;
     const leg = v.leg ?? 0;
-    const baitNow = ball && ball !== "master-ball" && BAIT[shared(BAIT_KEY)] && bag().items[shared(BAIT_KEY)] ? shared(BAIT_KEY) : null;
+    const baitNow = baitFor(bag().items, v.pick, ball, shared(BAIT_KEY));
     const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow));
     root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
       .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
@@ -1901,22 +1908,23 @@ export default class PokemonHerd extends View {
     // A row of chips under a label: one on (the ball or the Berry in use); a click switches to it.
     const chips = (id, label, opts, cur, pick) => v_flex().h(44).px(8).gap(3).justify_center()
       .child(div().text_size(11).text_color(t.muted).child(label))
-      .child(h_flex().gap(4).items_center().children(opts.map(([v, txt]) => div().id(`${id}-${v ?? "auto"}`)
-        .h(22).px(7).rounded(5).flex().items_center().flex_none().text_size(11.5).border_1()
+      .child(h_flex().gap(3).items_center().children(opts.map(([v, txt]) => div().id(`${id}-${v ?? "none"}`)
+        .h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11.5).border_1()
         .border_color(v === cur ? t.accent : t.border).bg(v === cur ? t.selected : "#00000000")
         .text_color(v === cur ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
         .on_click((_e, cx) => { pick(v); cx.notify(); })
-        .when(!!v, (e2) => e2.gap(3).pl(4).child(this.itemMark(v, 16)))
+        .when(!!ITEMS[v], (e2) => e2.gap(3).pl(4).child(this.itemMark(v, 16)))
         .child(txt))));
-    const short = (id) => ITEMS[id].name.replace(/ Ball$| Berry$/, "").replace("Golden ", "G. ").replace("Silver ", "S. ");
+    // The chips show each one's picture and count; the label says which is set.
+    const named = (v, auto) => (v && ITEMS[v] ? ITEMS[v].name : v === null && !auto ? "None" : "Auto");
     return v_flex()
       .id("pokemon-menu").size_full().p(8).gap(2).bg(t.popover)
       .child(row("open-bag", "Box", `${boxCount()} Pokémon · ${n} item${n === 1 ? "" : "s"} · ${got}/8`, () => openBag("box")))
       .child(row("open-today", "Today", `Research ${done}/${daily.tasks.length} · ${money(b.money)}`, () => openBag("today")))
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
-      .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", "Ball to throw", [[null, "Auto"], ...m.balls.map((id) => [id, `${short(id)} ${b.items[id]}`])], m.ball,
+      .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", `Ball to throw · ${named(m.ball, true)}`, [[null, "Auto"], ...m.balls.map((id) => [id, String(b.items[id])])], m.ball,
         (v) => setShared(BALL_KEY, v))))
-      .when(m.baits.length > 0, (el) => el.child(chips("menu-bait", "Berry before each ball", [[null, "None"], ...m.baits.map((id) => [id, `${short(id)} ${b.items[id]}`])], m.bait,
+      .when(m.baits.length > 0, (el) => el.child(chips("menu-bait", `Berry before each ball · ${named(m.bait)}`, [[AUTO_BAIT, "Auto"], [null, "None"], ...m.baits.map((id) => [id, String(b.items[id])])], m.bait,
         (v) => setShared(BAIT_KEY, v))))
       .children(m.calls.map((id) => row(`menu-${id}`, id === "honey" ? "Call a wild Pokémon" : "Call a legendary", `${ITEMS[id].name} · ${b.items[id]} left`, () => {
         saveBag(addItem(bag(), id, -1));
@@ -2245,6 +2253,7 @@ export default class PokemonHerd extends View {
       panel(
         line("When an agent needs you", null, toggle("cryBlocked")),
         line("When an agent finishes", "Herdr's own sound plays too; it can be turned off in Herdr's settings.", toggle("cryDone")),
+        line("When a rare one walks by", "A shiny, an Alpha or a legendary: its cry, and a note in the strip's corner.", toggle("cryRare")),
         line("Hear one", `${fullName(sample.dex)}'s cry`, div().id("cry-test").h(26).px(12).rounded_full().flex().items_center().flex_none()
           .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold().cursor_pointer()
           .on_click(() => { lastCry = 0; cry(sample.dex); })
@@ -2653,6 +2662,14 @@ export default class PokemonHerd extends View {
           .loop("opacity", { from: 0.2, to: 1, period: 400 })
           .child(["🎆", "🎇", "✨"][k % 3]));
       }
+    }
+    // A rare one walking by (shiny, Alpha, legendary): a note in the corner while it's here.
+    const rv = this.visitor;
+    if (rv?.start && !rv.fainted && !(rv.throw && (rv.throw.caught || rv.throw.fled)) && rareOf(rv.pick) && settingsNow().cryRare && !this.coming) {
+      root.child(div().id("pokemon-rare").absolute().right(update ? 90 : 6).top(4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(rareOf(rv.pick).color)
+        .loop("opacity", { from: 0.55, to: 1, period: 700 })
+        .child(`${rareOf(rv.pick).mark} ${rareOf(rv.pick).what} ${fullName(rv.pick.dex, rv.pick.form)} is walking by!`));
     }
     // Called with Honey or the Azure Flute: on its way (the first time a species comes, its
     // sprite is fetched, which can take half a minute).
@@ -3201,7 +3218,7 @@ export default class PokemonHerd extends View {
                 .text_size(12).font_semibold().bg(on || has ? t.solid : t.border).text_color(on || has ? t.solid_foreground : t.dim)
                 .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BALL_KEY, on ? null : sel); cx.notify(); }))
                 .child(on ? "Back to Auto" : "Throw this one"))
-              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest, the best for a shiny, a Master Ball only for a legendary. Right-click a wild one to switch.")));
+              .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest; an Ultra Ball for a shiny, an Alpha or a legendary; never the Master Ball (choose it yourself). Right-click a wild one to switch.")));
           })
           .when(ITEMS[sel].kind === "ball", (el) => el
             .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: 1 in 20 run away.`))
@@ -3213,10 +3230,10 @@ export default class PokemonHerd extends View {
             return el.child(div().h(2)).child(h_flex().gap(10).items_center()
               .child(div().id("use-bait").h(26).px(14).rounded_full().flex().items_center().flex_none()
                 .text_size(12).font_semibold().bg(on || has ? t.solid : t.border).text_color(on || has ? t.solid_foreground : t.dim)
-                .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BAIT_KEY, on ? null : sel); cx.notify(); }))
+                .when(on || has, (e2) => e2.cursor_pointer().on_click((_e, cx) => { setShared(BAIT_KEY, on ? AUTO_BAIT : sel); cx.notify(); }))
                 .child(on ? "Stop feeding" : "Feed before each ball"))
               .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim)
-                .child(on ? (has ? "On: one goes before each ball you throw." : "On, but none left.") : has ? "One goes before each ball, till you stop or run out." : "None in the Bag: the Shop has them.")));
+                .child(on ? (has ? "On: one goes before each ball you throw." : "On, but none left.") : has ? "One goes before each ball, till you stop or run out. (Auto, the default: a Golden Razz for a rare one, a Razz when the ball alone would likely miss.)" : "None in the Bag: the Shop has them.")));
           })
           // A Festival Ticket: fireworks now.
           .when(sel === "festival-ticket", (el) => {
@@ -3314,7 +3331,25 @@ export default class PokemonHerd extends View {
       ["alpha", "Alpha", (x) => !!x.pick.alpha],
     ];
     const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
-    const shown = everyone.filter(filter[2]).filter((x) => !q || fold(nameFor(x.pick)).includes(q) || fold(x.tag ?? "").includes(q) || fold(natureOf(x.pick)?.name ?? "").includes(q));
+    const shown = sortBox(everyone.filter(filter[2]).filter((x) => !q || fold(nameFor(x.pick)).includes(q) || fold(x.tag ?? "").includes(q) || fold(natureOf(x.pick)?.name ?? "").includes(q)), this.boxSort ?? "new");
+    // Releasing (one, or a batch picked in Select): what it holds back to the Bag, and a little
+    // money each (box.js releasePay). Never one with an agent or locked (box.js releasable).
+    const releaseSlots = (slots) => {
+      const all = savedPicks();
+      let b = bag();
+      const gone = [];
+      for (const s of slots) {
+        const p = all[s];
+        const x = everyone.find((e) => e.slot === s);
+        if (!p || !x || !releasable({ ...x, pick: p })) continue;
+        if (p.held) b = addItem(b, p.held);
+        b = addMoney(b, releasePay(p));
+        gone.push(s);
+      }
+      if (gone.length) { saveBag(b); forgetPanes(gone); }
+    };
+    const picking = this.boxPicking ?? null; // Select: the slots picked for a batch release
+    const dupes = picking ? duplicates(everyone) : [];
     const sel = everyone.find((x) => x.slot === this.boxSel) ?? null;
     const chip = (id, label, on, click) => div().id(id).h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
       .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")
@@ -3325,11 +3360,23 @@ export default class PokemonHerd extends View {
       .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
     const CELL = 84;
     const cell = (x) => {
-      const on = x.slot === this.boxSel;
+      const picked = !!picking?.has(x.slot);
+      const on = picking ? picked : x.slot === this.boxSel;
+      const can = releasable(x);
       return v_flex().id(`box-${x.slot}`).relative().w(CELL).h(92).flex_none().items_center().justify_center().gap(1)
         .rounded(8).border_1().border_color(on ? t.accent : "#00000000").bg(on ? t.selected : "#00000000")
+        .when(!!picking && !can, (el) => el.opacity(0.4))
         .cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
-        .on_click((_e, cx) => { this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null; cx.notify(); })
+        .on_click((_e, cx) => {
+          if (picking) {
+            if (can) picked ? picking.delete(x.slot) : picking.add(x.slot);
+            this.releasingAll = false;
+          } else { this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null; }
+          cx.notify();
+        })
+        .when(picked, (el) => el.child(div().absolute().bottom(4).right(4).size(16).rounded_full().bg(t.accent).flex().items_center().justify_center()
+          .text_size(10).font_bold().text_color("#ffffff").child("✓")))
+        .when(!!x.pick.locked, (el) => el.child(div().absolute().top(22).left(5).text_size(10).child("🔒")))
         .child(icon(x.pick, 48))
         .child(div().w_full().px(3).text_center().truncate().text_size(11).text_color(t.foreground).child(x.pick.nick ?? nameOf(x.pick.dex)))
         .child(div().w_full().px(3).text_center().truncate().text_size(10).text_color(x.tag ? t.accent : t.muted)
@@ -3359,6 +3406,12 @@ export default class PokemonHerd extends View {
               : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${tag ? ` · with ${tag}` : ""}`))
             .child(div().text_size(11.5).text_color(t.muted).truncate().child(facts))))
         .child(h_flex().gap(6).flex_wrap().items_center()
+          // Locked: never released, alone or in a batch.
+          .child(pill(`box-lock-${slot}`, pick.locked ? "🔒 Unlock" : "Lock", () => {
+            const live = savedPicks()[slot];
+            if (live) savePicks({ [slot]: { ...live, locked: !live.locked } });
+            this.releasing = null;
+          }))
           .child(pill(`box-rename-${slot}`, this.renaming === slot ? "Cancel" : "Rename", () => {
             if (this.renaming === slot) { this.renaming = null; return; }
             this.renaming = slot;
@@ -3384,11 +3437,9 @@ export default class PokemonHerd extends View {
             saveBag(addItem(bag(), r.back));
           })))
           .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "Cancel" : "Bring out", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; })))
-          .when(!tag, (el) => el.child(pill(`box-release-${slot}`, sure ? "Sure? Release it" : "Release", () => {
+          .when(!tag && !pick.locked, (el) => el.child(pill(`box-release-${slot}`, sure ? `Sure? Release it (+${money(releasePay(pick))})` : "Release", () => {
             if (!sure) { this.releasing = slot; return; }
-            const now = savedPicks()[slot];
-            if (now?.held) saveBag(addItem(bag(), now.held));
-            forgetPanes([slot]);
+            releaseSlots([slot]);
             this.releasing = null;
             this.boxSel = null;
           }, sure))))
@@ -3406,10 +3457,40 @@ export default class PokemonHerd extends View {
       .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
         .child(Input.new(this.boxInput).w(150).h(26).px(8).rounded(6).border_1().border_color(t.border).bg(t.background).text_size(12).text_color(t.foreground))
         .children(FILTERS.map(([k, label, f]) => chip(`box-f-${k}`, `${label} ${everyone.filter(f).length}`, filter[0] === k, () => { this.boxFilter = k; }))))
+      // Its order, and Select: pick many to release at once.
+      .child(h_flex().gap(6).items_center().flex_none()
+        .child(div().text_size(11).text_color(t.muted).child("Sort"))
+        .children(SORTS.map(([k, label]) => chip(`box-s-${k}`, label, (this.boxSort ?? "new") === k, () => { this.boxSort = k; })))
+        .child(div().flex_1())
+        .child(chip("box-select", picking ? "Done" : "Select…", !!picking, () => {
+          this.boxPicking = picking ? null : new Set();
+          this.releasingAll = false;
+          this.boxSel = null;
+          this.releasing = null;
+        })))
+      .when(!!picking, (el) => {
+        const sel = [...picking].map((s) => everyone.find((x) => x.slot === s)).filter((x) => x && releasable(x));
+        const pay = sel.reduce((n, x) => n + releasePay(x.pick), 0);
+        const sure = !!this.releasingAll;
+        return el.child(h_flex().flex_wrap().gap(6).items_center().flex_none()
+          .child(div().text_size(12).font_semibold().text_color(t.foreground).child(`${sel.length} picked`))
+          .child(chip("box-pick-shown", "All shown", false, () => { for (const x of shown) if (releasable(x)) picking.add(x.slot); this.releasingAll = false; }))
+          .child(chip("box-pick-dupes", `Duplicates ${dupes.length}`, false, () => { for (const s of dupes) picking.add(s); this.releasingAll = false; }))
+          .child(chip("box-pick-none", "Clear", false, () => { picking.clear(); this.releasingAll = false; }))
+          .child(div().flex_1())
+          .when(sel.length > 0, (e2) => e2.child(pill("box-release-all", sure ? `Sure? Release ${sel.length} (+${money(pay)})` : `Release ${sel.length}`, () => {
+            if (!sure) { this.releasingAll = true; return; }
+            releaseSlots(sel.map((x) => x.slot));
+            picking.clear();
+            this.releasingAll = false;
+          }, true))));
+      })
       .child(div().id("box-grid").flex_1().min_h(0).p(6).rounded(10).bg(t.raised).overflow_y_scrollbar()
         .child(h_flex().flex_wrap().gap(6).children(shown.map(cell)))
         .when(!shown.length && everyone.length > 0, (el) => el.child(div().p(8).text_size(12).text_color(t.dim).child("None matches."))))
-      .child(div().flex_none().min_h(96).p(12).rounded(10).bg(t.raised).child(detail()));
+      .child(div().flex_none().min_h(96).p(12).rounded(10).bg(t.raised).child(picking
+        ? div().text_size(12).text_color(t.dim).child("Click Pokémon to pick them, then Release (twice). Ones with agents and 🔒 locked ones stay. Duplicates picks every one but the best of each species, never a shiny, an Alpha or a legendary. Each pays ₽10; a shiny or an Alpha ₽50, a legendary ₽100.")
+        : detail()));
   }
 
   // An item's sprite in the Bag (its emoji till it's in).

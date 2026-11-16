@@ -30,8 +30,12 @@ export const isLocked = (dex, d, open = false) => !open && isLegendary(dex) && !
 export function wildPick(taken, rnd = Math.random, how = {}) {
   const legend = how.legend || rnd() * LEGEND_ODDS < 1;
   const all = WALKABLE.filter((dex) => isLegendary(dex) === legend);
-  const free = all.filter((dex) => !taken.has(dex));
-  const pool = free.length ? free : all;
+  // A legendary: one not caught yet (`how.caught`, the Pokédex's) while any are left, so each
+  // call of the Azure Flute or the day's Research is a new one to catch.
+  const fresh = legend && how.caught ? all.filter((dex) => !how.caught.has(dex)) : all;
+  const wanted = fresh.length ? fresh : all;
+  const free = wanted.filter((dex) => !taken.has(dex));
+  const pool = free.length ? free : wanted;
   const dex = pool[Math.floor(rnd() * pool.length)];
   const alpha = !legend && rnd() * ALPHA_ODDS < 1;
   return { dex, shiny: rnd() * (how.shinyOdds ?? 64) < 1 && hasShiny(dex), mega: "off", ...(legend ? { legend: true } : {}), ...(how.legend ? { called: true } : {}), ...(alpha ? { alpha: true } : {}) };
@@ -182,14 +186,28 @@ export function throwBall(ball, pick, rnd = Math.random, bait = null) {
   return { caught, shakes, fled: !caught && !isLegendary(pick.dex) && rnd() < FLEE };
 }
 // Which ball a click throws (`items`: the Bag's counts), or null: the one chosen in the Bag
-// (`chosen`, any, the Master Ball too) while there are some; else the cheapest first, but the best
-// for a shiny or a legendary, and the Master Ball only for a legendary.
+// (`chosen`, any, the Master Ball too) while there are some; else (Auto) the cheapest first, an
+// Ultra Ball first for a shiny, an Alpha or a legendary, and never the Master Ball.
 export function ballFor(items, pick, chosen = null) {
   if (BALLS.includes(chosen) && (items[chosen] ?? 0) > 0) return chosen;
-  const order = isLegendary(pick.dex) ? ["master-ball", "ultra-ball", "great-ball", "poke-ball"]
-    : pick.shiny ? ["ultra-ball", "great-ball", "poke-ball"]
+  // A Master Ball only when you choose it: Auto keeps it (an Ultra Ball for a rare one).
+  const order = isLegendary(pick.dex) || pick.shiny || pick.alpha ? ["ultra-ball", "great-ball", "poke-ball"]
     : ["poke-ball", "great-ball", "ultra-ball"];
   return order.find((id) => (items[id] ?? 0) > 0) ?? null;
+}
+// Which Berry goes before a ball (`chosen`: the one set in the Bag or the menu; null: none;
+// "auto" or unset: chosen here), or null. Auto: none for a Master Ball; for a rare one (a shiny,
+// an Alpha, a legendary) the best there is, Golden Razz then Razz; for any other, a Razz only when
+// the ball alone is likelier to miss (under 50%): Berries kept for when they count.
+export const AUTO_BAIT = "auto";
+export function baitFor(items, pick, ball, chosen = AUTO_BAIT) {
+  const has = (id) => (items[id] ?? 0) > 0;
+  if (!ball || ball === "master-ball") return null;
+  if (chosen === null) return null;
+  if (chosen !== undefined && chosen !== AUTO_BAIT) return BAIT[chosen] && has(chosen) ? chosen : null;
+  const rare = pick.shiny || pick.alpha || isLegendary(pick.dex);
+  if (rare) return ["golden-razz-berry", "razz-berry"].find(has) ?? null;
+  return catchChance(ball, pick) < 0.5 && has("razz-berry") ? "razz-berry" : null;
 }
 
 // ---- a visitor's purse ----------------------------------------------------------------------

@@ -43,11 +43,13 @@ test("catching: the Master Ball never fails; legendaries are much harder", () =>
   assert.equal(throwBall("poke-ball", { dex: 25 }, () => 0.05).caught, true);
 });
 
-test("ballFor: cheapest first; the best for a shiny; the Master Ball only for a legendary", () => {
+test("ballFor: cheapest first; an Ultra Ball for a rare one; the Master Ball only when chosen", () => {
   const all = { "poke-ball": 1, "great-ball": 1, "ultra-ball": 1, "master-ball": 1 };
   assert.equal(ballFor(all, { dex: 25 }), "poke-ball");
   assert.equal(ballFor(all, { dex: 25, shiny: true }), "ultra-ball");
-  assert.equal(ballFor(all, { dex: 150 }), "master-ball");
+  assert.equal(ballFor(all, { dex: 150 }), "ultra-ball"); // a legendary: Auto keeps the Master Ball
+  assert.equal(ballFor({ "master-ball": 3, "poke-ball": 1 }, { dex: 150 }), "poke-ball");
+  assert.equal(ballFor(all, { dex: 150 }, "master-ball"), "master-ball"); // chosen
   assert.equal(ballFor({ "master-ball": 3 }, { dex: 25 }), null);
   assert.equal(ballFor({}, { dex: 25 }), null);
 });
@@ -330,4 +332,37 @@ test("forms fight with their own types and stats", () => {
   assert.equal(bestType("6mX", 448), "fire");
   assert.equal(bestType("6mX", 149), "dragon");
   assert.equal(bestType(25, 7), "electric");
+});
+
+import { baitFor, AUTO_BAIT } from "../mods/pokemon-herd/trainer.js";
+test("Auto Berry: the best for a rare one, a Razz only when the ball would likely miss", () => {
+  const all = { "razz-berry": 5, "golden-razz-berry": 2, "pinap-berry": 3 };
+  assert.equal(baitFor(all, { dex: 16, shiny: true }, "poke-ball"), "golden-razz-berry"); // unset = Auto
+  assert.equal(baitFor(all, { dex: 16, alpha: true }, "ultra-ball", AUTO_BAIT), "golden-razz-berry");
+  assert.equal(baitFor({ "razz-berry": 1 }, { dex: 150 }, "ultra-ball", AUTO_BAIT), "razz-berry");
+  assert.equal(baitFor(all, { dex: 150 }, "master-ball", AUTO_BAIT), null); // a Master Ball needs none
+  assert.equal(baitFor(all, { dex: 1 }, "ultra-ball", AUTO_BAIT), null); // easy: Berries kept
+  assert.equal(baitFor(all, { dex: 3 }, "poke-ball", AUTO_BAIT), "razz-berry"); // a final stage, a Poké Ball: likely a miss
+  assert.equal(baitFor(all, { dex: 3 }, "poke-ball", null), null); // None
+  assert.equal(baitFor(all, { dex: 3 }, "poke-ball", "pinap-berry"), "pinap-berry"); // the one chosen
+  assert.equal(baitFor({}, { dex: 3 }, "poke-ball", "pinap-berry"), null); // none left
+  assert.equal(baitFor(all, { dex: 3 }, null, AUTO_BAIT), null); // no ball
+});
+test("Auto ball: an Alpha gets the best, as a shiny does", () => {
+  const items = { "poke-ball": 5, "ultra-ball": 2 };
+  assert.equal(ballFor(items, { dex: 16, alpha: true }), "ultra-ball");
+  assert.equal(ballFor(items, { dex: 16 }), "poke-ball");
+});
+
+import { WALKABLE as WALKABLE_DEX } from "../mods/pokemon-herd/dex.js";
+test("a legendary walking by is one not caught yet, while any are left", () => {
+  const legends = [...LEGENDARY].filter((d) => WALKABLE_DEX.includes(d));
+  const caught = new Set(legends.slice(1));
+  for (let i = 0; i < 50; i++) assert.equal(wildPick(new Set(), Math.random, { legend: true, caught }).dex, legends[0]);
+  const all = new Set(legends); // every one caught: any again
+  const seen = new Set();
+  for (let i = 0; i < 200; i++) seen.add(wildPick(new Set(), Math.random, { legend: true, caught: all }).dex);
+  assert.ok(seen.size > 3);
+  // Others aren't steered by the Pokédex.
+  assert.ok(!isLegendary(wildPick(new Set(), () => 0.5, { caught }).dex));
 });

@@ -47,8 +47,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Prices are set from a working day (~₽3,000); anything sells back for half.
 - **Catching:** a visitor's first click takes its gift and purse; then, with a ball over its
   head, a click throws one: the chosen ball (Bag, menu, or right-click the visitor) or Auto
-  (cheapest; the best for a shiny; a Master Ball only for a legendary). A Berry set in the Bag goes
-  before each ball (Razz ×1.5, Golden Razz ×2.5, Pinap: twice the gift, Silver Pinap: both). The
+  (cheapest; an Ultra Ball for a shiny, an Alpha or a legendary; never a Master Ball: that one only when chosen). A Berry goes
+  before each ball (Razz ×1.5, Golden Razz ×2.5, Pinap: twice the gift, Silver Pinap: both): the
+  one set in the Bag or the menu, None, or Auto (the default; `baitFor`: none with a Master Ball,
+  the best there is for a rare one, a Razz for any other only when the ball alone is under 50%).
+  A rare one walking in (shiny, Alpha, legendary) cries once and a note blinks in the strip's
+  corner ("✨ Shiny Wooloo is walking by!"; Settings → Sound → When a rare one walks by). The
   visitor stops while the ball shakes (up to three times), then "Gotcha!" or it breaks free and
   walks on. Caught: into the Box (`box-<when>-<dex>`) with ♥1, a nature (Hasty, Lazy, Calm, Brave,
   Jolly: speed, napping, sparring, fidgets) and its ball. The throw (`fx.js`): the ball flies up
@@ -72,7 +76,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   of these moments (`fxSchedule`), so nothing waits for its quarter-second tick.
 - **Legendaries** (`LEGENDARY`): locked in the picker and for new agents until one is caught
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
-  Azure Flute (₽1,000) and the day's Research call one. About 15 balls before one flees.
+  Azure Flute (₽1,000) and the day's Research call one: always one not caught yet, while any are
+  left (`wildPick` with the Pokédex's caught). About 15 balls before one flees.
 - **Alphas** (`ALPHA_ODDS` 40): a wild one ×1.4 bigger with a breathing red glow and a red α;
   half the base rate to catch, ₽150 and twice the gift; caught, `alpha: true`, ♥2, still bigger.
 - **Pokédex:** species seen and caught by region; goals at 5, 15, 30, 60, 100, 200 caught pay
@@ -408,8 +413,14 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   scrolling panel the items list's height: portrait, "✨ Name", "♥ ½ · 3/15 jobs · Everstone",
   what it holds (its sprite, and Take: back into the Bag), Rename, Bring out (waiting ones; then
   "Give it to:" chips, one per agent on screen with its Pokémon, "api: Pikachu"; a click swaps
-  them through `bringOut`, the same as the picker's), and Release (asks "Sure?"; what it held
-  goes back into the Bag; the pane is forgotten).
+  them through `bringOut`, the same as the picker's), Lock (🔒: never released), and Release
+  (asks "Sure?"; what it held goes back into the Bag; the pane is forgotten; it pays ₽10, a shiny
+  or an Alpha ₽50, a legendary ₽100: `box.js` `releasePay`, less than a Poké Ball).
+- **Box order and batch release** (`box.js`): Sort Newest (caught, else its slot's time), No.,
+  Name, Hearts (`sortBox`). Select… picks many: click Pokémon to pick them (one with an agent or
+  locked can't be: `releasable`), All shown, Duplicates (`duplicates`: of each species and form,
+  every one but the best, kept by agent or lock, shiny, Alpha, hearts, jobs; never a shiny, an
+  Alpha or a legendary), Clear; Release n, then "Sure? Release n (+₽…)".
 - **Nicknames** (`cleanNick`, `nameFor` in `picks.js`; a pick's `nick`): Rename in the Box
   opens a text field (Enter saves; empty clears). The nickname replaces the species name on the
   strip's hover tag, the sidebar cards, the Party, the Bag's rows and the picker.

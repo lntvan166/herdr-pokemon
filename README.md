@@ -30,7 +30,8 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 | **Your herd** | Each agent is a Pokémon. **Click** it to go to its agent; **right-click** to choose another (click to preview, **Replace** to take it). |
 | **Wild Pokémon** | One walks by every few minutes. **Click** it for its gift and ₽; **click again** to throw a ball. |
 | **Weaken it** | **Drag** one of yours onto it: they battle, and a health bar shows. Lower health, easier catch (up to ×2). **Stop at the red**, or it may faint. |
-| **Balls & Berries** | Poké, Great ×1.5, Ultra ×2, Master (never fails). Set a Berry before each ball: Razz ×1.5, Golden Razz ×2.5, Pinap for twice the gift. |
+| **Balls & Berries** | Poké, Great ×1.5, Ultra ×2, Master (never fails). A Berry before each ball: Razz ×1.5, Golden Razz ×2.5, Pinap for twice the gift. On Auto, the best ball and Berry go to rare ones, and a rare one cries as it walks in. |
+| **Box** | Sort it, Lock (🔒) the ones you love, and release many at once (Select → Duplicates keeps the best of each species). Each one released leaves ₽10, ₽50 for a shiny or an Alpha. |
 | **Rare ones** | Shiny 1 in 64 · Alpha 1 in 40 (½ as easy, ₽150, ♥2) · Legendary 1 in 150, or call one with the Azure Flute. |
 | **Today** | Three Research tasks a day, each paying ₽ or balls; all three: 5 Ultra Balls and a legendary. |
 | **Pokédollars** | Jobs pay ₽1 + ₽5 a minute (about ₽300 an hour of agents' work). Shop via **right-click the ground → Box → Shop**. Anything sells back for half. |
@@ -73,7 +74,7 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 |---|---|---|
 | ✨ **Shiny** | 1 in 64 (1 in 32 with the Shiny Charm, at 500 jobs) | Another colour. Catch one and you can choose that species shiny in the picker. |
 | α **Alpha** | 1 wild one in 40 | Bigger, a red ring and α. Half as easy to catch and tougher in battle; carries ₽150 and twice the gift. Caught, it stays an Alpha: ♥2, hits harder, takes less. |
-| ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) or by finishing the day's Research | Mewtwo, Rayquaza… Locked in the picker until you catch one. Very hard: 15 balls before it runs away. |
+| ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) or by finishing the day's Research | Mewtwo, Rayquaza… always one you haven't caught yet, till you have them all. Locked in the picker until you catch one. Very hard: 15 balls before it runs away. |
 
 <p align="center"><img src="docs/demo/charizard-mega.gif" alt="Charizard asleep; its agent starts working; it Mega Evolves into Mega Charizard X and walks off" width="360"></p>
 
