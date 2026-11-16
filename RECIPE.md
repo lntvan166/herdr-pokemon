@@ -91,6 +91,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   ring snapping in), glows and gold stars float up; a raid egg shakes hard and cracks in its last
   3 s, then hatches in a flash with rays of light and the shell flying apart, its boss growing
   from a third of its size.
+- **White flash and dust**: a Pokémon struck flashes as its white silhouette for 170 ms (sprites.js
+  `ensureWhite`, made once beside the sprite as `-w.gif` the first time it's wanted); evolving,
+  the silhouette pulses over it. Knocked back hard, dust is kicked up at its feet.
+- **Critters** (`critters`): butterflies on spring and summer days, fireflies on nights but
+  winter's, a shooting star every 45 s at night; native loops, so they move without redrawing.
 - **Battle sounds** (Settings → Sound, and the 🔇/🔊 in the strip's top-right corner; off by
   default): gathering, a whoosh or a zap as it flies, a hit (a big one deeper), a ball thrown,
   landing, each shake, caught or broken out (`sfx/*.mp3`, synthesized by `scripts/make-sfx.py`),
