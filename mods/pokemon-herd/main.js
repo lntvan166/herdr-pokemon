@@ -22,13 +22,14 @@ import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, v
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
+import { pickMove } from "./moves.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -1100,7 +1101,7 @@ export default class PokemonHerd extends View {
   fxMove(id, move, x0, x1, y, launch, land, now, noDash = false) {
     const style = move ? moveStyle(move.type, move.blue) : MOVE.normal;
     const out = [];
-    let kind = travelOf(move?.type);
+    let kind = travelOf(move?.type, move?.physical);
     if (kind === "dash" && noDash) kind = "orb";
     if (now >= launch - CHARGE_MS && now < launch) out.push(fxCharge(`${id}-c`, style, x0, y, this.fxFirst(`${id}-c`)));
     if (kind === "beam") {
@@ -1120,6 +1121,13 @@ export default class PokemonHerd extends View {
       out.push(fxShot(`${id}-o`, style, x0, x1, y, Math.max(1, land - now), this.fxFirst(`${id}-o`)));
     }
     return out;
+  }
+  // A move's name over the one using it, from when it gathers to just after it flies; a signature
+  // move in gold.
+  moveLabel(key, move, x, top, launch, now) {
+    if (!move?.name || now < launch - CHARGE_MS || now >= launch + 700) return null;
+    const phase = this.fxFirst(key) ? 0 : now < launch + 420 ? 1 : 2;
+    return fxWord(key, [`${move.name}!`, move.ultimate ? "#ffd23f" : "#ffffff"], x, top, phase);
   }
   // The white of a health bar's loss, for a moment after it's hit (`l`: { prev, at }).
   lostOf(key, l, now) {
@@ -1148,14 +1156,14 @@ export default class PokemonHerd extends View {
       sounds.push([`${key}-hit-${b.at}`, b.at, hitSound(b.p)]);
     };
     // A move: it gathers (a frame as it starts, one to set it moving), fires, lands.
-    const moveTimes = (key, type, launch, land) => {
-      times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, land, land + 70, land + 290);
-      sounds.push([`${key}-c`, launch - CHARGE_MS, "charge"], [`${key}-l`, launch, launchSound(type)]);
+    const moveTimes = (key, type, launch, land, physical = false) => {
+      times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, launch + 420, launch + 700, land, land + 70, land + 290);
+      sounds.push([`${key}-c`, launch - CHARGE_MS, "charge"], [`${key}-l`, launch, launchSound(type, physical)]);
     };
     for (const [addr, m] of Object.entries(this.mons ?? {})) {
       for (const b of m.blows ?? []) blowTimes(b, addr);
       const sh = m.react?.shot;
-      if (sh && now < m.react.until + 400) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until);
+      if (sh && now < m.react.until + 400) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until, sh.move?.physical);
     }
     const v = this.visitor;
     if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
@@ -1169,7 +1177,7 @@ export default class PokemonHerd extends View {
     if (v?.fight) {
       const f = v.fight;
       times.push(f.at, f.hitAt, f.backAt);
-      if (f.back && f.wildMove) moveTimes(`wild-${f.at}`, f.wildMove.type, f.backLaunch, f.backHit);
+      if (f.back && f.wildMove) moveTimes(`wild-${f.at}`, f.wildMove.type, f.backLaunch, f.backHit, f.wildMove.physical);
       if (f.blow) blowTimes(f.blow, `wild-${v.id}`);
     }
     // A raid's blows: each hit, the boss's answer, the push back.
@@ -1232,7 +1240,8 @@ export default class PokemonHerd extends View {
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
-    const { raid } = raidHit(r, key, a.pane, bestType(key, r.boss.dex), at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true });
+    const move = pickMove(key, r.boss.dex);
+    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
   }
@@ -1277,17 +1286,17 @@ export default class PokemonHerd extends View {
       const launch = h.at + CHARGE_MS, land = launch + 260; // it gathers, then fires
       const seq = [{ at: h.at, until: h.at + ms, anim: sp }];
       const blue = h.key === "6mX";
-      (this.bossBlows ??= []).push({ at: land, dir: bx > x ? 1 : -1, p: power(h.eff), style: moveStyle(h.type, blue), word: effectWord(h.eff), num: damageText(h.dmg, h.eff), type: h.type });
+      (this.bossBlows ??= []).push({ at: land, dir: bx > x ? 1 : -1, p: h.ultimate || h.crit ? Math.max(0.85, power(h.eff)) : power(h.eff), style: moveStyle(h.type, blue), word: blowWord(h.eff, h.crit), num: damageText(h.dmg, h.eff), type: h.type });
       if (h.back) {
         // The boss's answer lands on it; it's thrown back, away from the boss.
         const hitBackAt = h.at + COUNTER_MS + 320;
         seq.push({ at: hitBackAt, until: hitBackAt + 600, anim: reactionAnim("startle", has) });
-        (m.blows ??= []).push({ at: hitBackAt, dir: bx > x ? -1 : 1, p: Math.max(0.85, power(h.back.eff)), style: moveStyle(h.back.type), word: effectWord(h.back.eff), num: damageText(h.back.dmg, h.back.eff, true), type: h.back.type });
+        (m.blows ??= []).push({ at: hitBackAt, dir: bx > x ? -1 : 1, p: Math.max(0.85, power(h.back.eff)), style: moveStyle(h.back.type), word: blowWord(h.back.eff, h.back.crit), num: damageText(h.back.dmg, h.back.eff, true), type: h.back.type });
         // Away from the boss: to BOSS_PUSH from it, or 30 px further if it stood further off already.
         const away = x < bx ? Math.min(x - 30, bx - BOSS_PUSH) : Math.max(x + 30, bx + BOSS_PUSH);
         m.raidPush = { at: hitBackAt + 120, to: clamp(away, EDGE, hiX), back: h.back.dmg };
       }
-      m.react = { seq, until: (h.back ? h.at + COUNTER_MS + 1100 : h.at + ms + 200), face: m.dir, shot: { at: launch, until: land, from: x, to: bx, move: { type: h.type, eff: h.eff, blue } } };
+      m.react = { seq, until: (h.back ? h.at + COUNTER_MS + 1100 : h.at + ms + 200), face: m.dir, shot: { at: launch, until: land, from: x, to: bx, move: { type: h.type, eff: h.eff, blue, name: h.name, physical: h.physical, ultimate: h.ultimate } } };
       m.pauseUntil = h.at + 6000;
       m.battleUntil = h.at + 6000; // it Mega Evolves for it
     }
@@ -1430,6 +1439,8 @@ export default class PokemonHerd extends View {
       if (!m || now < from - CHARGE_MS || now >= until + 280) continue;
       const tx = m.moving ? m.from : m.x;
       const dir = tx > bx ? 1 : -1;
+      const lb = this.moveLabel(`mvb-${r.id}-${h.at}`, h.back, bx, Math.max(2, headY - 26), from, now);
+      if (lb) root.child(lb);
       root.children(this.fxMove(`bossshot-${r.id}-${h.at}`, { type: h.back.type, eff: h.back.eff }, bx + dir * 22, tx - dir * 12, Math.round((headY + ground) / 2), from, until, now, true));
     }
     return 1;
@@ -1559,10 +1570,12 @@ export default class PokemonHerd extends View {
         .top(fainting && !ff ? 8 : 0).opacity(fainting && !ff ? 0 : 1)
         .transition("top", { duration: 700, easing: "ease-in" }).transition("opacity", { duration: 900, delay: 150 })
         .child(this.withBlows(`wild-${v.id}`, fx.blow ? [fx.blow] : [], wildBody, mid, headY, ground, now,
-          fx.back && travelOf(fx.wildMove?.type) === "dash" ? dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now) : null)));
+          fx.back && travelOf(fx.wildMove?.type, fx.wildMove?.physical) === "dash" ? dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now) : null)));
       // Its move, flying back at yours (fx.js: its type's look).
       if (fx.back && fx.wildMove && now >= fx.backLaunch - CHARGE_MS && now < fx.backHit + 280) {
         const dir = fx.ownX > x ? 1 : -1;
+        const lb = this.moveLabel(`mvw-${v.id}-${fx.at}`, fx.wildMove, x, Math.max(2, headY - 30), fx.backLaunch, now);
+        if (lb) root.child(lb);
         root.children(this.fxMove(`wildshot-${v.id}-${fx.at}`, fx.wildMove, x + dir * 14, fx.ownX - dir * 12,
           Math.round((headY + ground) / 2) - 2, fx.backLaunch, fx.backHit, now));
       }
@@ -2123,7 +2136,7 @@ export default class PokemonHerd extends View {
       const [k1, k2] = [keyOf(a1), keyOf(a2)];
       const side = (a, k, o) => {
         const meta = this.spriteFor(ids[a.address], a.status);
-        const move = k && o ? { type: bestType(k, o), eff: bestEffect(k, o), blue: k === "6mX" } : null;
+        const move = k && o ? { ...pickMove(k, o), blue: k === "6mX" } : null; // its move (moves.js), named
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
       // Too close: they hop apart first (a quick slide, facing each other), then battle.
@@ -2148,7 +2161,7 @@ export default class PokemonHerd extends View {
           const mv = o.react.shot?.move;
           const special = st.blow === "special";
           (m.blows ??= []).push({ at: st.at, dir: m.react.face === "r" ? -1 : 1, p: special ? power(st.eff ?? 1) : power(1, false),
-            style: special && mv ? moveStyle(mv.type, mv.blue) : STRIKE, word: special ? effectWord(st.eff ?? 1) : null, ...(special && mv ? { type: mv.type } : {}) });
+            style: special && mv ? moveStyle(mv.type, mv.blue) : STRIKE, word: special ? blowWord(st.eff ?? 1, mv?.crit) : null, ...(special && mv ? { type: mv.type } : {}) });
         }
       }
       // Both Mega Evolve for it (those that can, Mega not Off), and a few seconds after.
@@ -2262,8 +2275,9 @@ export default class PokemonHerd extends View {
         const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
-        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow);
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild);
+        const om = pickMove(ownKey, wildKey), wm = pickMove(wildKey, ownKey); // each one's move (moves.js)
+        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul);
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul);
         // It steps off to battle from a little way (FX_GAP), so the two never stand on each other.
         const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), FX_GAP);
         if (Math.abs(spot - dm.x) >= 1) {
@@ -2284,18 +2298,18 @@ export default class PokemonHerd extends View {
         const launch = at + CHARGE_MS + 20; // it gathers power, then fires
         const fly = Math.round(Math.min(320, Math.max(200, Math.abs(v.x - spot) * 3)));
         const hitAt = launch + fly, backAt = hitAt + 650, backLaunch = backAt + CHARGE_MS, backHit = backLaunch + fly;
-        const ownMove = { type: bestType(ownKey, wildKey), eff: hit.eff, blue: ownKey === "6mX" };
-        const wildMove = { type: bestType(wildKey, ownKey), eff: back?.eff ?? 1 };
+        const ownMove = { ...om, eff: hit.eff, blue: ownKey === "6mX" };
+        const wildMove = { ...wm, eff: back?.eff ?? 1 };
         const away = v.x > spot ? 1 : -1; // from yours toward the wild one
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
           x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
-          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: effectWord(hit.eff), num: damageText(hit.dmg, hit.eff), type: ownMove.type },
+          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || om.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, om.crit), num: damageText(hit.dmg, hit.eff), type: ownMove.type },
         };
         const seq = [{ at, until: at + ms, anim: sp }];
         if (back) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
         dm.react = { seq, until: back ? backHit + 700 : at + ms + 300, face: dm.dir, shot: { at: launch, until: hitAt, from: spot, to: v.x, move: ownMove } };
-        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : power(back.eff), style: moveStyle(wildMove.type), word: effectWord(back.eff), num: damageText(back.dmg, back.eff, true), type: wildMove.type });
+        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), num: damageText(back.dmg, back.eff, true), type: wildMove.type });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
       }
@@ -3124,7 +3138,7 @@ export default class PokemonHerd extends View {
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
           .child(this.withBlows(`mon-${a.address}`, m.blows,
             m.evolveFx && now - m.evolveFx.at < EVOLVE_BURST ? body.loop("opacity", { from: 0.35, to: 1, period: 260 }) : body, SLOT_MID, headY, ground, now,
-            m.react?.shot && travelOf(m.react.shot.move?.type) === "dash" ? dashAt(m.react.shot.from, m.react.shot.to, m.react.shot.at, m.react.shot.until, now) : null))
+            m.react?.shot && travelOf(m.react.shot.move?.type, m.react.shot.move?.physical) === "dash" ? dashAt(m.react.shot.from, m.react.shot.to, m.react.shot.at, m.react.shot.until, now) : null))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 22)).justify_center().text_size(12.5).child(bubble)))
@@ -3140,6 +3154,11 @@ export default class PokemonHerd extends View {
             const dir = sh.to >= sh.from ? 1 : -1;
             return el.children(this.fxMove(`shot-${a.address}-${sh.at}`, sh.move, sw / 2 + dir * 14, sw / 2 + (sh.to - sh.from) - dir * 12,
               Math.round((headY + ground) / 2) - 2, sh.at, sh.until, now));
+          })
+          // Its move's name over its head as it gathers and lets fly ("Flamethrower!").
+          .when(!!m.react?.shot?.move?.name, (el) => {
+            const lb = this.moveLabel(`mv-${a.address}-${m.react.shot.at}`, m.react.shot.move, SLOT_MID, Math.max(2, headY - 30), m.react.shot.at, now);
+            return lb ? el.child(lb) : el;
           })
           // A raid on: whether it can hit the boss yet (⏳ 35s) or rests after fainting (💫 1m).
           .when(!!raidBadge(a.pane, m), (el) => el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 30)).justify_center()

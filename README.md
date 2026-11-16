@@ -51,6 +51,9 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 - **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
   and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
+- **Named moves.** Each uses its best type's move, by its stats: a physical fighter rushes in
+  (Brick Break, Fire Punch), a special one fires from where it stands (Flamethrower, Psychic). Now
+  and then a signature move (Blast Burn, Hydro Cannon: ×1.5), and 1 in 16 "A critical hit!" (×1.5).
 - **Moves you can see.** Yours steps off a little, gathers power and uses its best type against
   it: a fireball with a trail of embers, an ice or steel beam, bubbles, leaves, rings… A hit
   flashes, throws sparks and knocks it back, the damage floats up and the health bar drains; a

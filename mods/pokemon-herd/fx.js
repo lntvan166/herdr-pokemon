@@ -153,10 +153,10 @@ export const TRAVEL = {
   ice: "beam", steel: "beam", electric: "beam", fairy: "beam",
   rock: "arc", ground: "arc",
   grass: "volley", water: "volley", poison: "volley", psychic: "volley", flying: "volley",
-  fighting: "dash", normal: "dash",
 };
 export const BEAMS = new Set(Object.keys(TRAVEL).filter((t) => TRAVEL[t] === "beam"));
-export const travelOf = (type) => TRAVEL[type] ?? "orb";
+// A physical move (moves.js) is a dash whatever its type; a special one travels its type's way.
+export const travelOf = (type, physical = false) => (physical ? "dash" : TRAVEL[type] ?? "orb");
 export const VOLLEY = [[0, 0], [70, -5], [140, 5]]; // each shot: [ms after the first, px up or down]
 export const ARC_PEAK = 34; // how high a thrown rock goes over its path
 export const DASH_SHORT = 30; // a dash stops this far short of the target
@@ -179,7 +179,9 @@ export function damageText(dmg, eff = 1, own = false) {
 }
 // Which sound goes with each moment (mods/pokemon-herd/sfx/<name>.mp3, scripts/make-sfx.py).
 export const SOUNDS = ["charge", "whoosh", "zap", "hit", "bighit", "faint", "throw", "absorb", "shake", "gotcha", "break"];
-export const launchSound = (type) => (travelOf(type) === "beam" ? "zap" : "whoosh");
+export const launchSound = (type, physical = false) => (travelOf(type, physical) === "beam" ? "zap" : "whoosh");
+// The word over a blow's target: a critical hit's, else how effective it was.
+export const blowWord = (eff, crit = false) => (crit ? ["A critical hit!", "#ff8a3c"] : effectWord(eff));
 // A dash: how far it rushes (to `DASH_SHORT` short of the target) and back, `t` ms after it sets
 // off; `ms` its run. { px, ms }: its offset now and how long to get there.
 export function dashAt(from, to, launch, land, now) {

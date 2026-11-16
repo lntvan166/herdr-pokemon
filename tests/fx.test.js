@@ -101,7 +101,8 @@ import { TRAVEL, VOLLEY, dashAt, DASH_SHORT } from "../mods/pokemon-herd/fx.js";
 test("each type travels its own way", () => {
   assert.equal(travelOf("rock"), "arc");
   assert.equal(travelOf("grass"), "volley");
-  assert.equal(travelOf("fighting"), "dash");
+  assert.equal(travelOf("fighting"), "orb"); // a special fighting move (Aura Sphere) flies
+  assert.equal(travelOf("fire", true), "dash"); // a physical one rushes in, whatever its type
   assert.equal(travelOf("fire"), "orb");
   for (const t of Object.keys(TRAVEL)) assert.ok(TYPES.includes(t), t);
   assert.equal(VOLLEY.length, 3);

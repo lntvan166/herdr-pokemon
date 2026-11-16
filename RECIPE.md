@@ -85,6 +85,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   knockout; over its head the games' word ("Super effective!", "Not very effective…", "No
   effect…") and the damage floating up ("-23%"; yours hurt in red); a health bar's loss shows
   white, draining away. A plain strike lands lightly in white and gold.
+- **Moves** (`moves.js`): for each type a physical, a special and a signature move (`MOVES`).
+  A fighter uses its best type (`bestType`); physical when its Attack is at least its Sp. Atk
+  (`base-stats.js` `PHYSICAL`, by species and form): it rushes in (a dash), else it fires its
+  type's way. 1 in 8 the signature move (×1.5, gold name), 1 in 16 a critical hit (×1.5, "A
+  critical hit!" over the target). The move's name shows over the one using it as it gathers.
 - **The big moments** (`fx.js` EVOLVE_MS, MEGA_MS, HATCH_*): evolving, it pulses while a column
   of light stands over it, motes rising and a ring swelling out, then a gold burst and "✨
   Evolved!" (3 s); Mega Evolving, a sphere of light round it and the Key Stone's six colours

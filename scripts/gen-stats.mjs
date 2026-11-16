@@ -28,10 +28,13 @@ for (const line of text.trim().split("\n").slice(1)) {
 }
 const POKEMON = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon.csv";
 const row = (id) => { const s = by.get(id); return s && [Math.max(s[2], s[4]), Math.max(s[3], s[5]), ...(types.get(id) ?? []).filter(Boolean)]; };
+const physical = []; // keys whose Attack is at least their Sp. Atk: they rush in and strike
+const phys = (key, id) => { const s = by.get(id); if (s && s[2] >= s[4]) physical.push(key); };
 const out = {};
 for (const dex of WALKABLE) {
   const r = row(dex);
   if (r) out[dex] = r;
+  phys(dex, dex);
 }
 // Other forms: pokemon.csv's id,identifier,species_id,...,is_default.
 const forms = new Map(); // dex -> [[identifier, id]]
@@ -47,7 +50,7 @@ for (const [dex, list] of forms) {
   if (!out[dex]) continue;
   for (const [ident, id] of list) {
     const m = /-mega(?:-([xy]))?$/.exec(ident);
-    if (m && row(id)) formBase[`${dex}m${(m[1] ?? "").toUpperCase()}`] = row(id);
+    if (m && row(id)) { formBase[`${dex}m${(m[1] ?? "").toUpperCase()}`] = row(id); phys(`${dex}m${(m[1] ?? "").toUpperCase()}`, id); }
   }
 }
 // A regional form: the shortest other form of its species with every word of its label
@@ -56,7 +59,7 @@ for (const [dex, form, label] of REGIONAL) {
   const words = label.toLowerCase().split(/\s+/);
   const hit = (forms.get(dex) ?? []).filter(([ident]) => words.every((w) => ident.split("-").includes(w)) && !ident.includes("-mega"))
     .sort((a, b) => a[0].length - b[0].length)[0];
-  if (hit && row(hit[1])) formBase[`${dex}f${form}`] = row(hit[1]);
+  if (hit && row(hit[1])) { formBase[`${dex}f${form}`] = row(hit[1]); phys(`${dex}f${form}`, hit[1]); }
   else console.warn(`no PokeAPI form for ${dex} ${label}`);
 }
 writeFileSync(new URL("../mods/pokemon-herd/base-stats.js", import.meta.url),
@@ -65,5 +68,7 @@ writeFileSync(new URL("../mods/pokemon-herd/base-stats.js", import.meta.url),
   `// its base stats from PokeAPI (pokemon_stats.csv). Names are trademarks of Nintendo et al.; see README.\n` +
   `export const BASE = ${JSON.stringify(out)};\n` +
   `// The same for Megas ("<dex>m" + "X", "Y" or nothing) and regional forms ("<dex>f" + its form folder).\n` +
-  `export const FORM_BASE = ${JSON.stringify(formBase)};\n`);
+  `export const FORM_BASE = ${JSON.stringify(formBase)};\n` +
+  `// Those whose Attack is at least their Sp. Atk (physical fighters: they rush in and strike).\n` +
+  `export const PHYSICAL = ${JSON.stringify(physical.map(String))};\n`);
 console.log(`base-stats.js: ${Object.keys(out).length} species, ${Object.keys(formBase).length} forms`);
