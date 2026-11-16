@@ -35,6 +35,7 @@ import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, 
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
+const AMBIENT_MS = 1000; // snow, leaves, a rainbow: redrawn once a second (each redraw is the whole window)
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
 const WRAP_CHANCE = 0.3; // with rows: how often a walk goes off the edge onto the next row
 const OFF = 40; // how far past the edge it walks before it turns up on the next row
@@ -139,7 +140,7 @@ const setFavs = (keys) => setShared(FAVORITES_KEY, { v: 1, keys });
 // Every agent on the strip: herdr's agents, and (Settings: Sub-agents) the sub-agents it leaves out.
 function herdAgents() {
   const list = agents();
-  if (!loadSettings(shared(SETTINGS_KEY)).family) return list;
+  if (!settingsNow().family) return list;
   let terms = [];
   try { terms = terminals(); } catch {}
   return [...list, ...subAgents(list, terms)];
@@ -166,8 +167,9 @@ const assignAll = (list, { write = false } = {}) => {
   const raw = shared(FOLDERS_KEY);
   const folders = raw?.v === 1 && raw.folders && typeof raw.folders === "object" ? raw.folders : {};
   const cwdOf = Object.fromEntries(terms.filter((t) => t?.address && typeof t.cwd === "string").map((t) => [t.address, t.cwd]));
-  const back = fromFolders(list, savedPicks(), folders, cwdOf);
-  let panesNow = savedPicks();
+  const saved = savedPicks(); // read once (it was twice: ~25 KB parsed and checked each time)
+  const back = fromFolders(list, saved, folders, cwdOf);
+  let panesNow = saved;
   if (Object.keys(back.inherit).length) {
     if (write) { savePicks(back.inherit); forgetPanes(back.forget); }
     panesNow = { ...panesNow, ...back.inherit };
@@ -180,7 +182,7 @@ const assignAll = (list, { write = false } = {}) => {
   // Settings → New agents: Favorites: a new agent's Pokémon is one of the favourites.
   // Trainer mode: what you caught (and the starters); otherwise any species but the legendaries
   // not caught yet (unless Settings opened them).
-  const st = loadSettings(shared(SETTINGS_KEY));
+  const st = settingsNow();
   const d = pokedex();
   const open = (e) => !isLocked(e.dex, d, st.legendsOpen);
   const pool = st.trainer ? trainerEntries(d)
@@ -189,7 +191,7 @@ const assignAll = (list, { write = false } = {}) => {
   const r = assign(list, write ? savedPicks() : panesNow, paneless, charmOdds(), pool);
   // Sub-agents (Settings: on): their agent's Pokémon, younger. `family`: child -> parent address.
   r.family = {};
-  if (loadSettings(shared(SETTINGS_KEY)).family) {
+  if (settingsNow().family) {
     r.family = familyOf(list, terms);
     for (const [child, parent] of Object.entries(r.family)) if (r.ids[parent]) r.ids[child] = youngOf(r.ids[parent]);
   }
@@ -497,9 +499,11 @@ const alphaGlow = (mid, ground, box, scale, shadow = false) => {
 // The α in an Alpha's name tag (before its name).
 // The shiny mark, in colour as the games draw it (Herdr's font draws ✨ in one colour, the text's).
 const SHINY_GOLD = "#ffd23f";
-// A line with ✨ in it: each ✨ gold, the rest as the text around it.
-const sparkled = (text) => (typeof text !== "string" || !text.includes("✨") ? text
-  : h_flex().min_w(0).items_center().children(text.split(/(✨)/).filter(Boolean).map((part) => part === "✨" ? div().flex_none().text_color(SHINY_GOLD).child("✨") : div().flex_none().child(part))));
+// A line with ✨, ♂ or ♀ in it: each in its colour (✨ gold, ♂ blue, ♀ pink, as the games draw
+// them), the rest as the text around it.
+const MARK_COLOR = { "✨": SHINY_GOLD, "♂": "#6ab0ff", "♀": "#ff8ab8" };
+const sparkled = (text) => (typeof text !== "string" || !/[✨♂♀]/.test(text) ? text
+  : h_flex().min_w(0).items_center().children(text.split(/([✨♂♀])/).filter(Boolean).map((part) => MARK_COLOR[part] ? div().flex_none().text_color(MARK_COLOR[part]).child(part) : div().flex_none().child(part))));
 const alphaTag = () => div().flex_none().h(12).px(3).rounded(3).flex().items_center().bg(ALPHA_RED).text_size(9).font_bold().text_color("#ffffff").child("α");
 const alphaMark = (x, y) => div().absolute().left(x).top(Math.max(0, y)).h(14).px(3).rounded(4).flex().items_center()
   .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α");
@@ -523,8 +527,15 @@ const HUNGRY_MS = 5 * 60000; // waiting on you this long: it gets hungry (a hear
 const QUICK_MS = 60000; // answered within this: a heart up
 const petAt = {}; // pane -> when it last got a heart from a click or a quick answer
 // The Settings dialog's choices, live (any window may change them).
-const settingsNow = () => loadSettings(shared(SETTINGS_KEY));
-const setSetting = (key, value) => setShared(SETTINGS_KEY, withSetting(settingsNow(), key, value));
+// Read a dozen times a tick and as many a frame: parsed once per quarter second (every writer of
+// it is this module, which drops the copy as it writes).
+let settingsMemo = null;
+const settingsNow = () => {
+  const now = Date.now();
+  if (!settingsMemo || now - settingsMemo.at >= 250) settingsMemo = { at: now, s: loadSettings(shared(SETTINGS_KEY)) };
+  return settingsMemo.s;
+};
+const setSetting = (key, value) => { const s = withSetting(settingsNow(), key, value); settingsMemo = null; setShared(SETTINGS_KEY, s); };
 const openSettings = (update, tab) => openOverlay({ mod: MOD, kind: "dialog", width: 520, height: 600, props: { settings: true, update, ...(tab ? { tab } : {}) } });
 // A Pokémon's cry (downloaded and converted once); at most one every 2 s, so a burst of agents
 // finishing together doesn't turn into a chorus.
@@ -706,14 +717,18 @@ export default class PokemonHerd extends View {
     const p = palette(nightness(hour), light, seasonAt(now), bright ? "bright" : "muted");
     const weather = this.weather ?? "clear";
     const storm = weather === "storm";
-    // The tick redraws four times a second, so snow, leaves and rain fall.
-    this.snowing = p.snow > 0.05 || p.leaves > 0.05 || weather !== "clear";
-    const sec = now.getTime() / 1000;
+    // Snow and leaves fall: the strip redraws once a second for them (tick: AMBIENT_MS) and each
+    // flake slides there over that second. Rain stays still (it fell too fast to slide: it took a
+    // redraw four times a second, the whole window each time, while an agent waited).
+    this.snowing = p.snow > 0.05 || p.leaves > 0.05;
+    const sec = Math.floor(now.getTime() / AMBIENT_MS) * AMBIENT_MS / 1000;
     const key = `v4|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
     // Clouds and the moon fade over a Pokémon's head (its bubble stays readable): where heads were
     // on the last frame, which is a quarter second at most.
     const heads = this.heads?.[row] ?? [];
     const fade = (box) => (overHead(box, heads) ? 0.15 : 1);
+    // Only this width's (a resize made a new entry for every width it passed, ~38 KB each, for good).
+    if (this.sceneWidth !== Math.round(this.width)) { this.sceneWidth = Math.round(this.width); this.sceneCache = {}; }
     this.sceneCache ??= {};
     const f = (this.sceneCache[key] ??= features(Math.round(this.width), ground, row));
     const line = ground + 4; // the ground line, as the plain background draws it
@@ -760,14 +775,15 @@ export default class PokemonHerd extends View {
         .id(`flake-${row}-${i}-${s.fall}`).absolute().left(s.x).top(s.y).size(2).rounded_full()
         .bg(p.snow >= p.leaves ? "#ffffff" : i % 4 ? "#d9822b" : "#b0461f")
         .opacity(p.snow >= p.leaves ? p.snow * (light ? 0.9 : 0.55) : p.leaves * (light ? 0.9 : 0.7))
-        .transition("top", { duration: 300, easing: "linear" })
-        .transition("left", { duration: 300, easing: "linear" }))))
-      // Weather (agents waiting on you): the sky darkens, rain falls; a storm slants it and flashes.
+        .transition("top", { duration: AMBIENT_MS, easing: "linear" })
+        .transition("left", { duration: AMBIENT_MS, easing: "linear" }))))
+      // Weather (agents waiting on you): the sky darkens, rain streaks it (still); a storm slants
+      // it, and flashes once as it breaks (not every few seconds: it went on while you were away).
       .when(weather !== "clear", (el) => el
         .child(div().absolute().left(0).top(0).w(this.width).h(line + 6).bg("#0b1020").opacity(storm ? 0.32 : 0.18))
-        .children(rainAt(f.drops, sec, line - 2, storm).map((d) => div()
-          .absolute().left(d.x).top(d.y).w(1).h(storm ? 7 : 5).bg("#a9c3ff").opacity(light ? 0.8 : 0.55)))
-        .when(storm && lightning(sec), (e2) => e2.child(div().absolute().left(0).top(0).w(this.width).h(line + 6).bg("#ffffff").opacity(0.35))));
+        .children(rainAt(f.drops, 0, line - 2, storm).map((d) => div()
+          .absolute().left(d.x).top(d.y).w(1).h(storm ? 7 : 5).bg("#a9c3ff").opacity(light ? 0.6 : 0.4)))
+        .when(storm && now.getTime() - (this.stormAt ?? 0) < 250, (e2) => e2.child(div().absolute().left(0).top(0).w(this.width).h(line + 6).bg("#ffffff").opacity(0.35))));
   }
 
   // The sprite set to draw: its Mega while megaShown and once loaded, else its usual one.
@@ -801,7 +817,8 @@ export default class PokemonHerd extends View {
     const form = mega ? megaForm(pick.dex, pick.megaKind)?.form : asFemale(pick) ? "female" : (pick.form ?? null); // its Mega (X or Y), its female sprite, or its regional form
     const cur = this.sprites[key];
     if (cur === "loading" || (cur && !cur.error)) return;
-    if (cur?.error && Date.now() - cur.at < 60000) return;
+    // Failed: tried again after 1, 5, then 30 minutes (offline, it was every minute all day).
+    if (cur?.error && Date.now() - cur.at < [60000, 300000, 1800000][Math.min(2, (cur.tries ?? 1) - 1)]) return;
     this.sprites[key] = "loading";
     cx.spawn(async (cx) => {
       try {
@@ -813,7 +830,7 @@ export default class PokemonHerd extends View {
           return loadSprite(pick.dex, false, form, early);
         });
       } catch (e) {
-        this.sprites[key] = { error: String(e?.message ?? e), at: Date.now() };
+        this.sprites[key] = { error: String(e?.message ?? e), at: Date.now(), tries: (cur?.tries ?? 0) + 1 };
       }
       cx.notify();
     });
@@ -1081,12 +1098,18 @@ export default class PokemonHerd extends View {
     if (f >= 1) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : next(); this.honeyNext = false; return true; }
     v.x = v.from + (v.to - v.from) * f;
     // Idle ones on its row, standing within 220 px, turn to watch it.
+    let turned = false;
     list.forEach((a, i) => {
       const m = this.mons[a.address];
       const row = g ? Math.min(m?.row ?? i % g.rows, g.rows - 1) : 0;
-      if (m && !m.moving && m.mood === "idle" && row === v.row && Math.abs(m.x - v.x) < 220) m.dir = v.x > m.x ? "r" : "l";
+      const dir = v.x > (m?.x ?? 0) ? "r" : "l";
+      if (m && !m.moving && m.mood === "idle" && row === v.row && Math.abs(m.x - v.x) < 220 && m.dir !== dir) { m.dir = dir; turned = true; }
     });
-    return true;
+    // It walks on one transition, set as it sets off: a redraw only when something shows a change
+    // (one turning to watch it, its first steps, its tag following it while hovered), not every
+    // tick of its walk (that was the whole window four times a second, for a minute).
+    const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
+    return turned || now - v.start < 600 || hovered;
   }
 
   // A Pokémon's body (its box SLOT wide, `body` inside) with the blows landing on it (`blows`:
@@ -1761,7 +1784,7 @@ export default class PokemonHerd extends View {
         const tagW = 260;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
-          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""} → Box${v.recordTag ? ` · ${v.recordTag}, the ${v.recordTag === "XXL" ? "biggest" : "smallest"} yet!` : ""}${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+          .child(sparkled(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""} → Box${v.recordTag ? ` · ${v.recordTag}, the ${v.recordTag === "XXL" ? "biggest" : "smallest"} yet!` : ""}${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`)));
       }
       return;
     }
@@ -2029,11 +2052,11 @@ export default class PokemonHerd extends View {
     if (weather !== this.weather) {
       // The rain stops (nobody waits on you any more): a rainbow, somewhere in the middle of the sky.
       if ((this.weather === "rain" || this.weather === "storm") && weather === "clear") this.rainbow = { at: now, x: rand(0.25, 0.75) };
+      if (weather === "storm") { this.stormAt = now; cx.timer.after(260, (c) => c.notify()); } // its one flash, then gone
       this.weather = weather;
       changed = true;
     }
     if (this.rainbow && now - this.rainbow.at >= RAINBOW_MS) { this.rainbow = null; changed = true; }
-    if (this.rainbow) changed = true; // it fades in and out
     // Rivals: agents working in one folder at once (they may edit each other's files): ⚔️ over them.
     const rivals = rivalsOf(list, foldersNow());
     this.rivals = rivals;
@@ -2507,7 +2530,8 @@ export default class PokemonHerd extends View {
     if (this.leader && now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
     this.fxSchedule(cx, now);
-    if (changed || this.snowing) cx.notify();
+    // Snow, leaves and a rainbow's fade: a redraw once a second (AMBIENT_MS), no more.
+    if (changed || ((this.snowing || this.rainbow) && now - (this.drawnAt ?? 0) >= AMBIENT_MS)) { this.drawnAt = now; cx.notify(); }
   }
 
   // ---- the menu (right-click on the strip; a popup with props { menu }) ----
@@ -3755,7 +3779,7 @@ export default class PokemonHerd extends View {
       .child(h_flex().gap(12).items_stretch()
         .children([["Seen", d.seen.length], ["Caught", d.caught.length], ["Legendary", legends], ["Shiny", d.shiny.length], ["Alpha", (d.alpha ?? []).length], ["♂ and ♀", (d.male ?? []).filter((x) => (d.female ?? []).includes(x)).length]].map(([k, n]) => v_flex().flex_1().p(10).gap(2).rounded(10).bg(t.raised)
           .child(div().text_size(18).font_semibold().text_color(t.foreground).child(String(n)))
-          .child(div().text_size(11.5).text_color(t.muted).child(k === "Caught" ? `Caught of ${DEX_TOTAL}` : k)))))
+          .child(div().text_size(11.5).text_color(t.muted).child(k === "Caught" ? `Caught of ${DEX_TOTAL}` : sparkled(k))))))
       // The goals: reached ones ticked; the next with how many to go.
       .child(v_flex().p(12).gap(8).rounded(10).bg(t.raised)
         .child(div().text_size(12).text_color(t.foreground).child(next ? `Next: ${next.n} caught → ${goalText(next)} (${next.n - d.caught.length} to go)` : "Every Pokédex goal reached"))
@@ -4158,7 +4182,7 @@ export default class PokemonHerd extends View {
     const chip = (id, label, on, click) => div().id(id).h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
       .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")
       .text_color(on ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
-      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(sparkled(label));
     const pill = (id, label, click, danger = false) => div().id(id).h(26).px(12).rounded_full().flex().items_center().flex_none().text_size(12).border_1()
       .border_color(danger ? t.blocked : t.border).text_color(danger ? t.blocked : t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
       .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
@@ -4719,7 +4743,7 @@ export default class PokemonHerd extends View {
       .bg(on ? t.selected : "#00000000")
       .text_color(on ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
       .on_click((_e, cx) => { flip(); this.fetchIcons(cx); cx.notify(); })
-      .child(label);
+      .child(sparkled(label));
     const cur = this.livePick();
     return v_flex()
       .id("pokemon-picker")

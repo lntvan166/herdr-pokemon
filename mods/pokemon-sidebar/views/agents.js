@@ -374,7 +374,9 @@ export class Agents {
   render(opts = {}) {
     const t = theme();
     const view = opts.view ?? this.readView();
-    setAgentOrder(view.list.map((a) => a.address));
+    // Only when the order changes (it was every render, the heartbeat's too).
+    const order = view.list.map((a) => a.address).join("\n");
+    if (order !== this.agentOrder) { this.agentOrder = order; setAgentOrder(view.list.map((a) => a.address)); }
     const rows = view.collapsed
       ? view.list.flatMap((a, i) => this.agentWithSubs(a, i, view, t))
       : view.groups.flatMap((group, index) => this.groupRows(group, index, view, t));

@@ -129,6 +129,22 @@ async function cut(sheet, anim, row, scale, out) {
   return { w: fw, h: fh, box: bb };
 }
 
+// One job at a time per key, whoever asks: every window's strip shares this module, so N windows
+// asking for the same sprite set (at start, a new agent) build it once, not N times side by side
+// (N × ~180 ImageMagick runs, each writing the same files another was reading).
+const inflight = new Map();
+const once = (key, fn) => {
+  if (!inflight.has(key)) inflight.set(key, fn().finally(() => inflight.delete(key)));
+  return inflight.get(key);
+};
+// The sprite sheets and AnimData.xml, gone once the set is cut (only the GIFs are drawn: the
+// sheets were half of a 470 MB cache). A rebuild downloads them again.
+async function dropSheets(dir) {
+  for (const n of await fs.readdir(dir).catch(() => [])) {
+    if (n.endsWith(".png") || n === "AnimData.xml") await fs.unlink(`${dir}/${n}`).catch(() => null);
+  }
+}
+
 // Builds (once) and returns a Pokémon's sprite set: { walkR, walkL, idleR, idleL, idleD, sleep,
 // react: { <anim>: cut + { ms } } }, each cut { path, w, h, box }. Shiny ones come from
 // SpriteCollab's shiny sub-folder; `form` (a folder under sprite/<dex>/) picks a form, e.g. its
@@ -137,7 +153,10 @@ async function cut(sheet, anim, row, scale, out) {
 // are cut together and handed to `onCore` (with no reactions yet) so it can show at once; its
 // reactions are cut after, four at a time.
 // `form` "female": its female sprite (gender.js femaleSprite), sprite/<dex>/0000/<0000|0001>/0002.
-export async function loadSprite(dex, shiny, form = null, onCore = null) {
+export const loadSprite = (dex, shiny, form = null, onCore = null) => once(`sprite|${dex}|${shiny}|${form}`, () => buildSprite(dex, shiny, form, onCore));
+async function buildSprite(dex, shiny, form = null, onCore = null) {
+  // A form is a SpriteCollab folder ("0001"); one from the tracker never makes a path of its own.
+  if (form && form !== "female" && !/^\d{4}$/.test(form)) throw new Error(`odd form ${form}`);
   const female = form === "female";
   const folder = `${pad(dex)}${female ? "-f" : form ? `-${form}` : ""}${shiny ? "s" : ""}`;
   const dir = `${DATA}/sprites/${folder}`;
@@ -145,7 +164,7 @@ export async function loadSprite(dex, shiny, form = null, onCore = null) {
   if (await fs.exists(metaFile).catch(() => false)) {
     try {
       const meta = JSON.parse(await fs.readFile(metaFile, "utf8"));
-      if (meta.version === VERSION) return meta;
+      if (meta.version === VERSION) { dropSheets(dir); return meta; } // (sheets left from before: gone)
     } catch {}
   }
   await fs.mkdir(dir, { recursive: true });
@@ -195,6 +214,7 @@ export async function loadSprite(dex, shiny, form = null, onCore = null) {
   }
   await pool(jobs, 4);
   await fs.writeFile(metaFile, JSON.stringify(meta));
+  await dropSheets(dir);
   return meta;
 }
 
@@ -202,7 +222,8 @@ export async function loadSprite(dex, shiny, form = null, onCore = null) {
 // Pokémon flashes as a blow lands, made once beside it ("<name>-w.gif"). `rel`: its path as
 // meta.json has it.
 export const whitePath = (rel) => rel.replace(/\.gif$/, "-w.gif");
-export async function ensureWhite(rel) {
+export const ensureWhite = (rel) => once(`ensureWhite|${[rel].join("|")}`, () => ensureWhiteNow(rel));
+async function ensureWhiteNow(rel) {
   const src = `${appHome()}/${rel}`, out = `${appHome()}/${whitePath(rel)}`;
   if (await fs.exists(out).catch(() => false)) return;
   const tmp = out.replace(/\.gif$/, ".part.gif");
@@ -239,7 +260,8 @@ export async function cachedIcons() {
   return new Set(names.filter((n) => n.endsWith(".png")).map((n) => n.slice(0, -4)));
 }
 
-export async function ensureIcon(dex, form) {
+export const ensureIcon = (dex, form) => once(`ensureIcon|${[dex, form].join("|")}`, () => ensureIconNow(dex, form));
+async function ensureIconNow(dex, form) {
   const dir = `${DATA}/icons`;
   const file = `${dir}/${dex}${form ? `-${form}` : ""}.png`;
   if (await fs.exists(file).catch(() => false)) return;
@@ -255,7 +277,8 @@ export async function ensureIcon(dex, form) {
 // Items are 30 px of pixel art: saved at 2x, sharp (ImageMagick's -scale, no smoothing).
 const POKEAPI = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites";
 export const artPath = (key) => `${DATA_REL}/art/${key.replace("/", "-")}.png`;
-export async function ensureArt(key) {
+export const ensureArt = (key) => once(`ensureArt|${[key].join("|")}`, () => ensureArtNow(key));
+async function ensureArtNow(key) {
   const dir = `${DATA}/art`;
   const file = `${dir}/${key.replace("/", "-")}.png`;
   if (await fs.exists(file).catch(() => false)) return;
@@ -314,7 +337,8 @@ export async function savedMegas() {
 
 // Fetches the tracker again when the saved list is a day old; returns the new megas, or null when
 // it wasn't due. A failed fetch keeps the old list and waits another day.
-export async function refreshMegas(saved, now = Date.now()) {
+export const refreshMegas = (saved, now = Date.now()) => once("megas", () => refreshMegasNow(saved, now)); // one download (10 MB) for every window
+async function refreshMegasNow(saved, now = Date.now()) {
   if (!isStale(saved?.at, now)) return null;
   await exec("mkdir", ["-p", DATA]);
   const tmp = `${DATA}/tracker.json.part`;
