@@ -180,3 +180,13 @@ test("every special move flies its own way", async () => {
   }
   assert.equal(seen.size, Object.keys(MOVE).length);
 });
+
+test("two battle far enough apart for their moves, by their sizes", async () => {
+  const { fightGap, FIGHT_ROOM, MIN_GAP, MAX_GAP } = await import("../mods/pokemon-herd/fx.js");
+  const { battleSpots } = await import("../mods/pokemon-herd/react.js");
+  assert.equal(fightGap(60, 80), 70 + FIGHT_ROOM);
+  assert.equal(fightGap(10, 10), MIN_GAP); // small ones still have room
+  assert.equal(fightGap(200, 200), MAX_GAP); // big ones don't take the strip
+  assert.equal(fightGap(undefined, 40), MIN_GAP);
+  assert.deepEqual(battleSpots(200, 240, 28, 800, 120), { ax: 160, bx: 280 });
+});

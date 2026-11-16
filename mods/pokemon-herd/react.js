@@ -210,11 +210,12 @@ export function battle(a, b, A, B, now, rnd = Math.random, at = null) {
 // Where two about to battle stand: BATTLE_GAP apart about their middle, each keeping its side,
 // inside lo..hi (pushed in together at an edge). Already that far apart: where they are.
 export const BATTLE_GAP = 70;
-export function battleSpots(ax, bx, lo, hi) {
-  if (Math.abs(ax - bx) >= BATTLE_GAP || hi - lo < BATTLE_GAP) return { ax, bx };
+// `gap`: how far apart (fx.js fightGap: by their sizes).
+export function battleSpots(ax, bx, lo, hi, gap = BATTLE_GAP) {
+  if (Math.abs(ax - bx) >= gap || hi - lo < gap) return { ax, bx };
   const side = ax <= bx ? -1 : 1;
-  const mid = Math.min(hi - BATTLE_GAP / 2, Math.max(lo + BATTLE_GAP / 2, (ax + bx) / 2));
-  return { ax: mid + side * BATTLE_GAP / 2, bx: mid - side * BATTLE_GAP / 2 };
+  const mid = Math.min(hi - gap / 2, Math.max(lo + gap / 2, (ax + bx) / 2));
+  return { ax: mid + side * gap / 2, bx: mid - side * gap / 2 };
 }
 
 // Whether it shows its Mega form now: On always, Auto while its agent works, Off never.

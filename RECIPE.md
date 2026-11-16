@@ -61,7 +61,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a burst (260 ms), the ball drops to the ground and wobbles once per shake (320 ms of every
   700), then a burst: gold stars caught, white broken out.
 - **Battling a wild one** (drop one of yours on it; `hitWild`, `hitBack` in `trainer.js`): yours
-  steps off to 84 px from it on its own side (`wildSpot`, 300 ms), then uses its special move:
+  steps off on its own side, far enough for their moves to fly (`fightGap`: half of each one's
+  drawn width and 60 px between, 96–170 px; `wildSpot`, 300 ms), then uses its special move:
   its own type that does most to it (`bestType`) flies over and lands; the wild one flinches and
   loses health; 650 ms later it lets fly back with its own type. Each fights as it looks: a Mega
   or a regional form with its own stats and types (`base-stats.js` `FORM_BASE`, `fighterKey`),
@@ -283,7 +284,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   stand still on one row 30–160 px apart and neither sparred in 10 min, both turn to each other
   and battle (below); a heart each. Sprite cache v4 cuts those animations.
 - **Battles** (`battle`, `battleSpots` in `react.js`; sparring, teasing, a drop on another):
-  closer than 70 px, they first hop apart (Hop, a 350 ms slide) to 70 px about their middle,
+  closer than `fightGap` (by their sizes), they first hop apart (Hop, a 350 ms slide) to it about their middle,
   pushed in together at an edge. They face each other the whole time, their moves cut facing right and left (`FACING`, sprite cache v7). Each
   strikes once (Attack, Strike, Swing, Shoot, else Hop; at least 0.5 s), the other flinching
   (Hurt, Shake) from halfway through the blow, knocked back a little; 150 ms between. Then one,

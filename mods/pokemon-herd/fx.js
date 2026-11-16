@@ -121,6 +121,10 @@ export function effectWord(eff) {
 
 // Where yours stands to battle a wild one: `gap` from it, on the side it came from; the other
 // side when that's off the strip (lo..hi).
+// How far apart two battle, by how wide each is drawn (px): half of each, and FIGHT_ROOM between
+// for their moves to fly, MIN_GAP..MAX_GAP.
+export const FIGHT_ROOM = 60, MIN_GAP = 96, MAX_GAP = 170;
+export const fightGap = (wa, wb) => Math.round(Math.min(MAX_GAP, Math.max(MIN_GAP, (wa || 0) / 2 + (wb || 0) / 2 + FIGHT_ROOM)));
 export function wildSpot(ownX, wildX, lo, hi, gap) {
   const side = ownX <= wildX ? -1 : 1;
   const a = wildX + side * gap;

@@ -29,7 +29,7 @@ import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -1139,8 +1139,8 @@ export default class PokemonHerd extends View {
           .children(slashParts(b.style, b.dir, b.p).map((p) => fxPart(p, cx - b.dir * 4, midY - 4))));
       })
       .when(!!b.word, (el) => el.child(fxWord(`word-${id}`, b.word, cx, Math.max(2, headY - 30),
-        this.fxFirst(`word-${id}`) ? 0 : now < b.at + 900 ? 1 : 2)))
-      .when(!!b.num && now < b.at + 1000, (el) => el.child(fxNumber(`num-${id}`, b.num, cx + b.dir * 34, Math.max(2, headY + 4), this.fxFirst(`num-${id}`))));
+        this.fxFirst(`word-${id}`) ? 0 : now < b.at + 560 ? 1 : 2))) // gone before a move named over it
+      .when(!!b.num && now < b.at + 1000, (el) => el.child(fxNumber(`num-${id}`, b.num, cx + b.dir * 40, Math.max(2, headY + 8), this.fxFirst(`num-${id}`))));
   }
 
   // A move from x0 to x1 at height y: gathering at x0 (CHARGE_MS before `launch`), then its flight
@@ -1189,9 +1189,17 @@ export default class PokemonHerd extends View {
   // A move's name over the one using it, from when it gathers to just after it flies; a signature
   // move in gold.
   moveLabel(key, move, x, top, launch, now) {
-    if (!move?.name || now < launch - CHARGE_MS || now >= launch + 700) return null;
-    const phase = this.fxFirst(key) ? 0 : now < launch + 420 ? 1 : 2;
+    if (!move?.name || now < launch - CHARGE_MS || now >= launch + 560) return null;
+    const phase = this.fxFirst(key) ? 0 : now < launch + 280 ? 1 : 2; // fading as the word over the other pops up
     return fxWord(key, [`${move.name}!`, move.ultimate ? "#ffd23f" : "#ffffff"], x, top, phase);
+  }
+  // How wide a Pokémon is drawn on the strip (px): its sprite's box at its scale (a sub-agent's
+  // smaller, an Alpha bigger); 40 before its sprite is in.
+  drawnWidth(pick, status) {
+    const meta = pick && this.spriteFor(pick, status);
+    const box = (meta?.idleR ?? meta?.idleL)?.box;
+    if (!box) return 40;
+    return box.w * scaleOf() * (pick.young ? 0.75 : pick.alpha ? ALPHA_SIZE : 1);
   }
   // The white of a health bar's loss, for a moment after it's hit (`l`: { prev, at }).
   lostOf(key, l, now) {
@@ -1218,13 +1226,13 @@ export default class PokemonHerd extends View {
       const st = stopOf(b);
       if (st) times.push(b.at + st, b.at + st + KNOCK_OUT + 5, b.at + st + SHAKE_MS + 5);
       if (b.physical && b.type && !b.miss) for (const t of physicalTimes(b.type)) times.push(b.at + t);
-      times.push(b.at, b.at + 40, b.at + KNOCK_OUT + 5, b.at + SHAKE_MS + 5, b.at + 470, b.at + 900, b.at + 1000, b.at + 1300,
+      times.push(b.at, b.at + 40, b.at + KNOCK_OUT + 5, b.at + SHAKE_MS + 5, b.at + 470, b.at + 560, b.at + 900, b.at + 1000, b.at + 1300,
         b.at + RESIDUE_FROM, b.at + RESIDUE_FROM + 40, b.at + RESIDUE_FROM + RESIDUE_MS - RESIDUE_FADE, b.at + RESIDUE_FROM + RESIDUE_MS);
       if (!b.miss) sounds.push([`${key}-hit-${b.at}`, b.at, hitSound(b.p)]);
     };
     // A move: it gathers (a frame as it starts, one to set it moving), fires, lands.
     const moveTimes = (key, type, launch, land, physical = false, ultimate = false) => {
-      times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, launch + 420, launch + 700, land, land + 70, land + 290);
+      times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, launch + 280, launch + 560, land, land + 70, land + 290);
       if (ultimate) for (const t of signatureTimes(type)) times.push(land + t);
       else if (!physical && type) for (const t of specialTimes(type)) times.push(land + t);
       sounds.push([`${key}-c`, launch - CHARGE_MS, "charge"], [`${key}-l`, launch, launchSound(type, physical)]);
@@ -2208,8 +2216,10 @@ export default class PokemonHerd extends View {
         const move = k && o ? { ...pickMove(k, o), blue: k === "6mX" } : null; // its move (moves.js), named
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
-      // Too close: they hop apart first (a quick slide, facing each other), then battle.
-      const spots = battleSpots(m1.x, m2.x, EDGE, hiFor(this.width));
+      // Too close: they hop apart first (a quick slide, facing each other), then battle, room
+      // between them for their moves by their sizes (fx.js fightGap).
+      const spots = battleSpots(m1.x, m2.x, EDGE, hiFor(this.width),
+        fightGap(this.drawnWidth(ids[a1.address], a1.status), this.drawnWidth(ids[a2.address], a2.status)));
       const BACK = 350;
       const back = Math.abs(spots.ax - m1.x) >= 4 || Math.abs(spots.bx - m2.x) >= 4;
       for (const [m, to] of [[m1, spots.ax], [m2, spots.bx]]) {
@@ -2349,8 +2359,9 @@ export default class PokemonHerd extends View {
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul, wm.type);
         if (back && wm.miss) back.text = "It missed!";
-        // It steps off to battle from a little way (FX_GAP), so the two never stand on each other.
-        const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), FX_GAP);
+        // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
+        // never stand on each other and their moves have room to fly.
+        const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), fightGap(this.drawnWidth(pk, "working"), this.drawnWidth(v.pick, "idle")));
         if (Math.abs(spot - dm.x) >= 1) {
           clearWalk(dm);
           dm.from = dm.x;
