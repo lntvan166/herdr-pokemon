@@ -30,9 +30,10 @@ import { typeOf, TYPE_ICON } from "./types.js";
 import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
+import { ensureMegaMark, MEGA_MARK_REL } from "./sprites.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -442,17 +443,6 @@ function fxEvolve(id, cx, headY, ground, t, firstRing) {
     .children(motes)
     .when(t < 1000, (el) => el.child(ring(0, firstRing)));
 }
-// Mega Evolving (`t` ms in): a sphere of light round it and the colours of a Key Stone orbiting
-// it; the burst at MEGA_BURST (drawn by the caller).
-function fxMega(id, cx, headY, ground, t) {
-  const mid = (headY + ground) / 2, r = Math.max(22, (ground - headY) * 0.62);
-  const on = t < MEGA_BURST;
-  return div().absolute().left(0).top(0).opacity(on ? 1 : 0).transition("opacity", { duration: 250 })
-    .child(div().id(`${id}-sphere`).absolute().left(cx - r).top(mid - r).size(2 * r).rounded_full().border_2().border_color("#e0c8ff")
-      .bg("#b070ff22").loop("opacity", { from: 0.4, to: 1, period: 360 }))
-    .children(RAINBOW.map((c, k) => div().id(`${id}-o${k}`).absolute().left(cx).top(mid).size(5).rounded_full().bg(c)
-      .loop("left", { from: cx - r, to: cx + r - 5, period: 420 + k * 70 }).loop("top", { from: mid - r * 0.7, to: mid + r * 0.6, period: 300 + k * 55 })));
-}
 // A gentle style for a plain strike (no type): white and gold.
 const STRIKE = { glow: "#fff6c8", core: "#ffd23a", mid: "#fff2a8", hot: "#ffffff", look: "star" };
 const GOLD = { glow: "#ffe9a8", core: "#ffd75e", mid: "#fff2c0", hot: "#ffffff", look: "star" };
@@ -470,6 +460,8 @@ const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + (now - (m
 const ALPHA_RED = "#e5484d";
 // The ring's picture (sprites.js ensureRing), made once at start.
 const RING = { ready: false };
+const MEGA_MARK = { ready: false }; // the Mega symbol's picture (sprites.js ensureMegaMark)
+ensureMegaMark().then(() => { MEGA_MARK.ready = true; }, () => {});
 ensureRing().then(() => { RING.ready = true; }, () => {});
 // `shadow`: a Shadow Pokémon's (some Alphas): its motes dark violet, a dark aura flickering behind it.
 // `still`: one of yours, on the strip all day: its ring only, not breathing, no motes (the moving
@@ -878,6 +870,10 @@ export default class PokemonHerd extends View {
           if (!pick.shiny) throw e;
           return loadSprite(pick.dex, false, form, early);
         });
+        // A Mega set: its white silhouettes made now, for the cocoon it Mega Evolves in (made the
+        // moment it began, they came a second late: its colours showed through).
+        const got = this.sprites[key];
+        if (mega && got?.walkR) for (const c of [got.idleR, got.idleL, got.idleD, got.walkR, got.walkL, got.sleep]) if (c?.path) this.wantWhite(c.path);
       } catch (e) {
         this.sprites[key] = { error: String(e?.message ?? e), at: Date.now(), tries: (cur?.tries ?? 0) + 1 };
       }
@@ -1345,7 +1341,7 @@ export default class PokemonHerd extends View {
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
     for (const m of Object.values(this.mons ?? {})) {
       if (m.evolveFx) times.push(m.evolveFx.at + 40, m.evolveFx.at + EVOLVE_BURST, m.evolveFx.at + EVOLVE_BURST + 40, m.evolveFx.at + EVOLVE_MS - 300, m.evolveFx.at + EVOLVE_MS);
-      if (m.megaFx) times.push(m.megaFx.at + 40, m.megaFx.at + MEGA_BURST, m.megaFx.at + MEGA_BURST + 40, m.megaFx.at + MEGA_MS);
+      if (m.megaFx) for (const t of m.megaFx.on ? [...megaTimes(m.megaFx.full), megaTiming(m.megaFx.full).total, megaTiming(m.megaFx.full).total - 300] : [40, 470]) times.push(m.megaFx.at + t);
     }
     for (const [addr, m] of Object.entries(this.mons ?? {})) if (m.faintAt) sounds.push([`faint-${addr}-${m.faintAt}`, m.faintAt, "faint"]);
     if (v?.fight) {
@@ -2159,7 +2155,14 @@ export default class PokemonHerd extends View {
       const meta = this.spriteFor(ids[a.address], this.megaStatus(a));
       // Mega Evolution (or back): a flash of sparkles.
       const mega = meta?.megaShown === true;
-      if (m.mega !== undefined && mega !== m.mega) { m.flashUntil = now + 1500; m.megaFx = { at: now, on: mega }; changed = true; }
+      // In full its first Mega of the day, or Mega Evolving for a battle; else the short one (its
+      // agent starts working often). (No ✨ flash with it: the effect is its own.)
+      if (m.mega !== undefined && mega !== m.mega) {
+        const day = dayOf(now), full = mega && ((m.battleUntil ?? 0) > now || this.megaDay?.[a.address] !== day);
+        if (mega) (this.megaDay ??= {})[a.address] = day;
+        m.megaFx = { at: now, on: mega, full };
+        changed = true;
+      }
       m.mega = mega;
       // It just evolved (here, or in the picker): sparkles.
       const evolvedAt = ids[a.address]?.evolvedAt ?? 0;
@@ -3288,6 +3291,17 @@ export default class PokemonHerd extends View {
             return this.whites?.[s.path] === "ready" ? el.child(image(whitePath(s.path)).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale)
               .loop("opacity", { from: 0, to: 0.95, period: 300 })) : el;
           })
+          // Mega Evolving: white light in its cocoon, till the cocoon bursts and it fades off its new form.
+          .when(!!m.megaFx?.on && now - m.megaFx.at < megaTiming(m.megaFx.full).burst + 450, (el) => {
+            const T = megaTiming(m.megaFx.full), t = now - m.megaFx.at, key = `megaw-${a.address}-${m.megaFx.at}`;
+            // Every pose it may take meanwhile (it turns, sleeps, walks), made ahead: a pose without
+            // its white let its colours show through mid-cocoon.
+            for (const c of [s, meta.idleR, meta.idleL, meta.idleD, meta.walkR, meta.walkL, meta.sleep]) if (c?.path) this.wantWhite(c.path);
+            if (this.whites?.[s.path] !== "ready" || t < T.cocoon) return el;
+            const after = t >= T.burst, id = `${key}-${after ? 2 : 1}`, first = this.fxFirst(id);
+            return el.child(image(whitePath(s.path)).id(id).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale)
+              .opacity(after ? (first ? 0.95 : 0) : (first ? 0 : 0.95)).transition("opacity", { duration: after ? 420 : 280, easing: "ease-out" }));
+          })
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
           .when(ownHp(m, now) < 1, (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))));
       } else {
@@ -3407,11 +3421,26 @@ export default class PokemonHerd extends View {
                 this.fxFirst(`${key}-w`) ? 0 : t < EVOLVE_MS - 300 ? 1 : 2)));
           })
           // Mega Evolving: a sphere, the Key Stone's colours orbiting; then a burst.
-          .when(!!m.megaFx && now - m.megaFx.at < MEGA_MS, (el) => {
+          .when(!!m.megaFx && now - m.megaFx.at < (m.megaFx.on ? megaTiming(m.megaFx.full).total : 600), (el) => {
             const t = now - m.megaFx.at, key = `mega-${a.address}-${m.megaFx.at}`;
-            return el.when(m.megaFx.on, (e1) => e1.child(fxMega(key, SLOT_MID, headY, ground, t)))
-              .when(t >= (m.megaFx.on ? MEGA_BURST : 0) && t < (m.megaFx.on ? MEGA_BURST : 0) + 470, (e2) =>
-                e2.child(fxBurst(`${key}-b`, MEGA_STYLE, m.megaFx.on ? 1 : 0.5, SLOT_MID, (headY + ground) / 2, this.fxFirst(`${key}-b`), 17)));
+            const mid = (headY + ground) / 2;
+            // Out of its Mega: a small flash, no more.
+            if (!m.megaFx.on) return el.when(t < 470, (e2) => e2.child(fxBurst(`${key}-b`, MEGA_STYLE, 0.5, SLOT_MID, mid, this.fxFirst(`${key}-b`), 17)));
+            const T = megaTiming(m.megaFx.full);
+            const r = Math.max(22, (ground - headY) * 0.62);
+            const parts = megaParts(m.megaFx.full, SLOT_MID, mid, r).map((p, k) => [p, k]).filter(([p]) => t >= p.at && t < p.at + p.ms + 60);
+            const name = `Mega ${nameOf(pick.dex)}${megaForm(pick.dex, pick.megaKind)?.kind ? ` ${megaForm(pick.dex, pick.megaKind).kind}` : ""}`;
+            return el.children(parts.map(([p, k]) => fxSig(`${key}-p${k}`, p, this.fxFirst(`${key}-p${k}`))))
+              // The Mega symbol, shining over it, then gone as it bursts.
+              .when(T.symbol !== null && t >= T.symbol && t < T.burst + 300 && MEGA_MARK.ready, (e2) => {
+                const sid = `${key}-sym${t >= T.burst ? 2 : 1}`, f = this.fxFirst(sid), after = t >= T.burst;
+                return e2.child(image(MEGA_MARK_REL).id(sid).absolute().left(SLOT_MID - 14).top(Math.max(0, headY - 34)).size(28)
+                  .opacity(after ? (f ? 1 : 0) : (f ? 0 : 1)).transition("opacity", { duration: after ? 280 : 220 }));
+              })
+              .when(t >= T.burst && t < T.burst + 470, (e2) => e2.child(fxBurst(`${key}-b`, MEGA_STYLE, 1, SLOT_MID, mid, this.fxFirst(`${key}-b`), 17)))
+              // Its Mega form's name over it, as the games announce it.
+              .when(m.megaFx.full && t >= T.burst, (e2) => e2.child(fxWord(`${key}-name`, [`${name}!`, "#ffd23f"], SLOT_MID, Math.max(2, headY - 30),
+                this.fxFirst(`${key}-name`) ? 0 : t < T.total - 300 ? 1 : 2)));
           })
           // A shiny shows off when it first turns up.
           .when((m.sparkleUntil > now && this.showsShiny(pick)) || m.flashUntil > now, (el) =>

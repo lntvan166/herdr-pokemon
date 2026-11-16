@@ -198,3 +198,14 @@ test("a move that can't touch it: no critical hit, no number", async () => {
   assert.equal(damageText(0, 1), null);
   assert.equal(damageText(0.2, 1)[0], "-20%");
 });
+
+test("Mega Evolution: in full (beams, cocoon, the symbol, the burst), or short; within its time", async () => {
+  const { megaParts, megaTiming, megaTimes, MEGA_FULL, MEGA_SHORT } = await import("../mods/pokemon-herd/fx.js");
+  for (const full of [true, false]) {
+    const T = megaTiming(full), p = megaParts(full, 64, 40, 30);
+    assert.ok(p.every((x) => x.ms > 0 && x.at >= 0 && x.at + x.ms <= T.total && Number.isFinite(x.a.x + x.b.y)));
+    assert.ok(megaTimes(full).includes(T.burst));
+  }
+  assert.ok(megaParts(true, 64, 40, 30).length > megaParts(false, 64, 40, 30).length); // beams only in full
+  assert.ok(MEGA_FULL.total <= 2500 && MEGA_SHORT.total <= 1250);
+});

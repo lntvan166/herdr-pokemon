@@ -248,6 +248,27 @@ export async function ensureRing() {
   return RING_REL;
 }
 
+// The Mega Evolution symbol, as the games show it over a Pokémon Mega Evolving: a ring in the
+// rainbow's colours, a white drop of light inside (the symbol's DNA-like curl, simplified). Drawn
+// once (64 px). Returns its path as drawn.
+export const MEGA_MARK_REL = `${DATA_REL}/art/mega-mark-v1.png`;
+export async function ensureMegaMark() {
+  const file = `${DATA}/art/mega-mark-v1.png`;
+  if (await fs.exists(file).catch(() => false)) return MEGA_MARK_REL;
+  if (!(await imageMagick())) throw new Error("ImageMagick not found");
+  await fs.mkdir(`${DATA}/art`, { recursive: true });
+  const tmp = `${file}.part.png`;
+  const colors = ["#ff5a5a", "#ffb43a", "#ffe14a", "#7bd65a", "#4fb4ff", "#b070ff"];
+  const arcs = colors.flatMap((c, k) => ["-stroke", c, "-strokewidth", "6", "-fill", "none", "-draw", `arc 6,6 58,58 ${k * 60 - 90},${k * 60 - 28}`]);
+  await im("convert", ["-size", "64x64", "xc:none", ...arcs,
+    "-stroke", "none", "-fill", "#ffffffee", "-draw", "circle 32,32 32,14",
+    "-fill", "#b070ff", "-draw", "path 'M 32,18 C 44,30 42,44 32,46 C 22,44 20,30 32,18 Z'",
+    "-fill", "#ffffff", "-draw", "circle 32,38 32,34", tmp]);
+  const r = await exec("mv", ["-f", tmp, file]);
+  if (r.code !== 0) throw new Error("mega mark move failed");
+  return MEGA_MARK_REL;
+}
+
 // The picker's icons: SpriteCollab's 40x40 portrait, doubled when ImageMagick is there.
 // Fetched one at a time, only for the Pokémon the picker shows.
 // A regional form's icon is its own portrait (portrait/<dex>/<form>/).

@@ -637,3 +637,42 @@ export function specialParts(type, x0, x1, y, seed = 1, style = null) {
   return out;
 }
 export const specialTimes = (type) => [...new Set(specialParts(type, 0, 100, 40).flatMap((p) => [p.at, p.at + 40]))];
+
+// ---- Mega Evolution, as the games play it ----------------------------------------------------
+// Full (its first Mega of the day, or Mega Evolving for a battle): the Key Stone's rainbow beams
+// come down from the sky onto it; it turns to white light inside a cocoon of light; the Mega
+// symbol shines over it; the cocoon bursts (shards, a rainbow shockwave) and its Mega form stands
+// there, its name over it. Short (any other time: its agent starts working often): the cocoon,
+// then the burst. Out of its Mega: only a small flash. Times from when it starts (ms).
+export const MEGA_FULL = { beams: 0, cocoon: 300, symbol: 850, burst: 1300, total: 2200 };
+export const MEGA_SHORT = { beams: null, cocoon: 0, symbol: null, burst: 450, total: 1150 };
+export const megaTiming = (full) => (full ? MEGA_FULL : MEGA_SHORT);
+// Its parts (as signatureParts: { at, ms, a, b, color, round?, ring?, ease? }, `at` from the start)
+// round (cx, mid), its body `r` across; the sky's top at y 0.
+export function megaParts(full, cx, mid, r) {
+  const T = megaTiming(full);
+  const out = [];
+  const P2 = (at, ms, a, b, color, more = {}) => ({ at, ms, a, b, color, ...more });
+  if (T.beams !== null) {
+    // Six beams, one of each colour, from the sky down onto it, then fading.
+    RAINBOW.forEach((c, k) => {
+      const dx = (k - 2.5) * Math.max(6, r * 0.35), at = T.beams + k * 35;
+      out.push(P2(at, 260, { x: cx + dx * 1.6, y: 2, w: 3, h: 4, o: 1 }, { x: cx + dx * 0.25, y: mid / 2, w: 3, h: mid, o: 0.95 }, c, { ease: "ease-in" }),
+        P2(at + 260, T.cocoon + 250 - at - 260 + 200, { x: cx + dx * 0.25, y: mid / 2, w: 3, h: mid, o: 0.95 }, { x: cx, y: mid, w: 1, h: 6, o: 0 }, c, { ease: "ease-in" }));
+    });
+  }
+  // The cocoon: light swelling round it, a rainbow edge, till it bursts.
+  const cw = r * 1.5, ch = r * 1.9;
+  out.push(P2(T.cocoon, T.burst - T.cocoon, { x: cx, y: mid, w: cw * 0.6, h: ch * 0.6, o: 0.25 }, { x: cx, y: mid, w: cw * 1.15, h: ch * 1.15, o: 0.55 }, "#f3e8ff", { round: true }),
+    P2(T.cocoon, T.burst - T.cocoon, { x: cx, y: mid, w: cw * 0.6, h: ch * 0.6, o: 0.6 }, { x: cx, y: mid, w: cw * 1.2, h: ch * 1.2, o: 1 }, "#c8a0ff", { round: true, ring: true }),
+    P2(T.cocoon + 100, T.burst - T.cocoon - 100, { x: cx, y: mid, w: cw * 0.7, h: ch * 0.7, o: 0.4 }, { x: cx, y: mid, w: cw * 1.3, h: ch * 1.3, o: 0.9 }, "#7aa2f7", { round: true, ring: true }));
+  // The burst: shards of the cocoon flying out, a rainbow shockwave.
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    out.push(P2(T.burst, 450, { x: cx + Math.cos(a) * cw * 0.5, y: mid + Math.sin(a) * ch * 0.5, w: 5, h: 3, o: 1 },
+      { x: cx + Math.cos(a) * (cw * 0.5 + 34), y: mid + Math.sin(a) * (ch * 0.5 + 22), w: 2, h: 2, o: 0 }, k % 2 ? "#ffffff" : RAINBOW[k % 6]));
+  }
+  [0, 70, 140].forEach((d, k) => out.push(P2(T.burst + d, 520, { x: cx, y: mid, w: cw * 0.8, h: ch * 0.8, o: 0.9 }, { x: cx, y: mid, w: cw * 2.6, h: ch * 1.8, o: 0 }, RAINBOW[[0, 2, 4][k]], { round: true, ring: true })));
+  return out;
+}
+export const megaTimes = (full) => [...new Set(megaParts(full, 0, 40, 30).flatMap((p) => [p.at, p.at + 40]).concat(Object.values(megaTiming(full)).filter(Number.isFinite).flatMap((t) => [t, t + 40])))];
