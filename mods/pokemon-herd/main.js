@@ -2544,7 +2544,10 @@ export default class PokemonHerd extends View {
     for (const k of Object.keys(this.mons)) if (!live.has(k)) { delete this.mons[k]; changed = true; }
     this.fxSchedule(cx, now);
     // Snow, leaves and a rainbow's fade: a redraw once a second (AMBIENT_MS), no more.
-    if (changed || ((this.snowing || this.rainbow) && now - (this.drawnAt ?? 0) >= AMBIENT_MS)) { this.drawnAt = now; cx.notify(); }
+    // (Its own clock: `drawnAt` is when a frame was really drawn, which a hidden strip doesn't do;
+    // set here, a strip back from another tab seemed drawn a moment ago, so a wild one wasn't put
+    // where it is now and dashed across to catch up.)
+    if (changed || ((this.snowing || this.rainbow) && now - (this.ambientAt ?? 0) >= AMBIENT_MS)) { this.ambientAt = now; cx.notify(); }
   }
 
   // ---- the menu (right-click on the strip; a popup with props { menu }) ----
