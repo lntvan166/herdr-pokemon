@@ -508,6 +508,41 @@ const rareIn = (xs) => {
   const parts = [[n((p) => p.shiny), "✨"], [n((p) => p.alpha), "α"], [n((p) => isLegendary(p.dex)), "✦"]].filter(([k]) => k).map(([k, m]) => `${k} ${m}`);
   return parts.length ? `, incl. ${parts.join(" ")}` : "";
 };
+// What was just released or sold, for its Undo (UNDO_MS): { at, text, picks?: { slot: pick },
+// items: { id: n } (back into the Pokémon, or the Bag), money (taken back) }.
+const UNDO_MS = 10000;
+// Selling `n` of `id`, kept for its Undo (`view.undo`). Returns whether it sold.
+function sellSome(view, id, n) {
+  const before = bag();
+  const next = sell(before, id, n);
+  if (!next) return false;
+  saveBag(next);
+  const k = (before.items[id] ?? 0) - (next.items[id] ?? 0);
+  view.undo = { at: Date.now(), text: `Sold ${k} ${ITEMS[id].name}${k === 1 ? "" : "s"} for ${money(next.money - before.money)}`, items: { [id]: -k }, money: next.money - before.money };
+  return true;
+}
+// Undoes view.undo: the Pokémon back in the Box (each with what it held, if the Bag still has
+// it), the items back, the money given back. Not once the money's been spent.
+function undoLast(view) {
+  const u = view.undo;
+  if (!u || Date.now() - u.at > UNDO_MS) return;
+  let b = bag();
+  if ((b.money ?? 0) < u.money) return;
+  b = addMoney(b, -u.money);
+  for (const [id, n] of Object.entries(u.items ?? {})) b = addItem(b, id, -n);
+  const picks = {};
+  for (const [slot, p] of Object.entries(u.picks ?? {})) {
+    if (p.held && !((b.items[p.held] ?? 0) > 0)) { const { held: _h, ...rest } = p; picks[slot] = rest; continue; }
+    if (p.held) b = addItem(b, p.held, -1);
+    picks[slot] = p;
+  }
+  saveBag(b);
+  if (Object.keys(picks).length) savePicks(picks);
+  view.undo = null;
+}
+// Whether the Bag still has `n` of `id`, read at the click (not when the dialog was drawn:
+// another window, or a hungry one's meal, may have used the last one since).
+const hasItem = (id, n = 1) => (bag().items[id] ?? 0) >= n;
 // "a Poké Ball", "an Ultra Ball".
 const an = (name) => `${/^[AEIOU]/.test(name) ? "an" : "a"} ${name}`;
 // The α in an Alpha's name tag (before its name).
@@ -2638,6 +2673,7 @@ export default class PokemonHerd extends View {
       .when(m.baits.length > 0, (el) => el.child(chips("menu-bait", `Berry before each ball · ${named(m.bait)}`, [[AUTO_BAIT, "Auto"], [null, "None"], ...m.baits.map((id) => [id, String(b.items[id])])], m.bait,
         (v) => setShared(BAIT_KEY, v))))
       .children(m.calls.map((id) => row(`menu-${id}`, id === "honey" ? "Call a wild Pokémon" : "Call a legendary", `${ITEMS[id].name} · ${b.items[id]} left`, () => {
+        if (!hasItem(id)) return;
         saveBag(addItem(bag(), id, -1));
         setShared(id === "honey" ? HONEY_KEY : LEGEND_KEY, Date.now());
       })))
@@ -3947,7 +3983,7 @@ export default class PokemonHerd extends View {
       : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${usable[0] === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
     const use = (id, h) => {
       const live = savedPicks()[h.slot]; // as saved now: never a stale copy (it may have moved since)
-      if (!live) return;
+      if (!live || !hasItem(id)) return;
       const r = useItem(live, h.slot, id, { night: isNight(), day: dayOf(Date.now()) }, Date.now());
       if (!r) return;
       savePicks({ [h.slot]: r.pick });
@@ -3979,6 +4015,17 @@ export default class PokemonHerd extends View {
           // Who did the most: the three species with the most jobs.
           .when(s.top.length > 0, (el) => el.child(div().text_size(11.5).text_color(t.muted)
             .child(`Most jobs: ${s.top.map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(" · ")}`)))))
+      // Just released or sold: Undo, for 10 s (not once the money's been spent).
+      .when(!!this.undo && Date.now() - this.undo.at < UNDO_MS, (el) => {
+        const u = this.undo, can = (b.money ?? 0) >= u.money;
+        return el.child(h_flex().h(28).px(10).gap(10).items_center().rounded(8).bg(t.raised).flex_none()
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(sparkled(u.text)))
+          .child(div().text_size(11).text_color(t.dim).child(`${Math.ceil((UNDO_MS - (Date.now() - u.at)) / 1000)}s`))
+          .child(div().id("undo").h(22).px(10).rounded_full().flex().items_center().text_size(12).font_semibold()
+            .bg(can ? t.solid : t.border).text_color(can ? t.solid_foreground : t.dim)
+            .when(can, (e2) => e2.cursor_pointer().on_click((_e, cx) => { undoLast(this); cx.notify(); }))
+            .child(can ? "Undo" : "Spent: can't undo")));
+      })
       .when(tab === "box", (el) => el.child(this.renderBox(boxed, LIST_H, t, icon, herd)))
       .when(tab === "shop", (el) => el.child(this.renderShop(b, LIST_H, t, art)))
       .when(tab === "today", (el) => el.child(this.renderToday(daily, LIST_H, t, art)))
@@ -4018,13 +4065,12 @@ export default class PokemonHerd extends View {
               .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
             return el.child(h_flex().flex_wrap().gap(6).items_center()
               .child(pill("buy-more", `Buy more · ${money(PRICE[sel])}`, () => { this.bagTab = "shop"; this.shopSel = sel; this.shopQty = 1; }))
-              .when(n > 0, (e2) => e2.child(pill("sell-one", `Sell 1 · ${money(sellPrice(sel))}`, () => { const next = sell(bag(), sel, 1); if (next) saveBag(next); this.sellingAll = null; })))
-              .when(n > 10, (e2) => e2.child(pill("sell-ten", `Sell 10 · ${money(10 * sellPrice(sel))}`, () => { const next = sell(bag(), sel, 10); if (next) saveBag(next); this.sellingAll = null; })))
+              .when(n > 0, (e2) => e2.child(pill("sell-one", `Sell 1 · ${money(sellPrice(sel))}`, () => { sellSome(this, sel, 1); this.sellingAll = null; })))
+              .when(n > 10, (e2) => e2.child(pill("sell-ten", `Sell 10 · ${money(10 * sellPrice(sel))}`, () => { sellSome(this, sel, 10); this.sellingAll = null; })))
               .when(n > 1, (e2) => e2.child(pill("sell-all", sure ? `Sure? ${n} for ${money(n * sellPrice(sel))}` : `Sell all ${n}`, () => {
                 if (!sure) { this.sellingAll = sel; this.armedAt = Date.now(); return; }
                 if (Date.now() - (this.armedAt ?? 0) < ARM_MS) return;
-                const next = sell(bag(), sel, n);
-                if (next) saveBag(next);
+                sellSome(this, sel, bag().items[sel] ?? 0); // all there are now
                 this.sellingAll = null;
               }, sure))));
           })
@@ -4061,6 +4107,7 @@ export default class PokemonHerd extends View {
                 .text_size(12).font_semibold().bg(has ? t.solid : t.border).text_color(has ? t.solid_foreground : t.dim)
                 .when(has, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
                   const now = Date.now();
+                  if (!hasItem(sel)) return cx.notify();
                   saveBag(addItem(bag(), sel, -1));
                   setShared(BOOSTS_KEY, withBoost(loadBoosts(shared(BOOSTS_KEY), now), sel, now));
                   cx.notify();
@@ -4102,6 +4149,7 @@ export default class PokemonHerd extends View {
               .child(div().id("use-festival").h(26).px(14).rounded_full().flex().items_center().flex_none()
                 .text_size(12).font_semibold().bg(has ? t.solid : t.border).text_color(has ? t.solid_foreground : t.dim)
                 .when(has, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
+                  if (!hasItem(sel)) return cx.notify();
                   saveBag(addItem(bag(), sel, -1));
                   setShared(FESTIVAL_KEY, Date.now());
                   cx.notify();
@@ -4118,6 +4166,7 @@ export default class PokemonHerd extends View {
                 return div().id("use-honey").h(26).px(14).rounded_full().flex().items_center().flex_none()
                   .text_size(12).font_semibold().bg(on ? t.solid : t.border).text_color(on ? t.solid_foreground : t.dim)
                   .when(on, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
+                    if (!hasItem(sel)) return cx.notify();
                     saveBag(addItem(bag(), sel, -1));
                     setShared(sel === "honey" ? HONEY_KEY : LEGEND_KEY, Date.now());
                     cx.notify();
@@ -4198,16 +4247,24 @@ export default class PokemonHerd extends View {
     const releaseSlots = (slots) => {
       const all = savedPicks();
       let b = bag();
-      const gone = [];
+      const gone = [], picks = {};
+      let pay = 0;
       for (const s of slots) {
         const p = all[s];
         const x = everyone.find((e) => e.slot === s);
         if (!p || !x || !releasable({ ...x, pick: p })) continue;
         if (p.held) b = addItem(b, p.held);
         b = addMoney(b, releasePay(p));
+        pay += releasePay(p);
         gone.push(s);
+        picks[s] = p;
       }
-      if (gone.length) { saveBag(b); forgetPanes(gone); }
+      if (!gone.length) return;
+      saveBag(b);
+      forgetPanes(gone);
+      // Undo, for 10 s: they come back (their held items with them).
+      const one = gone.length === 1 ? nameFor(picks[gone[0]]) : `${gone.length} Pokémon`;
+      this.undo = { at: Date.now(), text: `Released ${one} (+${money(pay)})`, picks, money: pay, items: {} };
     };
     const picking = this.boxPicking ?? null; // Select: the slots picked for a batch release
     const dupes = picking ? duplicates(everyone) : [];
@@ -4294,7 +4351,7 @@ export default class PokemonHerd extends View {
           // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
           .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { day: dayOf(Date.now()) }) === "hearts").map((id) =>
             pill(`box-feed-${id}-${slot}`, `Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => {
-              const live = savedPicks()[slot];
+              const live = hasItem(id) && savedPicks()[slot];
               const r = live && useItem(live, slot, id, { day: dayOf(Date.now()) }, Date.now());
               if (!r) return;
               savePicks({ [slot]: r.pick });
@@ -4746,6 +4803,7 @@ export default class PokemonHerd extends View {
           .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().flex_none().gap(4).text_size(11.5).border_1()
           .border_color(t.border).text_color(use ? t.foreground : t.dim)
           .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
+            if (!hasItem(id)) return cx.notify();
             const r = useItem(this.livePick(), slot, id, { night: isNight(), day: dayOf(Date.now()) }, Date.now());
             if (r && (id === "berry" || id === "sitrus-berry")) research("berry"); // the day's Research
             if (!r) return;

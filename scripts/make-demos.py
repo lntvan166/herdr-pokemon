@@ -886,10 +886,10 @@ def fx_word(eff, cx, head_y, t, W):
     """The games' word over a Pokémon hit `t` ms ago (fx.js effectWord), popping up, fading (scaled
     image coordinates)."""
     w = fx(f"effectWord({eff})")
-    if not w or t < 0 or t >= 1300:
+    if not w or t < 0 or t >= 820:
         return []
     rise = round(8 * (1 - ease_out(t / 160)))
-    a = min(1, t / 120) if t < 900 else max(0, 1 - (t - 900) / 260)
+    a = min(1, t / 120) if t < 560 else max(0, 1 - (t - 560) / 260)  # gone at 560 + 260 ms, as on the strip
     text, color = w
     tw = round(glyph_width(text, 12) * 1.08)
     x0 = max(4, min(W - tw - 16, cx - tw // 2 - 6))
@@ -956,7 +956,7 @@ def catch(tmp):
     """README: battle to catch, as the strip plays it (fx.js). Mega Charizard X is dropped by a wild
     Venusaur and steps off; its blue fire flies over (fire on grass: super effective), a flash,
     sparks, Venusaur knocked back; Venusaur fires leaves back (not very effective); a second fireball
-    puts it in the red; a Poké Ball arcs in, it flashes into the ball, three wobbles: Gotcha."""
+    puts it in the red (the moves as the strip draws them: Flamethrower, Energy Ball, by name); a Poké Ball arcs in, it flashes into the ball, three wobbles: Gotcha."""
     A = lambda f, n: Anim.get(f, n, tmp)
     W, H, Z = 296, 118, 2
     horizon = 88
@@ -1012,17 +1012,15 @@ def catch(tmp):
         for (a0, l0, h0, bl, bh) in rounds:
             # Charizard gathers, then its blue fire flies; it lands: a burst, then it burns a moment.
             args += fx_charge(FIRE, zx + 14 * FXK, mid_z, t - (l0 - charge))
-            if l0 <= t < h0:
-                f = (t - l0) / (h0 - l0)
-                args += fx_shot(FIRE, 1, zx + 14 * FXK + f * (vx - zx - 26 * FXK), mid_z, t)
+            # Flamethrower (fx.js specialParts: a stream of blue fire), landing at h0.
+            reach = (vx - zx - 26 * FXK) / FXK
+            args += fx_parts(fx(f"specialParts('fire', 0, {reach:.1f}, 0, 3, {FIRE})"), t - h0, zx + 14 * FXK, mid_z)
             if h0 <= t < h0 + 470: args += fx_burst(FIRE, p_fire, vx - 6, mid_v, t - h0, h0)
             args += fx_residue("burn", FIRE, vx, ground - 52, ground, t - h0 - 150)
             # Venusaur gathers, then fires three leaves (a grass move's volley); Charizard: leaves falling.
             args += fx_charge(LEAF, vx - 14 * FXK, mid_v, t - (bl - charge))
-            for delay, dy in fx("VOLLEY"):
-                if bl + delay <= t < bh + delay:
-                    f = (t - bl - delay) / (bh - bl)
-                    args += fx_shot(LEAF, -1, vx - 14 * FXK - f * (vx - zx - 26 * FXK), mid_v + dy * FXK, t)
+            # Energy Ball (fx.js specialParts: a ringed ball of light), landing at bh.
+            args += fx_parts(fx(f"specialParts('grass', 0, {-reach:.1f}, 0, 5)"), t - bh, vx - 14 * FXK, mid_v)
             if bh <= t < bh + 470: args += fx_burst(LEAF, p_leaf, zx + 6, mid_z, t - bh, bh)
             args += fx_residue("leaf", LEAF, zx, ground - 60, ground, t - bh - 150)
         # Health: Venusaur's once hit, Charizard's once hit back.
@@ -1062,6 +1060,9 @@ def catch(tmp):
         args += ["-filter", "point", "-resize", f"{Z * 100}%"]
         # The games' words over each, and what happened, on a line at the top.
         for k, (a0, l0, h0, bl, bh) in enumerate(rounds):
+            # Each move's name over the one using it as it gathers and flies (as the strip says it).
+            if l0 - charge <= t < l0 + 560 and t < h0: args += say("Flamethrower!", zx * Z, (ground - 78) * Z, W * Z, 13)
+            if bl - charge <= t < bl + 560 and t < bh: args += say("Energy Ball!", vx * Z, (ground - 84) * Z, W * Z, 13)
             if t >= h0: args += fx_word(2, vx * Z, (ground - 64) * Z, t - h0, W * Z)
             if t >= bh: args += fx_word(0.5, zx * Z, (ground - 64) * Z, t - bh, W * Z)
             # The damage, floating up on the far side of each.
