@@ -26,59 +26,59 @@ export function isNewer(remote, local) {
 // again: the Update pill stays for a hand).
 export const shouldAutoUpdate = (on, latest, running, tried) => !!on && isNewer(latest, running) && tried !== latest;
 
-// The shell script that updates this mod where it really is. `app`: Herdr's folder; `repo`:
-// "owner/name"; `running`: this copy's VERSION. It takes the repo's mods/pokemon-herd (the folder
-// is always named that on GitHub) and copies it over every installed folder whose id.js names
-// this repo and runs `running`, or over every folder of this repo if none does (an agent may have
-// installed it under another name, or more than once). Each folder keeps its own `MOD` line (a
-// renamed copy keeps its name). It prints, per line, "<folder> <new version>". `source`: an
-// already unpacked release (tests), instead of downloading main. Pokémon Sidebar
-// (mods/pokemon-sidebar next to it) is installed or updated as well, its settings kept.
-export function updateScript({ app, repo, running, source = null }) {
-  const q = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-  const fetch = source
-    ? `src=${q(source)}`
-    : `d=$(mktemp -d)
-trap 'rm -rf "$d"' EXIT
-curl -sfL --retry 2 --connect-timeout 10 "https://codeload.github.com/${repo}/tar.gz/refs/heads/main" | tar -xz -C "$d"
-src=$(echo "$d"/*/mods/pokemon-herd)`;
-  return `set -e
-${fetch}
-test -f "$src/main.js" || { echo "the download has no mods/pokemon-herd" >&2; exit 1; }
-new=$(sed -n 's/^export const VERSION = "\\([0-9.]*\\)".*/\\1/p' "$src/id.js")
-mine=""; all=""
-for f in ${q(app)}/mods/*/id.js; do
-  [ -f "$f" ] || continue
-  grep -q 'REPO = "${repo}"' "$f" || continue
-  all="$all $(dirname "$f")"
-  grep -q '^export const VERSION = "${running}"' "$f" && mine="$mine $(dirname "$f")"
-done
-targets="\${mine:-$all}"
-[ -n "$targets" ] || { echo "this mod's folder wasn't found under mods/" >&2; exit 1; }
-for dir in $targets; do
-  modline=$(grep '^export const MOD = ' "$dir/id.js" || true)
-  cp -R "$src"/. "$dir"/
-  if [ -n "$modline" ]; then
-    name=$(echo "$modline" | sed 's/^export const MOD = "\\(.*\\)";.*/\\1/')
-    sed "s|^export const MOD = .*|export const MOD = \\"$name\\";|" "$dir/id.js" > "$dir/id.js.new" && mv "$dir/id.js.new" "$dir/id.js"
-  fi
-  echo "$dir $new"
-done
-# Pokémon Sidebar, beside it in the repo: installed or updated too. Its mod.json keeps the
-# person's settings: only its version changes.
-side="$(dirname "$src")/pokemon-sidebar"
-if [ -f "$side/main.js" ]; then
-  to=${q(app)}/mods/pokemon-sidebar
-  mkdir -p "$to"
-  sv=$(sed -n 's/.*"version": *"\\([0-9.]*\\)".*/\\1/p' "$side/mod.json")
-  for f in "$side"/* ; do
-    b=$(basename "$f")
-    if [ "$b" = mod.json ] && [ -f "$to/mod.json" ]; then
-      sed 's/"version": *"[0-9.]*"/"version": "'"$sv"'"/' "$to/mod.json" > "$to/mod.json.new" && mv "$to/mod.json.new" "$to/mod.json"
-    else
-      cp -R "$f" "$to"/
-    fi
-  done
-  echo "$to $sv"
-fi`;
+// Installs an unpacked release (`src`: its mods/pokemon-herd) over this mod, wherever it is
+// installed under `app`/mods and whatever it is called: the copies of this repo running
+// `running` (else every copy of this repo), each keeping its own MOD name; and Pokémon Sidebar
+// beside it in the release, installed or updated (its mod.json keeps the person's settings: only
+// its version moves on). No shell: `io` reads and writes files (Herdr's fs/promises, or Node's
+// in the tests), so it works on Windows too. Returns [{ dir, version }]; throws when no copy is
+// found.
+export async function installUpdate(io, { app, repo, running, src }) {
+  const read = (p) => io.readFile(p, "utf8");
+  const has = (p) => io.exists(p);
+  const copyTree = async (from, to) => {
+    await io.mkdir(to, { recursive: true });
+    for (const e of await io.readdir(from, { withFileTypes: true })) {
+      if (e.isDirectory()) await copyTree(`${from}/${e.name}`, `${to}/${e.name}`);
+      else await io.writeFile(`${to}/${e.name}`, await io.readFile(`${from}/${e.name}`));
+    }
+  };
+  const version = versionIn(await read(`${src}/id.js`));
+  const mods = `${app}/mods`;
+  const mine = [], all = [];
+  for (const e of await io.readdir(mods, { withFileTypes: true }).catch(() => [])) {
+    if (!e.isDirectory() || !(await has(`${mods}/${e.name}/id.js`))) continue;
+    const id = await read(`${mods}/${e.name}/id.js`);
+    if (!id.includes(`REPO = "${repo}"`)) continue;
+    all.push(`${mods}/${e.name}`);
+    if (new RegExp(`^export const VERSION = "${running.replace(/\./g, "\\.")}"`, "m").test(id)) mine.push(`${mods}/${e.name}`);
+  }
+  const targets = mine.length ? mine : all;
+  if (!targets.length) throw new Error("this mod's folder wasn't found under mods/");
+  const out = [];
+  for (const dir of targets) {
+    const name = /^export const MOD = "(.*)";/m.exec(await read(`${dir}/id.js`))?.[1];
+    await copyTree(src, dir);
+    if (name) {
+      const id = await read(`${dir}/id.js`);
+      await io.writeFile(`${dir}/id.js`, id.replace(/^export const MOD = .*$/m, `export const MOD = "${name}";`));
+    }
+    out.push({ dir, version });
+  }
+  // Pokémon Sidebar, beside it in the release.
+  const side = src.replace(/[\\/]pokemon-herd$/, "/pokemon-sidebar");
+  if (await has(`${side}/main.js`)) {
+    const to = `${mods}/pokemon-sidebar`;
+    await io.mkdir(to, { recursive: true });
+    const sv = /"version":\s*"([0-9.]*)"/.exec(await read(`${side}/mod.json`).catch(() => ""))?.[1] ?? "";
+    for (const e of await io.readdir(side, { withFileTypes: true })) {
+      if (e.isDirectory()) await copyTree(`${side}/${e.name}`, `${to}/${e.name}`);
+      else if (e.name === "mod.json" && (await has(`${to}/mod.json`))) {
+        const json = await read(`${to}/mod.json`);
+        await io.writeFile(`${to}/mod.json`, json.replace(/"version":\s*"[0-9.]*"/, `"version": "${sv}"`));
+      } else await io.writeFile(`${to}/${e.name}`, await io.readFile(`${side}/${e.name}`));
+    }
+    out.push({ dir: to, version: sv });
+  }
+  return out;
 }

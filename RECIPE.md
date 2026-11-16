@@ -226,7 +226,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   "Hear one" with a Play pill (the focused agent's species). "Gameplay": switches for Evolution
   (off: jobs still count, nothing evolves), Pickup, Weather, Sparring, Sub-agents (all on by
   default). Footer: "Pokémon herd <version>".
-- **Where an update goes** (`updateScript` in `update.js`): the release's `mods/pokemon-herd` is
+- **Where an update goes** (`installUpdate` in `update.js`, no shell: `curl` downloads, `tar`
+  unpacks, files are copied with fs, so it works on Windows too): the release's `mods/pokemon-herd` is
   copied over every folder under `mods/` whose `id.js` names this repo and runs this VERSION (an
   agent may have installed it under another name), else over every folder of this repo; each
   keeps its own `export const MOD` line. It prints "<folder> <version>" per folder, and Settings

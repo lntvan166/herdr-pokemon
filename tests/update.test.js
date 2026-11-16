@@ -33,18 +33,21 @@ test("this build is semver, and copies from before 1.0.0 still see it as newer",
   assert.equal(oldIsNewer(old, "2026.11.11.4"), true);
 });
 
-import { updateScript } from "../mods/pokemon-herd/update.js";
+import { installUpdate } from "../mods/pokemon-herd/update.js";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync as read } from "node:fs";
-import { execFileSync } from "node:child_process";
+import * as fsp from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// Herdr's fs/promises, as Node's (plus `exists`, which Node lacks).
+const io = { ...fsp, exists: (p) => fsp.access(p).then(() => true, () => false) };
 // A fake Herdr folder: the release (1.9.0) unpacked, and installed copies.
 function fake() {
   const root = mkdtempSync(join(tmpdir(), "herd-update-"));
   const src = join(root, "release", "mods", "pokemon-herd");
-  mkdirSync(src, { recursive: true });
+  mkdirSync(join(src, "sfx"), { recursive: true });
   writeFileSync(join(src, "main.js"), "// new\n");
+  writeFileSync(join(src, "sfx", "hit.mp3"), Buffer.from([1, 2, 3, 255]));
   writeFileSync(join(src, "id.js"), '// id\n// x\nexport const MOD = "pokemon-herd";\nexport const VERSION = "1.9.0";\nexport const REPO = "lntvan166/herdr-pokemon";\n');
   const copy = (name, mod, version, repo = "lntvan166/herdr-pokemon") => {
     const dir = join(root, "app", "mods", name);
@@ -55,16 +58,16 @@ function fake() {
   };
   return { root, src, app: join(root, "app"), copy };
 }
-const run = (script) => execFileSync("sh", ["-c", script], { encoding: "utf8" });
+const update = (f, running) => installUpdate(io, { app: f.app, repo: "lntvan166/herdr-pokemon", running, src: f.src });
 
-test("updateScript: updates the running copy wherever it is installed, keeping its MOD name", () => {
+test("installUpdate: updates the running copy wherever it is installed, keeping its MOD name; no shell", async () => {
   const f = fake();
   const renamed = f.copy("pokemon-herd-2", "pokemon-herd-2", "1.6.1"); // the running one, renamed by an agent
   const other = f.copy("pokemon-herd", "pokemon-herd", "1.5.0"); // an older copy, not running
   const stranger = f.copy("weather", "weather", "1.6.1", "someone/weather"); // another mod
-  const out = run(updateScript({ app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.6.1", source: f.src }));
-  assert.equal(out.trim(), `${renamed} 1.9.0`);
+  assert.deepEqual(await update(f, "1.6.1"), [{ dir: `${f.app}/mods/pokemon-herd-2`, version: "1.9.0" }]);
   assert.equal(read(join(renamed, "main.js"), "utf8"), "// new\n");
+  assert.deepEqual([...read(join(renamed, "sfx", "hit.mp3"))], [1, 2, 3, 255]); // binary files, folders
   const id = read(join(renamed, "id.js"), "utf8");
   assert.match(id, /export const VERSION = "1\.9\.0"/);
   assert.match(id, /export const MOD = "pokemon-herd-2";/); // its own name kept
@@ -72,30 +75,29 @@ test("updateScript: updates the running copy wherever it is installed, keeping i
   assert.equal(read(join(stranger, "main.js"), "utf8"), "// old\n");
 });
 
-test("updateScript: no copy runs this version: every copy of this repo is updated; none at all: an error", () => {
+test("installUpdate: no copy runs this version: every copy of this repo is updated; none at all: an error", async () => {
   const f = fake();
   const a = f.copy("pokemon-herd", "pokemon-herd", "1.5.0");
-  const out = run(updateScript({ app: f.app, repo: "lntvan166/herdr-pokemon", running: "9.9.9", source: f.src }));
-  assert.equal(out.trim(), `${a} 1.9.0`);
-  const empty = fake();
-  assert.throws(() => execFileSync("sh", ["-c", updateScript({ app: empty.app, repo: "lntvan166/herdr-pokemon", running: "1.0.0", source: empty.src })], { stdio: "pipe" }));
+  assert.deepEqual(await update(f, "9.9.9"), [{ dir: `${f.app}/mods/pokemon-herd`, version: "1.9.0" }]);
+  assert.equal(read(join(a, "main.js"), "utf8"), "// new\n");
+  await assert.rejects(update(fake(), "1.0.0"), /wasn't found/);
 });
 
-test("updateScript: Pokémon Sidebar beside it is installed, then updated keeping its settings", () => {
+test("installUpdate: Pokémon Sidebar beside it is installed, then updated keeping its settings", async () => {
   const f = fake();
-  const mine = f.copy("pokemon-herd", "pokemon-herd", "1.6.1");
+  f.copy("pokemon-herd", "pokemon-herd", "1.6.1");
   const side = join(f.root, "release", "mods", "pokemon-sidebar");
   mkdirSync(join(side, "views"), { recursive: true });
   writeFileSync(join(side, "main.js"), "// sidebar\n");
   writeFileSync(join(side, "views", "agents.js"), "// cards\n");
   writeFileSync(join(side, "mod.json"), '{\n  "version": "1.1.0",\n  "title": "Pokémon Sidebar"\n}\n');
-  const to = join(f.app, "mods", "pokemon-sidebar");
-  let out = run(updateScript({ app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.6.1", source: f.src }));
-  assert.equal(out.trim(), `${mine} 1.9.0\n${to} 1.1.0`);
+  const to = `${f.app}/mods/pokemon-sidebar`;
+  const out = await update(f, "1.6.1");
+  assert.deepEqual(out.at(-1), { dir: to, version: "1.1.0" });
   assert.equal(read(join(to, "views", "agents.js"), "utf8"), "// cards\n");
   // The person's settings stay; the version moves on.
   writeFileSync(join(to, "mod.json"), '{\n  "version": "1.0.0",\n  "settings": { "combined": false }\n}\n');
-  run(updateScript({ app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.9.0", source: f.src }));
+  await update(f, "1.9.0");
   const json = JSON.parse(read(join(to, "mod.json"), "utf8"));
   assert.equal(json.version, "1.1.0");
   assert.deepEqual(json.settings, { combined: false });
