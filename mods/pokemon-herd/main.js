@@ -13,6 +13,7 @@ const stats = () => loadStats(shared(STATS_KEY));
 import { isNewer, shouldAutoUpdate } from "./update.js";
 import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf } from "./dex.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
+const GUIDE_KEY = `${MOD}-guide-seen`; // Settings opened once: it opens on the Guide that time
 const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
@@ -471,7 +472,9 @@ const ALPHA_RED = "#e5484d";
 const RING = { ready: false };
 ensureRing().then(() => { RING.ready = true; }, () => {});
 // `shadow`: a Shadow Pokémon's (some Alphas): its motes dark violet, a dark aura flickering behind it.
-const alphaGlow = (mid, ground, box, scale, shadow = false) => {
+// `still`: one of yours, on the strip all day: its ring only, not breathing, no motes (the moving
+// glow is for a wild one or a raid boss, there a moment).
+const alphaGlow = (mid, ground, box, scale, shadow = false, still = false) => {
   // A red ring on the ground under its feet (wider than its shadow), breathing; and a few red
   // motes rising beside it. No box round it.
   const w = Math.max(26, box.w * scale * 1.15), h = Math.max(9, 11 * scale);
@@ -481,8 +484,8 @@ const alphaGlow = (mid, ground, box, scale, shadow = false) => {
     [0.3, 0.1, 24, 2100, 3], [0.05, 0.6, 16, 2600, 2], [-0.4, 0.7, 14, 1500, 2]];
   return div().absolute().left(0).top(0)
     .child((RING.ready ? image(RING_REL) : div().rounded_full().border_2().border_color("#ff4a4a").bg("#ff5a5a44"))
-      .absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).loop("opacity", { from: 0.45, to: 1, period: 1400 }))
-    .children(motes.map(([dx, dy, rise, period, size], k) => {
+      .absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).when(!still, (el) => el.loop("opacity", { from: 0.45, to: 1, period: 1400 })).when(still, (el) => el.opacity(0.75)))
+    .children((still ? [] : motes).map(([dx, dy, rise, period, size], k) => {
       const y = ground - dy * box.h * scale;
       return div().absolute().left(mid + dx * box.w * scale).top(y).size(size).rounded_full()
         .bg(shadow ? (k % 2 ? "#3a1a5a" : "#9a5aff") : k % 3 === 2 ? "#ffb070" : "#ff4a4a")
@@ -493,9 +496,20 @@ const alphaGlow = (mid, ground, box, scale, shadow = false) => {
     .when(shadow, (el) => el.children([[-0.32, 0.9, 1700], [0, 1.05, 2100], [0.3, 0.85, 1900]].map(([dx, hh, period]) => {
       const fw = Math.max(8, box.w * scale * 0.34), fh = box.h * scale * hh;
       return div().absolute().left(mid + dx * box.w * scale - fw / 2).top(ground - fh).w(fw).h(fh).rounded(fw / 2).bg("#5a2a8a")
-        .loop("opacity", { from: 0.12, to: 0.4, period });
+        .when(!still, (el) => el.loop("opacity", { from: 0.12, to: 0.4, period })).when(still, (el) => el.opacity(0.25));
     })));
 };
+// A "Sure?" asked by a first click takes a second one at least ARM_MS later: a double click on the
+// same spot isn't a yes.
+const ARM_MS = 400;
+// The rare ones among Pokémon about to be released, for the "Sure?": ", incl. 2 ✨ 1 α 1 ✦".
+const rareIn = (xs) => {
+  const n = (f) => xs.filter((x) => f(x.pick)).length;
+  const parts = [[n((p) => p.shiny), "✨"], [n((p) => p.alpha), "α"], [n((p) => isLegendary(p.dex)), "✦"]].filter(([k]) => k).map(([k, m]) => `${k} ${m}`);
+  return parts.length ? `, incl. ${parts.join(" ")}` : "";
+};
+// "a Poké Ball", "an Ultra Ball".
+const an = (name) => `${/^[AEIOU]/.test(name) ? "an" : "a"} ${name}`;
 // The α in an Alpha's name tag (before its name).
 // The shiny mark, in colour as the games draw it (Herdr's font draws ✨ in one colour, the text's).
 const SHINY_GOLD = "#ffd23f";
@@ -1491,13 +1505,12 @@ export default class PokemonHerd extends View {
     const name = `${r.boss.alpha ? "Alpha " : ""}${r.boss.shiny ? "✨ " : ""}${fullName(r.boss.dex)}`;
     const mins = (ms) => `${Math.max(1, Math.ceil(ms / 60000))}m`;
     const note = ph === "egg" ? `🥚 Raid egg · hatches in ${mins(r.hatch - now)}`
-      : ph === "battle" ? `⚔ Raid: ${name} · ${mins(r.until - now)} left · drag yours onto it (each once a minute)`
+      : ph === "battle" ? `⚔ Raid: ${name} · ${mins(r.until - now)} left` // how: the Guide, the Today tab
       : ph === "beaten" ? (r.caught ? `⚔ Raid won: ${name} caught!` : `⚔ Raid won! ${money(raidReward(r.boss).money)}, 3 Ultra Balls · catch it before it's gone`)
       : `${name} got away…`;
-    root.child(div().id("pokemon-raid").absolute().left(6).top(4).h(16).px(6).rounded(8)
+    root.child(div().id("pokemon-raid").absolute().left(6).top(4).h(16).px(6).rounded(8).max_w(Math.max(120, this.width - 70)).overflow_hidden()
       .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(ph === "gone" ? "#c8ccd4" : "#ffd23f")
-      .when(ph === "egg" || ph === "battle", (el) => el.loop("opacity", { from: 0.7, to: 1, period: 1400 }))
-      .child(note));
+      .child(sparkled(note)));
     if (ph === "egg") {
       // The games' Egg (PokeAPI's sprite: 96 px, the egg itself 28×30 at 34,34), on the ground.
       const soon = r.hatch - now < 30000, hatching = r.hatch - now < HATCH_SHAKE;
@@ -1811,7 +1824,7 @@ export default class PokemonHerd extends View {
         // An XXL or XXS that would be its species' biggest or smallest yet: that, under its feet.
         // Any other's size is only in the Box.
         .when(!v.pick.alpha && !!(v.sizeTag ??= recordSize(pokedex().sizes, v.pick) ?? ""), (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
-          .child(div().h(LABEL_H).px(5).rounded(4).flex().items_center().bg(t.chrome).text_size(10.5).font_bold().text_color("#ffd23f").child(`${v.sizeTag} · ${v.sizeTag === "XXL" ? "biggest" : "smallest"} yet`))))
+          .child(div().h(LABEL_H).px(5).rounded(4).flex().items_center().bg("#000000b0").text_size(10.5).font_bold().text_color("#ffd23f").child(`${v.sizeTag} · ${v.sizeTag === "XXL" ? "biggest" : "smallest"} yet`))))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
@@ -1843,34 +1856,34 @@ export default class PokemonHerd extends View {
       // Every visitor carries a gift: 🎁 over its head, pulsing, until you click it; then what it
       // left; then a ball to throw. A legendary one glows.
       .when(!!v.pick.legend, (el) => el.child(div().absolute().left(mid - 9).top(Math.max(2, headY - 34)).text_size(12)
-        .loop("opacity", { from: 0.3, to: 1, period: 600 }).child("✦")))
+        .child("✦")))
       // Over its head, side by side and centred: the gift (🎁, then what it left: "×3" for a few)
       // and its purse ("₽25", then "+₽25" once taken). One row, so neither covers the other.
       .when(showGift, (el) => el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 18)).h(18).justify_center().items_center().gap(4)
         .child(div().text_size(13)
-          .when(!v.gift, (e2) => e2.loop("opacity", { from: 0.45, to: 1, period: 800 }))
+          
           .child(v.gift ? h_flex().items_center().gap(1).child(this.itemMark(v.gift, 18)).when((v.giftN ?? 1) > 1, (e2) => e2.child(div().text_size(10).font_semibold().text_color("#ffffff").child(`×${v.giftN}`))) : "🎁"))
         .when(!v.gift ? v.purse > 0 : v.paid > 0, (e2) => e2.child(div().h(14).px(3).rounded(3).flex().items_center()
           .bg("#00000055").text_size(10).font_semibold().text_color(v.pick.legend || v.purse >= 60 ? "#f2c94c" : "#ffffff")
           .child(v.gift ? `+${money(v.paid)}` : money(v.purse))))))
       .when(!!ball, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18))
-        .loop("opacity", { from: 0.5, to: 1, period: 700 })
+        
         .child(this.itemMark(ball, 18)))));
     const broke = v.broke && now - v.broke < 2500;
     const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
     // Not once it's walked off the strip (its tag stuck at the edge, saying "click it").
     const onStrip = v.x >= 0 && v.x <= this.width;
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
-      const tagW = 330;
+      const tagW = Math.min(420, this.width - 12); // never past a narrow strip's edges
       const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
       const tail = broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
-        : ball ? `: ${shared(BALL_KEY) === ball ? "" : "(Auto) "}click to throw a ${ITEMS[ball].name}${baitNow ? ` with a ${ITEMS[baitNow].name}` : ""} (${rate}%)${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it runs away` : ""}`
+        : ball ? `: click to throw ${an(ITEMS[ball].name)}${shared(BALL_KEY) === ball ? "" : " (Auto)"}${baitNow ? ` + ${ITEMS[baitNow].name}` : ""}, ${rate}% to catch${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it runs away` : ""}`
         : ": no Poké Balls (the Shop has them)";
-      root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
-        .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
-        .child(sparkled(`${what}${hp < 1 ? ` (${Math.round(hp * 100)}%)` : ""}${tail}`)));
+      root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 6, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+        .flex().items_center().justify_center().overflow_hidden().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
+        .child(sparkled(`${what}${hp < 1 ? ` · HP ${Math.round(hp * 100)}%` : ""}${tail}`)));
     }
   }
 
@@ -2632,11 +2645,14 @@ export default class PokemonHerd extends View {
         .child(div().h(4))
         .child(div().px(8).text_size(11).text_color(t.dim).child(`Update: ${props().update} (you have ${VERSION})`))
         .child(div().px(8).text_size(11.5).text_color(t.muted)
-          .child(`Delete mods/${MOD} and add github.com/${REPO} again. Your Pokémon are kept.`)));
+          .child("Settings → Updates → Update now. Your Pokémon are kept.")));
   }
 
   initSettings(cx) {
-    this.settingsTab = props()?.tab ?? (props()?.update ? "updates" : "strip"); // the Update pill opens Updates
+    // The Update pill opens Updates; the very first time, the Guide (how to play), then the Strip.
+    const firstTime = !shared(GUIDE_KEY);
+    if (firstTime) setShared(GUIDE_KEY, Date.now());
+    this.settingsTab = props()?.tab ?? (props()?.update ? "updates" : firstTime ? "guide" : "strip");
     this.unlocking = false; // Trainer → Unlock all, asked once: "Sure?"
     this.updating = null; // null | "running" | "done" | an error message
     this.sidebar = null; // Better Sidebar: "missing" | "patched" | "outdated" | "unpatched" (null: checking)
@@ -2734,12 +2750,11 @@ export default class PokemonHerd extends View {
         .child(div().text_size(11).text_color(t.dim).child("Esc")))
       .child(h_flex().px(14).pb(10).gap(4).flex_none().children(TABS.map(([k, txt]) => {
         const on = tab === k;
-        const sparkle = k === "trainer" && !st.trainer; // Trainer mode, off: it twinkles to be found
         return h_flex().id(`set-tab-${k}`).h(28).px(10).gap(4).rounded(6).items_center().cursor_pointer()
           .bg(on ? t.selected : "#00000000").hover((s2) => s2.bg(on ? t.selected : t.hover))
           .when(k === "trainer", (el) => el.border_1().border_color(on ? t.accent : "#f2c94c80"))
           .on_click((_e, cx) => { this.settingsTab = k; this.unlocking = false; cx.notify(); })
-          .when(k === "trainer", (el) => el.child(div().text_size(12).when(sparkle, (e2) => e2.loop("opacity", { from: 0.25, to: 1, period: 900 })).child("✨")))
+          .when(k === "trainer", (el) => el.child(div().text_size(12).text_color(SHINY_GOLD).child("✨")))
           .child(div().text_size(12.5).text_color(on ? t.foreground : t.muted).when(on, (e2) => e2.font_semibold()).child(txt))
           .when(k === "updates" && !!upd, (el) => el.child(div().size(6).rounded_full().bg(t.accent)));
       })))
@@ -2749,22 +2764,27 @@ export default class PokemonHerd extends View {
   // Guide: how to play at a glance: a tile a topic, an icon, a title and a line.
   settingsGuide({ heading }, t) {
     const TIPS = [
+      ["☰", "The menu", "☰ in the strip's corner, or right-click the ground: Box, Today, Shop, Settings."],
       ["👆", "Your herd", "Click one: go to its agent. Right-click: choose another."],
       ["🎁", "Wild Pokémon", "Click one walking by for its gift and ₽, again to throw a ball."],
       ["⚔️", "Weaken it", "Drop one of yours on it (a Mega Evolves, and hits harder). Stop at red."],
       ["🍒", "Berries", "Razz before a ball: easier catch. Oran, Sitrus: hearts."],
       ["✨", "Rare ones", "Shiny 1 in 64 · Alpha α 1 in 40 · Legendary 1 in 150."],
       ["📋", "Today", "3 tasks a day. All three: 5 Ultra Balls and a legendary."],
-      ["₽", "Pokédollars", "Jobs pay by the minute. Shop: right-click the ground → Box."],
+      ["₽", "Pokédollars", "Jobs pay by the minute. Shop: ☰ → Box → Shop."],
+      ["🥚", "Raids", "Work lays an egg (twice a day at most). Drag yours onto its boss, once a minute each."],
+      ["🌈", "Weather", "Rain, night or the season boosts some types: their moves hit harder, more walk by (Today)."],
+      ["🔒", "Box", "Lock the ones you keep; Select… to release the rest for ₽."],
       ["💗", "Hearts & evolution", "Pats, quick answers, spars, Berries. Most evolve after 15 jobs, then 30."],
     ];
     return [h_flex().flex_wrap().gap(8).children(TIPS.map(([icon, title, line]) => h_flex()
       .w(234).min_h(62).p(10).gap(10).items_start().rounded(10).bg(t.raised)
-      .child(div().w(22).flex_none().text_size(18).text_center().child(icon))
+      .child(div().w(22).flex_none().text_size(18).text_center().child(sparkled(icon)))
       .child(v_flex().flex_1().min_w(0).gap(2)
         .child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(title))
         .child(div().text_size(11.5).text_color(t.muted).child(line))))),
-      div().pt(4).text_size(11.5).text_color(t.dim).child("More in the README: github.com/lntvan166/herdr-pokemon")];
+      div().id("guide-readme").pt(4).text_size(11.5).text_color(t.dim).cursor_pointer().hover((st) => st.text_color(t.foreground))
+        .on_click((_e, cx) => cx.open_url(`https://github.com/${REPO}#readme`)).child("More in the README on GitHub →")];
   }
 
   // A newer release: what Settings just read from GitHub, else what the strip knew.
@@ -2895,9 +2915,9 @@ export default class PokemonHerd extends View {
     const legends = d.caught.filter(isLegendary).length;
     const stars = [[14, 10, 1100], [430, 16, 1500], [60, 92, 1300], [400, 86, 900], [236, 6, 1700]];
     const hero = div().relative().p(16).rounded(12).bg(t.raised).border_1().border_color(st.trainer ? t.accent : "#f2c94c")
-      // Little stars around the card, each twinkling at its own pace.
-      .children(stars.map(([x, y, period], i) => div().absolute().left(x).top(y).text_size(i % 2 ? 10 : 12).text_color("#f2c94c")
-        .loop("opacity", { from: 0.1, to: 1, period }).child(i % 2 ? "✦" : "✨")))
+      // Little stars around the card (still: a page you read).
+      .children(stars.map(([x, y], i) => div().absolute().left(x).top(y).text_size(i % 2 ? 10 : 12).text_color("#f2c94c")
+        .opacity(0.4 + 0.15 * i).child(i % 2 ? "✦" : "✨")))
       .child(v_flex().gap(8)
         .child(h_flex().justify_between().items_center().gap(12)
           .child(v_flex().gap(2)
@@ -3214,7 +3234,7 @@ export default class PokemonHerd extends View {
         const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
         body = div()
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale, !!pick.shadow))) // over its shadow, not darkened by it
+          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale, !!pick.shadow, true))) // over its shadow, not darkened by it; still
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
           // A blow landing: it flashes white (and the hurt pose's silhouette is made ahead).
           .when(true, (el) => {
@@ -3329,16 +3349,16 @@ export default class PokemonHerd extends View {
           // A find, a heart, a berry; or hungry, waiting on you too long.
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
-              .when(!m.note, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 900 }))
+              
               .child(m.note?.item ? this.itemMark(m.note.item, 18) : (m.note?.icon ?? "🥺"))))
           // Tired (the 5-hour limit is near): working ones sweat.
           .when(!!this.tired && mood === "working", (el) =>
             el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
-              .loop("opacity", { from: 0.3, to: 1, period: 1100 }).child("💦")))
+              .child("💦")))
           // Working in the same folder as another agent: crossed swords, pulsing, over its head.
           .when(!!m.rival, (el) =>
             el.child(div().absolute().left(sw / 2 - 8).top(Math.max(2, headY - 30)).text_size(13)
-              .loop("opacity", { from: 0.35, to: 1, period: 700 }).child("⚔️")))
+              .child("⚔️")))
           // Evolving: a column of light, motes, rings; then a burst and "Evolved!" (fx.js EVOLVE_MS).
           .when(!!m.evolveFx && now - m.evolveFx.at < EVOLVE_MS, (el) => {
             const t = now - m.evolveFx.at, key = `evo-${a.address}-${m.evolveFx.at}`;
@@ -3393,7 +3413,7 @@ export default class PokemonHerd extends View {
     // Just updated by itself: "✓ Updated to 2.5.6" in the corner for two minutes.
     const done = shared(UPDATED_KEY);
     if (done?.to === VERSION && now - done.at < 120000) {
-      root.child(div().id("pokemon-updated").absolute().right(28).top(4).h(16).px(6).rounded(8)
+      root.child(div().id("pokemon-updated").absolute().right(50).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).bg("#00000059").text_color("#ffffff").child(`✓ Updated to ${VERSION}`));
     }
     // Battle sounds, on or off at a click (Settings → Sound too).
@@ -3403,18 +3423,28 @@ export default class PokemonHerd extends View {
       .hover((st) => st.opacity(1))
       .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); setSetting("battleSounds", !loud); cx.notify(); })
       .child(loud ? "🔊" : "🔇"));
-    // A newer release on GitHub: a small pill in the corner; it opens the menu, which says how.
+    // The menu (the Box, Today, Settings…), as a right-click on the ground opens it: a button for
+    // it, so it can be found.
+    root.child(div().id("pokemon-menu-button").absolute().right(28).top(4).size(18).rounded(5).bg("#00000066")
+      .flex().items_center().justify_center().text_size(11).text_color("#ffffff").opacity(0.7).cursor_pointer()
+      .hover((st) => st.opacity(1))
+      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); this.openMenu(); cx.notify(); })
+      .child("☰"));
+    // A newer release on GitHub: a small pill in the corner; it opens Settings → Updates.
     const update = this.update();
     if (update) {
-      root.child(div().id("pokemon-update").absolute().right(28).top(4).h(16).px(6).rounded(8)
+      root.child(div().id("pokemon-update").absolute().right(50).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).bg(t.accent).text_color(t.accent_foreground)
-        .cursor_pointer().on_click(() => this.openMenu())
+        .cursor_pointer().on_click(() => openSettings(update))
         .child(`Update ${update}`));
     }
     // Shop boosts on now: a small pill each in the top-left corner, with the minutes left.
     const on = Object.entries(loadBoosts(shared(BOOSTS_KEY), now));
     if (on.length) {
-      root.child(h_flex().absolute().left(6).top(4).gap(4).children(on.map(([id, until]) =>
+      // Under the raid's and the outbreak's notes, when they're up (it was drawn over them).
+      const raidUp = settingsNow().raids && !!raidPhase(loadRaid(shared(RAID_KEY)), now);
+      const obUp = settingsNow().outbreaks && VISIT_EVERY[settingsNow().visitors] && !!outbreakAt(now, shared(OUTBREAK_KEY));
+      root.child(h_flex().absolute().left(6).top(4 + 18 * ((raidUp ? 1 : 0) + (obUp ? 1 : 0))).gap(4).children(on.map(([id, until]) =>
         div().id(`boost-${id}`).h(16).px(6).rounded(8).flex().items_center().gap(3).text_size(10)
           .bg("#00000059").text_color("#ffffff").tooltip(`${ITEMS[id].name}: ${Math.ceil((until - now) / 60000)} min left`)
           .child(`${ITEMS[id].icon} ${Math.ceil((until - now) / 60000)}m`))));
@@ -3439,18 +3469,17 @@ export default class PokemonHerd extends View {
     // A rare one walking by (shiny, Alpha, legendary): a note in the corner while it's here.
     const rv = this.visitor;
     if (rv?.start && !rv.fainted && !(rv.throw && (rv.throw.caught || rv.throw.fled)) && rareOf(rv.pick) && settingsNow().cryRare && !this.coming) {
-      root.child(div().id("pokemon-rare").absolute().right(update ? 112 : 28).top(4).h(16).px(6).rounded(8)
+      root.child(div().id("pokemon-rare").absolute().right(update ? 134 : 50).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(rareOf(rv.pick).color)
-        .loop("opacity", { from: 0.55, to: 1, period: 700 })
         .child(`${rareOf(rv.pick).mark} ${rareOf(rv.pick).what} ${fullName(rv.pick.dex, rv.pick.form)} is walking by!`));
     }
     // A Mass Outbreak on: its species and how long it lasts (under the raid's note, if one is on).
     const ob = settingsNow().outbreaks && VISIT_EVERY[settingsNow().visitors] ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
     if (ob) {
       const under = settingsNow().raids && raidPhase(loadRaid(shared(RAID_KEY)), now);
-      root.child(div().id("pokemon-outbreak").absolute().left(6).top(under ? 22 : 4).h(16).px(6).rounded(8)
+      root.child(div().id("pokemon-outbreak").absolute().left(6).top(under ? 22 : 4).h(16).px(6).rounded(8).max_w(Math.max(120, this.width - 70)).overflow_hidden()
         .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color("#8fd3ff")
-        .child(`🌊 Outbreak: ${fullName(ob.dex)} · ${Math.max(1, Math.ceil((ob.until - now) / 60000))}m left · shinies 1 in 16`));
+        .child(`🌊 Outbreak: ${fullName(ob.dex)} · ${Math.max(1, Math.ceil((ob.until - now) / 60000))}m left`)); // shinies 1 in 16: Today
     }
     // Called with Honey or the Azure Flute: on its way (the first time a species comes, its
     // sprite is fetched, which can take half a minute).
@@ -3712,7 +3741,7 @@ export default class PokemonHerd extends View {
       }))
       .child(h_flex().h(58).px(14).gap(12).items_center().rounded(10).bg(t.raised).border_1().border_color(all ? t.accent : t.raised)
         .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none().text_size(14)
-          .when(!all, (el) => el.loop("opacity", { from: 0.4, to: 1, period: 1400 })).child("✦"))
+          .child("✦"))
         .child(v_flex().flex_1().min_w(0).gap(3)
           .child(div().text_size(13).text_color(t.foreground).child(all ? "All three done: a legendary Pokémon is on its way" : "All three: a legendary Pokémon walks by"))
           .child(div().text_size(11.5).text_color(t.muted).child(settingsNow().visitors === "off" ? "Visitors are off (Settings): it can't come." : "Have a Master Ball or an Ultra Ball ready.")))
@@ -3989,7 +4018,8 @@ export default class PokemonHerd extends View {
               .when(n > 0, (e2) => e2.child(pill("sell-one", `Sell 1 · ${money(sellPrice(sel))}`, () => { const next = sell(bag(), sel, 1); if (next) saveBag(next); this.sellingAll = null; })))
               .when(n > 10, (e2) => e2.child(pill("sell-ten", `Sell 10 · ${money(10 * sellPrice(sel))}`, () => { const next = sell(bag(), sel, 10); if (next) saveBag(next); this.sellingAll = null; })))
               .when(n > 1, (e2) => e2.child(pill("sell-all", sure ? `Sure? ${n} for ${money(n * sellPrice(sel))}` : `Sell all ${n}`, () => {
-                if (!sure) { this.sellingAll = sel; return; }
+                if (!sure) { this.sellingAll = sel; this.armedAt = Date.now(); return; }
+                if (Date.now() - (this.armedAt ?? 0) < ARM_MS) return;
                 const next = sell(bag(), sel, n);
                 if (next) saveBag(next);
                 this.sellingAll = null;
@@ -4185,7 +4215,7 @@ export default class PokemonHerd extends View {
       .on_click((_e, cx) => { click(); cx.notify(); }).child(sparkled(label));
     const pill = (id, label, click, danger = false) => div().id(id).h(26).px(12).rounded_full().flex().items_center().flex_none().text_size(12).border_1()
       .border_color(danger ? t.blocked : t.border).text_color(danger ? t.blocked : t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(sparkled(label));
     const CELL = 84;
     const cell = (x) => {
       const picked = !!picking?.has(x.slot);
@@ -4227,7 +4257,7 @@ export default class PokemonHerd extends View {
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
       const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
-        pick.caught ? `caught in a ${ITEMS[pick.ball ?? "poke-ball"].name}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
+        pick.caught ? `caught in ${an(ITEMS[pick.ball ?? "poke-ball"].name)}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
           .child(icon(pick, 48))
@@ -4235,7 +4265,7 @@ export default class PokemonHerd extends View {
             .child(this.renaming === slot
               ? Input.new(this.nickInput).h(26).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12.5).text_color(t.foreground)
               : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""}${tag ? ` · with ${tag}` : ""}`)))
-            .child(div().text_size(11.5).text_color(t.muted).truncate().child(facts))))
+            .child(div().text_size(11.5).text_color(t.muted).child(facts)))) // all of it, wrapped: the Box is where the details are
         .child(h_flex().gap(6).flex_wrap().items_center()
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).
           .when(!!pick.shadow && canPurify(pick), (el) => el.child(pill(`box-purify-${slot}`, `✨ Purify (+${money(PURIFY_PAY)})`, () => {
@@ -4278,7 +4308,8 @@ export default class PokemonHerd extends View {
           })))
           .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "Cancel" : "Bring out", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; })))
           .when(!tag && !pick.locked, (el) => el.child(pill(`box-release-${slot}`, sure ? `Sure? Release it (+${money(releasePay(pick))})` : "Release", () => {
-            if (!sure) { this.releasing = slot; return; }
+            if (!sure) { this.releasing = slot; this.armedAt = Date.now(); return; }
+            if (Date.now() - (this.armedAt ?? 0) < ARM_MS) return; // a double click: not a yes
             releaseSlots([slot]);
             this.releasing = null;
             this.boxSel = null;
@@ -4318,8 +4349,9 @@ export default class PokemonHerd extends View {
           .child(chip("box-pick-dupes", `Duplicates ${dupes.length}`, false, () => { for (const s of dupes) picking.add(s); this.releasingAll = false; }))
           .child(chip("box-pick-none", "Clear", false, () => { picking.clear(); this.releasingAll = false; }))
           .child(div().flex_1())
-          .when(sel.length > 0, (e2) => e2.child(pill("box-release-all", sure ? `Sure? Release ${sel.length} (+${money(pay)})` : `Release ${sel.length}`, () => {
-            if (!sure) { this.releasingAll = true; return; }
+          .when(sel.length > 0, (e2) => e2.child(pill("box-release-all", sure ? `Sure? Release ${sel.length}${rareIn(sel)} (+${money(pay)})` : `Release ${sel.length}`, () => {
+            if (!sure) { this.releasingAll = true; this.armedAt = Date.now(); return; }
+            if (Date.now() - (this.armedAt ?? 0) < ARM_MS) return;
             releaseSlots(sel.map((x) => x.slot));
             picking.clear();
             this.releasingAll = false;

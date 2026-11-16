@@ -36,7 +36,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 | **Box** | Sort it, Lock (🔒) the ones you love, and release many at once (Select → Duplicates keeps the best of each species). Each one released leaves ₽10, ₽50 for a shiny or an Alpha. |
 | **Rare ones** | Shiny 1 in 64 · Alpha 1 in 40 (½ as easy, ₽150, ♥2) · Legendary 1 in 150, or call one with the Azure Flute. |
 | **Today** | Three Research tasks a day, each paying ₽ or balls; all three: 5 Ultra Balls and a legendary. |
-| **Pokédollars** | Jobs pay ₽1 + ₽5 a minute (about ₽300 an hour of agents' work). Shop via **right-click the ground → Box → Shop**. Anything sells back for half. |
+| **Pokédollars** | Jobs pay ₽1 + ₽5 a minute (about ₽300 an hour of agents' work). Shop via **☰ in the strip's corner (or right-click the ground) → Box → Shop**. Anything sells back for half. |
 | **Hearts** | Pats, quick answers, spars and Berries (three a day). Most evolve after 15 jobs, then 30 more; a Rare Candy counts for 5. |
 
 Everything else is one right-click on the strip's ground away: the **Box** (with the Bag, Shop,
