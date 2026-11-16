@@ -84,7 +84,14 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 | ✨ **Shiny** | 1 in 64 (1 in 32 with the Shiny Charm, at 500 jobs) | Another colour. Catch one and you can choose that species shiny in the picker. |
 | α **Alpha** | 1 wild one in 40 | Bigger, a red ring and α. Half as easy to catch and tougher in battle; carries ₽150 and twice the gift. Caught, it stays an Alpha: ♥2, hits harder, takes less. |
 | ☾ **Shadow Alpha** | 1 Alpha in 3 | A dark violet aura. Hits and takes ×1.2. Caught, purify it in the Box once it has ♥4: it stays an Alpha, gains a heart and ₽100. |
+| ⇕ **XXL / XXS** | 1 wild one in 40 each (XL / XS 1 in 8) | Its size under its feet. Not stronger: an XXS is hard to hit (moves miss it 1 in 8), an XXL is heavy (knocked back less, knocks the other further). Caught, it keeps its size (in the Box); the Pokédex keeps each species' biggest and smallest. |
 | ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) or by finishing the day's Research | Mewtwo, Rayquaza… always one you haven't caught yet, till you have them all. Locked in the picker until you catch one. Very hard: 15 balls before it runs away. |
+
+**Weather.** The strip's sky boosts some types, as in Pokémon GO: rain (an agent waiting on you)
+Water, Electric and Bug; night Dark, Ghost and Poison; by day the season: spring Fairy, Normal and
+Flying, summer Fire, Grass and Ground, autumn Dragon, Psychic and Fighting, winter Ice, Steel and
+Rock. Their moves hit ×1.2 (the weather's icon by the move's name) and more of them walk by. The
+Today tab says which.
 
 <p align="center"><img src="docs/demo/charizard-mega.gif" alt="Charizard asleep; its agent starts working; it Mega Evolves into Mega Charizard X and walks off" width="360"></p>
 

@@ -150,6 +150,19 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
   Azure Flute (₽1,000) and the day's Research call one: always one not caught yet, while any are
   left (`wildPick` with the Pokédex's caught). About 15 balls before one flees.
+- **Weather** (`weather.js` `weatherNow`): rain or a storm (scene.js `weatherOf`) Water, Electric,
+  Bug; else night (`nightness` ≥ 0.5) Dark, Ghost, Poison; else the season (`seasonAt`): spring
+  Fairy, Normal, Flying; summer Fire, Grass, Ground; autumn Dragon, Psychic, Fighting; winter Ice,
+  Steel, Rock. A boosted type's move ×1.2 (`WEATHER_HIT`; main.js `boosted`, the weather's icon by
+  its name), in every battle; `WEATHER_SHARE` 40% of the wild ones are of a boosted type
+  (`wildPick` `boost`). A row on the Today tab.
+- **Sizes** (`weather.js` `rollSize`): each wild one, as it appears: XXS 1/40 (0.5–0.7), XS 1/8,
+  XL 1/8, XXL 1/40 (1.3–1.5), else 0.9–1.1. Feel, not strength (that's an Alpha's): moves miss an
+  XXS 1 in 8, an XS 1 in 12 (`sizeMiss`, `pickMove` `targetSize`); a blow knocks back by the
+  hitter's size over the target's (`knockMul`, 0.6–1.6, a blow's `kb`). Drawn ×`drawSize` (0.3 of
+  the difference: ×1.15 at most) with XXL/XXS under a wild one's feet, never taken for an Alpha;
+  kept when caught (`size`), shown on its Box tile and in its facts; the Pokédex keeps each
+  species' smallest and biggest (`sizes`, `withRecord`).
 - **Shadow Alphas** (`SHADOW_SHARE` 1 in 3 Alphas; `shadow: true`): dark violet flames behind it and
   violet motes; it hits ×1.2 and takes ×1.2 (`SHADOW_HIT`, `SHADOW_TAKE`), wild or caught. In the
   Box (filter Shadow), at ♥4 (`PURIFY_HEARTS`) a Purify pill: no longer Shadow, still an Alpha, a

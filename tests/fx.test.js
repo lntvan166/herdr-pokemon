@@ -190,3 +190,11 @@ test("two battle far enough apart for their moves, by their sizes", async () => 
   assert.equal(fightGap(undefined, 40), MIN_GAP);
   assert.deepEqual(battleSpots(200, 240, 28, 800, 120), { ax: 160, bx: 280 });
 });
+
+test("a move that can't touch it: no critical hit, no number", async () => {
+  const { blowWord, damageText } = await import("../mods/pokemon-herd/fx.js");
+  assert.notEqual(blowWord(0, true)[0], "A critical hit!");
+  assert.equal(damageText(0.01, 0), null);
+  assert.equal(damageText(0, 1), null);
+  assert.equal(damageText(0.2, 1)[0], "-20%");
+});

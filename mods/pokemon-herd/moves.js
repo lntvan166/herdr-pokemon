@@ -8,6 +8,7 @@
 // Blizzard...). Pure.
 import { PHYSICAL } from "./base-stats.js";
 import { bestType, effectOn } from "./trainer.js";
+import { sizeMiss } from "./weather.js";
 
 export const MOVES = {
   normal: ["Body Slam", "Hyper Voice", "Giga Impact"],
@@ -40,11 +41,12 @@ export const isPhysical = (key) => PHYS.has(String(key));
 
 // One move by `attacker` at `target` (fighter keys): { type, name, physical, ultimate, crit, miss,
 // mul, eff }. `mul`: what it does to the damage (0 when it misses).
-export function pickMove(attacker, target, rnd = Math.random) {
+// `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
+export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const type = bestType(attacker, target);
   const ultimate = rnd() < ULTIMATE;
   const crit = rnd() < CRIT;
-  const miss = rnd() < (ultimate ? MISS_ULTIMATE : MISS);
+  const miss = rnd() < Math.max(ultimate ? MISS_ULTIMATE : MISS, sizeMiss(how.targetSize) ?? 0);
   const lean = rnd() < LEAN;
   const physical = !ultimate && (isPhysical(attacker) ? lean : !lean);
   const names = MOVES[type] ?? MOVES.normal;

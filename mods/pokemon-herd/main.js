@@ -30,6 +30,7 @@ import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, b
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, EVOLVE_MS, EVOLVE_BURST, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul } from "./weather.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -978,9 +979,10 @@ export default class PokemonHerd extends View {
     // A raid on: no other visitors meanwhile (its boss is the one to watch).
     const raidOn = ["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now));
     if (!v && now >= this.visitAt && !raidOn) {
-      let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught) });
+      let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught), boost: this.boostNow().types, share: WEATHER_SHARE });
       this.legendNext = false;
       if (outbreak) pick = outbreakPick(pick, outbreak);
+      pick = { ...pick, size: rollSize() }; // XXS..XXL (weather.js)
       dev?.wild?.(pick, devApi); // dev.js: a wild one asked for
       const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
       if (seen) saveDex(seen);
@@ -1081,7 +1083,8 @@ export default class PokemonHerd extends View {
   // `lunge`: { px, ms } while it rushes in to strike (a dash, fx.js dashAt) and back.
   withBlows(key, blows, body, cx, headY, ground, now, lunge = null) {
     const b = (blows ?? []).filter((x) => now >= x.at && now < x.at + 1300).at(-1);
-    const k = b && (b.miss ? MISS_KNOCK : knockOf(b.p));
+    const k0 = b && (b.miss ? MISS_KNOCK : knockOf(b.p));
+    const k = k0 && { ...k0, px: Math.round(k0.px * (b.kb ?? 1)) }; // a heavy one flies less (weather.js knockMul)
     const stop = stopOf(b); // a heavy blow: held still a moment before it's knocked back
     const out = !!b && now >= b.at + stop && now < b.at + stop + KNOCK_OUT;
     const wrap = div().absolute().left((out ? b.dir * k.px : 0) + (lunge?.px ?? 0)).top(0).w(SLOT).h(ground + 10)
@@ -1191,7 +1194,17 @@ export default class PokemonHerd extends View {
   moveLabel(key, move, x, top, launch, now) {
     if (!move?.name || now < launch - CHARGE_MS || now >= launch + 560) return null;
     const phase = this.fxFirst(key) ? 0 : now < launch + 280 ? 1 : 2; // fading as the word over the other pops up
-    return fxWord(key, [`${move.name}!`, move.ultimate ? "#ffd23f" : "#ffffff"], x, top, phase);
+    return fxWord(key, [`${move.name}!${move.boosted ? ` ${move.boosted}` : ""}`, move.ultimate ? "#ffd23f" : "#ffffff"], x, top, phase);
+  }
+  // The weather now (weather.js): the strip's rain, night, season.
+  boostNow(now = new Date()) {
+    const hour = now.getHours() + now.getMinutes() / 60;
+    return weatherNow(this.weather ?? "clear", seasonAt(now), nightness(hour));
+  }
+  // A move with the weather's boost: ×WEATHER_HIT and the weather's icon by its name.
+  boosted(move) {
+    const w = this.boostNow();
+    return move && boosts(w, move.type) ? { ...move, mul: move.mul * WEATHER_HIT, boosted: w.icon } : move;
   }
   // How wide a Pokémon is drawn on the strip (px): its sprite's box at its scale (a sub-agent's
   // smaller, an Alpha bigger); 40 before its sprite is in.
@@ -1199,7 +1212,7 @@ export default class PokemonHerd extends View {
     const meta = pick && this.spriteFor(pick, status);
     const box = (meta?.idleR ?? meta?.idleL)?.box;
     if (!box) return 40;
-    return box.w * scaleOf() * (pick.young ? 0.75 : pick.alpha ? ALPHA_SIZE : 1);
+    return box.w * scaleOf() * (pick.young ? 0.75 : pick.alpha ? ALPHA_SIZE : 1) * drawSize(pick.size);
   }
   // The white of a health bar's loss, for a moment after it's hit (`l`: { prev, at }).
   lostOf(key, l, now) {
@@ -1317,7 +1330,7 @@ export default class PokemonHerd extends View {
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
-    const move = pickMove(key, r.boss.dex);
+    const move = this.boosted(pickMove(key, r.boss.dex));
     const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
@@ -1373,7 +1386,7 @@ export default class PokemonHerd extends View {
         const away = x < bx ? Math.min(x - 30, bx - BOSS_PUSH) : Math.max(x + 30, bx + BOSS_PUSH);
         m.raidPush = { at: hitBackAt + 120, to: clamp(away, EDGE, hiX), back: h.back.dmg };
       }
-      m.react = { seq, until: (h.back ? h.at + COUNTER_MS + 1100 : h.at + ms + 200), face: m.dir, shot: { at: launch, until: land, from: x, to: bx, move: { type: h.type, eff: h.eff, blue, name: h.name, physical: h.physical, ultimate: h.ultimate } } };
+      m.react = { seq, until: (h.back ? h.at + COUNTER_MS + 1100 : h.at + ms + 200), face: m.dir, shot: { at: launch, until: land, from: x, to: bx, move: { type: h.type, eff: h.eff, blue, name: h.name, physical: h.physical, ultimate: h.ultimate, boosted: h.boosted } } };
       m.pauseUntil = h.at + 6000;
       m.battleUntil = h.at + 6000; // it Mega Evolves for it
     }
@@ -1566,7 +1579,9 @@ export default class PokemonHerd extends View {
     v.nature = pick.nature;
     savePicks({ [`box-${now}-${pick.dex}`]: pick });
     if (v.raid) { const r = loadRaid(shared(RAID_KEY)); if (r?.id === v.raid) setShared(RAID_KEY, { ...r, caught: Date.now() }); }
-    saveDex(withCaught(pokedex(), pick));
+    const dx = withCaught(pokedex(), pick);
+    v.record = withRecord(dx.sizes, pick); // its species' biggest or smallest yet
+    saveDex(v.record ? { ...dx, sizes: v.record } : dx);
     research("catch");
     payDexGoals();
     // A Pinap Berry: it brings a second gift.
@@ -1593,6 +1608,7 @@ export default class PokemonHerd extends View {
   renderVisitor(root, grounds, scale) {
     const v = this.visitor;
     if (v?.pick.alpha) scale *= ALPHA_SIZE; // an Alpha: bigger
+    if (v) scale *= drawSize(v.pick.size); // its size (weather.js): an XXL bigger, an XXS smaller
     const meta = v?.start && this.spriteFor(v.pick, "idle");
     if (!meta?.walkR) return;
     const t = theme();
@@ -1727,7 +1743,7 @@ export default class PokemonHerd extends View {
         const tagW = 260;
         root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(Math.max(2, ground - size - 22)).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
-          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
+          .child(th.fled ? `${fullName(v.pick.dex, v.pick.form)} ran away!` : `✨ Gotcha! ${sizeClass(v.pick.size) ? `${sizeClass(v.pick.size)} ` : ""}${v.pick.alpha ? (v.pick.shadow ? "Shadow Alpha " : "Alpha ") : ""}${fullName(v.pick.dex, v.pick.form)}${v.nature ? ` (${NATURES[v.nature].name})` : ""} → Box${v.extra ? ` · +${ITEMS[v.extra].name}` : ""}`));
       }
       return;
     }
@@ -1751,6 +1767,9 @@ export default class PokemonHerd extends View {
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
             .child(alphaTag())
             .child(div().text_size(10.5).text_color(v.pick.shadow ? "#c08aff" : t.muted).child(`${v.pick.shadow ? "Shadow " : ""}${fullName(v.pick.dex, v.pick.form)}`)))))
+        // An XXL or XXS one: its size under its feet, so it's never taken for an Alpha.
+        .when(!v.pick.alpha && !!sizeClass(v.pick.size) && sizeClass(v.pick.size).length === 3, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
+          .child(div().h(LABEL_H).px(5).rounded(4).flex().items_center().bg(t.chrome).text_size(10.5).font_bold().text_color(t.muted).child(sizeClass(v.pick.size)))))
         .when(hp < 1, (el) => el.child(hpBar(mid))))
       // Hover: what it is; a click: its gift (once), then a ball, if you have one.
       .child(div().id(`visitor-hit-${v.id}-${leg}`).absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h).cursor_pointer()
@@ -2213,7 +2232,7 @@ export default class PokemonHerd extends View {
       const [k1, k2] = [keyOf(a1), keyOf(a2)];
       const side = (a, k, o) => {
         const meta = this.spriteFor(ids[a.address], a.status);
-        const move = k && o ? { ...pickMove(k, o), blue: k === "6mX" } : null; // its move (moves.js), named
+        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size })), blue: k === "6mX" } : null; // its move (moves.js), named
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
       // Too close: they hop apart first (a quick slide, facing each other), then battle, room
@@ -2239,7 +2258,8 @@ export default class PokemonHerd extends View {
           if (!st.blow) continue;
           const mv = o.react.shot?.move;
           const special = st.blow === "special";
-          (m.blows ??= []).push({ at: st.at, dir: m.react.face === "r" ? -1 : 1, p: special ? power(st.eff ?? 1) : power(1, false),
+          const [mine, theirs] = m === m1 ? [ids[a1.address], ids[a2.address]] : [ids[a2.address], ids[a1.address]];
+          (m.blows ??= []).push({ at: st.at, dir: m.react.face === "r" ? -1 : 1, p: special ? power(st.eff ?? 1) : power(1, false), kb: knockMul(theirs?.size, mine?.size),
             style: special && mv ? moveStyle(mv.type, mv.blue) : STRIKE, word: special ? blowWord(st.eff ?? 1, mv?.crit) : null, ...(special && mv ? { type: mv.type, miss: mv.miss, physical: mv.physical } : { physical: true }) });
         }
       }
@@ -2354,7 +2374,7 @@ export default class PokemonHerd extends View {
         const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
-        const om = pickMove(ownKey, wildKey), wm = pickMove(wildKey, ownKey); // each one's move (moves.js)
+        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size })); // each one's move (moves.js), the weather's boost on it
         const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type);
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul, wm.type);
@@ -2386,12 +2406,12 @@ export default class PokemonHerd extends View {
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
           x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
-          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || om.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, om.crit), miss: om.miss, physical: om.physical, num: damageText(hit.dmg, hit.eff), type: ownMove.type },
+          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || om.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, om.crit), miss: om.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type },
         };
         const seq = [{ at, until: at + ms, anim: sp }];
         if (back) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
         dm.react = { seq, until: back ? backHit + 700 : at + ms + 300, face: dm.dir, shot: { at: launch, until: hitAt, from: spot, to: v.x, move: ownMove } };
-        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), miss: wm.miss, physical: wm.physical, num: damageText(back.dmg, back.eff, true), type: wildMove.type });
+        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
       }
@@ -3069,7 +3089,7 @@ export default class PokemonHerd extends View {
       const holds = full && pick.held ? ` · ${ITEMS[pick.held].icon}` : ""; // just the icon: the label stays short
       const rivalTags = full && this.rivals?.[a.address] ? ` · ⚔ same folder as ${this.rivals[a.address].map((x) => { const b = list.find((y) => y.address === x); return b ? tagOf(b, tabs) : x; }).join(", ")}` : "";
       // What it says it's doing stays on the cards: here it ran across the whole strip.
-      const text = full ? `${pick.alpha ? "Alpha " : ""}${nameFor(pick)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
+      const text = full ? `${sizeClass(pick.size)?.length === 3 ? `${sizeClass(pick.size)} ` : ""}${pick.alpha ? "Alpha " : ""}${nameFor(pick)} · ${tagOf(a, tabs)}${hearts}${holds}${rivalTags}${line ? ` · ${line}` : ""}` : tagOf(a, tabs);
       return this.showsShiny(pick) ? `✨ ${text}` : text;
     };
     // Tags are laid out where each Pokémon is headed: they move with it.
@@ -3107,7 +3127,7 @@ export default class PokemonHerd extends View {
     const outer = scale;
     for (const a of order) {
       const pick = ids[a.address];
-      const scale = pick.young ? outer * 0.75 : pick.alpha ? outer * ALPHA_SIZE : outer; // a sub-agent's Pokémon is smaller, an Alpha bigger
+      const scale = (pick.young ? outer * 0.75 : pick.alpha ? outer * ALPHA_SIZE : outer) * drawSize(pick.size); // a sub-agent's Pokémon is smaller, an Alpha bigger; an XXL a little bigger
       const id = pick.dex;
       const m = this.mons[a.address] ?? { x: this.width / 2, target: this.width / 2, dir: "r", moving: false, dur: 0 };
       const mood = m.mood ?? moodOf(a, tabs, now);
@@ -3656,6 +3676,9 @@ export default class PokemonHerd extends View {
     const hm = (min) => `${Math.floor(min / 60)}h${String(Math.floor(min % 60)).padStart(2, "0")}`;
     const left = (ms) => `${Math.max(1, Math.ceil(ms / 60000))}m`;
     const out = [];
+    // The weather (weather.js): which types it boosts.
+    const w = this.boostNow();
+    out.push([w.icon, weatherText(w).replace(/^\S+ /, ""), "Their moves hit ×1.2, and more of them walk by", null, false]);
     // Raids: the egg's hatching, the boss's health, or the work (per agent) to the next egg.
     const r = loadRaid(shared(RAID_KEY));
     const ph = raidPhase(r, now);
@@ -4128,6 +4151,7 @@ export default class PokemonHerd extends View {
         .when(!!x.pick.shiny, (el) => el.child(div().absolute().top(3).left(5).text_size(11).child("✨")))
         .when(!!x.pick.alpha, (el) => el.child(alphaMark(x.pick.shiny ? 20 : 5, 4)))
         .when(!!x.pick.shadow, (el) => el.child(div().absolute().top(38).left(5).size(8).rounded_full().bg("#9a5aff")))
+        .when(!!sizeClass(x.pick.size), (el) => el.child(div().absolute().top(40).right(4).px(3).rounded(3).bg("#000000a0").text_size(8.5).font_bold().text_color("#ffd23f").child(sizeClass(x.pick.size))))
         .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt(x.pick.ball ?? "poke-ball", 14))))
         .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
     };
@@ -4140,7 +4164,7 @@ export default class PokemonHerd extends View {
       const c = cardOf(pick);
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
-      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
+      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
         pick.caught ? `caught in a ${ITEMS[pick.ball ?? "poke-ball"].name}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()

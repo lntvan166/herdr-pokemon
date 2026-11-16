@@ -118,7 +118,7 @@ export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {
   const bm = pickMove(r.boss.dex, key, rnd); // the boss's answer: its move (never a dash: it stands)
   const b = damage(r.boss.dex, key, rnd, { alphaAttacker: !!r.boss.alpha, alphaTarget: !!how.alpha, shadowTarget: !!how.shadow, mul: bm.mul, type: bm.type });
   const back = hp > 0 ? { type: bm.type, name: bm.name, crit: bm.crit, ultimate: bm.ultimate, miss: bm.miss, eff: b.eff, dmg: b.dmg * 0.75 * RAID_BACK * (1 - 0.02 * Math.min(5, how.hearts ?? 0)) } : null;
-  const mv = how.move ? { name: how.move.name, physical: how.move.physical, crit: how.move.crit, ultimate: how.move.ultimate, miss: how.move.miss } : {};
+  const mv = how.move ? { name: how.move.name, physical: how.move.physical, crit: how.move.crit, ultimate: how.move.ultimate, miss: how.move.miss, ...(how.move.boosted ? { boosted: how.move.boosted } : {}) } : {};
   const hit = { at: now, pane, key, type, eff: d.eff, dmg, ...mv, ...(back ? { back } : {}), ...(how.drop ? { drop: true } : {}) };
   return { raid: { ...r, hp, hits: [...r.hits, hit].slice(-12), ...(hp <= 0 ? { beaten: now } : {}) }, hit };
 }

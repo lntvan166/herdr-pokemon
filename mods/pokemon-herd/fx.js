@@ -177,6 +177,7 @@ export function chargeParts(style, seed = 1) {
 // The damage a blow did, floating up from the target: "-23%", coloured by how effective
 // (yours hurt: red).
 export function damageText(dmg, eff = 1, own = false) {
+  if (!(dmg > 0) || eff === 0) return null; // no effect: no number
   const pct = Math.max(1, Math.round(100 * dmg));
   const color = own ? "#ff8a80" : eff >= 2 ? "#ffd23f" : eff < 1 ? "#c8ccd4" : "#ffffff";
   return [`-${pct}%`, color];
@@ -185,7 +186,7 @@ export function damageText(dmg, eff = 1, own = false) {
 export const SOUNDS = ["charge", "whoosh", "zap", "hit", "bighit", "faint", "throw", "absorb", "shake", "gotcha", "break"];
 export const launchSound = (type, physical = false) => (travelOf(type, physical) === "beam" ? "zap" : "whoosh");
 // The word over a blow's target: a critical hit's, else how effective it was.
-export const blowWord = (eff, crit = false) => (crit ? ["A critical hit!", "#ff8a3c"] : effectWord(eff));
+export const blowWord = (eff, crit = false) => (crit && eff > 0 ? ["A critical hit!", "#ff8a3c"] : effectWord(eff)); // no crit on what it can't touch
 // A dash: how far it rushes (to `DASH_SHORT` short of the target) and back, `t` ms after it sets
 // off; `ms` its run. { px, ms }: its offset now and how long to get there.
 export function dashAt(from, to, launch, land, now, stop = 0) {

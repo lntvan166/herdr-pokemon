@@ -34,8 +34,12 @@ export function wildPick(taken, rnd = Math.random, how = {}) {
   // call of the Azure Flute or the day's Research is a new one to catch.
   const fresh = legend && how.caught ? all.filter((dex) => !how.caught.has(dex)) : all;
   const wanted = fresh.length ? fresh : all;
-  const free = wanted.filter((dex) => !taken.has(dex));
-  const pool = free.length ? free : wanted;
+  // The weather (weather.js): `how.boost` its boosted types; a share of the walkers (`how.share`)
+  // are of one of them.
+  const boosted = how.boost?.length && rnd() < (how.share ?? 0.4) ? wanted.filter((dex) => typesOf(dex).some((t) => how.boost.includes(t))) : [];
+  const fit = boosted.length ? boosted : wanted;
+  const free = fit.filter((dex) => !taken.has(dex));
+  const pool = free.length ? free : fit;
   const dex = pool[Math.floor(rnd() * pool.length)];
   const alpha = !legend && rnd() * ALPHA_ODDS < 1;
   const shadow = alpha && rnd() < SHADOW_SHARE; // some Alphas are Shadow Pokémon
@@ -266,6 +270,7 @@ export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
     hearts: wild.alpha ? 2 : 1,
     ...(wild.alpha ? { alpha: true } : {}),
     ...(wild.alpha && wild.shadow ? { shadow: true } : {}),
+    ...(Number.isFinite(wild.size) ? { size: wild.size } : {}), // its size (weather.js rollSize)
     caught: now,
     caughtAs: wild.dex, // the species it was caught as (withEvolved)
     ...(BALLS.includes(ball) ? { ball } : {}),
@@ -286,6 +291,8 @@ export function loadDex(raw) {
     shiny: ok ? dexList(raw.shiny).filter((d) => caught.includes(d)) : [],
     goals: ok && Array.isArray(raw.goals) ? raw.goals.filter((n) => DEX_GOALS.some((g) => g.n === n)) : [],
     alpha: ok ? dexList(raw.alpha).filter((d) => caught.includes(d)) : [],
+    // Each species' smallest and biggest caught (weather.js withRecord): { [dex]: [min, max] }.
+    sizes: ok && raw.sizes && typeof raw.sizes === "object" ? Object.fromEntries(Object.entries(raw.sizes).filter(([k, v]) => caught.includes(Number(k)) && Array.isArray(v) && v.length === 2 && v.every((x) => Number.isFinite(x) && x >= 0.5 && x <= 1.5))) : {},
   };
 }
 // The Pokédex having seen these species (null: nothing new).
