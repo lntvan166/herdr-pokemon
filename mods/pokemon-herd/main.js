@@ -2290,7 +2290,7 @@ export default class PokemonHerd extends View {
 
   tick(cx) {
     const now = Date.now();
-    dev?.tick?.(this, devApi, now); // dev.js, on this machine only
+    this.devCx = cx; dev?.tick?.(this, devApi, now); // dev.js, on this machine only
     const list = herdAgents();
     const tabs = tabsById();
     // One strip counts (jobs, finds, hunger, Berries, gifts, new agents' Pokémon): the leader.
@@ -2304,7 +2304,8 @@ export default class PokemonHerd extends View {
     if (this.firstCards) this.defaultCards(now);
     if (this.leader && !this.firstCards && this.sidebarMod && !shared(MOVED_KEY)) this.moveToPokemonSidebar(now);
     if (this.leader && !this.paidBack) { this.paidBack = true; this.backPayOnce(); }
-    const { ids, fresh, family } = assignAll(list, { write: this.leader });
+    const { ids: ids0, fresh, family } = assignAll(list, { write: this.leader });
+    const ids = dev?.looks ? dev.looks(ids0) : ids0; // dev.js: one shown as another, for a demo
     if (this.leader && Object.keys(fresh).length) {
       // A new agent given a species raised before (the Box): that very Pokémon, moved over.
       const onScreen = new Set(list.map((a) => a.pane).filter(Boolean));
@@ -3553,7 +3554,8 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const list = herdAgents();
     const tabs = tabsById();
-    const { ids } = assignAll(list);
+    const { ids: ids0 } = assignAll(list);
+    const ids = dev?.looks ? dev.looks(ids0) : ids0;
     const g = this.grid(list.length);
     // with rows: per row, from the row's top; below it the name tags, on as many lines as they need
     const ground = (g ? g.rowH : this.height) - FEET - (TAG_LINES - 1) * LABEL_H;
