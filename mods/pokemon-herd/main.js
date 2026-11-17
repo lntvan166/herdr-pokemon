@@ -26,7 +26,7 @@ import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, v
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
-import { pickMove } from "./moves.js";
+import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf } from "./moves.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -678,6 +678,7 @@ const PICK_COLS = 6; // the picker's grid: columns, cell width and gap, row heig
 const PICK_W = 92;
 const PICK_GAP = 6;
 const PICK_ROW = 102;
+const BOX_COLS = 6, BOX_ROW = 110; // the Box's grid: 84 px cells, 6 apart
 const ICON_JOBS = 8; // icon downloads at once
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -1462,7 +1463,7 @@ export default class PokemonHerd extends View {
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
-    const move = this.boosted(pickMove(key, r.boss.dex));
+    const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: live.moves }));
     const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
@@ -2381,7 +2382,9 @@ export default class PokemonHerd extends View {
     const hasOf = (meta) => new Set(Object.keys(meta?.react ?? {}));
     const msFor = (meta) => (name) => meta.react[name].ms;
     // A battle between two agents' Pokémon (react.js battle): what each can do, and its type.
-    const fight = (a1, m1, a2, m2) => {
+    // `friend`: friendship both gain besides (a spar of their own, one set up by a drop), saved
+    // with the result in one write (each write redraws every mod in every window).
+    const fight = (a1, m1, a2, m2, friend = 0) => {
       // Each fights as it will look (its Mega, for a battle; its regional form): its special move is
       // its type that does most to the other (fx.js draws it; Mega Charizard X's fire is blue).
       const keyOf = (a) => {
@@ -2391,7 +2394,7 @@ export default class PokemonHerd extends View {
       const [k1, k2] = [keyOf(a1), keyOf(a2)];
       const side = (a, k, o) => {
         const meta = this.spriteFor(ids[a.address], a.status);
-        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size })), blue: k === "6mX" } : null; // its move (moves.js), named
+        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size, moves: ids[a.address]?.moves })), blue: k === "6mX" } : null; // its move (moves.js), named
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
       // Too close: they hop apart first (a quick slide, facing each other), then battle, room
@@ -2422,9 +2425,9 @@ export default class PokemonHerd extends View {
       }
       // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
       if (k1 && k2) {
-        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature }; };
+        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves }; };
         const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv));
-        for (const tn of result.turns) tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; // Mega Charizard X's blue fire
+        for (const tn of result.turns) if (tn.move) tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; // Mega Charizard X's blue fire (a turn it lost has no move)
         duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, result, back ? { ...spots, back: BACK } : spots);
         for (const [m, a, o] of [[m1, a1, a2], [m2, a2, a1]]) {
           const [mine, theirs] = [ids[a.address], ids[o.address]];
@@ -2445,8 +2448,12 @@ export default class PokemonHerd extends View {
         const rec = wa.pane && la.pane ? withResult(shared(SPAR_KEY) ?? {}, wa.pane, la.pane) : null;
         if (this.leader && rec) {
           setShared(SPAR_KEY, rec);
-          updatePick(wa.pane, (p) => withFriend({ ...p, sparW: (p.sparW ?? 0) + 1 }, FRIEND.spar));
-          updatePick(la.pane, (p) => ({ ...p, sparL: (p.sparL ?? 0) + 1 }));
+          const saved = savedPicks(), w = saved[wa.pane], l = saved[la.pane];
+          if (w && l) {
+            const nw = withFriend({ ...w, sparW: (w.sparW ?? 0) + 1 }, FRIEND.spar + friend), nl = withFriend({ ...l, sparL: (l.sparL ?? 0) + 1 }, friend);
+            savePicks({ [wa.pane]: nw, [la.pane]: nl });
+            if (Math.max(nw.hearts ?? 0, nl.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+          }
         }
         const [w, l] = rec ? recordOf(rec, wa.pane, la.pane) : [0, 0];
         const winStep = wm.react.seq.find((st) => st.result === "win");
@@ -2509,8 +2516,8 @@ export default class PokemonHerd extends View {
       });
       const pair = sparPair(ready.map((a) => ({ a, addr: a.address, x: this.mons[a.address].x, row: rowAt(a, list.indexOf(a)), lastSpar: this.mons[a.address].lastSpar })), now, attack ? BOOST_GAP : undefined);
       if (pair) {
-        fight(pair[0].a, this.mons[pair[0].addr], pair[1].a, this.mons[pair[1].addr]);
-        if (this.leader) { for (const { a } of pair) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); earn("tip", TIP.spar); }
+        fight(pair[0].a, this.mons[pair[0].addr], pair[1].a, this.mons[pair[1].addr], FRIEND.spar);
+        if (this.leader) { research("spar"); earn("tip", TIP.spar); }
         changed = true;
       }
     }
@@ -2578,8 +2585,8 @@ export default class PokemonHerd extends View {
       changed = true;
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
       // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying; the
-      // wild one hits back (hitBack). Not while yours rests after fainting. A hit three times its
-      // health or more knocks it out (trainer.js OVERKILL).
+      // wild one hits back (hitBack). Not while yours rests after fainting. A hit twice its health
+      // or more knocks it out, half again in the red (trainer.js OVERKILL_GREEN, OVERKILL).
       const v = this.visitor;
       const pk = ids[drop.addr];
       const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
@@ -2593,7 +2600,7 @@ export default class PokemonHerd extends View {
         const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
-        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size })); // each one's move (moves.js), the weather's boost on it
+        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: pk.moves })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size })); // each one's move (moves.js), the weather's boost on it
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
         const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk) });
@@ -2661,8 +2668,8 @@ export default class PokemonHerd extends View {
         } else {
           const hearts = now - (dm.lastSpar ?? -Infinity) >= SPAR_GAP && now - (s.lastSpar ?? -Infinity) >= SPAR_GAP;
           dm.tease = null;
-          fight(list[dj], dm, hit.b, s);
-          if (hearts && this.leader) { for (const a of [list[dj], hit.b]) if (a.pane) updatePick(a.pane, (p) => withFriend(p, FRIEND.spar)); research("spar"); earn("tip", TIP.drop); }
+          fight(list[dj], dm, hit.b, s, hearts ? FRIEND.spar : 0);
+          if (hearts && this.leader) { research("spar"); earn("tip", TIP.drop); }
         }
         changed = true;
       }
@@ -4504,20 +4511,11 @@ export default class PokemonHerd extends View {
       const picked = !!picking?.has(x.slot);
       const on = picking ? picked : x.slot === this.boxSel;
       const can = releasable(x);
-      return v_flex().id(`box-${x.slot}`).relative().w(CELL).h(104).flex_none().items_center().justify_center().gap(1)
+      // (No id, hover or click of its own: the virtual list draws rows in a pass of its own; a click
+      // comes through on_item_click, the pointer's x saying which cell: clickCell.)
+      return v_flex().relative().w(CELL).h(104).flex_none().items_center().justify_center().gap(1)
         .rounded(8).border_1().border_color(on ? t.accent : "#00000000").bg(on ? t.selected : "#00000000")
         .when(!!picking && !can, (el) => el.opacity(0.4))
-        .cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
-        .on_click((_e, cx) => {
-          if (picking) {
-            if (can) picked ? picking.delete(x.slot) : picking.add(x.slot);
-            this.releasingAll = false;
-          } else {
-            this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null;
-            if (!on) { this.sprites ??= {}; this.want(boxLook(x.pick), cx); } // its animations, for the card
-          }
-          cx.notify();
-        })
         .when(picked, (el) => el.child(div().absolute().bottom(4).right(4).size(16).rounded_full().bg(t.accent).flex().items_center().justify_center()
           .text_size(10).font_bold().text_color("#ffffff").child("✓")))
         .when(!!x.pick.locked, (el) => el.child(div().absolute().top(22).left(5).text_size(10).child("🔒")))
@@ -4533,6 +4531,17 @@ export default class PokemonHerd extends View {
         .when(!!sizeClass(x.pick.size), (el) => el.child(div().absolute().top(40).right(4).px(3).rounded(3).bg("#000000a0").text_size(8.5).font_bold().text_color("#ffd23f").child(sizeClass(x.pick.size))))
         .when(!!x.pick.caught, (el) => el.child(div().absolute().top(3).right(4).child(this.itemArt(x.pick.ball ?? "poke-ball", 14))))
         .when(!!x.pick.held, (el) => el.child(div().absolute().top(22).right(4).child(this.itemArt(x.pick.held, 16))));
+    };
+    const clickCell = (x, cx) => {
+      const picked = !!picking?.has(x.slot), on = x.slot === this.boxSel;
+      if (picking) {
+        if (releasable(x)) picked ? picking.delete(x.slot) : picking.add(x.slot);
+        this.releasingAll = false;
+      } else {
+        this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null;
+        if (!on) { this.sprites ??= {}; this.want(boxLook(x.pick), cx); } // its animations, for the card
+      }
+      cx.notify();
     };
     // The chosen one: who it is, and its actions.
     const detail = () => {
@@ -4558,6 +4567,7 @@ export default class PokemonHerd extends View {
               : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""}${tag ? ` · with ${tag}` : ""}`)))
             .child(typeBadges(pick, 15, 9.5))
             .child(div().text_size(11.5).text_color(t.muted).child(facts)))) // all of it, wrapped: the Box is where the details are
+        .child(this.moveRow(pick, t, slot))
 
         .child(h_flex().gap(6).flex_wrap().items_center()
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).
@@ -4651,9 +4661,23 @@ export default class PokemonHerd extends View {
             this.releasingAll = false;
           }, true))));
       })
-      .child(div().id("box-grid").flex_1().min_h(0).p(6).rounded(10).bg(t.raised).overflow_y_scrollbar()
-        .child(h_flex().flex_wrap().gap(6).children(shown.map(cell)))
-        .when(!shown.length && everyone.length > 0, (el) => el.child(div().p(8).text_size(12).text_color(t.dim).child("None matches."))))
+      // A virtual list of rows of BOX_COLS: only those in view are drawn (all 200-odd at once took
+      // ~2,400 elements, and Herdr gave up re-rendering: "interrupted").
+      .child(div().flex_1().min_h(0).p(6).rounded(10).bg(t.raised)
+        .when(!shown.length && everyone.length > 0, (el) => el.child(div().p(8).text_size(12).text_color(t.dim).child("None matches.")))
+        .when(shown.length > 0, (el) => el.child(div().size_full().relative()
+          .on_mouse_move((e) => { this.boxX = e.local_position.x / zoom(); })
+          .child(v_virtual_list("box", Math.ceil(shown.length / BOX_COLS), BOX_ROW, (i) => `r${i}`, (range) => {
+            const rows = [];
+            for (let r = range.start; r < range.end; r++) rows.push(h_flex().h(BOX_ROW).gap(6).children(shown.slice(r * BOX_COLS, (r + 1) * BOX_COLS).map(cell)));
+            return rows;
+          }).size_full().cursor_pointer()
+            .on_item_click((key, cx) => {
+              const col = Math.floor((this.boxX ?? 0) / (CELL + 6));
+              const x = shown[Number(key.slice(1)) * BOX_COLS + col];
+              if (col >= 0 && col < BOX_COLS && x) clickCell(x, cx);
+            }))
+          .child(Scrollbar.vertical("box").absolute().inset_0()))))
       .child(div().flex_none().min_h(96).p(12).rounded(10).bg(t.raised).child(picking
         ? div().text_size(12).text_color(t.dim).child("Click Pokémon to pick them, then Release (twice). Ones with agents and 🔒 locked ones stay. Duplicates picks every one but the best of each species, never a shiny, an Alpha or a legendary. Each pays ₽10; a shiny or an Alpha ₽50, a legendary ₽100.")
         : detail()));
@@ -4900,6 +4924,7 @@ export default class PokemonHerd extends View {
               .when(!branchy, (el2) => el2.child(div().text_size(10.5).text_color(t.muted).child(fullName(e.dex, e.form))))),
           ])),
       ))
+      .child(this.moveRow(cur, t, props()?.slot))
       .child(this.renderBagRow(cur, t));
   }
 
@@ -4909,6 +4934,52 @@ export default class PokemonHerd extends View {
     this.want({ ...this.preview, mega: "off" }, cx);
     this.fetchIcons(cx);
     cx.notify();
+  }
+
+  // Its four moves as chips in their types' colours, each with its power, and the signature moves
+  // it may turn them into now and then. For one of yours (`slot`), "Change": every move it can
+  // really learn (moves.js learnableOf: weak ones and signature moves too), click to take or drop
+  // one, four at most; "Default" goes back to its own four. Saved on its pick (`moves`).
+  moveRow(e, t, slot = null) {
+    const key = fighterKey(e.dex, e.form ? { form: e.form } : {});
+    const set = movesetOf(key, e.moves);
+    const chosen = !!chosenOf(key, e.moves);
+    const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => MOVES[m.type]?.[2]).filter((n) => n && !set.some((m) => m.name === n)))];
+    const chip = (m, on = true) => h_flex().h(18).px(6).gap(4).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type]).opacity(on ? 1 : 0.4)
+      .when(!!m.sig, (el) => el.border_1().border_color("#ffd23f"))
+      .child(div().text_size(10.5).font_semibold().text_color(typeText(m.type)).child(m.name))
+      .child(div().text_size(9).text_color(typeText(m.type)).opacity(0.75).child(String(powerOf(m.name))));
+    const pill = (id, label, click) => div().id(id).h(18).px(7).rounded(4).flex().items_center().flex_none().text_size(10.5).border_1()
+      .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+    const save = (moves) => {
+      const live = savedPicks()[slot];
+      if (!live) return;
+      const { moves: _m, ...rest } = live;
+      savePicks({ [slot]: moves?.length ? { ...rest, moves } : rest });
+    };
+    const editing = !!slot && this.editingMoves === slot;
+    const row = h_flex().gap(4).flex_wrap().items_center()
+      .child(div().text_size(11).text_color(t.muted).mr(2).child(chosen ? "Moves (chosen)" : "Moves"))
+      .children(set.map((m) => chip(m)))
+      .when(sigs.length > 0 && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
+      .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : slot; })));
+    if (!editing) return row;
+    const names = set.map((m) => m.name);
+    const all = learnableOf(key);
+    return v_flex().gap(6)
+      .child(row)
+      .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. Gold: a signature move (it fires, and misses 1 in 5).`))
+      .child(h_flex().gap(4).flex_wrap()
+        .children(all.map((m, i) => {
+          const on = names.includes(m.name);
+          return div().id(`learn-${slot}-${i}`).cursor_pointer().on_click((_e, cx) => {
+            const cur = movesetOf(key, savedPicks()[slot]?.moves).map((x) => x.name);
+            const next = on ? (cur.length > 1 ? cur.filter((n) => n !== m.name) : cur) : cur.length < MAX_MOVES ? [...cur, m.name] : cur;
+            save(next);
+            cx.notify();
+          }).child(chip(m, on));
+        })))
+      .when(chosen, (el) => el.child(h_flex().child(pill(`moves-default-${slot}`, "Default: its own four", () => save(null)))));
   }
 
   // One of its animations (sprites.js meta: idleD, walkR, sleep) on a bit of ground, 150 × 104,
@@ -4998,6 +5069,7 @@ export default class PokemonHerd extends View {
         .child(stage("idleD", "Standing"))
         .child(stage("walkR", "Walking"))
         .child(stage("sleep", "Asleep")))
+      .child(this.moveRow(pv, t))
       .when(line.length > 1, (el) => el.child(
         h_flex().gap(4).items_center().overflow_hidden()
           .children(line.flatMap((st, i) => [

@@ -184,7 +184,10 @@ export function damage(attacker, target, rnd = Math.random, how = {}) {
 // A move's power and side for damage(), if it has them.
 export const moveHow = (m) => ({ ...(Number.isFinite(m?.power) ? { power: m.power } : {}), ...(typeof m?.physical === "boolean" ? { physical: m.physical } : {}) });
 export const RED = 0.2; // its bar turns red, blinking: the next hit may be too much
-export const OVERKILL = 3; // simulated: careful players (stopping in the red) knock out ~5%, greedy ones ~15–20%
+// A hit that takes it to 0 knocks it out only when it's this much more than its health: ×2 while
+// it's above the red, ×1.5 in the red (simulated: stopping in the red, ~8% knocked out anyway; one
+// more hit in the red, ~80%. ×3 everywhere was ~3% and ~64%).
+export const OVERKILL = 1.5, OVERKILL_GREEN = 2;
 const statsOf = (dex) => baseOf(dex) ?? [70, 70];
 export const powerRatio = (attacker, target) => Math.max(0.35, Math.min(2.5, statsOf(attacker)[0] / statsOf(target)[1]));
 // `mega`: the attacker fights Mega Evolved: it hits ×1.2 (and, hit back, takes ×0.85: hitBack).
@@ -202,7 +205,7 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega =
   const strong = eff > 1;
   // A hit that would take it to 0 but isn't much more than it has left (under OVERKILL × its
   // health): it hangs on with a sliver. Much more (30% left, a 100% hit): it faints.
-  const left = hp - dmg > 0 ? hp - dmg : dmg < OVERKILL * hp ? Math.max(0.01, Math.min(0.05, hp / 2)) : 0;
+  const left = hp - dmg > 0 ? hp - dmg : dmg < (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp ? Math.max(0.01, Math.min(0.05, hp / 2)) : 0;
   return { hp: left, dmg, strong, eff, text, fainted: left <= 0.001 };
 }
 // The wild one hits back at yours (its `hp`, 0..1, kept on the strip): { hp, dmg, eff, text,

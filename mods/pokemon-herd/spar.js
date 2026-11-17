@@ -36,7 +36,7 @@ export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
 export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
 
-// `A`, `B`: { key (fighter key), alpha?, shadow?, size?, nature?, effort? (effortOf) }; `boost(move)`: the
+// `A`, `B`: { key (fighter key), alpha?, shadow?, size?, nature?, effort? (effortOf), moves? (chosen) }; `boost(move)`: the
 // weather's (main.js boosted). Round by round, the faster first (Speed: its nature and effort, halved
 // paralysed); each round each moves once. Returns { turns, winner: "a"|"b", hp: { a, b } }, a turn
 // being { by, move, dmg, hp (its target's after), effect?, drain? { hp: its own after } } when it
@@ -52,7 +52,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m) {
   const over = () => hp.a <= 0 || hp.b <= 0;
   for (let round = 0; round < SPAR_TURNS && !over(); round++) {
     // Each picks its move, then the one with the quicker move (Ice Shard) or the faster goes first.
-    const moves = { a: boost(pickMove(A.key, B.key, rnd, { targetSize: B.size })), b: boost(pickMove(B.key, A.key, rnd, { targetSize: A.size })) };
+    const moves = { a: boost(pickMove(A.key, B.key, rnd, { targetSize: B.size, moves: A.moves })), b: boost(pickMove(B.key, A.key, rnd, { targetSize: A.size, moves: B.moves })) };
     const pa = PRIORITY[moves.a.name] ?? 0, pb = PRIORITY[moves.b.name] ?? 0, sa = speed("a"), sb = speed("b");
     const first = pa !== pb ? (pa > pb ? "a" : "b") : sa > sb ? "a" : sb > sa ? "b" : rnd() < 0.5 ? "a" : "b";
     let flinched = false;

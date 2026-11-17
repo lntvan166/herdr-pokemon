@@ -35,7 +35,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   loses health; 650 ms later it lets fly back with its own type. Each fights as it looks: a Mega
   or a regional form with its own stats and types (`base-stats.js` `FORM_BASE`, `fighterKey`),
   a Mega without data as its species ×1.2 hitting, ×0.85 taking. Damage: the games' (see
-  Damage); in the red a hit three times its health knocks it out. Yours takes `OWN_TAKE` 0.85 of
+  Damage); a hit twice its health knocks it out (`OVERKILL_GREEN` 2), in the red half again (`OVERKILL` 1.5): stopping in the red, about 1 wild one in 12 is knocked out anyway; one more hit in the red, 4 in 5. Yours takes `OWN_TAKE` 0.85 of
   the wild one's hit, 2% less a heart. Its health is kept in shared state `pokemon-herd-hp`
   (`{ pane: { hp, at, rest? } }`, `healthNow`: back to full over 10 minutes, null while it rests
   after fainting), so a Berry fed from the Bag or the Box heals it (`HEAL`: an Oran Berry a
@@ -66,7 +66,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   PokeAPI (`base-stats.js` `MOVE_POWER`: Fire Punch 75, Flamethrower 90, Blast Burn 150). Each
   Pokémon knows four (`MOVESET`, by `scripts/gen-stats.mjs` from PokeAPI's learnsets: among those
   moves, the ones it really learns, levelling up first, a TM, tutor or egg move ×0.3 so only to
-  fill in (Bulbasaur: Solar Beam, Vine Whip, Double-Edge, Tackle; Caterpie: Bug Bite, Tackle);
+  fill in (one move of each of its types; a TM or tutor move ×0.8 for one fully evolved (Venusaur's Earthquake over Tackle); a move of power 50 or less ×0.01, so never one it starts with unless it knows nothing else; Caterpie: Bug Bite, Tackle);
   its two best of its own types and its two best others for coverage, best by
   power ×1.3 on its stronger side ×1.5 its own type; a type it learns none of here gets that
   type's move on its stronger side; a Mega knows its species'). Each turn it picks one, chance ∝
@@ -177,3 +177,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Trainer mode** (Settings → Trainer, off by default, its tab twinkling): only caught species
   and the three Kanto starters can be chosen or come to new agents.
 
+
+- **Choosing moves** (`moves.js` `learnableOf`, `chosenOf`; a pick's `moves`): in the picker's card
+  and the Box, "Change" lists every move it can really learn (`base-stats.js` `LEARNS`: among the
+  90, and the 18 signature moves from `SIG_FROM` when it learns them), its type's colour, its power;
+  a click takes or drops one, `MAX_MOVES` 4 at most, at least one; "Default" goes back to its own
+  four. Chosen moves are used in the wild, raids and spars; a signature move chosen is used as one
+  (it fires, misses 1 in 5). No cost and no limit but what it learns.

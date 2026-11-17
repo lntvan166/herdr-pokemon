@@ -86,12 +86,12 @@ test("Ice Shard goes first whatever the Speed; a draining move heals the one usi
   assert.equal(PRIORITY["Ice Shard"], 1);
   let early = 0, drained = 0;
   for (let i = 0; i < 3000; i++) {
-    const r = sparTurns({ key: 712 }, { key: 65 }); // Bergmite (28, knows Ice Shard) vs Alakazam (120)
+    const r = sparTurns({ key: 712, moves: ["Ice Shard"] }, { key: 65 }); // Bergmite (28) taught only Ice Shard vs Alakazam (120)
     const t = r.turns.find((x) => x.move?.name === "Ice Shard");
     if (t && r.turns.indexOf(t) % 2 === 0) early++;
     for (const x of r.turns) if (x.drain) { drained++; assert.ok(DRAIN[x.move.name] && x.drain.hp <= 1); }
   }
   assert.ok(early > 0);
-  for (let i = 0; i < 500; i++) for (const x of sparTurns({ key: 286 }, { key: 9 }).turns) if (x.drain) drained++; // Breloom: Drain Punch
+  for (let i = 0; i < 500; i++) for (const x of sparTurns({ key: 286, moves: ["Drain Punch"] }, { key: 9 }).turns) if (x.drain) drained++; // Breloom taught Drain Punch
   assert.ok(drained > 0);
 });

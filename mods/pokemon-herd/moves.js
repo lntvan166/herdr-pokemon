@@ -6,7 +6,7 @@
 // Def, the type's effect, ×1.5 for its own type, STAB: trainer.js gameDamage), so mostly its best
 // and now and then another; 1 time in 8 it's that type's signature move instead. A critical hit 1 time in 16 (×1.5). A move can miss: 1 in 20,
 // a signature move 1 in 5 (Thunder, Blizzard...). Pure.
-import { MOVE_POWER, MOVE_LIST, MOVESET } from "./base-stats.js";
+import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM } from "./base-stats.js";
 import { effectOn, typesOf, gameDamage, isPhysicalKey } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
 
@@ -66,7 +66,26 @@ export const powerOf = (name) => MOVE_POWER[name] ?? 80;
 export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. Atk)
 // The moves it knows (not the signature ones): [{ type, name, physical }]: its four (MOVESET:
 // the key, else its species'), or, with none (Ditto), its types' as before.
-export function movesetOf(attacker) {
+// Every move it can be taught (base-stats.js LEARNS: what it really learns among MOVE_LIST, its
+// types' signature moves too if it learns them): [{ type, name, physical, sig }].
+const entryOf = (i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2], ...(i >= SIG_FROM ? { sig: true } : {}) });
+export function learnableOf(attacker) {
+  const l = LEARNS[attacker] ?? LEARNS[String(parseInt(attacker, 10))];
+  return l ? l.map(entryOf) : movesetOf(attacker);
+}
+export const MAX_MOVES = 4;
+// The moves chosen for it (a pick's `moves`: names), kept to those it can really learn, at most
+// four; null when none of them is (it then knows its own four).
+export function chosenOf(attacker, names) {
+  if (!Array.isArray(names) || !names.length) return null;
+  const can = learnableOf(attacker);
+  const set = [...new Set(names)].map((n) => can.find((m) => m.name === n)).filter(Boolean).slice(0, MAX_MOVES);
+  return set.length ? set : null;
+}
+// `chosen`: the names chosen for it (chosenOf), else its own four.
+export function movesetOf(attacker, chosen = null) {
+  const picked = chosen && chosenOf(attacker, chosen);
+  if (picked) return picked;
   const set = MOVESET[attacker] ?? MOVESET[String(parseInt(attacker, 10))];
   if (set?.length) return set.map((i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2] }));
   const own = typesOf(attacker).filter((t) => MOVES[t]);
@@ -77,8 +96,10 @@ export function movesetOf(attacker) {
 // One move by `attacker` at `target` (fighter keys): { type, name, physical, ultimate, crit, miss,
 // power, mul, eff }. `mul`: what it does to the damage besides its power (0 when it misses).
 // `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
+// `how.moves`: the names chosen for it (a pick's `moves`). A signature move chosen is used as one
+// (its own look, missing 1 in 5).
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
-  const set = movesetOf(attacker);
+  const set = movesetOf(attacker, how.moves);
   const own = typesOf(attacker);
   const stabOf = (t) => (own.includes(t) ? STAB : 1);
   const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effectOn(m.type, target), 0.5) * stabOf(m.type)) ** PICK_SHARP);
@@ -86,11 +107,11 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   let r = rnd() * total, k = 0;
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
   const base = set[k];
-  const ultimate = rnd() < ULTIMATE;
+  const ultimate = rnd() < ULTIMATE || !!base.sig;
   const crit = rnd() < CRIT;
   const miss = rnd() < Math.max(ultimate ? MISS_ULTIMATE : MISS, sizeMiss(how.targetSize) ?? 0);
-  const name = ultimate ? MOVES[base.type][2] : base.name;
-  const physical = ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…)
+  const name = base.sig ? base.name : ultimate ? MOVES[base.type][2] : base.name;
+  const physical = ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…), chosen or not
   const stab = own.includes(base.type);
   return { type: base.type, name, physical, ultimate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1), eff: effectOn(base.type, target) };
 }

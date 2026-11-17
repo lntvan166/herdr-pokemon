@@ -247,16 +247,17 @@ test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, 
   assert.deepEqual(loadDex(d).alpha, [1]);
 });
 
-import { hitWild, strongAgainst, gameDamage, isPhysicalKey, OVERKILL } from "../mods/pokemon-herd/trainer.js";
+import { hitWild, strongAgainst, gameDamage, isPhysicalKey, OVERKILL, OVERKILL_GREEN, RED } from "../mods/pokemon-herd/trainer.js";
 test("weakening: hits as the games reckon them; weakened, easier to catch; it hangs on above the red", () => {
   assert.ok(strongAgainst(4, 1)); // Charmander (fire) against Bulbasaur (grass)
   assert.ok(!strongAgainst(1, 4));
   const exp = gameDamage(4, 1, 80, isPhysicalKey(4), 2, 0); // its best type (fire, ×2), power 80, the low roll
   const h = hitWild({ dex: 1 }, 4, () => 0);
   assert.ok(Math.abs(h.hp - (1 - exp)) < 1e-9 && h.strong && !h.fainted);
-  // Mewtwo: far too much (over OVERKILL times what's left) knocks it out; a little too much, it hangs on.
+  // Mewtwo: far too much (over OVERKILL times what's left, OVERKILL_GREEN above the red) knocks it
+  // out; a little too much, it hangs on.
   const big = gameDamage(150, 1, 80, isPhysicalKey(150), 2, 1);
-  for (const hp of [0.1, 0.2, 0.3, 0.4]) assert.equal(hitWild({ dex: 1, hp }, 150, () => 1).fainted, big >= OVERKILL * hp, String(hp));
+  for (const hp of [0.1, 0.2, 0.3, 0.4, 0.6, 0.8]) assert.equal(hitWild({ dex: 1, hp }, 150, () => 1).fainted, big >= (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp, String(hp));
   const small = gameDamage(25, 1, 80, isPhysicalKey(25), 0.5, 1); // Pikachu's electric on grass: ½
   const sliver = hitWild({ dex: 1, hp: small * 0.9 }, 25, () => 1);
   assert.ok(!sliver.fainted && sliver.hp > 0 && sliver.hp <= 0.05);

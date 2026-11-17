@@ -48,6 +48,8 @@ export function loadPicks(current, legacy) {
       panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
         // Sparring won and lost (spar.js), kept.
         ...(Number.isInteger(p.sparW) && p.sparW > 0 ? { sparW: p.sparW } : {}), ...(Number.isInteger(p.sparL) && p.sparL > 0 ? { sparL: p.sparL } : {}),
+        // The moves chosen for it (moves.js chosenOf checks them against what it learns): names, 4 at most.
+        ...((m) => (m.length ? { moves: m } : {}))(Array.isArray(p.moves) ? [...new Set(p.moves.filter((n) => typeof n === "string" && n.length <= 30))].slice(0, 4) : []),
         // Its gender (gender.js): kept, or for one saved before genders came, one by its slot.
         ...((g) => (g ? { gender: g } : {}))(validGender(p.dex, p.gender) ? p.gender : genderFrom(p.dex, hash(`${pane}:gender`))), ...(caught && isWalkable(p.caughtAs) ? { caughtAs: p.caughtAs } : {}) };
     }

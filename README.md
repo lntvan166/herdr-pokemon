@@ -52,9 +52,12 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
 - **Movesets from the games.** Each Pokémon knows four of 90 moves, the ones it really learns
-  levelling up (from PokeAPI's learnsets): two of its own types and two for coverage. Charizard:
-  Flamethrower, Air Slash, Dragon Claw, Crunch; Bulbasaur: Solar Beam, Vine Whip, Double-Edge,
-  Tackle; Caterpie just Bug Bite and Tackle. Every move has its own look, from Ember's sparks to
+  levelling up (from PokeAPI's learnsets): two of its own types (one of each, if it has two) and
+  two for coverage. Charizard: Flamethrower, Air Slash, Dragon Claw, Crunch; Gallade: Psycho Cut,
+  Focus Blast, Leaf Blade, Draining Kiss; Caterpie just Bug Bite and Tackle. The picker, its preview
+  and the Box show each one's moves; **Change** lets you teach yours any of the moves it really
+  learns (weak ones and signature moves too, Gallade's Close Combat), four at most. A weak move
+  (Tackle, Ember) is never one it starts with unless it knows nothing else. Every move has its own look, from Ember's sparks to
   Hydro Pump's torrent and Fire Blast's five-pointed burst. Damage as the
   games reckon it: each move's power, Attack against Defense or Sp. Atk against Sp. Def, HP,
   STAB, the type chart; now and then a signature move (Blast Burn, Thunder), 1 in 16 "A critical
@@ -76,9 +79,9 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   one's record, and those idle nearby turn to watch.
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
   lost). Pick a strong attacker with a good type.
-- **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a bit more than
-  its health leaves it a sliver; a hit **three times its health or more** knocks it out (20% left
-  and a huge hit: gone). The bar blinks red when the next hit may be too much. Then throw.
+- **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a little more than
+  its health leaves it a sliver; a hit **twice its health or more** knocks it out, and in the red
+  **half again** (20% left and a 30% hit: gone). The bar blinks red when the next hit may be too much. Then throw.
 
 | Ball | ×  | Berry (before each ball) | Effect |
 |---|---|---|---|

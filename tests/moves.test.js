@@ -11,13 +11,29 @@ test("every type has a physical, a special and a signature move, each with its p
   assert.equal(powerOf("Flamethrower"), 90);
 });
 
-test("it knows four moves it really learns, levelling up first: two of its own types, two for coverage", () => {
-  assert.deepEqual(movesetOf(6).map((m) => m.name), ["Flamethrower", "Air Slash", "Dragon Claw", "Crunch"]); // Charizard
-  assert.deepEqual(movesetOf(1).map((m) => m.name), ["Solar Beam", "Vine Whip", "Double-Edge", "Tackle"]); // Bulbasaur: no Outrage from a tutor
-  assert.deepEqual(movesetOf(10).map((m) => m.name), ["Bug Bite", "Tackle"]); // Caterpie knows two
-  assert.deepEqual(movesetOf("6mX").slice(0, 2).map((m) => m.name), ["Dragon Claw", "Flamethrower"]); // Mega X
+test("it knows four moves it really learns: levelling up first, never a weak one if it has others", () => {
+  assert.deepEqual(movesetOf(6).map((m) => m.name), ["Flamethrower", "Air Slash", "Solar Beam", "Focus Blast"]); // Charizard
+  assert.deepEqual(movesetOf(3).map((m) => m.name), ["Solar Beam", "Sludge Wave", "Double-Edge", "Outrage"]); // Venusaur: no Tackle
+  assert.deepEqual(movesetOf(10).map((m) => m.name), ["Bug Bite", "Tackle"]); // Caterpie knows only these
+  assert.deepEqual(movesetOf(475).slice(0, 2).map((m) => m.type).sort(), ["fighting", "psychic"]); // Gallade: one of each of its types
   assert.ok(movesetOf(132).length >= 1); // Ditto learns none of these: one stands in
-  assert.deepEqual(movesetOf("479f0002").slice(0, 2).map((m) => m.name), ["Thunder Shock", "Hydro Pump"]); // Rotom Wash: its Hydro Pump
+  assert.ok(movesetOf("479f0002").some((m) => m.name === "Hydro Pump")); // Rotom Wash: its Hydro Pump
+});
+
+test("moves chosen: only ones it can really learn (weak and signature ones too), four at most", async () => {
+  const { learnableOf, chosenOf, MAX_MOVES } = await import("../mods/pokemon-herd/moves.js");
+  const zard = learnableOf(6).map((m) => m.name);
+  assert.ok(zard.includes("Blast Burn") && zard.includes("Ember") && !zard.includes("Hydro Pump"));
+  assert.ok(learnableOf(475).some((m) => m.name === "Close Combat" && m.sig)); // Gallade can be taught Close Combat
+  assert.deepEqual(chosenOf(6, ["Ember", "Hydro Pump", "Blast Burn"]).map((m) => m.name), ["Ember", "Blast Burn"]);
+  assert.equal(chosenOf(6, ["Hydro Pump"]), null);
+  assert.equal(chosenOf(6, ["Ember", "Flamethrower", "Fire Blast", "Air Slash", "Dragon Claw"]).length, MAX_MOVES);
+  assert.deepEqual(movesetOf(6, ["Ember"]).map((m) => m.name), ["Ember"]);
+  // Used as chosen: always one of them; a signature move as one (it fires).
+  for (let i = 0; i < 50; i++) assert.equal(pickMove(6, 3, Math.random, { moves: ["Ember"] }).type, "fire");
+  const bb = pickMove(6, 3, () => 0.99, { moves: ["Blast Burn"] });
+  assert.equal(bb.name, "Blast Burn");
+  assert.equal(bb.ultimate, true);
 });
 
 test("each turn: mostly its strongest move, now and then another; a signature move 1 in 8; crits", () => {
