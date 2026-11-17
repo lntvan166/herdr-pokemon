@@ -195,3 +195,17 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   `crit: "high"` 1 in 8 (Spacial Rend, Aeroblast, Snipe Shot), `"always"` (Flower Trick);
   Thousand Arrows hits a Flying type (neutral); Oblivion Wing drains ¾; Sacred Fire burns half the
   time, Blue Flare and Bolt Strike 1 in 5 (spar.js `SIDE_EFFECTS`).
+- **What a wild one does** (`wildacts.js` `actFor`, chosen as it comes; main.js `visit` stops it
+  `v.halt` where it does it, then it walks on as a new leg): about 1 in 4 do one thing. By its
+  kind (lists of national numbers): `tease` (Gastly line, Sableye, Zorua, Impidimp, Mimikyu,
+  Jigglypuff…: stops at one of yours idle or asleep within `NEAR` 24 px on its row, 💢 over it,
+  then runs off at ×1.8 with 😜; its purse ×1.5), `nap` (Snorlax, Slowpoke, Slakoth, Komala:
+  60–90 s asleep 30–60% of the way across, its sleep sprite and zZ; `asleep` ×1.5 to catch; hit
+  awake, `grumpy`, it hits back ×1.3), `teleport` (Abra, Ralts lines: a ball it breaks out of and
+  it's 200+ px away, a psychic flash at both ends), `challenge` (Machop, Hitmons, Riolu, Scrafty,
+  Hawlucha…: stops at one of yours idle, ❗ 1.5 s, then a battle as a drop starts one),
+  `friendly` (Eevee and its evolutions, Pikachu, Togepi, Marill, Buneary…: stops by one of yours,
+  both 💗; ×1.2 to catch). By what's going on: `weather` (a type the day's weather favours, 1 in
+  4: stops 4 s with ☀️ 💧 ❄️ 🍃…), `curious` (an agent working, 1 in 8: stops by its Pokémon, ❓
+  3 s). By chance: `dash` (Speed 100+, 6 in 10: ×2 pace, 💨). A legendary or an outbreak's: none.
+  A ball or a battle ends it. Icons only while it does it (nothing pulsing).

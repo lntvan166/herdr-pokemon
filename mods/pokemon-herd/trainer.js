@@ -69,12 +69,14 @@ export function baseRate(dex) {
 }
 // How likely `ball` catches `pick` ({ dex, hp? }), with `bait` fed first. Weakened (hp, 0..1, by
 // one of yours attacking it), the base rate rises: × (2 − hp), twice at a sliver of health.
+// A wild one asleep (wildacts.js nap) is easier to catch, as in the games; a friendly one a little.
+export const NAP_CATCH = 1.5, FRIEND_CATCH = 1.2;
 export function catchChance(ball, pick, bait = null) {
   const mul = BALL_MUL[ball];
   if (!mul) return 0;
   if (mul === Infinity) return 1;
   const hp = Number.isFinite(pick.hp) ? Math.max(0, Math.min(1, pick.hp)) : 1;
-  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (2 - hp));
+  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (2 - hp) * (pick.asleep ? NAP_CATCH : 1) * (pick.friendly ? FRIEND_CATCH : 1));
   return 1 - (1 - base) ** (mul * (BAIT[bait]?.rate ?? 1));
 }
 

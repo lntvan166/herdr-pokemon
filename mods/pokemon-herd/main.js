@@ -22,6 +22,7 @@ import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./fa
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
+import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
@@ -76,6 +77,8 @@ const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a
 const VISIT_SPEED = 45; // px per second
 // A legendary takes its time (half as fast): longer to go after it with its 20 balls.
 const walkSpeed = (pick) => (pick?.legend ? VISIT_SPEED / 2 : VISIT_SPEED);
+// A wild one's own pace: dashing (wildacts.js), or running off laughing after a tease.
+const paceOf = (v) => walkSpeed(v.pick) * (v.speedK ?? 1);
 const SPAR_CHANCE = 1 / 240;
 const TEASE_CHANCE = 1 / 480; // per tick: about every 2 minutes while one is asleep near an idle one
 const FIDGET_CHANCE = 0.15; // idle, about to stroll: how often it fidgets instead (nods, sits, twirls…)
@@ -1121,7 +1124,13 @@ export default class PokemonHerd extends View {
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
       // kept that one's picture: only its 🎁 showed).
       // Its purse, shown over its head while the day's purses last.
-      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / walkSpeed(pick)) * 1000, asked: now };
+      // What it does besides walking by (wildacts.js): a dash sets its pace now, a tease a bigger purse.
+      const act = pick.devAct ? { kind: pick.devAct, ms: pick.devAct === "nap" ? 20000 : 4000, icon: "☀️" } // dev.js: one asked for
+        : outbreak ? null : actFor(pick, { boosted: this.boostNow().types, working: list.some((a) => a.status === "working") });
+      delete pick.devAct;
+      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: 0, asked: now, act, ...(act?.kind === "dash" ? { speedK: DASH_SPEED } : {}) };
+      if (act?.kind === "tease" && v.purse) v.purse = Math.round(v.purse * TEASE_PURSE);
+      v.dur = (Math.abs(to - from) / paceOf(v)) * 1000;
       this.want(pick, cx);
     }
     if (!v) return false;
@@ -1150,7 +1159,7 @@ export default class PokemonHerd extends View {
       }
       v.from = fx.x;
       v.start = now;
-      v.dur = (Math.abs(v.to - v.from) / walkSpeed(v.pick)) * 1000;
+      v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
       v.walkFrom = undefined;
       v.leg = (v.leg ?? 0) + 1;
       v.fight = null;
@@ -1169,8 +1178,16 @@ export default class PokemonHerd extends View {
         return true;
       }
       v.from = th.x;
+      // Abra, Ralts…: out of the ball, it teleports elsewhere on the strip (a flash at each end).
+      if (v.act?.kind === "teleport") {
+        const lo = EDGE, hi = Math.max(lo + 1, this.width - EDGE);
+        let x = lo + Math.random() * (hi - lo);
+        if (Math.abs(x - th.x) < 160) x = th.x < this.width / 2 ? Math.min(hi, th.x + 200 + Math.random() * 120) : Math.max(lo, th.x - 200 - Math.random() * 120);
+        v.blink = { at: now, from: th.x, to: x };
+        v.from = x;
+      }
       v.start = now;
-      v.dur = (Math.abs(v.to - v.from) / walkSpeed(v.pick)) * 1000;
+      v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
       v.walkFrom = undefined;
       v.leg = (v.leg ?? 0) + 1;
       v.broke = now;
@@ -1196,9 +1213,51 @@ export default class PokemonHerd extends View {
       }
       return false;
     }
+    // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
+    if (v.halt) {
+      v.x = v.halt.x;
+      if (now < v.halt.until) return false;
+      const h = v.halt;
+      v.halt = null;
+      v.pick.asleep = false;
+      if (h.kind === "tease") { v.speedK = FLEE_SPEED; v.fleeUntil = now + 2500; } // off it runs, laughing
+      if (h.kind === "challenge" && this.mons[h.target]) this.dropAt = { addr: h.target, dizzy: false }; // they fight, as if dropped on it
+      v.from = h.x;
+      v.start = now;
+      v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
+      v.walkFrom = undefined;
+      v.leg = (v.leg ?? 0) + 1;
+      return true;
+    }
     const f = (now - v.start) / v.dur;
     if (f >= 1) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : next(); this.honeyNext = false; return true; }
     v.x = v.from + (v.to - v.from) * f;
+    // Its act, once: a nap or the weather halfway along; the others by one of yours it reaches.
+    const act = v.act;
+    if (act && !act.done && now - v.start > 1500 && v.x > EDGE && v.x < this.width - EDGE) {
+      const stop = (kind, ms, more = {}) => { act.done = true; v.halt = { kind, x: v.x, at: now, until: now + ms, ...more }; };
+      act.f ??= 0.3 + Math.random() * 0.3;
+      if ((act.kind === "nap" || act.kind === "weather") && f >= act.f) {
+        stop(act.kind, act.ms ?? 4000, { icon: act.icon });
+        if (act.kind === "nap") v.pick.asleep = true; // easier to catch while it sleeps
+        return true;
+      }
+      if (HALT[act.kind]) {
+        const hit = list.find((a, i) => {
+          const m = this.mons[a.address];
+          const row = g ? Math.min(m?.row ?? i % g.rows, g.rows - 1) : 0;
+          return m && row === v.row && Math.abs(m.x - v.x) < NEAR && wants(act.kind, m);
+        });
+        if (hit) {
+          const m = this.mons[hit.address];
+          stop(act.kind, HALT[act.kind], { target: hit.address, face: m.x > v.x ? "R" : "L" });
+          m.dir = m.x > v.x ? "l" : "r"; // it turns to the wild one
+          if (act.kind === "tease") m.react = { anim: null, until: now + 1800, icon: "💢" };
+          if (act.kind === "friendly") { m.react = { anim: null, until: now + 2500, icon: "💗" }; v.pick.friendly = true; }
+          return true;
+        }
+      }
+    }
     // Idle ones on its row, standing within 220 px, turn to watch it.
     let turned = false;
     list.forEach((a, i) => {
@@ -1405,6 +1464,8 @@ export default class PokemonHerd extends View {
     }
     const v = this.visitor;
     if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
+    // Its act's moments (wildacts.js): an icon going (running off, a dash), a teleport's flash.
+    if (v) for (const t of [v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
     if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
@@ -1762,7 +1823,9 @@ export default class PokemonHerd extends View {
     if (bait) research("berry"); // a Berry fed to a wild one counts too
     const now = Date.now();
     const f = clamp((now - v.start) / v.dur, 0, 1);
-    v.throw = { ball, bait, at: now, x: v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait) };
+    // Stopped for its act (asleep: the ball's likelier), where it stopped; the ball ends the act.
+    v.throw = { ball, bait, at: now, x: v.halt ? v.halt.x : v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait) };
+    if (v.halt) { v.halt = null; v.pick.asleep = false; }
     // Caught: into the Box now, as the ball decides it; the shakes are only for show (the strip
     // could drop the visitor meanwhile: an update reloading it, the window narrowed, Visitors off).
     if (v.throw.caught) { v.throw.saved = true; this.caught(v); }
@@ -1916,16 +1979,27 @@ export default class PokemonHerd extends View {
     // at all, or only its 🎁 (a lone gift crossing the sky). (A new leg after a ball: new ids.)
     const placed = v.walkFrom !== undefined;
     v.walkFrom ??= now;
-    const left = placed ? v.to : v.from;
-    const leg = v.leg ?? 0;
+    // Stopped for its act (wildacts.js): standing (asleep, for a nap) where it stopped, facing
+    // whom it stopped by; an icon over its head (😜 💢 ❗ 💗 ❓ ☀️ zZ). Dashing or running off: 💨 😜.
+    const halt = v.halt;
+    const left = halt ? halt.x : placed ? v.to : v.from;
+    const leg = halt ? `${v.leg ?? 0}h` : v.leg ?? 0;
+    const pose = halt ? (halt.kind === "nap" ? meta.sleep ?? meta.idleD : meta[`idle${halt.face ?? (v.dir === "r" ? "R" : "L")}`]) ?? s : s;
+    const actIcon = halt ? (halt.icon ?? ICON[halt.kind]) : v.fleeUntil > now ? ICON.tease : v.act?.kind === "dash" && now - v.start < 2500 ? ICON.dash : null;
+    if (v.blink && now - v.blink.at < 600) {
+      // Teleported: a pink flash where it was and where it is.
+      for (const [k, x] of [["a", v.blink.from], ["b", v.blink.to]]) root.child(fxBurst(`blink-${v.id}-${v.blink.at}-${k}`, MOVE.psychic, 0.6, x, Math.round((headY + ground) / 2), this.fxFirst(`blink-${v.id}-${v.blink.at}-${k}`), v.blink.at % 9973));
+    }
     const baitNow = baitFor(bag().items, v.pick, ball, shared(BAIT_KEY));
     const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow));
     root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
-      .transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" })
+      .when(!halt, (el) => el.transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" }))
       .child(div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, s.box, scale, !!v.pick.shadow)))
-        .child(image(s.path).absolute().left(imgLeft).top(imgTop).w(s.w * scale).h(s.h * scale))
+        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
+        .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale))
+        .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - 14)).text_size(13).font_bold()
+          .text_color(actIcon === "zZ" ? "#ffffff" : t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
@@ -2634,7 +2708,9 @@ export default class PokemonHerd extends View {
         // what it takes, hitBack).
         const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk) });
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul, wm.type, wm, { nb: pk.nature });
+        // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
+        if (v.halt) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature });
         if (back && wm.miss) back.text = "It missed!";
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.
@@ -3329,7 +3405,7 @@ export default class PokemonHerd extends View {
       const f = clamp((now - wv.start) / wv.dur, 0, 1);
       wv.from = wv.from + (wv.to - wv.from) * f;
       wv.start = now;
-      wv.dur = Math.max(1, (Math.abs(wv.to - wv.from) / walkSpeed(wv.pick)) * 1000);
+      wv.dur = Math.max(1, (Math.abs(wv.to - wv.from) / paceOf(wv)) * 1000);
       wv.walkFrom = undefined;
       wv.leg = (wv.leg ?? 0) + 1;
     }

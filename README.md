@@ -80,6 +80,10 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   at most, like Legends: Arceus' effort levels), and its nature counts (Brave: more Attack, less Speed). The winner celebrates ("Landorus won! 3–1", the two's record today), the other sits
   dizzy, nobody is hurt for real. The winner gains a little more friendship; the Box keeps each
   one's record, and those idle nearby turn to watch.
+- **Wild ones have their ways.** About 1 in 4 do something on the way: Gengar sneaks up and
+  pokes one of yours awake, Snorlax naps halfway (easier to catch, cross if you wake it), Abra
+  teleports out of a missed ball, Machop picks a fight, Eevee stops to say hello, a Fire type
+  basks on a sunny day, a fast one dashes across.
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
   lost). Pick a strong attacker with a good type.
 - **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a little more than
