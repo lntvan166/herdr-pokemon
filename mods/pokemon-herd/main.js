@@ -1632,6 +1632,8 @@ export default class PokemonHerd extends View {
   raidStrike(a, pick, at) {
     const r = loadRaid(shared(RAID_KEY));
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
+    const sm = this.mons[a.address];
+    if (sm) sm.awakeUntil = Math.max(sm.awakeUntil ?? 0, at + 20000); // awake for the strike and a while after
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
     const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: live.moves, weather: this.boostNow().id }));
@@ -2894,6 +2896,7 @@ export default class PokemonHerd extends View {
         const wildMove = { ...wm, eff: back?.eff ?? 1 };
         const away = v.x > spot ? 1 : -1; // from yours toward the wild one
         if (v.trainer) v.trainer.fighter = drop.addr; // it fights on till one of them is down
+        dm.awakeUntil = Math.max(dm.awakeUntil ?? 0, now + 20000); // awake through the fight, its agent idle or not (it slept between blows)
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
           x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
