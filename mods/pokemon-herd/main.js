@@ -4395,15 +4395,19 @@ export default class PokemonHerd extends View {
     const got = all.filter((x) => x.earned).length;
     const art = (key, size) => this.art[key] === "ready" ? image(artPath(key)).size(size).flex_none() : div().size(size).flex_none();
     const icon = (p, size) => this.icons[entryKey(p)] === "ready" ? image(iconPath(p.dex, p.form)).size(size).flex_none() : div().size(size).flex_none();
-    // The finding: what can be done right now, in one line.
-    const first = usable[0] && takers[usable[0]][0];
+    // The finding: something worth doing now, in one line, on the Bag's tab only: one to bring back,
+    // an evolution, one hurt, a Rare Candy (a Berry's heart, or something to hold, nearly always
+    // possible, said nothing new: it showed on every tab, all the time).
+    const WORTH = ["revive", "evolve", "heal", "jobs"];
+    const found = WORTH.flatMap((u) => usable.flatMap((id) => takers[id].filter((h) => h.use === u).map((h) => [id, h])))[0];
+    const [foundId, first] = found ?? [null, null];
     const finding = !first ? "Nothing to use right now"
-      : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
-      : first.use === "jobs" ? `${ITEMS[usable[0]].name} brings ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${CANDY_JOBS} jobs closer to evolving`
-      : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
-      : first.use === "revive" ? `${ITEMS[usable[0]].name} can bring ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) back up now`
-      : first.use === "heal" ? `${ITEMS[usable[0]].name} can heal ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
-      : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${usable[0] === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
+      : first.use === "evolve" ? `${ITEMS[foundId].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
+      : first.use === "jobs" ? `${ITEMS[foundId].name} brings ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${CANDY_JOBS} jobs closer to evolving`
+      : first.use === "hold" ? `${ITEMS[foundId].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
+      : first.use === "revive" ? `${ITEMS[foundId].name} can bring ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) back up now`
+      : first.use === "heal" ? `${ITEMS[foundId].name} can heal ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
+      : `${ITEMS[foundId].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${foundId === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
     const use = (id, h) => {
       const live = savedPicks()[h.slot]; // as saved now: never a stale copy (it may have moved since)
       if (!live || !hasItem(id)) return;
@@ -4431,7 +4435,7 @@ export default class PokemonHerd extends View {
             .when(tab !== k, (el) => el.text_color(t.dim).hover((st) => st.text_color(t.muted)))
             .on_click((_e, cx) => { this.bagTab = k; this.releasing = null; cx.notify(); })
             .child(txt))))
-          .child(div().text_size(12).text_color(first ? t.foreground : t.muted).truncate().child(finding)))
+          .when(tab === "items" && !!first, (el) => el.child(div().text_size(12).text_color(t.foreground).truncate().child(finding))))
         .child(v_flex().gap(3).items_end().flex_none()
           .child(h_flex().gap(12).items_center()
             .child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(money(b.money)))
