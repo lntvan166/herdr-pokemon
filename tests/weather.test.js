@@ -60,9 +60,10 @@ test("a size is feel, not strength: small ones dodge, big ones are heavy", async
   assert.equal(sizeMiss(0.8), 1 / 12);
   assert.equal(sizeMiss(1.4), null);
   const seq = (...xs) => { let i = 0; return () => xs[i++]; };
-  assert.equal(pickMove(6, 3, seq(0.9, 0.9, 0.1, 0.1)).miss, false);
-  assert.equal(pickMove(6, 3, seq(0.9, 0.9, 0.1, 0.1), { targetSize: 0.55 }).miss, true); // an XXS dodges it
-  assert.equal(pickMove(6, 3, seq(0.9, 0.9, 0.1, 0.1), { targetSize: 0.55 }).mul, 0);
+  const F = { moves: ["Flamethrower"] }; // 100% accurate: only its size makes it miss
+  assert.equal(pickMove(6, 3, seq(0.9, 0.9, 0.1, 0.1), F).miss, false);
+  assert.equal(pickMove(6, 3, seq(0.9, 0.9, 0.1, 0.1), { ...F, targetSize: 0.55 }).miss, true); // an XXS dodges it
+  assert.equal(pickMove(6, 3, seq(0.9, 0.9, 0.1, 0.1), { ...F, targetSize: 0.55 }).mul, 0);
   assert.ok(MISS < 1 / 8);
   assert.equal(knockMul(1.5, 1), 1.5); // an XXL hits it further
   assert.ok(knockMul(1, 1.5) < 0.7); // an XXL is knocked back less

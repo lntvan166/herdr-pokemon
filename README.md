@@ -64,7 +64,7 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   Hydro Pump's torrent and Fire Blast's five-pointed burst. Damage as the
   games reckon it: each move's power, Attack against Defense or Sp. Atk against Sp. Def, HP,
   STAB, the type chart; now and then a signature move (Blast Burn, Thunder), 1 in 16 "A critical
-  hit!", 1 in 20 a miss. Physical moves rush in (streaks behind, each its own mark: Fire Punch's
+  hit!", and misses as often as each move's accuracy says (Thunder 3 in 10, Swift never). Physical moves rush in (streaks behind, each its own mark: Fire Punch's
   fist of flame, Crunch's jaws), special ones fire their own way (Flamethrower's stream, Surf's wave).
 - **Moves you can see.** Yours steps off a little, gathers power and uses its best type against
   it, each move its own way: Flamethrower a stream of fire, Surf a wave, Thunderbolt a jagged

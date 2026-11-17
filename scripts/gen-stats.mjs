@@ -65,11 +65,18 @@ for (const [dex, form, label] of REGIONAL) {
   else console.warn(`no PokeAPI form for ${dex} ${label}`);
 }
 // The moves' power (moves.js MOVES), from moves.csv: id,identifier,generation_id,type_id,power,…
-const { MOVES, MORE_MOVES } = await import("../mods/pokemon-herd/moves.js");
+const { MOVES, MORE_MOVES, EXCLUSIVE } = await import("../mods/pokemon-herd/moves.js");
 const moveRows = (await (await fetch("https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/moves.csv")).text())
   .trim().split("\n").slice(1).map((l) => l.split(","));
 const powers = new Map(moveRows.map((c) => [c[1], Number(c[4]) || 0]));
 const isPhysicalMove = new Map(moveRows.map((c) => [c[1], c[9] === "2"])); // damage_class_id 2: physical
+const accuracies = new Map(moveRows.map((c) => [c[1], c[6] === "" ? null : Number(c[6])])); // empty: never misses (Swift)
+// Each move's accuracy in the games (%; null: it never misses), the one each one may miss by.
+const moveAcc = {};
+for (const name of [...Object.values(MOVES).flat(), ...Object.values(MORE_MOVES).flat().map(([n]) => n), ...Object.keys(EXCLUSIVE)]) {
+  const k = name.toLowerCase().replace(/ /g, "-");
+  if (accuracies.has(k)) moveAcc[name] = accuracies.get(k); else console.warn(`no accuracy for ${name}`);
+}
 const movePower = {};
 for (const name of [...Object.values(MOVES).flat(), ...Object.values(MORE_MOVES).flat().map(([n]) => n)]) {
   const p = powers.get(name.toLowerCase().replace(/ /g, "-"));
@@ -146,6 +153,8 @@ writeFileSync(new URL("../mods/pokemon-herd/base-stats.js", import.meta.url),
   `export const STATS = ${JSON.stringify(full)};\n` +
   `// Each named move's power (moves.js MOVES), from PokeAPI's moves.csv.\n` +
   `export const MOVE_POWER = ${JSON.stringify(movePower)};\n` +
+  `// Each named move's accuracy (%; null: it never misses), from PokeAPI's moves.csv.\n` +
+  `export const MOVE_ACC = ${JSON.stringify(moveAcc)};\n` +
   `// The moves drawn ([type, name, physical]) and each one's four (indices into it), from its learnset.\n` +
   `export const MOVE_LIST = ${JSON.stringify(MOVE_LIST)};\n` +
   `export const MOVESET = ${JSON.stringify(moveset)};\n` +

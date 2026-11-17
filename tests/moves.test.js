@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MOVES, pickMove, movesetOf, powerOf, ULTIMATE, CRIT, CRIT_HIT, MISS, MISS_ULTIMATE } from "../mods/pokemon-herd/moves.js";
+import { MOVES, pickMove, movesetOf, powerOf, ULTIMATE, CRIT, CRIT_HIT, missOf } from "../mods/pokemon-herd/moves.js";
 import { TYPES } from "../mods/pokemon-herd/types.js";
 import { blowWord } from "../mods/pokemon-herd/fx.js";
 
@@ -53,12 +53,18 @@ test("each turn: mostly its strongest move, now and then another; a signature mo
   assert.deepEqual(blowWord(2, true), ["A critical hit!", "#ff8a3c"]);
 });
 
-test("a move can miss: 1 in 20, a signature move 1 in 5; a miss does nothing", () => {
+test("a move misses as its accuracy in the games says; a miss does nothing", () => {
   const seq = (...xs) => { let i = 0; return () => xs[i++]; };
-  assert.deepEqual([pickMove(6, 3, seq(0, 0.9, 0.9, 0)).miss, pickMove(6, 3, seq(0, 0.9, 0.9, 0)).mul], [true, 0]);
-  assert.equal(pickMove(6, 3, seq(0, 0.9, 0.9, MISS + 0.01)).miss, false);
-  assert.equal(pickMove(6, 3, seq(0, 0, 0.9, MISS + 0.01)).miss, true); // a signature move misses more
-  assert.ok(MISS < MISS_ULTIMATE && MISS_ULTIMATE <= 0.2);
+  assert.equal(missOf("Flamethrower"), 0); // 100%
+  assert.ok(Math.abs(missOf("Fire Blast") - 0.15) < 1e-9); // 85%
+  assert.ok(Math.abs(missOf("Thunder") - 0.3) < 1e-9); // 70%
+  assert.equal(missOf("Swift"), 0); // never misses
+  assert.equal(missOf("Flower Trick"), 0);
+  // [which move, signature?, crit?, miss?]: Fire Blast misses under 15 in 100, not over.
+  const blast = (r) => pickMove(6, 3, seq(0, 0.9, 0.9, r), { moves: ["Fire Blast"] });
+  assert.deepEqual([blast(0.14).miss, blast(0.14).mul], [true, 0]);
+  assert.equal(blast(0.16).miss, false);
+  assert.equal(pickMove(6, 3, seq(0, 0.9, 0.9, 0), { moves: ["Flamethrower"] }).miss, false); // 100%: never
 });
 
 test("a move's power and side reach the damage", async () => {

@@ -80,7 +80,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   white-capped torrent, Giga Drain green motes drawn back, Solar Beam light gathered then a thick
   beam, Icicle Crash icicles dropped from above, Rock Slide rocks tumbling, Phantom Force a dark
   hole opening by it, Knock Off something knocked flying…). A heavy blow (power ≥ 0.85) holds both still
-  `HITSTOP` (90 ms) before the knock back. A miss (`MISS` 1/20, `MISS_ULTIMATE` 1/5) does nothing:
+  `HITSTOP` (90 ms) before the knock back. A miss (as often as the move's accuracy in the games: `base-stats.js` `MOVE_ACC`, `missOf`; Thunder 30%, Fire Blast 15%, Swift never; with a small target's dodging on top, and counted in which move it picks) does nothing:
   "Missed!", the target hops aside. The move's name shows over the one using it as it gathers.
 - **Damage** (`trainer.js` `damage`, `gameDamage`): the games' (Gen 5+, level 50): ((2×50/5+2) ×
   power × Attack/Defense (physical) or Sp. Atk/Sp. Def (special) / 50 + 2) × the type's effect

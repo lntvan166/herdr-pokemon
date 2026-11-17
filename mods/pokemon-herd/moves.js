@@ -4,9 +4,9 @@
 // learns in the games: two of its own types, two others for coverage); each turn it picks one,
 // likelier the more it would do (power, its Attack or Sp. Atk against the other's Defense or Sp.
 // Def, the type's effect, ×1.5 for its own type, STAB: trainer.js gameDamage), so mostly its best
-// and now and then another; 1 time in 8 it's that type's signature move instead. A critical hit 1 time in 16 (×1.5). A move can miss: 1 in 20,
-// a signature move 1 in 5 (Thunder, Blizzard...). Pure.
-import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM } from "./base-stats.js";
+// and now and then another; 1 time in 8 it's that type's signature move instead. A critical hit 1 time in 16 (×1.5). A move misses
+// as often as its accuracy in the games says (missOf: Thunder 3 in 10, Swift never). Pure.
+import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./base-stats.js";
 import { effectOn, typesOf, gameDamage, isPhysicalKey } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
 
@@ -114,7 +114,10 @@ export const ULTIMATE = 1 / 8;
 export const MAX_MOVES = 4; // a signature move (its power: Blast Burn 150)
 export const CRIT = 1 / 16; // a critical hit, ×1.5
 export const CRIT_HIT = 1.5;
-export const MISS = 0.05, MISS_ULTIMATE = 0.2;
+// A move misses as in the games: 1 − its accuracy (base-stats.js MOVE_ACC: Thunder 70%, Hydro Pump
+// 80%, Fire Blast 85%; Swift and Aura Sphere never miss). One without a known accuracy: MISS.
+export const MISS = 0.05;
+export const missOf = (name) => { const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
@@ -156,7 +159,7 @@ export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t
 // power, mul, eff }. `mul`: what it does to the damage besides its power (0 when it misses).
 // `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
 // `how.moves`: the names chosen for it (a pick's `moves`). A signature move chosen is used as one
-// (its own look, missing 1 in 5).
+// (its own look).
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const set = movesetOf(attacker, how.moves);
   const own = typesOf(attacker);
@@ -164,7 +167,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // What each would do (its own move as its rule makes it: Judgment's type, Arrows on a flier).
   const typeOf = (m) => (EXCLUSIVE[m.name]?.judgment ? judgedType(target) : m.type);
   const effOf = (m) => { const e = effectOn(typeOf(m), target); return e === 0 && EXCLUSIVE[m.name]?.flying && typesOf(target).includes("flying") ? 1 : e; };
-  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1)) ** PICK_SHARP);
+  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - missOf(m.name))) ** PICK_SHARP); // what it'd do, times how sure it is to hit
   const total = weights.reduce((x, y) => x + y, 0);
   let r = rnd() * total, k = 0;
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
@@ -175,8 +178,9 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // it is); else 1 in 8 its type's signature move.
   const ultimate = !!ex || roll < ULTIMATE || !!base.sig;
   const crit = ex?.crit === "always" || rnd() < (ex?.crit === "high" ? 1 / 8 : CRIT);
-  const miss = rnd() < Math.max(ultimate && !ex ? MISS_ULTIMATE : MISS, sizeMiss(how.targetSize) ?? 0);
   const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
+  // Its accuracy, and a small target's dodging (weather.js sizeMiss): it hits only if both let it.
+  const miss = rnd() < 1 - (1 - missOf(name)) * (1 - (sizeMiss(how.targetSize) ?? 0));
   const physical = ex ? ex.physical : ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…), chosen or not
   // Judgment: the type that does most to it (its plate's; Arceus is that type: STAB).
   const type = ex?.judgment ? judgedType(target) : base.type;
