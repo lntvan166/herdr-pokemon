@@ -35,7 +35,8 @@ test("beating one pays its class's money (more for three, a Mega, a legendary) a
 });
 
 test("now and then a star: a legendary last, or a Mega of one that has one", async () => {
-  const { LEGEND_ODDS, MEGA_ODDS } = await import("../mods/pokemon-herd/trainers.js");
+  const { starOdds } = await import("../mods/pokemon-herd/trainers.js");
+  const LEGEND_ODDS = starOdds({}).legend, MEGA_ODDS = starOdds({}).mega;
   let legends = 0, megas = 0;
   for (let i = 0; i < 2000; i++) {
     const tr = newTrainer(Math.random, 0, { megaOf: (d) => (d % 5 === 0 ? "" : null) });
@@ -44,6 +45,12 @@ test("now and then a star: a legendary last, or a Mega of one that has one", asy
   }
   assert.ok(Math.abs(legends / 2000 - LEGEND_ODDS) < 0.04, String(legends));
   assert.ok(megas > 0 && MEGA_ODDS < 0.5);
+  // The more you have, the likelier (capped).
+  assert.ok(starOdds({ legends: 10 }).legend > starOdds({}).legend);
+  assert.ok(starOdds({ alphas: 1000 }).alpha <= 0.4 && starOdds({ megas: 1000 }).mega <= 0.5);
+  const a = newTrainer(Math.random, 0, { force: "alpha" });
+  assert.ok(a.team.some((m) => m.alpha));
+  assert.ok(trainerPay({ cls: "ace", team: [{ dex: 1 }, { dex: 2, alpha: true }] }).items.some(([id]) => id === "max-revive"));
 });
 
 test("its look: every frame 12 × 18, every letter a colour; its Pokémon faint at 0 (no sliver: not to be caught)", () => {

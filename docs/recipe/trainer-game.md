@@ -223,8 +223,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   outbreak or a raid, never one called). Ten classes (Ace Trainer, Hiker, Swimmer, Black Belt,
   Psychic, Bug Catcher, Kindler, Punk, Engineer, Bird Keeper), each its names, types, colours and
   pay. Its team: 2 or 3 fully evolved Pokémon of its types, each a nature, hitting and taking a touch
-  harder than yours can be raised (`TEAM_EFFORT` 1.1); now and then a star: its last a legendary
-  (`LEGEND_ODDS` 12%) or one of them Mega Evolved, fighting as its Mega (`MEGA_ODDS` 25%). It doesn't walk by: it stands in the strip's right
+  harder than yours can be raised (`TEAM_EFFORT` 1.1); now and then a star: its last a legendary, one of them
+  Mega Evolved (fighting as its Mega), and/or one an Alpha (bigger, hits ×1.5, takes ×0.8); likelier
+  the more of them you have (`starOdds`: legendary 5% +2% a legendary caught, 40% at most; Mega 10%
+  +3% for each of yours that can Mega Evolve, 50% at most; Alpha 5% +2% an Alpha of yours, 40%). It doesn't walk by: it stands in the strip's right
   corner, its first Pokémon before it ("❗"; "Punk Zed wants to battle!" in the corner), and waits
   `WAIT_MS` 3 minutes for one of yours dropped on it, then it's gone. Its figure: a picture shipped
   in `art/trainers/<class>.png` (ten drawn for it: pixel art in PMD's style, cut down to its grid) (standing, facing left, see-through; drawn `TRAINER_DRAW_H` 56 px
@@ -232,4 +234,4 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   coloured by class, `sprites.js` `ensureTrainer`). A battle, once one of yours is dropped on it, goes on by itself, exchange after exchange (`trainer.fighter`, the next 0.5 s after each, or 2.7 s after its next is sent out), till one is down: its next comes out and yours fights on with the health it has; yours down, it waits for another of yours, its team keeping its health. Another of yours dropped on its Pokémon meanwhile switches in (🔁; the one fighting steps back, kept from fainting) as the exchange playing ends; the one fighting dragged away, the battle stops. Each exchange:
   a wild battle, but its Pokémon can't be caught (no ball, no gift) and faints at 0 (no sliver).
   Fainted: "… sent out …!" and its next; all beaten: "You beat Punk Zed! +₽520 and a Max Revive"
-  (`trainerPay`: its class's pay, ×1.3 for three, ×1.5 with a Mega and a Rare Candy, ×2.5 with a legendary and an Azure Flute, and its item). Ignored, it walks on.
+  (`trainerPay`: its class's pay, ×1.3 for three, ×1.5 with a Mega and a Rare Candy, ×2.5 with a legendary and an Azure Flute, ×1.4 with an Alpha and a Max Revive, and its item). Ignored, it walks on.

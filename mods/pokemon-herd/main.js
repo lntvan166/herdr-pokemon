@@ -25,7 +25,7 @@ import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
 import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
-const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}) });
+const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
@@ -1157,7 +1157,9 @@ export default class PokemonHerd extends View {
       // Now and then a trainer instead (trainers.js): its first Pokémon walks in with it, stops
       // halfway and waits for a battle; it can't be caught. Not one called (Honey, a legendary).
       const megaOf = (d) => megaForm(d)?.kind ?? null; // the Mega it can take (dex.js), or null
-      const tr = (!outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1) || pick.devTrainer ? newTrainer(Math.random, now, { megaOf, ...(typeof pick.devTrainer === "string" ? { force: pick.devTrainer } : {}) }) : null;
+      // What you have (its stars the likelier for it: trainers.js starOdds).
+      const owned = { legends: pokedex().caught.filter((d) => isLegendary(d)).length, megas: new Set(Object.entries(savedPicks()).filter(([, p]) => p && megaForm(p.dex)).map(([k]) => k)).size, alphas: Object.values(savedPicks()).filter((p) => p?.alpha).length };
+      const tr = (!outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1) || pick.devTrainer ? newTrainer(Math.random, now, { megaOf, owned, ...(typeof pick.devTrainer === "string" ? { force: pick.devTrainer } : {}) }) : null;
       delete pick.devTrainer;
       if (tr) {
         pick = trainerMon(tr.team[0]);
