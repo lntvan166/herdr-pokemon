@@ -27,7 +27,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 
 | | |
 |---|---|
-| **Your herd** | Each agent is a Pokémon. **Click** it to go to its agent; **right-click** to choose another (click to preview, **Replace** to take it). |
+| **Your herd** | Each agent is a Pokémon. **Click** it to go to its agent; **right-click** for its menu: use an item on it, bring out one waiting in the Box, or choose another kind. |
 | **Wild Pokémon** | One walks by every few minutes. **Click** it for its gift and ₽; **click again** to throw a ball. |
 | **Weaken it** | **Drag** one of yours onto it: they battle, and a health bar shows. Lower health, easier catch (up to ×2). **Stop at the red**, or it may faint. |
 | **Balls & Berries** | Poké, Great ×1.5, Ultra ×2, Master (never fails). A Berry before each ball: Razz ×1.5, Golden Razz ×2.5, Pinap for twice the gift. On Auto, the best ball and Berry go to rare ones, and a rare one cries as it walks in. |

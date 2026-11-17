@@ -21,8 +21,10 @@ An agent that installs this mod finishes by telling the user, briefly, in their 
   Sidebar** (spaces with their agents as cards; collapsed, their Pokémon), and notifications show
   the agent's Pokémon. Each agent is a Pokémon; its name is under its feet.
 - **Click a Pokémon** to jump to its agent. **Hover** for its name, hearts and jobs.
-- **Right-click a Pokémon** to change it: search all 974, click one to preview it, **Replace**
-  to take it; Random; Box it (keep this one, get a new one).
+- **Right-click a Pokémon** for its menu: items from the Bag that do something to it now, one
+  waiting in the Box to **bring out** in its place (one click), **Choose another Pokémon…** (the
+  picker: search all 974, click one to preview it, **Replace** to take it; Random; Box it), and
+  its card in the Box.
 - **Wild Pokémon** walk by: click one for its gift and its purse (₽), then again to throw a Poké
   Ball. Caught ones join the Box with a heart and a nature. Legendaries are locked until caught.
 - **Right-click the ground** for the menu: the **Box** (with the Bag, the Shop, Today's three
@@ -411,7 +413,12 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   `{ same, all }`) and gives a new one, never one from the Box, the same species too.
 - **Bring out** (the preview's "In the Box (n)": that species' raised ones not on screen, latest
   first, "✨ Name · ♥ 2 · 4 jobs"): puts that one in the pane (`choose(e, { slot })`); the
-  current one goes to the Box if raised, the same species too.
+  current one goes to the Box if raised, the same species too. Also from the picker's
+  "📤 Waiting in your Box" row (any species) and the Pokémon's right-click menu.
+- **The Box tab's card actions**, two rows of pills with icons: what you do with it ("📤 Bring
+  out to an agent…", filled in so it's found first; 💊 Revive; 🍒 Feed; 🎒 Take; ✨ Purify), then
+  keeping the Box (🔒 Lock, ✏️ Rename, 👋 Release). One with an agent says to right-click it in
+  the strip for its menu.
 - **The Box tab** (the Bag's title: "Bag | Box n", props `tab: "box"` opens on it; `boxList`,
   `renderBox`): two parts, "With agents n" (raised Pokémon on screen now; no Release) and
   "Waiting n" (raised ones whose agents are gone, latest first), on a 46 px pitch in a
@@ -510,9 +517,16 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   (stopped where it is; right on top, the dropped one jumps 40 px beside it): asleep, it pokes it
   awake and they battle (as Teasing); awake, they spar at once, a heart each when neither sparred
   in 10 min. Not tied to the Sparring switch. Sprite cache v6 cuts the dizzy animations.
-- **Right-click** a Pokémon or its name: the picker for that agent. `alt-shift-p` (`keys.json`
-  → `pokemon-herd.pick`) opens it for the focused agent. Choosing saves the pick and closes it.
-  Enter chooses when exactly one matches.
+- **Right-click** a Pokémon or its name: its menu (`openMon`, `renderMon`, a popup sized to what
+  it shows): who it is (hearts, jobs, HP or fainted, what it holds); 🎒 the Bag's items that do
+  something to it now (`monUsable`, used by `useOn`, the one item path the Bag, the picker and
+  the Box share) and Take what it holds; 📤 up to 5 waiting in the Box (latest first), a click
+  brings one out in its place (`bringOut`), +n opens the picker; 🔄 Choose another Pokémon…
+  (the picker); 📦 its card in the Box (`openBag("box", slot)`). New players never found Bring
+  out: it lived in a species' preview and the Box tab only. `alt-shift-p` (`keys.json` →
+  `pokemon-herd.pick`) opens the picker for the focused agent. Choosing saves the pick and
+  closes it. Enter chooses when exactly one matches. The picker shows those waiting in the Box
+  too, above the search (`WAIT_ROW`, 7, then "+n · Box →"): one click brings one out.
 - **Right-click the ground:** the menu.
   - Rows change the block's `props.rows` and height wherever it sits.
   - Place moves the block to `sidebar-lists` (above `needs-you`), `work` (above `status-row`),
@@ -624,7 +638,7 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   row.
 - Focus a sleeping agent's pane: its Pokémon wakes, faces you, and sleeps again about 15 s
   later.
-- Right-click a Pokémon: the picker searches "alola" and scrolls through all of them. Choosing
+- Right-click a Pokémon → Choose another Pokémon…: the picker searches "alola" and scrolls through all of them. Choosing
   one changes it to a new one (1 in 64 shiny; the shiny before goes to the Box).
 - Right-click the ground: 1/2/3 rows change the height at once. Bottom of the window moves the
   strip there.

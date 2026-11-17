@@ -252,10 +252,36 @@ function updatePick(slot, f) {
   if ((next.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
   return next;
 }
+// Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
+// now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
+function useOn(slot, id) {
+  const live = slot && savedPicks()[slot];
+  if (!live || !hasItem(id)) return null;
+  const r = useItem(live, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
+  if (!r) return null;
+  savePicks({ [slot]: r.pick });
+  healBy(slot, r.heal);
+  reviveBy(slot, r.revive);
+  saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0));
+  if (r.evolved) noteEvolved();
+  if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+  if (id === "berry" || id === "sitrus-berry") research("berry");
+  return r;
+}
+// What it holds, back into the Bag. True if it held something.
+function takeFrom(slot) {
+  const now = slot && savedPicks()[slot];
+  const r = now && takeHeld(now);
+  if (!r) return false;
+  savePicks({ [slot]: r.pick });
+  saveBag(addItem(bag(), r.back));
+  return true;
+}
+
 // dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
 let dev = null;
 import("./dev.js").then((m) => { dev = m; }, () => {});
-const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks() };
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag) => openMon(slot, pick, tag), openPick: (slot, pick, tag) => openPick(slot, pick, tag) };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => loadDex(shared(DEX_KEY));
@@ -674,6 +700,22 @@ function menuParts(b = bag()) {
 }
 // How many Pokémon wait in the Box (the right-click menu's count).
 const boxCount = () => { try { return boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean))).length; } catch { return 0; } };
+const waitingNow = () => boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean)));
+const WAIT_ROW = 7;
+// One of yours, right-clicked: its menu (what it is; items to use on it now; one waiting in the
+// Box to bring out in its place; another kind; its card in the Box). Sized to what it shows.
+const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", ...STONES.map((k) => `${k}-stone`), ...HELD_IDS];
+const monUsable = (pick, slot, b = bag()) => MON_ITEMS.filter((id) => b.items[id] && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
+const openPick = (slot, pick, tag) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag } });
+function openMon(slot, pick, tag) {
+  const live = savedPicks()[slot] ?? pick;
+  const usable = live?.dex ? monUsable(live, slot) : [];
+  const uses = usable.filter((id) => !HELD_IDS.includes(id)).length, holds = usable.length - uses + (live?.held ? 1 : 0);
+  const waiting = waitingNow().filter((x) => x.slot !== slot).length;
+  const section = (n) => (n ? 26 + 30 * Math.ceil(n / 3) : 0);
+  const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + 10 + 2 * 32;
+  openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag } });
+} // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
 const openBag = (tab, sel = null) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}), ...(sel ? { sel } : {}) } });
 
@@ -729,12 +771,14 @@ export default class PokemonHerd extends View {
     if (this.toastView) return this.initToast(cx);
     this.picker = !!props()?.picker;
     this.menu = !!props()?.menu;
+    this.monView = !!props()?.mon; // one of yours, right-clicked: its menu
     this.bagView = !!props()?.bag;
     this.settingsView = !!props()?.settings;
     this.partyView = props()?.view === "party";
     if (this.partyView) return this.initParty(cx);
     if (this.bagView) return this.initBag(cx);
     if (this.settingsView) return this.initSettings(cx);
+    if (this.monView) return this.initMon(cx);
     if (!this.menu) this.loadMegas(cx, !this.picker); // the strip refreshes them; the picker only reads
     if (this.picker) return this.initPicker(cx);
     if (this.menu) {
@@ -3235,7 +3279,7 @@ export default class PokemonHerd extends View {
   settingsGuide({ heading }, t) {
     const TIPS = [
       ["☰", "The menu", "☰ in the strip's corner, or right-click the ground: Box, Today, Shop, Settings."],
-      ["👆", "Your herd", "Click one: go to its agent. Right-click: choose another."],
+      ["👆", "Your herd", "Click one: go to its agent. Right-click: its menu (items, bring one out of the Box, another kind)."],
       ["🎁", "Wild Pokémon", "Click one walking by for its gift and ₽, again to throw a ball."],
       ["⚔️", "Weaken it", "Drop one of yours on it (a Mega Evolves, and hits harder). Stop at red."],
       ["🍒", "Berries", "Razz before a ball: easier catch. Oran, Sitrus: hearts."],
@@ -3530,18 +3574,86 @@ export default class PokemonHerd extends View {
   }
 
   openPicker(a, pick, tag) {
-    openOverlay({
-      mod: MOD,
-      kind: "dialog",
-      width: 640,
-      height: 760, // room for the type filter too
-      props: { picker: true, slot: slotOf(a), current: pick, tag },
+    openPick(slotOf(a), pick, tag); // room for the type filter too
+  }
+
+  // Its menu: the icons on disk and the items' art, then drawn.
+  initMon(cx) {
+    this.icons = {};
+    cx.spawn(async (cx) => {
+      for (const key of await cachedIcons()) this.icons[key] = "ready";
+      await readyArt();
+      cx.notify();
     });
+  }
+
+  renderMon() {
+    const t = theme();
+    const p = props() ?? {};
+    const slot = p.slot;
+    const pick = savedPicks()[slot] ?? p.current;
+    const close = () => closeOverlay(p.overlay);
+    if (!pick?.dex) return v_flex().id("pokemon-mon").size_full().p(12).bg(t.popover).text_size(12).text_color(t.muted).child("It isn't here any more.");
+    const b = bag();
+    const hp = hpOf(slot);
+    const usable = monUsable(pick, slot, b);
+    const items = usable.filter((id) => !HELD_IDS.includes(id)), holds = usable.filter((id) => HELD_IDS.includes(id));
+    const waiting = waitingNow().filter((x) => x.slot !== slot);
+    const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
+    const label = (txt) => div().text_size(11).text_color(t.muted).child(txt);
+    const chip = (id, art, txt, click) => div().id(id).h(26).px(8).gap(5).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
+      .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click((_e, cx) => { click(); cx.notify(); })
+      .child(art).child(sparkled(txt));
+    const row = (id, txt, note, click) => h_flex().id(id).h(30).px(8).rounded(6).items_center().justify_between()
+      .text_size(12.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click(() => { close(); click(); })
+      .child(txt).child(div().text_size(11).text_color(t.dim).child(note));
+    const state = hp === null ? "Fainted: resting" : hp < 1 ? `HP ${Math.round(hp * 100)}%` : "";
+    return v_flex().id("pokemon-mon").size_full().p(10).gap(8).bg(t.popover)
+      // Who it is.
+      .child(h_flex().h(56).gap(10).items_center()
+        .child(icon(pick, 48))
+        .child(v_flex().flex_1().min_w(0).gap(2)
+          .child(div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${p.tag ? ` · ${p.tag}` : ""}`)))
+          .child(typeBadges(pick, 14, 9))
+          .child(div().text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate()
+            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · ")))))
+      // From the Bag: what does something to it now (a Berry, a Revive, a stone that evolves it).
+      .when(items.length > 0, (el) => el.child(v_flex().gap(4)
+        .child(label("🎒 Use from the Bag"))
+        .child(h_flex().flex_wrap().gap(4)
+          .children(items.map((id) => chip(`mon-use-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
+      // What it holds (take it back), and what it could hold instead.
+      .when(holds.length > 0 || !!pick.held, (el) => el.child(v_flex().gap(4)
+        .child(label(pick.held ? `🧷 Holds ${ITEMS[pick.held].name}: take it, or give another` : "🧷 Give it something to hold"))
+        .child(h_flex().flex_wrap().gap(4)
+          .when(!!pick.held, (e2) => e2.child(chip("mon-take", this.itemMark(pick.held, 16), `Take ${ITEMS[pick.held].name}`, () => takeFrom(slot))))
+          .children(holds.map((id) => chip(`mon-hold-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
+      // One waiting in the Box, in its place (this one goes to the Box).
+      .when(waiting.length > 0, (el) => el.child(v_flex().gap(4)
+        .child(label(`📤 Bring out from the Box (${waiting.length}): this one goes in`))
+        .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
+          .children(waiting.slice(0, 5).map(({ slot: from, pick: w }) => v_flex().id(`mon-bring-${from}`).w(58).h(66).flex_none().items_center().justify_center().gap(1)
+            .relative().rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
+            .on_click(() => { if (bringOut(from, slot)) close(); })
+            .child(icon(w, 34))
+            .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${w.shiny ? "✨" : ""}${nameFor(w)}`)))
+            .child(div().text_size(9).text_color(t.muted).child(`♥ ${heartsText(friendOf(w))}`))
+            .when(!!w.alpha, (e2) => e2.child(div().absolute().top(2).left(3).text_size(9).font_bold().text_color(ALPHA_RED).child("α")))))
+          .when(waiting.length > 5, (e2) => e2.child(div().id("mon-bring-more").h(66).px(8).flex().items_center().flex_none().rounded(8).border_1().border_color(t.border)
+            .text_size(11).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click(() => { close(); openPick(slot, pick, p.tag); })
+            .child(`+${waiting.length - 5} →`))))))
+      .child(div().h(1).bg(t.border))
+      .child(row("mon-pick", "🔄 Choose another Pokémon…", "every kind", () => openPick(slot, pick, p.tag)))
+      .child(row("mon-box", "📦 Its card in the Box", "rename, moves, lock", () => openBag("box", slot)));
   }
 
   render(cx) {
     if (this.toastView) return this.renderToast();
     if (this.menu) return this.renderMenu();
+    if (this.monView) return this.renderMon();
     if (this.bagView) return this.renderBagDialog();
     if (this.settingsView) return this.renderSettings();
     if (this.partyView) return this.renderParty();
@@ -3829,7 +3941,7 @@ export default class PokemonHerd extends View {
         })
         .on_mouse_down("right", (_e, cx) => {
           cx.stop_propagation();
-          this.openPicker(a, pick, tag);
+          openMon(slotOf(a), pick, tag);
         });
 
       root.child(
@@ -4544,19 +4656,7 @@ export default class PokemonHerd extends View {
       : first.use === "revive" ? `${ITEMS[foundId].name} can bring ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) back up now`
       : first.use === "heal" ? `${ITEMS[foundId].name} can heal ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
       : `${ITEMS[foundId].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${foundId === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
-    const use = (id, h) => {
-      const live = savedPicks()[h.slot]; // as saved now: never a stale copy (it may have moved since)
-      if (!live || !hasItem(id)) return;
-      const r = useItem(live, h.slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
-      if (!r) return;
-      savePicks({ [h.slot]: r.pick });
-      healBy(h.slot, r.heal);
-      reviveBy(h.slot, r.revive);
-      saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0)); // what it held goes back in
-      if (r.evolved) noteEvolved();
-      if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
-      if (id === "berry" || id === "sitrus-berry") research("berry");
-    };
+    const use = (id, h) => useOn(h.slot, id);
     const shown = all.find((x) => x.id === this.badgeHover);
     const charm = s.jobs >= CHARM_JOBS;
 
@@ -4840,8 +4940,10 @@ export default class PokemonHerd extends View {
       .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")
       .text_color(on ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
       .on_click((_e, cx) => { click(); cx.notify(); }).child(sparkled(label));
-    const pill = (id, label, click, danger = false) => div().id(id).h(26).px(12).rounded_full().flex().items_center().flex_none().text_size(12).border_1()
-      .border_color(danger ? t.blocked : t.border).text_color(danger ? t.blocked : t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+    // `main`: the one thing most often wanted (Bring out), filled in so it's found first.
+    const pill = (id, label, click, danger = false, main = false) => div().id(id).h(26).px(12).rounded_full().flex().items_center().flex_none().text_size(12).border_1()
+      .border_color(danger ? t.blocked : main ? t.solid : t.border).bg(main ? t.solid : "#00000000")
+      .text_color(danger ? t.blocked : main ? t.solid_foreground : t.foreground).cursor_pointer().hover((st) => (main ? st.opacity(0.9) : st.bg(t.hover)))
       .on_click((_e, cx) => { click(); cx.notify(); }).child(sparkled(label));
     const CELL = 84;
     const cell = (x) => {
@@ -4905,8 +5007,17 @@ export default class PokemonHerd extends View {
             .child(typeBadges(pick, 15, 9.5))
             .child(div().text_size(11.5).text_color(t.muted).child(facts)))) // all of it, wrapped: the Box is where the details are
         .child(this.moveRow(pick, t, slot))
-
+        // Its actions, in two rows: what you do with it (bring it out, feed it, bring it back up,
+        // take what it holds, purify it), then keeping the Box (lock, rename, release).
         .child(h_flex().gap(6).flex_wrap().items_center()
+          .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "✕ Cancel" : "📤 Bring out to an agent…", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; }, false, true)))
+          // Fainted, resting: a Revive or Max Revive brings it back now.
+          .children(["revive", "max-revive"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
+            pill(`box-revive-${id}-${slot}`, `💊 ${ITEMS[id].name} ×${bag().items[id]}`, () => useOn(slot, id))))
+          // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
+          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>
+            pill(`box-feed-${id}-${slot}`, `🍒 Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => useOn(slot, id))))
+          .when(!!pick.held, (el) => el.child(pill(`box-take-${slot}`, `🎒 Take its ${ITEMS[pick.held].name}`, () => takeFrom(slot))))
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).
           .when(!!pick.shadow && canPurify(pick), (el) => el.child(pill(`box-purify-${slot}`, `✨ Purify (+${money(PURIFY_PAY)})`, () => {
             const live = savedPicks()[slot];
@@ -4915,57 +5026,28 @@ export default class PokemonHerd extends View {
             saveBag(addMoney(bag(), PURIFY_PAY));
             this.purifiedAt = { slot, at: Date.now() };
           })))
-          .when(this.purifiedAt?.slot === slot && Date.now() - this.purifiedAt.at < 4000, (el) => el.child(div().text_size(12).font_semibold().text_color("#ffd23f").child("✨ Purified! It trusts you now.")))
+          .when(this.purifiedAt?.slot === slot && Date.now() - this.purifiedAt.at < 4000, (el) => el.child(div().text_size(12).font_semibold().text_color("#ffd23f").child("✨ Purified! It trusts you now."))))
+        .child(h_flex().gap(6).flex_wrap().items_center()
           // Locked: never released, alone or in a batch.
-          .child(pill(`box-lock-${slot}`, pick.locked ? "🔒 Unlock" : "Lock", () => {
+          .child(pill(`box-lock-${slot}`, pick.locked ? "🔓 Unlock" : "🔒 Lock", () => {
             const live = savedPicks()[slot];
             if (live) savePicks({ [slot]: { ...live, locked: !live.locked } });
             this.releasing = null;
           }))
-          .child(pill(`box-rename-${slot}`, this.renaming === slot ? "Cancel" : "Rename", () => {
+          .child(pill(`box-rename-${slot}`, this.renaming === slot ? "✕ Cancel" : "✏️ Rename", () => {
             if (this.renaming === slot) { this.renaming = null; return; }
             this.renaming = slot;
             this.nickInput.set_value(pick.nick ?? "");
             this.nickInput.focus();
           }))
-          // Fainted, resting: a Revive or Max Revive brings it back now.
-          .children(["revive", "max-revive"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
-            pill(`box-revive-${id}-${slot}`, `${ITEMS[id].name} ×${bag().items[id]}`, () => {
-              const live = hasItem(id) && savedPicks()[slot];
-              const r = live && useItem(live, slot, id, { hpOf }, Date.now());
-              if (!r) return;
-              saveBag(addItem(bag(), id, -1));
-              reviveBy(slot, r.revive);
-            })))
-          // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
-          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>
-            pill(`box-feed-${id}-${slot}`, `Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => {
-              const live = hasItem(id) && savedPicks()[slot];
-              const r = live && useItem(live, slot, id, { day: dayOf(Date.now()), hpOf }, Date.now());
-              if (!r) return;
-              savePicks({ [slot]: r.pick });
-              healBy(slot, r.heal);
-            reviveBy(slot, r.revive);
-              reviveBy(slot, r.revive);
-              saveBag(addItem(bag(), id, -1));
-              if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
-              research("berry");
-            })))
-          .when(!!pick.held, (el) => el.child(pill(`box-take-${slot}`, `Take its ${ITEMS[pick.held].name}`, () => {
-            const now = savedPicks()[slot];
-            const r = now && takeHeld(now);
-            if (!r) return;
-            savePicks({ [slot]: r.pick });
-            saveBag(addItem(bag(), r.back));
-          })))
-          .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "Cancel" : "Bring out", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; })))
-          .when(!tag && !pick.locked, (el) => el.child(pill(`box-release-${slot}`, sure ? `Sure? Release it (+${money(releasePay(pick))})` : "Release", () => {
+          .when(!tag && !pick.locked, (el) => el.child(pill(`box-release-${slot}`, sure ? `Sure? Release it (+${money(releasePay(pick))})` : "👋 Release", () => {
             if (!sure) { this.releasing = slot; this.armedAt = Date.now(); return; }
             if (Date.now() - (this.armedAt ?? 0) < ARM_MS) return; // a double click: not a yes
             releaseSlots([slot]);
             this.releasing = null;
             this.boxSel = null;
-          }, sure))))
+          }, sure)))
+          .when(!!tag, (el) => el.child(div().text_size(11).text_color(t.dim).child(`With ${tag}: right-click it in the strip for its menu`))))
         // Bring out: which agent gets it (the agents on screen, with what they have now).
         .when(this.bringing === slot, (el) => el.child(h_flex().flex_wrap().gap(6).items_center()
           .child(div().text_size(11).text_color(t.muted).child("Give it to:"))
@@ -5105,7 +5187,7 @@ export default class PokemonHerd extends View {
   // What's shown first (its line, the preview's, the rows in view), then every other one still
   // missing, in the background: scrolling then meets icons already there.
   fetchIcons(cx) {
-    this.iconQueue = [...this.chainEntries().flat(), ...(this.preview ? this.lineOf(this.preview).flat() : []), ...this.visible]
+    this.iconQueue = [...this.chainEntries().flat(), ...(this.preview ? this.lineOf(this.preview).flat() : []), ...waitingNow().slice(0, WAIT_ROW).map((x) => x.pick), ...this.visible]
       .filter((e) => !this.icons[entryKey(e)]);
     while (this.iconActive < ICON_JOBS && this.iconQueue.length) {
       const e = this.iconQueue.shift();
@@ -5459,13 +5541,7 @@ export default class PokemonHerd extends View {
       .when(!!cur.held, (el) => el.child(div()
         .id("take-held").h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
         .border_color(t.accent).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-        .on_click((_e, cx) => {
-          const r = takeHeld(this.livePick());
-          if (!r) return;
-          savePicks({ [slot]: r.pick });
-          saveBag(addItem(bag(), r.back));
-          cx.notify();
-        })
+        .on_click((_e, cx) => { if (takeFrom(slot)) cx.notify(); })
         .child(`Holds ${ITEMS[cur.held].icon} ${ITEMS[cur.held].name} · take`)))
       .child(div().text_size(11.5).text_color(t.muted).mr(2).child("Bag"))
       .when(!ids.length, (el) => el.child(div().text_size(11).text_color(t.dim)
@@ -5476,16 +5552,7 @@ export default class PokemonHerd extends View {
           .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().flex_none().gap(4).text_size(11.5).border_1()
           .border_color(t.border).text_color(use ? t.foreground : t.dim)
           .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
-            if (!hasItem(id)) return cx.notify();
-            const r = useItem(this.livePick(), slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
-            if (r && (id === "berry" || id === "sitrus-berry")) research("berry"); // the day's Research
-            if (!r) return;
-            savePicks({ [slot]: r.pick });
-            healBy(slot, r.heal);
-            reviveBy(slot, r.revive);
-            saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0));
-            if (r.evolved) noteEvolved();
-            if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
+            useOn(slot, id);
             this.fetchIcons(cx);
             cx.notify();
           }))
@@ -5514,6 +5581,8 @@ export default class PokemonHerd extends View {
       .on_click((_e, cx) => { flip(); this.fetchIcons(cx); cx.notify(); })
       .child(sparkled(label));
     const cur = this.livePick();
+    const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
+    const waiting = boxList(savedPicks(), onScreen).filter((x) => x.slot !== p.slot);
     return v_flex()
       .id("pokemon-picker")
       .size_full()
@@ -5542,6 +5611,22 @@ export default class PokemonHerd extends View {
       )
       .when(!!this.preview, (el) => el.child(this.renderPreview(t, cx)))
       .when(!this.preview && !!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
+      // Waiting in the Box (raised, their agents gone), latest first: one click brings one out
+      // here, whatever its kind (else only found by its species' preview).
+      .when(!this.preview && !this.boxing && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
+        .child(div().text_size(11.5).text_color(t.muted).child(`📤 Waiting in your Box (${waiting.length}): click one to bring it out`))
+        .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
+          .children(waiting.slice(0, WAIT_ROW).map(({ slot, pick: b }) => v_flex().id(`pk-box-${slot}`).w(62).h(66).flex_none().items_center().justify_center().gap(1)
+            .relative().rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
+            .on_click(() => this.choose(b, { slot }))
+            .child(this.icons[entryKey(b)] === "ready" ? image(iconPath(b.dex, b.form)).size(34).flex_none() : div().size(34).flex_none())
+            .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${b.shiny ? "✨" : ""}${nameFor(b)}`)))
+            .child(div().text_size(9).text_color(t.muted).child(`♥ ${heartsText(friendOf(b))}`))
+            .when(!!b.alpha, (e2) => e2.child(div().absolute().top(2).left(3).text_size(9).font_bold().text_color(ALPHA_RED).child("α")))))
+          .when(waiting.length > WAIT_ROW, (e2) => e2.child(div().id("pk-box-more").h(66).px(10).flex().items_center().flex_none().rounded(8).border_1().border_color(t.border)
+            .text_size(11.5).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click(() => { closeOverlay(p.overlay); openBag("box"); })
+            .child(`+${waiting.length - WAIT_ROW} · Box →`))))))
       // Mega: Off / On / Auto (Mega while its agent works), for a Pokémon that has one.
       .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
