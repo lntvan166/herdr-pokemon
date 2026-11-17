@@ -47,7 +47,7 @@ test("now and then a star: a legendary last, or a Mega of one that has one", asy
   assert.ok(megas > 0 && MEGA_ODDS < 0.5);
   // The more you have, the likelier (capped).
   assert.ok(starOdds({ legends: 10 }).legend > starOdds({}).legend);
-  assert.ok(starOdds({ alphas: 1000 }).alpha <= 0.4 && starOdds({ megas: 1000 }).mega <= 0.5);
+  assert.ok(starOdds({ alphas: 1000 }).alpha <= 0.2 && starOdds({ megas: 1000 }).mega <= 0.25 && starOdds({ legends: 1000 }).legend <= 0.15);
   const a = newTrainer(Math.random, 0, { force: "alpha" });
   assert.ok(a.team.some((m) => m.alpha));
   assert.ok(trainerPay({ cls: "ace", team: [{ dex: 1 }, { dex: 2, alpha: true }] }).items.some(([id]) => id === "max-revive"));

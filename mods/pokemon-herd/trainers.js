@@ -17,11 +17,12 @@ export const TEAM_EFFORT = 1.1; // its Pokémon, a touch stronger than yours can
 // it pays more for each (trainerPay). The likelier the more of them you have yourself (`owned`:
 // { legends caught, megas: yours that can Mega Evolve, alphas }): trainers keep up with you.
 export const LEGEND_ODDS = 0.12, MEGA_ODDS = 0.25; // with none of your own
+export const STAR_CAP = { legend: 0.15, mega: 0.25, alpha: 0.2 }; // never likelier than this
 export function starOdds(owned = {}) {
   return {
-    legend: Math.min(0.4, 0.05 + 0.02 * (owned.legends ?? 0)),
-    mega: Math.min(0.5, 0.1 + 0.03 * (owned.megas ?? 0)),
-    alpha: Math.min(0.4, 0.05 + 0.02 * (owned.alphas ?? 0)),
+    legend: Math.min(STAR_CAP.legend, 0.05 + 0.01 * (owned.legends ?? 0)),
+    mega: Math.min(STAR_CAP.mega, 0.1 + 0.015 * (owned.megas ?? 0)),
+    alpha: Math.min(STAR_CAP.alpha, 0.05 + 0.01 * (owned.alphas ?? 0)),
   };
 }
 

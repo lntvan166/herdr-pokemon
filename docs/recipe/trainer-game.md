@@ -225,8 +225,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   pay. Its team: 2 or 3 fully evolved Pokémon of its types, each a nature, hitting and taking a touch
   harder than yours can be raised (`TEAM_EFFORT` 1.1); now and then a star: its last a legendary, one of them
   Mega Evolved (fighting as its Mega), and/or one an Alpha (bigger, hits ×1.5, takes ×0.8); likelier
-  the more of them you have (`starOdds`: legendary 5% +2% a legendary caught, 40% at most; Mega 10%
-  +3% for each of yours that can Mega Evolve, 50% at most; Alpha 5% +2% an Alpha of yours, 40%). It doesn't walk by: it stands in the strip's right
+  the more of them you have (`starOdds`, `STAR_CAP`: legendary 5% +1% a legendary caught, 15% at most;
+  Mega 10% +1.5% for each of yours that can Mega Evolve, 25% at most; Alpha 5% +1% an Alpha of yours, 20%). It doesn't walk by: it stands in the strip's right
   corner, its first Pokémon before it ("❗"; "Punk Zed wants to battle!" in the corner), and waits
   `WAIT_MS` 3 minutes for one of yours dropped on it, then it's gone. Its figure: a picture shipped
   in `art/trainers/<class>.png` (ten drawn for it: pixel art in PMD's style, cut down to its grid) (standing, facing left, see-through; drawn `TRAINER_DRAW_H` 56 px
