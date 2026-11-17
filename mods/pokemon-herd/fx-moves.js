@@ -404,4 +404,444 @@ export const SIGNATURE = {
     out.push(flash(0, x1, y, 54, st.hot, 320), ring(0, x1, y, 12, 70, "#ffd75e", 420), ring(80, x1, g - 2, 10, 80, st.core, 460));
     return out;
   },
+  // Psystrike: Mewtwo's psychic waves press in on it from both sides, ring after ring, then burst.
+  "Psystrike": ({ x1, y, P, O, ring, flash, st }) => {
+    const out = [flash(-560, x1, y, 30, st.mid, 200)];
+    for (let i = 0; i < 4; i++) {
+      out.push(P(-500 + i * 110, 300, O(x1, y, 96, 70, 0.1), O(x1, y, 14, 12, 0.9), i % 2 ? st.hot : st.core, { round: true, ring: true, ease: "ease-in" }));
+      out.push(P(-500 + i * 110, 300, O(x1 - 44, y, 3, 30, 0.2), O(x1 - 8, y, 3, 18, 0.9), st.glow, { ease: "ease-in" }), P(-500 + i * 110, 300, O(x1 + 44, y, 3, 30, 0.2), O(x1 + 8, y, 3, 18, 0.9), st.glow, { ease: "ease-in" }));
+    }
+    return out.concat(flash(0, x1, y, 50, st.hot, 300), ring(0, x1, y, 12, 96, st.core, 520), ring(90, x1, y, 8, 70, st.mid, 420));
+  },
+  // Roar of Time: Dialga roars; time ripples out of it in blue rings, warping the air, and a shockwave hits.
+  "Roar of Time": ({ x0, x1, y, g, mid, dist, P, O, ring, flash }) => {
+    const out = [flash(-600, x0, y - 6, 30, "#c8f0ff", 240)];
+    for (let i = 0; i < 6; i++) out.push(ring(-560 + i * 80, x0, y, 10, 40 + dist * 1.6, i % 2 ? "#4f8cff" : "#9fe8ff", 560, 0.85));
+    out.push(P(-420, 420, O(x0, y, 20, 40, 0.0), O(mid, y, dist + 30, 56, 0.25), "#3a5ac8", { round: true }),
+      P(0, 360, O(mid, y, dist + 30, 56, 0.25), O(x1, y, 40, 70, 0), "#3a5ac8", { round: true }));
+    for (let i = 0; i < 4; i++) out.push(P(-200 + i * 30, 220, O(x1 - 30 + i * 20, y - 30, 2, 2, 0), O(x1 - 30 + i * 20, y + 10, 2, 28, 0.8), "#c8f0ff", { ease: "ease-in" }));
+    return out.concat(flash(0, x1, y, 56, "#ffffff", 300), ring(0, x1, y, 12, 90, "#4f8cff", 480), ring(80, x1, g - 2, 10, 80, "#9fe8ff", 440));
+  },
+  // Spacial Rend: space itself tears across it in pink slashes, light leaking from the rips.
+  "Spacial Rend": ({ x0, x1, y, P, O, flash, ring, rnd }) => {
+    const out = [ring(-560, x0, y, 40, 8, "#ff80d0", 300, 0.9), flash(-300, x0, y, 26, "#ffd0f0", 200)];
+    for (let i = 0; i < 4; i++) {
+      const at = -200 + i * 70, dy = (i - 1.5) * 10 + (rnd() - 0.5) * 4, w = 56 - i * 6;
+      out.push(P(at, 120, O(x1 - 30, y + dy - 10, 2, 2, 1), O(x1, y + dy, w, 3, 1), i % 2 ? "#ff5ab4" : "#ffffff", { ease: "ease-out" }),
+        P(at + 120, 340, O(x1, y + dy, w, 3, 1), O(x1, y + dy, w + 10, 9, 0), "#ff9ad8"),
+        P(at + 120, 340, O(x1, y + dy, w * 0.6, 2, 0.9), O(x1, y + dy, w * 0.6, 14, 0), "#2a0838"));
+    }
+    return out.concat(flash(0, x1, y, 50, "#ffd0f0", 300), ring(60, x1, y, 10, 70, "#ff5ab4", 400));
+  },
+  // Shadow Force: the user vanishes into the dark; a portal opens beside the target and it strikes out of it.
+  "Shadow Force": ({ x0, x1, y, dir, P, O, flash, ring, st }) => [
+    P(-600, 240, O(x0, y, 30, 30, 0.9), O(x0, y, 2, 2, 0), "#120a1e", { round: true, ease: "ease-in" }),
+    ring(-600, x0, y, 30, 4, st.core, 240, 0.8),
+    P(-360, 280, O(x1 - dir * 16, y, 2, 4, 1), O(x1 - dir * 16, y, 18, 52, 0.95), "#120a1e", { round: true }),
+    P(-360, 280, O(x1 - dir * 16, y, 2, 4, 1), O(x1 - dir * 16, y, 22, 58, 0.8), st.glow, { round: true, ring: true }),
+    P(-80, 80, O(x1 - dir * 16, y, 10, 10, 1), O(x1, y, 30, 30, 1), st.mid, { round: true, ease: "ease-in" }),
+    P(0, 360, O(x1 - dir * 16, y, 18, 52, 0.95), O(x1 - dir * 16, y, 2, 6, 0), "#120a1e", { round: true }),
+    flash(0, x1, y, 48, st.hot, 280), ring(0, x1, y, 10, 70, st.core, 420),
+    P(0, 300, O(x1, y, 50, 4, 0.9), O(x1, y, 70, 1, 0), "#efe6ff"),
+  ],
+  // Origin Pulse: Kyogre's blue light gathers into orbs above, then beams of it rain down on the other.
+  "Origin Pulse": ({ x0, x1, y, g, sky, P, O, flash, ring, rnd }) => {
+    const out = [ring(-600, x0, y, 50, 8, "#4fd8ff", 300), flash(-560, x0, y, 30, "#c8f4ff", 260)];
+    for (let i = 0; i < 6; i++) {
+      const xx = x1 + (i - 2.5) * 12 + (rnd() - 0.5) * 6, at = -420 + i * 60;
+      out.push(P(at, 200, O(x0, y, 4, 4, 1), O(xx, sky, 8, 8, 1), "#8fe8ff", { round: true, ease: "ease-out" }),
+        P(at + 200, 120, O(xx, sky, 3, 4, 1), O(xx, (sky + g) / 2, 4, g - sky, 0.9), i % 2 ? "#2a8cff" : "#4fd8ff", { ease: "ease-in" }),
+        P(at + 320, 220, O(xx, (sky + g) / 2, 4, g - sky, 0.8), O(xx, (sky + g) / 2, 1, g - sky, 0), "#ffffff"));
+    }
+    return out.concat(flash(0, x1, y, 54, "#c8f4ff", 320), ring(40, x1, g - 2, 10, 80, "#2a8cff", 440));
+  },
+  // Precipice Blades: Groudon's red-hot stone blades burst out of the ground in a line up to it.
+  "Precipice Blades": ({ x0, x1, g, y, dir, dist, P, O, flash }) => {
+    const out = [];
+    for (let i = 0; i < 6; i++) {
+      const x = x0 + dir * dist * (0.25 + 0.15 * i), h = 16 + i * 6, at = -420 + i * 70;
+      out.push(P(at, 140, O(x, g, 10, 2, 1), O(x - dir * 2, g - h / 2, 9, h, 1), i % 2 ? "#8a3a1a" : "#b04a24", { ease: "ease-out" }),
+        P(at + 140, 320, O(x - dir * 2, g - h / 2, 9, h, 1), O(x - dir * 2, g - h / 2, 4, h, 0), "#5a2a14"),
+        P(at, 200, O(x, g, 3, 2, 1), O(x - dir * 3, g - h - 4, 3, 12, 0), "#ff6a2a", { ease: "ease-out" }));
+    }
+    return out.concat(P(-80, 420, O(x1, g, 20, 4, 0.9), O(x1, g, 80, 8, 0), "#ff8a3a", { round: true }), flash(0, x1, y, 48, "#ffb070", 300));
+  },
+  // Dragon Ascent: Rayquaza soars off the top and dives on it as a green streak out of the sky.
+  "Dragon Ascent": ({ x0, x1, y, sky, dir, P, O, flash, ring }) => [
+    P(-600, 260, O(x0, y, 10, 10, 1), O(x0 - dir * 10, sky - 20, 6, 6, 0.6), "#7bd68a", { round: true, ease: "ease-in" }),
+    P(-600, 260, O(x0, y, 3, 20, 0.6), O(x0 - dir * 10, sky, 2, 40, 0), "#ffffff", { ease: "ease-in" }),
+    P(-220, 220, O(x1 - dir * 40, sky - 16, 12, 12, 1), O(x1, y, 16, 16, 1), "#ffffff", { round: true, ease: "ease-in" }),
+    P(-220, 220, O(x1 - dir * 48, sky - 22, 10, 10, 0.8), O(x1 - dir * 8, y - 10, 10, 10, 0.8), "#3fae5a", { round: true, ease: "ease-in" }),
+    P(-180, 280, O(x1 - dir * 52, sky - 26, 6, 6, 0.6), O(x1 - dir * 18, y - 22, 6, 6, 0), "#9be3a0", { round: true, ease: "ease-in" }),
+    flash(0, x1, y, 52, "#e8ffe8", 300), ring(0, x1, y, 10, 80, "#3fae5a", 440), ring(70, x1, y, 8, 60, "#ffffff", 360),
+  ],
+  // Aeroblast: a spiralling vortex beam of air drilling across to it.
+  "Aeroblast": ({ x0, x1, y, mid, dist, dir, P, O, flash, ring, st }) => {
+    const out = [ring(-560, x0, y, 30, 6, st.glow, 260)];
+    out.push(P(-320, 260, O(x0, y, 4, 10, 1), O(mid, y, dist, 10, 0.9), st.hot, { round: true, ease: "linear" }),
+      P(-60, 300, O(mid, y, dist, 10, 0.9), O(mid, y, dist, 1, 0), "#c8e8ff", { round: true }));
+    for (let i = 0; i < 7; i++) {
+      const x = x0 + dir * dist * (i + 1) / 8, at = -320 + i * 35;
+      out.push(P(at, 260, O(x, y, 6, 16, 0.9), O(x + dir * 8, y, 10, 24, 0), i % 2 ? "#a8d8f0" : "#7ab0ff", { round: true, ring: true }));
+    }
+    return out.concat(flash(0, x1, y, 46, "#ffffff", 280), ring(0, x1, y, 10, 70, "#a8d8f0", 420));
+  },
+  // Sacred Fire: a column of rainbow-tinted holy flame roars up round it.
+  "Sacred Fire": ({ x1, y, g, sky, P, O, flash, ring }) => {
+    const out = [P(-420, 200, O(x1, g, 10, 3, 1), O(x1, g, 60, 6, 0.9), "#ffd75e", { round: true })];
+    const cols = ["#ff5a5a", "#ffb43a", "#ffe14a", "#7bd65a", "#4fb4ff", "#b070ff"];
+    for (let i = 0; i < 6; i++) {
+      const x = x1 + (i - 2.5) * 6, h = g - sky - Math.abs(i - 2.5) * 8;
+      out.push(P(-260 + Math.abs(i - 2.5) * 30, 380, O(x, g, 7, 2, 1), O(x, g - h / 2, 8, h, 0), cols[i], { ease: "ease-out" }));
+    }
+    out.push(P(-200, 420, O(x1, g, 14, 4, 1), O(x1, (sky + g) / 2, 18, g - sky, 0), "#fff2a8", { ease: "ease-out" }));
+    return out.concat(flash(0, x1, y, 54, "#fff2a8", 320), ring(60, x1, y, 10, 80, "#ffb43a", 440));
+  },
+  // Blue Flare: blue flames close round it and engulf it.
+  "Blue Flare": ({ x0, x1, y, g, P, O, flash, ring, rnd }) => {
+    const out = [flash(-600, x0, y, 30, "#6fd2ff", 260), ring(-520, x1, y, 90, 30, "#1f6fe0", 300, 0.7)];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2, at = -300 + i * 25;
+      out.push(P(at, 300, O(x1 + Math.cos(a) * 34, y + Math.sin(a) * 22, 8, 10, 1), O(x1 + Math.cos(a) * 4, y + Math.sin(a) * 3, 10, 14, 0.9), i % 2 ? "#4fb4ff" : "#1f6fe0", { round: true, ease: "ease-in" }));
+    }
+    for (let i = 0; i < 5; i++) {
+      const x = x1 + (i - 2) * 9, h = 26 + rnd() * 16;
+      out.push(P(-20 + Math.abs(i - 2) * 30, 420, O(x, g, 8, 2, 1), O(x, g - h / 2, 10, h, 0), i % 2 ? "#6fd2ff" : "#e8fbff", { ease: "ease-out" }));
+    }
+    return out.concat(flash(0, x1, y, 56, "#e8fbff", 320), ring(0, x1, y, 12, 84, "#4fb4ff", 460));
+  },
+  // Bolt Strike: Zekrom wraps itself in white-blue lightning and charges into it.
+  "Bolt Strike": ({ x0, x1, y, dir, P, O, flash, ring, rnd }) => {
+    const out = [P(-600, 300, O(x0, y, 10, 10, 0.4), O(x0, y, 34, 34, 0.9), "#4f8cff", { round: true }), ring(-560, x0, y, 50, 14, "#ffffff", 260)];
+    for (let i = 0; i < 5; i++) {
+      const a = rnd() * Math.PI * 2;
+      out.push(P(-560 + i * 50, 140, O(x0 + Math.cos(a) * 18, y + Math.sin(a) * 14, 2, 10, 1), O(x0 + Math.cos(a) * 18, y + Math.sin(a) * 14, 1, 10, 0), "#ffffff"));
+    }
+    out.push(P(-260, 260, O(x0, y, 34, 34, 0.9), O(x1, y, 30, 30, 1), "#4f8cff", { round: true, ease: "ease-in" }),
+      P(-260, 260, O(x0, y, 16, 16, 1), O(x1, y, 16, 16, 1), "#ffffff", { round: true, ease: "ease-in" }),
+      P(-260, 300, O(x0, y, 6, 3, 0.8), O((x0 + x1) / 2 - dir * 10, y, Math.abs(x1 - x0), 3, 0), "#c8e0ff", { ease: "ease-in" }));
+    for (let i = 0; i < 4; i++) out.push(P(0, 260, O(x1, y, 3, 3, 1), O(x1 + (rnd() - 0.5) * 60, y + (rnd() - 0.5) * 40, 2, 12, 0), "#ffffff"));
+    return out.concat(flash(0, x1, y, 56, "#ffffff", 300), ring(0, x1, y, 12, 86, "#4f8cff", 440));
+  },
+  // Oblivion Wing: Yveltal's red-black beam across, its life drained back in crimson motes.
+  "Oblivion Wing": ({ x0, x1, y, mid, dist, P, O, flash, ring, rnd }) => {
+    const out = [P(-600, 300, O(x0, y, 6, 6, 0.4), O(x0, y, 40, 22, 0.8), "#2a0a14", { round: true }), ring(-540, x0, y, 50, 10, "#e02a3a", 280)];
+    out.push(P(-260, 220, O(x0, y, 6, 10, 1), O(mid, y, dist, 10, 1), "#e02a3a", { round: true, ease: "linear" }),
+      P(-260, 220, O(x0, y, 4, 4, 1), O(mid, y, dist, 4, 1), "#ffd0d8", { round: true, ease: "linear" }),
+      P(0, 300, O(mid, y, dist, 10, 1), O(mid, y, dist, 1, 0), "#7a0a1a", { round: true }));
+    for (let i = 0; i < 6; i++) out.push(P(80 + i * 35, 400, O(x1 + (rnd() - 0.5) * 20, y + (rnd() - 0.5) * 20, 4, 4, 1), O(x0, y, 3, 3, 0.3), "#ff4a5a", { round: true, ease: "ease-in" }));
+    return out.concat(flash(0, x1, y, 48, "#ff8a9a", 280), ring(0, x1, y, 10, 70, "#e02a3a", 420));
+  },
+  // Thousand Arrows: arrows of earth shoot up from the ground, then fall on it from the sky.
+  "Thousand Arrows": ({ x0, x1, y, g, sky, P, O, flash, rnd }) => {
+    const out = [P(-600, 240, O(x0, g, 10, 3, 1), O(x0, g, 50, 6, 0), "#d8a860", { round: true })];
+    for (let i = 0; i < 4; i++) out.push(P(-580 + i * 30, 240, O(x0 + (i - 1.5) * 6, g, 3, 6, 1), O(x0 + (i - 1.5) * 10, sky - 20, 2, 10, 0.4), "#a8783a", { ease: "ease-out" }));
+    for (let i = 0; i < 9; i++) {
+      const xx = x1 + (rnd() - 0.5) * 44, at = -260 + i * 30;
+      out.push(P(at, 200, O(xx, sky - 10, 2, 10, 1), O(xx, g - 4, 3, 12, 1), i % 2 ? "#8a5a34" : "#d8b070", { ease: "ease-in" }));
+    }
+    return out.concat(P(0, 420, O(x1, g, 20, 4, 0.9), O(x1, g, 76, 8, 0), "#c8bca8", { round: true }), flash(0, x1, y, 44, "#f6e6c0", 280));
+  },
+  // Sunsteel Strike: Solgaleo blazes like a sun and charges, a golden comet with a white core.
+  "Sunsteel Strike": ({ x0, x1, y, dir, dist, mid, P, O, flash, ring }) => [
+    ring(-600, x0, y, 60, 14, "#ffd75e", 300), P(-580, 300, O(x0, y, 8, 8, 0.5), O(x0, y, 36, 36, 1), "#ffb43a", { round: true }),
+    P(-280, 280, O(x0, y, 36, 36, 1), O(x1, y, 30, 30, 1), "#ffb43a", { round: true, ease: "ease-in" }),
+    P(-280, 280, O(x0, y, 16, 16, 1), O(x1, y, 16, 16, 1), "#ffffff", { round: true, ease: "ease-in" }),
+    P(-260, 320, O(x0, y, 8, 18, 0.7), O(mid - dir * 8, y, dist, 18, 0), "#ffe14a", { round: true, ease: "ease-in" }),
+    flash(0, x1, y, 60, "#fff2a8", 320), ring(0, x1, y, 12, 90, "#ffd75e", 460), ring(80, x1, y, 10, 70, "#ff8a2a", 400),
+  ],
+  // Moongeist Beam: Lunala opens its wings into a crescent and fires a lunar purple beam.
+  "Moongeist Beam": ({ x0, x1, y, mid, dist, P, O, flash, ring }) => [
+    P(-600, 300, O(x0, y - 4, 10, 10, 0.3), O(x0, y - 4, 44, 44, 0.9), "#7a50e0", { round: true, ring: true }),
+    P(-560, 280, O(x0, y - 4, 6, 6, 1), O(x0, y - 4, 24, 24, 1), "#e8e0ff", { round: true }),
+    P(-260, 240, O(x0, y, 6, 12, 1), O(mid, y, dist, 12, 1), "#6a3ad8", { round: true, ease: "linear" }),
+    P(-260, 240, O(x0, y, 4, 4, 1), O(mid, y, dist, 4, 1), "#efe6ff", { round: true, ease: "linear" }),
+    P(-20, 320, O(mid, y, dist, 12, 1), O(mid, y, dist, 1, 0), "#b090ff", { round: true }),
+    P(-280, 300, O(x0, y - 4, 24, 24, 1), O(x0, y - 4, 4, 4, 0), "#e8e0ff", { round: true }),
+    flash(0, x1, y, 52, "#efe6ff", 300), ring(0, x1, y, 12, 80, "#7a50e0", 440),
+  ],
+  // Photon Geyser: Necrozma's light gathers in it, then a geyser of light bursts straight up out of it.
+  "Photon Geyser": ({ x0, x1, y, g, sky, P, O, flash, ring, rnd }) => {
+    const out = [ring(-600, x0, y, 50, 6, "#fff2a8", 280), P(-420, 220, O(x0, y, 6, 6, 1), O(x1, y, 8, 8, 1), "#ffffff", { round: true, ease: "ease-in" })];
+    out.push(P(-200, 200, O(x1, y, 4, 4, 0.4), O(x1, y, 22, 22, 1), "#ffe14a", { round: true }),
+      P(0, 140, O(x1, y, 8, 10, 1), O(x1, (sky - 20 + g) / 2, 18, g - sky + 20, 1), "#fff2a8", { ease: "ease-out" }),
+      P(140, 360, O(x1, (sky - 20 + g) / 2, 18, g - sky + 20, 1), O(x1, (sky - 20 + g) / 2, 2, g - sky + 20, 0), "#ffffff"));
+    for (let i = 0; i < 6; i++) out.push(P(40 + i * 25, 380, O(x1 + (rnd() - 0.5) * 10, y, 3, 3, 1), O(x1 + (rnd() - 0.5) * 50, sky - 10, 3, 3, 0), i % 2 ? "#ffe14a" : "#ff70c0", { round: true }));
+    return out.concat(flash(0, x1, y, 56, "#ffffff", 320), ring(0, x1, g - 2, 10, 80, "#ffd75e", 440));
+  },
+  // Behemoth Blade: Zacian swings a giant sword in one glowing arc across it.
+  "Behemoth Blade": ({ x0, x1, y, sky, g, dir, P, O, flash, ring }) => [
+    P(-600, 280, O(x0, y - 10, 3, 4, 1), O(x0 + dir * 6, y - 20, 6, 40, 1), "#d0e8ff"), P(-600, 280, O(x0, y, 6, 6, 0.4), O(x0, y - 10, 30, 30, 0.6), "#4fb4ff", { round: true }),
+    P(-180, 180, O(x1 - dir * 30, sky, 6, 50, 1), O(x1 + dir * 6, g - 8, 60, 6, 1), "#e8f4ff", { ease: "ease-in" }),
+    P(-180, 180, O(x1 - dir * 30, sky, 12, 56, 0.4), O(x1 + dir * 6, g - 8, 70, 12, 0.5), "#4fb4ff", { round: true, ease: "ease-in" }),
+    P(0, 360, O(x1, y, 80, 4, 1), O(x1, y, 96, 1, 0), "#ffffff"), P(0, 360, O(x1, y, 4, 60, 0.9), O(x1, y, 1, 70, 0), "#c0d0e0"),
+    flash(0, x1, y, 54, "#ffffff", 300), ring(40, x1, y, 10, 80, "#4fb4ff", 420),
+  ],
+  // Behemoth Bash: Zamazenta raises a great shield and slams it into it.
+  "Behemoth Bash": ({ x0, x1, y, dir, P, O, flash, ring }) => [
+    P(-600, 300, O(x0 + dir * 12, y, 4, 10, 0.5), O(x0 + dir * 12, y, 16, 34, 1), "#c03a4a", { round: true }),
+    P(-600, 300, O(x0 + dir * 12, y, 2, 6, 0.5), O(x0 + dir * 12, y, 8, 22, 1), "#ffd75e", { round: true }),
+    P(-300, 300, O(x0 + dir * 12, y, 16, 34, 1), O(x1 - dir * 10, y, 20, 40, 1), "#c03a4a", { round: true, ease: "ease-in" }),
+    P(-300, 300, O(x0 + dir * 12, y, 8, 22, 1), O(x1 - dir * 10, y, 10, 26, 1), "#ffd75e", { round: true, ease: "ease-in" }),
+    P(0, 300, O(x1 - dir * 10, y, 20, 40, 1), O(x1 - dir * 10, y, 20, 40, 0), "#c03a4a", { round: true }),
+    flash(0, x1, y, 56, "#ffffff", 300), ring(0, x1, y, 14, 90, "#c0d0e0", 460), ring(60, x1, y, 10, 64, "#ffd75e", 380),
+  ],
+  // Dynamax Cannon: a huge red beam from Eternatus's core, the whole strip lit red.
+  "Dynamax Cannon": ({ x0, x1, y, mid, dist, P, O, flash, ring }) => [
+    P(-600, 300, O(x0, y, 6, 6, 0.4), O(x0, y, 40, 40, 1), "#ff2a4a", { round: true }), ring(-560, x0, y, 70, 14, "#ff6a8a", 280),
+    P(-260, 180, O(x0, y, 10, 24, 1), O(mid, y, dist, 24, 1), "#e0102a", { round: true, ease: "linear" }),
+    P(-260, 180, O(x0, y, 6, 10, 1), O(mid, y, dist, 10, 1), "#ffd0d8", { round: true, ease: "linear" }),
+    P(-80, 380, O(mid, y, dist, 24, 1), O(mid, y, dist, 2, 0), "#ff2a4a", { round: true }),
+    P(-260, 500, O(mid, y, dist + 40, 70, 0.15), O(mid, y, dist + 60, 80, 0), "#ff2a4a", { round: true }),
+    P(-300, 300, O(x0, y, 40, 40, 1), O(x0, y, 10, 10, 0), "#ff2a4a", { round: true }),
+    flash(0, x1, y, 64, "#ffd0d8", 340), ring(0, x1, y, 14, 100, "#ff2a4a", 480),
+  ],
+  // Astral Barrage: a swarm of ghostly spirits flying over in waves and diving into it.
+  "Astral Barrage": ({ x0, x1, y, sky, P, O, flash, ring, rnd }) => {
+    const out = [P(-600, 260, O(x0, y, 8, 8, 0.3), O(x0, y, 30, 30, 0.8), "#5a3ab8", { round: true })];
+    for (let i = 0; i < 10; i++) {
+      const at = -480 + i * 40, sy = sky + rnd() * (y - sky), ex = x1 + (rnd() - 0.5) * 26, ey = y + (rnd() - 0.5) * 20;
+      out.push(P(at, 380 - i * 10, O(x0 + (rnd() - 0.5) * 20, sy, 7, 7, 0.9), O(ex, ey, 6, 6, 1), i % 2 ? "#b090ff" : "#7ad8ff", { round: true, ease: "ease-in" }));
+    }
+    return out.concat(flash(0, x1, y, 52, "#efe6ff", 300), ring(0, x1, y, 10, 80, "#9a70ff", 440));
+  },
+  // Doom Desire: a star wish made, a long beat, then a beam of light comes down on it from above.
+  "Doom Desire": ({ x0, x1, y, g, sky, P, O, flash, ring }) => [
+    P(-600, 200, O(x0, y - 14, 4, 4, 1), O(x0, sky - 14, 8, 8, 0), "#ffd75e", { round: true, ease: "ease-out" }),
+    P(-600, 200, O(x0, y - 14, 2, 10, 1), O(x0, y - 14, 1, 2, 0), "#ffffff"), P(-600, 200, O(x0, y - 14, 10, 2, 1), O(x0, y - 14, 2, 1, 0), "#ffffff"),
+    P(-300, 240, O(x1, sky - 10, 4, 4, 0), O(x1, sky - 10, 18, 18, 1), "#fff2c0", { round: true }),
+    P(-60, 120, O(x1, sky, 4, 4, 1), O(x1, (sky + g) / 2, 20, g - sky, 1), "#ffffff", { ease: "ease-in" }),
+    P(60, 380, O(x1, (sky + g) / 2, 20, g - sky, 1), O(x1, (sky + g) / 2, 2, g - sky, 0), "#d0dce8"),
+    flash(0, x1, y, 60, "#ffffff", 340), ring(0, x1, y, 12, 90, "#ffd75e", 460), ring(80, x1, g - 2, 10, 80, "#d0dce8", 420),
+  ],
+  // Psycho Boost: Deoxys's psychic energy swirls into a ball, flies over and bursts in a violet blast.
+  "Psycho Boost": ({ x0, x1, y, P, O, flash, ring }) => {
+    const out = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      out.push(P(-600 + i * 20, 260, O(x0 + Math.cos(a) * 26, y + Math.sin(a) * 18, 5, 5, 0.9), O(x0, y, 3, 3, 1), i % 2 ? "#ff70c0" : "#b070ff", { round: true, ease: "ease-in" }));
+    }
+    out.push(P(-300, 300, O(x0, y, 14, 14, 1), O(x1, y, 20, 20, 1), "#c060ff", { round: true, ease: "ease-in" }),
+      P(-300, 300, O(x0, y, 6, 6, 1), O(x1, y, 10, 10, 1), "#ffffff", { round: true, ease: "ease-in" }),
+      P(-300, 300, O(x0, y, 24, 24, 0.8), O(x1, y, 30, 30, 0.8), "#ff70c0", { round: true, ring: true, ease: "ease-in" }));
+    return out.concat(flash(0, x1, y, 60, "#ffa0d8", 320), ring(0, x1, y, 12, 90, "#c060ff", 460), ring(70, x1, y, 10, 70, "#ffffff", 380));
+  },
+  // Seed Flare: Shaymin's flowers glow, then a green-white shockwave rolls out over it.
+  "Seed Flare": ({ x0, x1, y, g, dist, P, O, flash, ring }) => [
+    P(-600, 300, O(x0, y, 6, 6, 0.4), O(x0, y, 26, 26, 1), "#e8ffd0", { round: true }), ring(-560, x0, y, 50, 10, "#7bd65a", 300),
+    P(-300, 300, O(x0, y, 26, 26, 1), O(x0, y, dist * 2 + 20, 60, 0.6), "#9be36a", { round: true, ring: true, ease: "ease-out" }),
+    P(-300, 300, O(x0, y, 20, 20, 0.8), O(x0, y, dist * 2, 50, 0.3), "#e8ffd0", { round: true, ease: "ease-out" }),
+    P(0, 320, O(x0, y, dist * 2 + 20, 60, 0.6), O(x0, y, dist * 2 + 60, 80, 0), "#3fae3a", { round: true, ring: true }),
+    P(0, 400, O(x1, g, 20, 4, 0.9), O(x1, g, 70, 8, 0), "#9be36a", { round: true }),
+    flash(0, x1, y, 54, "#ffffff", 300),
+  ],
+  // V-create: Victini's brow flares into a fiery V and it hurtles into it.
+  "V-create": ({ x0, x1, y, dir, P, O, flash, ring }) => [
+    P(-600, 260, O(x0, y - 8, 4, 4, 1), O(x0 - dir * 6, y - 16, 4, 20, 1), "#ff5a14"), P(-600, 260, O(x0, y - 8, 4, 4, 1), O(x0 + dir * 6, y - 16, 4, 20, 1), "#ff5a14"),
+    P(-340, 340, O(x0 - dir * 6, y - 4, 6, 26, 1), O(x1 - dir * 10, y - 4, 10, 40, 1), "#ff8a2a", { ease: "ease-in" }),
+    P(-340, 340, O(x0 + dir * 6, y - 4, 6, 26, 1), O(x1 + dir * 10, y - 4, 10, 40, 1), "#ff8a2a", { ease: "ease-in" }),
+    P(-340, 340, O(x0, y + 8, 10, 10, 1), O(x1, y + 10, 14, 14, 1), "#fff2a8", { round: true, ease: "ease-in" }),
+    P(0, 360, O(x1 - dir * 10, y - 4, 10, 40, 1), O(x1 - dir * 22, y - 14, 14, 50, 0), "#ff5a14"),
+    P(0, 360, O(x1 + dir * 10, y - 4, 10, 40, 1), O(x1 + dir * 22, y - 14, 14, 50, 0), "#ff5a14"),
+    flash(0, x1, y, 60, "#fff2a8", 320), ring(0, x1, y, 12, 90, "#ffb43a", 460),
+  ],
+  // Secret Sword: Keldeo's horn becomes a long blade of light and slashes it.
+  "Secret Sword": ({ x0, x1, y, dir, P, O, flash, ring }) => [
+    P(-600, 300, O(x0 + dir * 6, y - 8, 2, 2, 1), O(x0 + dir * 22, y - 8, 30, 3, 1), "#e0f0ff", { ease: "ease-out" }),
+    P(-600, 300, O(x0 + dir * 6, y - 8, 4, 4, 0.5), O(x0 + dir * 22, y - 8, 36, 8, 0.6), "#4fb4ff", { round: true, ease: "ease-out" }),
+    P(-300, 300, O(x0 + dir * 22, y - 8, 30, 3, 1), O(x1, y, 30, 3, 1), "#e0f0ff", { ease: "ease-in" }),
+    P(-120, 120, O(x1 - dir * 20, y - 20, 4, 4, 1), O(x1 + dir * 20, y + 20, 4, 60, 1), "#ffffff", { ease: "ease-in" }),
+    P(0, 360, O(x1, y, 60, 3, 1), O(x1, y, 70, 1, 0), "#ffffff"), P(0, 360, O(x1, y, 40, 10, 0.8), O(x1, y, 60, 2, 0), "#ff7a4a"),
+    flash(0, x1, y, 50, "#e0f0ff", 300), ring(30, x1, y, 10, 70, "#d8452a", 420),
+  ],
+  // Relic Song: Meloetta's ancient song drifts over in rings of notes that hum round it.
+  "Relic Song": ({ x0, x1, y, P, O, flash, ring, rnd }) => {
+    const out = [ring(-600, x0, y - 8, 8, 40, "#9be3a0", 360)];
+    for (let i = 0; i < 6; i++) {
+      const at = -540 + i * 70, dy = (rnd() - 0.5) * 24, c = i % 2 ? "#7bd6c0" : "#ffd75e";
+      out.push(P(at, 480, O(x0, y - 10 + dy, 4, 4, 1), O(x1, y - 10 + dy * 0.5, 4, 4, 0.8), c, { round: true, ease: "ease-in-out" }),
+        P(at, 480, O(x0 + 2, y - 15 + dy, 1, 8, 1), O(x1 + 2, y - 15 + dy * 0.5, 1, 8, 0.8), c, { ease: "ease-in-out" }));
+    }
+    for (let i = 0; i < 3; i++) out.push(ring(i * 90, x1, y, 10, 50 + i * 10, i % 2 ? "#7bd6c0" : "#ffd75e", 400, 0.8));
+    return out.concat(flash(0, x1, y, 40, "#ffffff", 280));
+  },
+  // Techno Blast: the cannon on Genesect's back charges a ball of drive light and fires it.
+  "Techno Blast": ({ x0, x1, y, dir, P, O, flash, ring }) => [
+    P(-600, 300, O(x0 - dir * 4, y - 12, 4, 4, 0.4), O(x0 - dir * 4, y - 12, 14, 14, 1), "#c060ff", { round: true }),
+    ring(-600, x0 - dir * 4, y - 12, 34, 6, "#ffffff", 280),
+    P(-300, 300, O(x0 - dir * 4, y - 12, 14, 14, 1), O(x1, y, 18, 18, 1), "#c060ff", { round: true, ease: "ease-in" }),
+    P(-300, 300, O(x0 - dir * 4, y - 12, 6, 6, 1), O(x1, y, 8, 8, 1), "#ffffff", { round: true, ease: "ease-in" }),
+    P(-280, 320, O(x0 - dir * 4, y - 12, 4, 2, 0.8), O((x0 + x1) / 2, (y - 12 + y) / 2, Math.abs(x1 - x0), 2, 0), "#d890ff", { ease: "ease-in" }),
+    flash(0, x1, y, 54, "#f6e0ff", 300), ring(0, x1, y, 12, 84, "#c060ff", 440), ring(70, x1, y, 8, 60, "#ffffff", 360),
+  ],
+  // Hyperspace Hole: a ring portal opens beside it and a strike comes out of nowhere.
+  "Hyperspace Hole": ({ x0, x1, y, dir, P, O, flash, ring }) => [
+    P(-600, 260, O(x0, y, 20, 20, 0.6), O(x0, y, 4, 4, 0), "#f04aa0", { round: true, ring: true }),
+    P(-400, 300, O(x1 + dir * 18, y, 2, 2, 1), O(x1 + dir * 18, y, 28, 40, 1), "#f04aa0", { round: true, ring: true }),
+    P(-400, 300, O(x1 + dir * 18, y, 2, 2, 1), O(x1 + dir * 18, y, 22, 34, 0.95), "#1a0828", { round: true }),
+    P(-100, 100, O(x1 + dir * 18, y, 10, 10, 1), O(x1, y, 24, 24, 1), "#ffa0d8", { round: true, ease: "ease-in" }),
+    P(0, 320, O(x1 + dir * 18, y, 28, 40, 1), O(x1 + dir * 18, y, 2, 2, 0), "#f04aa0", { round: true, ring: true }),
+    P(0, 320, O(x1 + dir * 18, y, 22, 34, 0.95), O(x1 + dir * 18, y, 2, 2, 0), "#1a0828", { round: true }),
+    flash(0, x1, y, 48, "#ffffff", 280), ring(0, x1, y, 10, 70, "#ff70c0", 420),
+  ],
+  // Steam Eruption: the ground under it bursts in a geyser of hot water and steam.
+  "Steam Eruption": ({ x0, x1, y, g, sky, P, O, flash, rnd }) => {
+    const out = [P(-600, 300, O(x0, y, 6, 6, 0.3), O(x0, y, 30, 24, 0.7), "#e8f4ff", { round: true }), P(-360, 300, O(x1, g, 10, 3, 0.9), O(x1, g, 50, 6, 0.9), "#2a8cff", { round: true })];
+    out.push(P(-60, 160, O(x1, g, 14, 4, 1), O(x1, (sky + g) / 2, 20, g - sky, 1), "#4fb4ff", { ease: "ease-out" }),
+      P(-60, 160, O(x1, g, 6, 4, 1), O(x1, (sky + g) / 2, 8, g - sky, 1), "#ffffff", { ease: "ease-out" }),
+      P(100, 360, O(x1, (sky + g) / 2, 20, g - sky, 1), O(x1, (sky + g) / 2, 4, g - sky, 0), "#8fd3ff"));
+    for (let i = 0; i < 7; i++) out.push(P(40 + i * 30, 440, O(x1 + (rnd() - 0.5) * 16, sky + 6, 10, 8, 0.8), O(x1 + (rnd() - 0.5) * 50, sky - 10 - rnd() * 10, 24, 16, 0), "#f0f4f8", { round: true }));
+    return out.concat(flash(0, x1, y, 48, "#ffffff", 280));
+  },
+  // Spectral Thief: Marshadow slips into its shadow and lunges up out of it.
+  "Spectral Thief": ({ x0, x1, y, g, dir, P, O, flash, ring }) => [
+    P(-600, 260, O(x0, g, 20, 5, 0.8), O(x1 - dir * 4, g, 26, 6, 0.9), "#120a1e", { round: true, ease: "ease-in-out" }),
+    P(-600, 200, O(x0, y, 20, 26, 0.6), O(x0, g, 20, 4, 0), "#2a1a3e", { round: true, ease: "ease-in" }),
+    P(-160, 160, O(x1 - dir * 4, g, 10, 4, 1), O(x1, y, 20, 26, 1), "#3a2a58", { round: true, ease: "ease-out" }),
+    P(-160, 200, O(x1 - dir * 4, g, 6, 4, 1), O(x1, y - 6, 8, 30, 0), "#7ad870", { round: true, ease: "ease-out" }),
+    P(0, 300, O(x1, y, 20, 26, 1), O(x1, y, 2, 2, 0), "#3a2a58", { round: true }),
+    P(0, 320, O(x1 - dir * 4, g, 26, 6, 0.9), O(x1 - dir * 4, g, 4, 2, 0), "#120a1e", { round: true }),
+    flash(0, x1, y, 46, "#efe6ff", 280), ring(0, x1, y, 10, 70, "#5a3ab8", 420),
+  ],
+  // Volt Tackle: Pikachu wraps itself in crackling electricity and charges in.
+  "Volt Tackle": ({ x0, x1, y, dir, dist, mid, P, O, flash, ring, rnd }) => {
+    const out = [P(-600, 300, O(x0, y, 10, 10, 0.4), O(x0, y, 30, 30, 0.9), "#ffe14a", { round: true }), ring(-560, x0, y, 46, 12, "#ffffff", 260)];
+    for (let i = 0; i < 4; i++) {
+      const a = rnd() * Math.PI * 2;
+      out.push(P(-560 + i * 60, 140, O(x0 + Math.cos(a) * 16, y + Math.sin(a) * 12, 2, 10, 1), O(x0 + Math.cos(a) * 16, y + Math.sin(a) * 12, 1, 10, 0), "#ffffff"));
+    }
+    out.push(P(-260, 260, O(x0, y, 30, 30, 0.9), O(x1, y, 28, 28, 1), "#ffc400", { round: true, ease: "ease-in" }),
+      P(-260, 260, O(x0, y, 12, 12, 1), O(x1, y, 14, 14, 1), "#ffffff", { round: true, ease: "ease-in" }),
+      P(-240, 300, O(x0, y - 6, 4, 2, 1), O(mid - dir * 8, y - 6, dist, 2, 0), "#fff07a", { ease: "ease-in" }),
+      P(-240, 300, O(x0, y + 6, 4, 2, 1), O(mid - dir * 8, y + 6, dist, 2, 0), "#fff07a", { ease: "ease-in" }));
+    for (let i = 0; i < 5; i++) out.push(P(0, 260, O(x1, y, 3, 3, 1), O(x1 + (rnd() - 0.5) * 60, y + (rnd() - 0.5) * 40, 2, 10, 0), i % 2 ? "#ffffff" : "#ffe14a"));
+    return out.concat(flash(0, x1, y, 54, "#ffffff", 300), ring(0, x1, y, 12, 84, "#ffc400", 440));
+  },
+  // Night Daze: a crimson-black pulse swells from Zoroark and swallows it.
+  "Night Daze": ({ x0, x1, y, dist, P, O, flash, ring }) => {
+    const w = dist * 2 + 20, h = Math.min(60, dist * 0.5 + 24);
+    return [P(-600, 260, O(x0, y, 6, 6, 0.5), O(x0, y, 24, 24, 0.9), "#c0304a", { round: true }),
+      P(-340, 340, O(x0, y, 10, 10, 0.7), O(x0, y, w, h, 0.4), "#1a0e1e", { round: true, ease: "ease-out" }),
+      P(-340, 340, O(x0, y, 10, 10, 1), O(x0, y, w + 4, h + 4, 0.9), "#c0304a", { round: true, ring: true, ease: "ease-out" }),
+      P(-280, 340, O(x0, y, 8, 8, 1), O(x0, y, w - 20, h - 10, 0.5), "#ff4a6a", { round: true, ring: true, ease: "ease-out" }),
+      P(0, 360, O(x0, y, w, h, 0.4), O(x0, y, w + 30, h + 14, 0), "#1a0e1e", { round: true }),
+      P(0, 360, O(x0, y, w + 4, h + 4, 0.9), O(x0, y, w + 36, h + 20, 0), "#c0304a", { round: true, ring: true }),
+      flash(0, x1, y, 46, "#ff8a9a", 280), ring(0, x1, y, 10, 60, "#7a1a2a", 400)];
+  },
+  // Spirit Shackle: Decidueye looses a shadow arrow that pins the target's shadow to the ground.
+  "Spirit Shackle": ({ x0, x1, y, g, dir, mid, dist, P, O, flash, ring }) => [
+    P(-600, 260, O(x0, y - 4, 2, 2, 1), O(x0 - dir * 8, y - 4, 20, 2, 1), "#b090ff", { ease: "ease-out" }),
+    P(-300, 260, O(x0, y - 4, 18, 3, 1), O(x1, g - 4, 18, 3, 1), "#efe6ff", { ease: "ease-in" }),
+    P(-300, 300, O(x0, y - 4, 6, 6, 0.6), O(mid, (y + g) / 2, dist, 2, 0), "#7a50e0", { ease: "ease-in" }),
+    P(-40, 360, O(x1, g, 10, 4, 0.5), O(x1, g, 30, 6, 0.9), "#120a1e", { round: true }),
+    P(320, 300, O(x1, g, 30, 6, 0.9), O(x1, g, 30, 6, 0), "#120a1e", { round: true }),
+    P(0, 600, O(x1, g - 6, 3, 14, 1), O(x1, g - 6, 3, 14, 0), "#9a70ff"),
+    flash(0, x1, g - 4, 30, "#efe6ff", 260), ring(0, x1, g - 2, 8, 50, "#9a70ff", 400), ring(40, x1, y, 10, 60, "#5a3ab8", 400),
+  ],
+  // Darkest Lariat: Incineroar spins with arms out, a dark whirling lariat that hits it.
+  "Darkest Lariat": ({ x0, x1, y, P, O, flash, ring }) => {
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+      const t = i / 4, x = x0 + (x1 - x0) * t, at = -560 + i * 110;
+      out.push(P(at, 200, O(x, y, 34, 4, 1), O(x, y, 4, 4, 0.9), i % 2 ? "#c0304a" : "#5a4a70", { round: true }),
+        P(at, 220, O(x, y, 30, 14, 0.7), O(x, y, 40, 18, 0), "#2a2038", { round: true, ring: true }));
+    }
+    return out.concat(flash(0, x1, y, 50, "#ff8a3a", 280), ring(0, x1, y, 12, 80, "#c0304a", 440), ring(60, x1, y, 8, 60, "#7a5aa0", 380));
+  },
+  // Sparkling Aria: Primarina sings up a flock of bubbles that float over and burst on it.
+  "Sparkling Aria": ({ x0, x1, y, P, O, flash, ring, rnd }) => {
+    const out = [];
+    for (let i = 0; i < 8; i++) {
+      const at = -600 + i * 50, ex = x1 + (rnd() - 0.5) * 36, ey = y + (rnd() - 0.5) * 26, d = 6 + rnd() * 6;
+      out.push(P(at, 480 - i * 30, O(x0, y - 6, 3, 3, 0.9), O(ex, ey, d, d, 0.9), i % 2 ? "#8fd3ff" : "#ffb0e0", { round: true, ring: true, ease: "ease-in-out" }),
+        P(at + 480 - i * 30, 200, O(ex, ey, d, d, 0.9), O(ex, ey, d * 2, d * 2, 0), "#ffffff", { round: true, ring: true }));
+    }
+    return out.concat(flash(0, x1, y, 44, "#c8f4ff", 280));
+  },
+  // Drum Beating: Rillaboom's drum booms; roots burst out of the ground and lash it.
+  "Drum Beating": ({ x0, x1, y, g, dir, dist, P, O, flash, ring }) => {
+    const out = [ring(-600, x0, y, 8, 50, "#9be36a", 300), ring(-480, x0, y, 8, 50, "#9be36a", 300)];
+    for (let i = 0; i < 5; i++) {
+      const x = x0 + dir * dist * (0.4 + 0.15 * i), h = 14 + i * 5, at = -360 + i * 60;
+      out.push(P(at, 160, O(x, g, 4, 2, 1), O(x + dir * 3, g - h / 2, 5, h, 1), "#6a4a24", { ease: "ease-out" }),
+        P(at + 160, 300, O(x + dir * 3, g - h / 2, 5, h, 1), O(x + dir * 3, g - h / 2, 2, h, 0), "#3fae3a"));
+    }
+    return out.concat(P(-60, 160, O(x1, g, 5, 2, 1), O(x1, y, 6, g - y + 10, 1), "#6a4a24", { ease: "ease-out" }), P(100, 300, O(x1, y, 6, g - y + 10, 1), O(x1, y, 2, g - y + 10, 0), "#3fae3a"),
+      flash(0, x1, y, 46, "#e8ffd0", 280), P(0, 400, O(x1, g, 16, 4, 0.8), O(x1, g, 60, 8, 0), "#a8946a", { round: true }));
+  },
+  // Pyro Ball: Cinderace kicks up a pebble, it catches fire, and it's booted over in a blazing arc.
+  "Pyro Ball": ({ x0, x1, y, g, mid, P, O, flash, ring }) => [
+    P(-600, 200, O(x0, g - 2, 4, 4, 1), O(x0, y - 18, 8, 8, 1), "#a89070", { round: true, ease: "ease-out" }),
+    P(-450, 150, O(x0, y - 18, 8, 8, 1), O(x0, y - 12, 12, 12, 1), "#ff5a14", { round: true }),
+    P(-300, 150, O(x0, y - 12, 12, 12, 1), O(mid, y - 34, 14, 14, 1), "#ff5a14", { round: true, ease: "ease-out" }),
+    P(-150, 150, O(mid, y - 34, 14, 14, 1), O(x1, y, 14, 14, 1), "#ff5a14", { round: true, ease: "ease-in" }),
+    P(-300, 150, O(x0, y - 12, 6, 6, 1), O(mid, y - 34, 7, 7, 1), "#fff2a8", { round: true, ease: "ease-out" }),
+    P(-150, 150, O(mid, y - 34, 7, 7, 1), O(x1, y, 7, 7, 1), "#fff2a8", { round: true, ease: "ease-in" }),
+    P(-260, 200, O(x0, y - 10, 8, 8, 0.6), O(mid, y - 30, 10, 10, 0), "#ffb43a", { round: true }),
+    P(-110, 200, O(mid, y - 30, 8, 8, 0.6), O(x1, y - 4, 10, 10, 0), "#ffb43a", { round: true }),
+    flash(0, x1, y, 54, "#fff2a8", 300), ring(0, x1, y, 12, 80, "#ff8a2a", 440),
+  ],
+  // Snipe Shot: Inteleon takes aim (a sight on it) and fires one thin, precise jet of water.
+  "Snipe Shot": ({ x0, x1, y, mid, dist, P, O, flash, ring }) => [
+    P(-600, 360, O(x1, y, 40, 40, 0.2), O(x1, y, 14, 14, 0.9), "#8fd3ff", { round: true, ring: true, ease: "ease-in" }),
+    P(-600, 360, O(x1, y, 30, 1, 0.2), O(x1, y, 20, 1, 0.9), "#ffffff"), P(-600, 360, O(x1, y, 1, 30, 0.2), O(x1, y, 1, 20, 0.9), "#ffffff"),
+    P(-120, 120, O(x0, y, 4, 2, 1), O(mid, y, dist, 2, 1), "#ffffff", { ease: "linear" }),
+    P(-120, 120, O(x0, y, 4, 4, 0.7), O(mid, y, dist, 4, 0.7), "#2a8cff", { ease: "linear" }),
+    P(0, 260, O(mid, y, dist, 3, 1), O(mid, y, dist, 1, 0), "#8fd3ff"),
+    flash(0, x1, y, 36, "#ffffff", 240), ring(0, x1, y, 6, 50, "#2a8cff", 360),
+  ],
+  // Flower Trick: a bouquet tossed at it bursts in a ring of petals round it.
+  "Flower Trick": ({ x0, x1, y, mid, P, O, flash, ring }) => {
+    const out = [P(-400, 200, O(x0, y, 8, 8, 1), O(mid, y - 26, 10, 10, 1), "#ff80c8", { round: true, ease: "ease-out" }),
+      P(-200, 200, O(mid, y - 26, 10, 10, 1), O(x1, y, 12, 12, 1), "#ff80c8", { round: true, ease: "ease-in" })];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      out.push(P(0, 420, O(x1, y, 5, 4, 1), O(x1 + Math.cos(a) * 34, y + Math.sin(a) * 24, 5, 4, 0), i % 3 === 0 ? "#ffffff" : i % 3 === 1 ? "#ff80c8" : "#7bd65a", { round: true, ease: "ease-out" }));
+    }
+    return out.concat(flash(0, x1, y, 44, "#ffd0ee", 280), ring(0, x1, y, 10, 64, "#ff80c8", 400));
+  },
+  // Torch Song: Skeledirge sings flames that rise in notes and rain down on it.
+  "Torch Song": ({ x0, x1, y, sky, P, O, flash, ring, rnd }) => {
+    const out = [ring(-600, x0, y - 8, 8, 40, "#ffb43a", 320)];
+    for (let i = 0; i < 6; i++) {
+      const at = -540 + i * 60, top = sky + rnd() * 10, xx = x1 + (i - 2.5) * 8;
+      out.push(P(at, 260, O(x0, y - 10, 5, 5, 1), O((x0 + xx) / 2, top, 7, 7, 1), i % 2 ? "#ff5a14" : "#ffb43a", { round: true, ease: "ease-out" }),
+        P(at + 260, 220, O((x0 + xx) / 2, top, 7, 7, 1), O(xx, y, 9, 9, 1), i % 2 ? "#ff5a14" : "#ffb43a", { round: true, ease: "ease-in" }),
+        P(at + 260, 220, O((x0 + xx) / 2 + 3, top - 5, 1, 8, 1), O(xx + 3, y - 5, 1, 8, 0), "#fff2a8", { ease: "ease-in" }));
+    }
+    return out.concat(flash(0, x1, y, 50, "#fff2a8", 300));
+  },
+  // Aqua Step: Quaquaval dances over in splashes and lands a watery kick.
+  "Aqua Step": ({ x0, x1, y, g, dir, dist, P, O, flash, ring, rnd }) => {
+    const out = [];
+    for (let i = 0; i < 4; i++) {
+      const x = x0 + dir * dist * (i + 1) / 5, at = -560 + i * 120;
+      out.push(P(at, 240, O(x, g - 2, 6, 3, 1), O(x, g - 4, 26, 8, 0), "#4fb4ff", { round: true, ring: true }));
+      for (let k = 0; k < 2; k++) out.push(P(at, 280, O(x, g - 2, 3, 3, 1), O(x + (k ? 10 : -10), g - 14 - rnd() * 6, 3, 3, 0), "#8fd3ff", { round: true, ease: "ease-out" }));
+    }
+    return out.concat(P(-80, 80, O(x1 - dir * 20, y - 10, 10, 10, 1), O(x1, y, 16, 16, 1), "#2a8cff", { round: true, ease: "ease-in" }),
+      flash(0, x1, y, 46, "#ffffff", 280), ring(0, x1, y, 10, 70, "#4fb4ff", 420), ring(60, x1, y, 8, 50, "#8fd3ff", 360));
+  },
+  // Headlong Rush: Great Tusk charges headlong, the ground shaking and dust kicking up behind it.
+  "Headlong Rush": ({ x0, x1, y, g, dir, dist, P, O, flash, ring }) => {
+    const out = [P(-480, 480, O(x0, y, 20, 20, 0.9), O(x1, y, 24, 24, 1), "#a8783a", { round: true, ease: "ease-in" })];
+    for (let i = 0; i < 5; i++) {
+      const x = x0 + dir * dist * (i / 5), at = -480 + i * 96;
+      out.push(P(at, 300, O(x, g - 2, 8, 6, 0.9), O(x - dir * 8, g - 10, 22, 14, 0), "#d8b070", { round: true }));
+    }
+    return out.concat(P(0, 420, O(x1, g, 20, 4, 0.9), O(x1, g, 90, 8, 0), "#c8bca8", { round: true }),
+      flash(0, x1, y, 54, "#f6e6c0", 300), ring(0, x1, y, 12, 84, "#a8783a", 440));
+  },
+  // Stone Axe: Kleavor's axe-blade chops it and leaves rock splinters floating round it.
+  "Stone Axe": ({ x1, y, sky, dir, P, O, flash, ring, rnd }) => {
+    const out = [P(-260, 260, O(x1 - dir * 30, sky, 8, 8, 1), O(x1, y, 14, 14, 1), "#9a8050", { ease: "ease-in" }),
+      P(-120, 120, O(x1 - dir * 16, y - 20, 4, 4, 1), O(x1 + dir * 14, y + 16, 4, 50, 1), "#efe4c8", { ease: "ease-in" }),
+      P(0, 300, O(x1, y, 4, 50, 1), O(x1, y, 1, 56, 0), "#ffffff")];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + rnd() * 0.5, xx = x1 + Math.cos(a) * 22, yy = y + Math.sin(a) * 16;
+      out.push(P(0, 160, O(x1, y, 4, 4, 1), O(xx, yy, 6, 5, 1), i % 2 ? "#9a8050" : "#c8b080", { ease: "ease-out" }),
+        P(160, 520, O(xx, yy, 6, 5, 1), O(xx, yy - 4, 6, 5, 0), i % 2 ? "#9a8050" : "#c8b080"));
+    }
+    return out.concat(flash(0, x1, y, 44, "#efe4c8", 260), ring(0, x1, y, 10, 60, "#c8b080", 400));
+  },
 };

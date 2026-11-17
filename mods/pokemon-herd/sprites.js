@@ -440,3 +440,36 @@ export async function latestVersion(now = Date.now(), fresh = false) {
   return version;
 }
 
+
+// A trainer's look (trainers.js: our own pixel art, coloured by its class), cut once into GIFs
+// beside the sprites: walking (step, stand, step, stand) and standing, facing right and left,
+// at TRAINER_SCALE. Returns { walkR, walkL, standR, standL } paths as main.js draws them, and
+// the size, or null without ImageMagick.
+export const TRAINER_SCALE = 2;
+export const ensureTrainer = (cls) => once(`trainer|${cls}`, () => ensureTrainerNow(cls));
+async function ensureTrainerNow(cls) {
+  const { classOf, framesOf, pixelsOf, TRAINER_W, TRAINER_H } = await import("./trainers.js");
+  const dir = `${DATA}/trainers/${cls}`;
+  const rel = `${DATA_REL}/trainers/${cls}`;
+  const out = { walkR: `${rel}/walkR.gif`, walkL: `${rel}/walkL.gif`, standR: `${rel}/standR.gif`, standL: `${rel}/standL.gif`, w: TRAINER_W * TRAINER_SCALE, h: TRAINER_H * TRAINER_SCALE };
+  if (await fs.exists(`${dir}/standL.gif`).catch(() => false)) return out;
+  if (!(await imageMagick())) return null;
+  await fs.mkdir(dir, { recursive: true });
+  const colors = classOf(cls).colors;
+  const frames = framesOf();
+  for (const [name, rows] of Object.entries(frames)) {
+    const draws = Object.entries(pixelsOf(rows, colors)).flatMap(([c, pts]) => ["-fill", c, "-draw", pts.map(([x, y]) => `point ${x},${y}`).join(" ")]);
+    await im("convert", ["-size", `${TRAINER_W}x${TRAINER_H}`, "xc:none", ...draws, "-scale", `${TRAINER_SCALE * 100}%`, `${dir}/${name}.png`]);
+  }
+  const f = (n) => `${dir}/${n}.png`;
+  await im("convert", ["-delay", "16", "-dispose", "Background", f("step1"), f("stand"), f("step2"), f("stand"), "-loop", "0", `${dir}/walkR.part.gif`]);
+  await moveFile(`${dir}/walkR.part.gif`, `${dir}/walkR.gif`);
+  await im("convert", [`${dir}/walkR.gif`, "-coalesce", "-flop", `${dir}/walkL.part.gif`]);
+  await moveFile(`${dir}/walkL.part.gif`, `${dir}/walkL.gif`);
+  await im("convert", [f("stand"), `${dir}/standR.part.gif`]);
+  await moveFile(`${dir}/standR.part.gif`, `${dir}/standR.gif`);
+  await im("convert", [f("stand"), "-flop", `${dir}/standL.part.gif`]);
+  await moveFile(`${dir}/standL.part.gif`, `${dir}/standL.gif`);
+  for (const n of Object.keys(frames)) await removeFile(f(n));
+  return out;
+}

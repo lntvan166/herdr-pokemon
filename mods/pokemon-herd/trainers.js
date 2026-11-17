@@ -1,0 +1,97 @@
+// Trainers who come by now and then and want to battle (in place of a wild Pokémon): who they
+// are, their team, what beating them pays, and how they look (pixel art of our own, cut into GIFs
+// by sprites.js ensureTrainer). Pure.
+//
+// A team: 2 or 3 fully evolved Pokémon of the class's types (no legendaries), as raised as yours
+// get (TEAM_EFFORT: every heart), each with a nature: no pushover. You fight it as a wild one,
+// dropping yours on it; it can't be caught. Beat one and the next comes out; beat them all for
+// its pay. Ignored, it leaves after WAIT_MS.
+import { WALKABLE, evolutionsOf } from "./dex.js";
+import { EVOLVES_FROM } from "./species.js";
+import { isLegendary, typesOf, NATURES } from "./trainer.js";
+
+export const TRAINER_ODDS = 10; // 1 visitor in 10 is a trainer (not in an outbreak or a raid)
+export const WAIT_MS = 3 * 60000; // how long it waits for a battle, then walks on
+export const TEAM_EFFORT = 1.05; // its Pokémon, as raised as yours can be (trainer.js effortOf)
+
+// Each class: its title, names, the types its team is of, its colours, and its pay.
+// Colours: H hair, C cap (or hair again), T top, P trousers, B shoes, A arms' sleeves.
+export const CLASSES = [
+  { id: "ace", title: "Ace Trainer", names: ["Mia", "Leo", "Nora", "Kai"], types: null, pay: 600, item: ["ultra-ball", 3],
+    colors: { H: "#3a2a1a", C: "#3a2a1a", T: "#2a5bd7", A: "#2a5bd7", P: "#22262e", B: "#c8402a" } },
+  { id: "hiker", title: "Hiker", names: ["Ben", "Ruth", "Otis"], types: ["rock", "ground", "steel"], pay: 400, item: ["revive", 1],
+    colors: { H: "#5a3a1a", C: "#a86a2a", T: "#c87a3a", A: "#c87a3a", P: "#5a4a2a", B: "#3a2a1a" } },
+  { id: "swimmer", title: "Swimmer", names: ["Lia", "Finn", "Coral"], types: ["water", "ice"], pay: 350, item: ["dusk-ball", 2],
+    colors: { H: "#e8c060", C: "#2a8cff", T: "#2a8cff", A: "#f0c8a0", P: "#2a8cff", B: "#f0c8a0" } },
+  { id: "blackbelt", title: "Black Belt", names: ["Ken", "Mai", "Goro"], types: ["fighting"], pay: 450, item: ["revive", 1],
+    colors: { H: "#1a1a1a", C: "#1a1a1a", T: "#f4f4f4", A: "#f4f4f4", P: "#f4f4f4", B: "#f0c8a0" } },
+  { id: "psychic", title: "Psychic", names: ["Ivy", "Sol", "Luna"], types: ["psychic", "fairy", "ghost"], pay: 450, item: ["timer-ball", 2],
+    colors: { H: "#8a3ad8", C: "#8a3ad8", T: "#c060ff", A: "#c060ff", P: "#5a2a8a", B: "#2a1a3a" } },
+  { id: "bugcatcher", title: "Bug Catcher", names: ["Tom", "Sid", "Pip"], types: ["bug", "grass"], pay: 300, item: ["quick-ball", 2],
+    colors: { H: "#3a2a1a", C: "#f2c94c", T: "#7bd65a", A: "#7bd65a", P: "#a86a2a", B: "#5a3a1a" } },
+  { id: "kindler", title: "Kindler", names: ["Ash", "Ember", "Rex"], types: ["fire", "dragon"], pay: 450, item: ["ultra-ball", 2],
+    colors: { H: "#c8402a", C: "#c8402a", T: "#ff8a2a", A: "#f0c8a0", P: "#5a2a1a", B: "#2a1a1a" } },
+  { id: "punk", title: "Punk", names: ["Zed", "Roxy", "Vex"], types: ["dark", "poison"], pay: 400, item: ["max-revive", 1],
+    colors: { H: "#ff3a8a", C: "#ff3a8a", T: "#2a2a2a", A: "#2a2a2a", P: "#3a3a5a", B: "#1a1a1a" } },
+  { id: "engineer", title: "Engineer", names: ["Volt", "Iris", "Gus"], types: ["electric", "steel"], pay: 400, item: ["quick-ball", 2],
+    colors: { H: "#3a2a1a", C: "#f2c94c", T: "#f2a03a", A: "#f2a03a", P: "#2a3a5a", B: "#2a2a2a" } },
+  { id: "birdkeeper", title: "Bird Keeper", names: ["Sky", "Wren", "Hawk"], types: ["flying", "normal"], pay: 350, item: ["great-ball", 5],
+    colors: { H: "#5a3a1a", C: "#2aa8a8", T: "#e8f0f4", A: "#e8f0f4", P: "#2aa8a8", B: "#3a2a1a" } },
+];
+
+const FINALS = WALKABLE.filter((dex) => EVOLVES_FROM[dex] !== undefined && evolutionsOf(dex).length === 0 && !isLegendary(dex));
+const NATURE_IDS = Object.keys(NATURES);
+
+// A trainer, as it comes: { cls (its id), title, name, team: [{ dex, nature }], at }.
+export function newTrainer(rnd = Math.random, now = 0) {
+  const c = CLASSES[Math.floor(rnd() * CLASSES.length)];
+  const pool = c.types ? FINALS.filter((d) => typesOf(d).some((t) => c.types.includes(t))) : FINALS;
+  const n = rnd() < 0.5 ? 2 : 3;
+  const team = [];
+  while (team.length < n && pool.length) {
+    const dex = pool[Math.floor(rnd() * pool.length)];
+    if (!team.some((m) => m.dex === dex)) team.push({ dex, nature: NATURE_IDS[Math.floor(rnd() * NATURE_IDS.length)] });
+  }
+  return { cls: c.id, title: c.title, name: c.names[Math.floor(rnd() * c.names.length)], team, at: now };
+}
+export const classOf = (id) => CLASSES.find((c) => c.id === id) ?? CLASSES[0];
+// Beating it: its class's pay (more for a bigger team) and item.
+export function trainerPay(tr) {
+  const c = classOf(tr.cls);
+  return { money: Math.round(c.pay * (tr.team.length >= 3 ? 1.3 : 1)), item: c.item[0], count: c.item[1] };
+}
+
+// How a trainer looks: 12 × 20 pixels, a letter a colour (CLASSES colors; S skin, E eyes, "."
+// none). Facing right; drawn left by flipping. Two steps walking, and standing.
+export const SKIN = "#f0c8a0", EYES = "#1a1a1a";
+const HEAD = [
+  "...CCCCC....",
+  "..CCCCCCC...",
+  ".CCCCCCCCC..",
+  "..HSSSSSH...",
+  "..HSSSESH...",
+  "..HSSSSSS...",
+  "...SSSSS....",
+];
+const BODY = [
+  "...TTTTT....",
+  "..ATTTTTA...",
+  ".AATTTTTAA..",
+  ".SATTTTTAS..",
+  "..STTTTTS...",
+  "...PPPPP....",
+];
+const LEGS = {
+  stand: ["...PP.PP....", "...PP.PP....", "...PP.PP....", "...PP.PP....", "...BB.BB...."],
+  step1: ["...PP..PP...", "..PP....PP..", "..PP....PP..", ".PP......PP.", ".BB......BB."],
+  step2: ["....PPPP....", "....PP.P....", "...PP..PP...", "...PP..PP...", "...BB..BB..."],
+};
+export const TRAINER_W = 12, TRAINER_H = 18;
+export const framesOf = () => ({ stand: [...HEAD, ...BODY, ...LEGS.stand], step1: [...HEAD, ...BODY, ...LEGS.step1], step2: [...HEAD, ...BODY, ...LEGS.step2] });
+// One frame's pixels by colour: { "#hex": [[x, y], …] } (what ImageMagick draws as points).
+export function pixelsOf(rows, colors) {
+  const pal = { ...colors, S: SKIN, E: EYES };
+  const out = {};
+  rows.forEach((row, y) => [...row].forEach((ch, x) => { const c = pal[ch]; if (c) (out[c] ??= []).push([x, y]); }));
+  return out;
+}

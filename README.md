@@ -80,6 +80,9 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   at most, like Legends: Arceus' effort levels), and its nature counts (Brave: more Attack, less Speed). The winner celebrates ("Landorus won! 3–1", the two's record today), the other sits
   dizzy, nobody is hurt for real. The winner gains a little more friendship; the Box keeps each
   one's record, and those idle nearby turn to watch.
+- **Trainers come by.** Now and then a trainer (a Hiker, a Swimmer, a Black Belt, a Punk…, drawn in
+  our own pixel art) walks in with its Pokémon and wants to battle: two or three fully evolved
+  ones of its types, as strong as yours. Beat them one after another for Pokédollars and an item.
 - **Wild ones have their ways.** About 1 in 4 do something on the way: Gengar sneaks up and
   pokes one of yours awake, Snorlax naps halfway (easier to catch, cross if you wake it), Abra
   teleports out of a missed ball, Machop picks a fight, Eevee stops to say hello, a Fire type

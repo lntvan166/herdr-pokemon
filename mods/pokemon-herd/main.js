@@ -23,8 +23,9 @@ import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
+import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT } from "./trainers.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
@@ -40,7 +41,7 @@ import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCeleb
 import { blowWord, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
-import { ensureMegaMark, MEGA_MARK_REL } from "./sprites.js";
+import { ensureMegaMark, MEGA_MARK_REL, ensureTrainer } from "./sprites.js";
 import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -1150,12 +1151,22 @@ export default class PokemonHerd extends View {
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
       // kept that one's picture: only its 🎁 showed).
       // Its purse, shown over its head while the day's purses last.
+      // Now and then a trainer instead (trainers.js): its first Pokémon walks in with it, stops
+      // halfway and waits for a battle; it can't be caught. Not one called (Honey, a legendary).
+      const tr = !outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1 ? newTrainer(Math.random, now) : pick.devTrainer ? newTrainer(Math.random, now) : null;
+      delete pick.devTrainer;
+      if (tr) {
+        pick = { dex: tr.team[0].dex, nature: tr.team[0].nature, trainer: true, mega: "off", size: 1 };
+        cx.spawn(async (cx) => { this.trainerArt ??= {}; this.trainerArt[tr.cls] = await ensureTrainer(tr.cls).catch(() => null); cx.notify(); });
+      }
       // What it does besides walking by (wildacts.js): a dash sets its pace now, a tease a bigger purse.
-      const act = pick.devAct ? { kind: pick.devAct, ms: pick.devAct === "nap" ? 20000 : 4000, icon: "☀️" } // dev.js: one asked for
+      const act = tr ? { kind: "trainer", f: 0.35 + Math.random() * 0.15, ms: WAIT_MS, icon: "❗" }
+        : pick.devAct ? { kind: pick.devAct, ms: pick.devAct === "nap" ? 20000 : 4000, icon: "☀️" } // dev.js: one asked for
         : outbreak ? null : actFor(pick, { boosted: this.boostNow().types, working: list.some((a) => a.status === "working") });
       delete pick.devAct;
       v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: 0, asked: now, act, ...(act?.kind === "dash" ? { speedK: DASH_SPEED } : {}) };
       if (act?.kind === "tease" && v.purse) v.purse = Math.round(v.purse * TEASE_PURSE);
+      if (tr) { v.trainer = { ...tr, idx: 0 }; v.purse = 0; v.gift = "none"; v.giftAt = 0; }
       v.dur = (Math.abs(to - from) / paceOf(v)) * 1000;
       this.want(pick, cx);
     }
@@ -1180,9 +1191,28 @@ export default class PokemonHerd extends View {
       if (now < fx.until) return true;
       if (fx.fainted) {
         v.fainted ??= now;
-        if (now >= v.fainted + 2200) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
+        const tr = v.trainer;
+        if (tr && now >= v.fainted + 2200 && !tr.beaten) {
+          // A trainer: its next Pokémon out, or beaten (its pay, once, from the counting strip).
+          if (tr.idx + 1 < tr.team.length) {
+            tr.idx++;
+            const nx = tr.team[tr.idx];
+            v.pick = { dex: nx.dex, nature: nx.nature, trainer: true, mega: "off", size: 1 };
+            this.want(v.pick, cx);
+            v.sentOut = { at: now, dex: nx.dex };
+            v.fainted = undefined;
+            v.fight = null;
+            v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, tr.at + WAIT_MS) };
+            return true;
+          }
+          tr.beaten = now;
+          tr.paid = trainerPay(tr);
+          if (this.leader) payOut(tr.paid);
+        }
+        if (now >= v.fainted + (tr ? 4500 : 2200)) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
       }
+      if (v.trainer) { v.fight = null; v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS) }; return true; } // it waits for the next one of yours
       v.from = fx.x;
       v.start = now;
       v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
@@ -1263,7 +1293,7 @@ export default class PokemonHerd extends View {
     if (act && !act.done && now - v.start > 1500 && v.x > EDGE && v.x < this.width - EDGE) {
       const stop = (kind, ms, more = {}) => { act.done = true; v.halt = { kind, x: v.x, at: now, until: now + ms, ...more }; };
       act.f ??= 0.3 + Math.random() * 0.3;
-      if ((act.kind === "nap" || act.kind === "weather") && f >= act.f) {
+      if ((act.kind === "nap" || act.kind === "weather" || act.kind === "trainer") && f >= act.f) {
         stop(act.kind, act.ms ?? 4000, { icon: act.icon });
         if (act.kind === "nap") v.pick.asleep = true; // easier to catch while it sleeps
         return true;
@@ -1491,7 +1521,7 @@ export default class PokemonHerd extends View {
     const v = this.visitor;
     if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
     // Its act's moments (wildacts.js): an icon going (running off, a dash), a teleport's flash.
-    if (v) for (const t of [v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
+    if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
     if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
@@ -1838,7 +1868,7 @@ export default class PokemonHerd extends View {
   // A ball thrown at the visitor (the best one for it in the Bag): it stops, the ball shakes.
   throwAt(v) {
     // Not one already gone (a click on an old element of it): the ball would be spent for nothing.
-    if (v !== this.visitor || v.throw || v.fight || !v.start) return;
+    if (v !== this.visitor || v.throw || v.fight || !v.start || v.trainer) return; // a trainer's: not to be caught
     const ball = ballFor(bag().items, v.pick, shared(BALL_KEY));
     if (!ball) return;
     // The Berry set in the Bag goes first, while there are some (none for a Master Ball: no need).
@@ -1852,7 +1882,7 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const f = clamp((now - v.start) / v.dur, 0, 1);
     // Stopped for its act (asleep: the ball's likelier), where it stopped; the ball ends the act.
-    v.throw = { ball, bait, at: now, x: v.halt ? v.halt.x : v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait) };
+    v.throw = { ball, bait, at: now, x: v.halt ? v.halt.x : v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait, { throws: (v.throws ?? 1) - 1, night: isNight() }) };
     if (v.halt) { v.halt = null; v.pick.asleep = false; }
     // Caught: into the Box now, as the ball decides it; the shakes are only for show (the strip
     // could drop the visitor meanwhile: an update reloading it, the window narrowed, Visitors off).
@@ -1860,6 +1890,15 @@ export default class PokemonHerd extends View {
   }
 
   // The visitor, drawn as the herd is but with no name: hovering it says what it is.
+  // A trainer's figure (trainers.js, sprites.js ensureTrainer) standing or walking at `x`, its
+  // feet on `ground`, facing `face` ("R"/"L"); null till its picture is in.
+  trainerFigure(v, x, ground, face, walking, scale) {
+    const art = v.trainer && this.trainerArt?.[v.trainer.cls];
+    if (!art) return null;
+    const k = scale * 1.4, w = art.w * k, h = art.h * k;
+    return image(art[`${walking ? "walk" : "stand"}${face}`]).absolute().left(x - w / 2).top(ground - h).w(w).h(h);
+  }
+
   renderVisitor(root, grounds, scale) {
     const v = this.visitor;
     if (v?.pick.alpha) scale *= ALPHA_SIZE; // an Alpha: bigger
@@ -1928,9 +1967,14 @@ export default class PokemonHerd extends View {
           Math.round((headY + ground) / 2) - 2, fx.backLaunch, fx.backHit, now));
       }
       root.child(hpBar(x));
+      // A trainer's: it stands behind its Pokémon, watching.
+      const fig = v.trainer && this.trainerFigure(v, x - ((fx.ownX ?? x) > x ? 1 : -1) * 44 * scale, ground, (fx.ownX ?? x) > x ? "R" : "L", false, scale);
+      if (fig) root.child(div().absolute().left(0).top(0).child(fig));
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
-      const wildName = fullName(v.pick.dex, v.pick.form);
-      const said = v.fainted ? `${wildName} fainted…`
+      const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
+      const tp = v.trainer?.paid;
+      const said = v.trainer?.beaten ? `You beat ${v.trainer.title} ${v.trainer.name}! +${money(tp.money)} and ${tp.count > 1 ? `${tp.count} ${ITEMS[tp.item].name}s` : `a ${ITEMS[tp.item].name}`}`
+        : v.fainted ? `${wildName} fainted…`
         : now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
         : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
       if (said) {
@@ -1941,7 +1985,7 @@ export default class PokemonHerd extends View {
       return;
     }
     // Its gift first; then, with a ball in the Bag, a ball over its head: click to throw it.
-    const ball = !th && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick, shared(BALL_KEY)) : null;
+    const ball = !th && !v.trainer && v.gift && now - v.giftAt > 2500 ? ballFor(bag().items, v.pick, shared(BALL_KEY)) : null;
     const showGift = !th && ((!v.gift && now - v.start > 1000) || (v.gift && now - v.giftAt < 2500));
     if (th) {
       // The ball flies up from the strip's roomier side and down onto it (fx.js THROW_UP,
@@ -2019,13 +2063,15 @@ export default class PokemonHerd extends View {
       for (const [k, x] of [["a", v.blink.from], ["b", v.blink.to]]) root.child(fxBurst(`blink-${v.id}-${v.blink.at}-${k}`, MOVE.psychic, 0.6, x, Math.round((headY + ground) / 2), this.fxFirst(`blink-${v.id}-${v.blink.at}-${k}`), v.blink.at % 9973));
     }
     const baitNow = baitFor(bag().items, v.pick, ball, shared(BAIT_KEY));
-    const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow));
+    const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow, { throws: v.throws ?? 0, night: isNight() }));
     root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
       .when(!halt, (el) => el.transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" }))
       .child(div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
         .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale))
+        // A trainer walks in behind its Pokémon; stopped, it stands there.
+        .when(!!v.trainer, (el) => { const f = this.trainerFigure(v, mid - (v.dir === "r" ? 1 : -1) * 44 * scale, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale); return f ? el.child(f) : el; })
         .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - 14)).text_size(13).font_bold()
           .text_color(actIcon === "zZ" ? "#ffffff" : t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
@@ -2081,14 +2127,23 @@ export default class PokemonHerd extends View {
       .when(!!ball, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18))
         
         .child(this.itemMark(ball, 18)))));
+    // A trainer's next Pokémon out: "Hiker Ben sent out Golem!" under it a moment.
+    if (v.sentOut && now - v.sentOut.at < 2500 && v.trainer) {
+      const tagW = 300;
+      root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 6, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+        .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
+        .child(`${v.trainer.title} ${v.trainer.name} sent out ${fullName(v.pick.dex, v.pick.form)}!`));
+      return;
+    }
     const broke = v.broke && now - v.broke < 2500;
     const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
     // Not once it's walked off the strip (its tag stuck at the edge, saying "click it").
     const onStrip = v.x >= 0 && v.x <= this.width;
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = Math.min(420, this.width - 12); // never past a narrow strip's edges
-      const what = `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
-      const tail = broke ? " broke free!"
+      const what = v.trainer ? `${v.trainer.title} ${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
+      const tail = v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle`
+        : broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
         : ball ? `: click to throw ${an(ITEMS[ball].name)}${shared(BALL_KEY) === ball ? "" : " (Auto)"}${baitNow ? ` + ${ITEMS[baitNow].name}` : ""}, ${rate}% to catch${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it runs away` : ""}`
@@ -2754,11 +2809,11 @@ export default class PokemonHerd extends View {
         const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: pk.moves, weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
-        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk) });
+        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: TEAM_EFFORT } : {}) });
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
-        if (v.halt) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature });
+        if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: TEAM_EFFORT } : {}) });
         if (back && wm.miss) back.text = "It missed!";
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.
@@ -3906,7 +3961,7 @@ export default class PokemonHerd extends View {
     const av = this.visitor;
     if (av?.start && !av.leg && now - av.start < APPEAR_MS && !(rareOf(av.pick) && settingsNow().cryRare && av.dir === "l")) {
       const who = av.pick.legend ? "A legendary" : av.pick.alpha ? (av.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild";
-      const text = `${who} ${av.pick.shiny ? "✨ " : ""}${fullName(av.pick.dex, av.pick.form)} appeared!`;
+      const text = av.trainer ? `${av.trainer.title} ${av.trainer.name} wants to battle!` : `${who} ${av.pick.shiny ? "✨ " : ""}${fullName(av.pick.dex, av.pick.form)} appeared!`;
       const note = div().id(`appear-${av.id}`).absolute().top(av.dir === "r" ? this.leftNotes(now) * 18 + 4 : 4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(rareOf(av.pick)?.color ?? "#ffffff").child(sparkled(text));
       root.child(av.dir === "r" ? note.left(6) : note.right(update ? 134 : 50));
@@ -4296,8 +4351,11 @@ export default class PokemonHerd extends View {
   // The Bag's Shop tab: every item and its price; the chosen one, what it does, and Buy.
   // Pokédollars come from finished jobs (by how long each took).
   renderShop(b, LIST_H, t, art) {
-    const ids = grouped(Object.keys(PRICE));
-    const sel = ids.includes(this.shopSel) ? this.shopSel : "poke-ball";
+    // Its kinds as chips over the list (All, Balls, Berries, Medicine…): a click shows that kind only.
+    const every = grouped(Object.keys(PRICE));
+    const cat = GROUPS.some(([g]) => g === this.shopCat) ? this.shopCat : null;
+    const ids = cat ? every.filter((id) => groupOf(id) === cat) : every;
+    const sel = ids.includes(this.shopSel) ? this.shopSel : ids[0] ?? "poke-ball";
     const price = PRICE[sel];
     const have = b.items[sel] ?? 0;
     const most = maxBuy(b, sel);
@@ -4312,7 +4370,15 @@ export default class PokemonHerd extends View {
       .when(enabled, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { setQty(q); cx.notify(); }))
       .child(label);
     let last = null;
-    return h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
+    const chip = (id, label, on, click) => div().id(id).h(22).px(8).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+      .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000").text_color(on ? t.foreground : t.muted)
+      .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+    const kinds = GROUPS.map(([g]) => g).filter((g) => every.some((id) => groupOf(id) === g));
+    return v_flex().flex_none().h(LIST_H).gap(8)
+      .child(h_flex().gap(5).flex_wrap().flex_none()
+        .child(chip("shop-cat-all", "All", !cat, () => { this.shopCat = null; }))
+        .children(kinds.map((g) => chip(`shop-cat-${g}`, g, cat === g, () => { this.shopCat = g; this.shopSel = every.find((id) => groupOf(id) === g); this.shopQty = 1; }))))
+      .child(h_flex().flex_1().min_h(0).gap(12).items_stretch()
       .child(v_flex().id("shop-items").w(230).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
         .children(ids.flatMap((id) => {
           const on = id === sel;
@@ -4359,7 +4425,7 @@ export default class PokemonHerd extends View {
               : can ? `You have ${money(b.money)}.` : `${money(price * qty - (b.money ?? 0))} more to go.`)))
         .child(div().flex_1())
         .child(div().text_size(11.5).text_color(t.muted)
-          .child("Pokédollars come from jobs (₽1 and ₽5 a minute each took, ₽300 at most; twice with an Amulet Coin), the day's Research, visitors' purses and pats. Anything sells back for half.")));
+          .child("Pokédollars come from jobs (₽1 and ₽5 a minute each took, ₽300 at most; twice with an Amulet Coin), the day's Research, visitors' purses and pats. Anything sells back for half."))));
   }
 
 

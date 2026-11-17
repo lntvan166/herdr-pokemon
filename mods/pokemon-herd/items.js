@@ -40,6 +40,9 @@ export const ITEMS = {
   "poke-ball": { name: "Poké Ball", icon: "⚪", art: "items/poke-ball", kind: "ball" },
   "great-ball": { name: "Great Ball", icon: "🔵", art: "items/great-ball", kind: "ball" },
   "ultra-ball": { name: "Ultra Ball", icon: "🟡", art: "items/ultra-ball", kind: "ball" },
+  "quick-ball": { name: "Quick Ball", icon: "⚡", art: "items/quick-ball", kind: "ball" },
+  "dusk-ball": { name: "Dusk Ball", icon: "🌙", art: "items/dusk-ball", kind: "ball" },
+  "timer-ball": { name: "Timer Ball", icon: "⏱️", art: "items/timer-ball", kind: "ball" },
   "master-ball": { name: "Master Ball", icon: "🟣", art: "items/master-ball", kind: "ball" },
 };
 
@@ -49,7 +52,7 @@ export const PRICE = {
   // visitors' purses and tips about ₽1,000 more (≈ ₽3,000). Two Azure Flutes a day; balls cheap
   // enough to throw 15 at a legendary; a Master Ball about eight days.
   berry: 20, "sitrus-berry": 80, "razz-berry": 40, "pinap-berry": 40, "golden-razz-berry": 300, "silver-pinap-berry": 200,
-  "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "master-ball": 25000,
+  "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "quick-ball": 200, "dusk-ball": 120, "timer-ball": 120, "master-ball": 25000,
   honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800,
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])),
   ...Object.fromEntries(HELD_IDS.map((id) => [id, 2000])),
@@ -149,6 +152,9 @@ export function itemAbout(id) {
   if (id === "poke-ball") return "Catches a wild Pokémon walking by, now and then: click it once you have its gift. It joins your Box with a heart and a nature.";
   if (id === "great-ball") return "A better chance than a Poké Ball. Thrown first at a shiny.";
   if (id === "ultra-ball") return "The best chance short of a Master Ball: shinies and legendaries get these first.";
+  if (id === "quick-ball") return "Five times as likely as a Poké Ball if it's the first ball thrown at it; no better after. Throw it the moment one appears.";
+  if (id === "dusk-ball") return "Three times as likely as a Poké Ball at night; a Poké Ball by day.";
+  if (id === "timer-ball") return "Better the more balls you've thrown at it: a Poké Ball at first, up to four times as likely. For a legendary's long chase.";
   if (id === "master-ball") return "Never fails. Kept for legendary Pokémon: only one of those gets it.";
   if (id === "rare-candy") return "A level's worth: 5 jobs towards evolving (15 for a first evolution, 30 for a second); evolves it if that's enough.";
   const names = stoneTakers(id.replace(/-stone$/, ""));
@@ -171,7 +177,7 @@ export const MAX_ITEM = 999; // as the newer games' Bag
 // something to hold. Balls and catching Berries lead: they're what you use up.
 const PICKUP = [
   ["berry", 18], ["sitrus-berry", 6], ["razz-berry", 10], ["pinap-berry", 5], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
-  ["poke-ball", 22], ["great-ball", 7], ["ultra-ball", 2],
+  ["poke-ball", 22], ["great-ball", 7], ["ultra-ball", 2], ["quick-ball", 1], ["dusk-ball", 1], ["timer-ball", 1],
   ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 3], ["honey", 4], ["berry", 3], ["revive", 2], ["max-revive", 0.5], ...HELD_IDS.map((id) => [id, 0.6]),
 ];
 export function pickup(rnd = Math.random) {

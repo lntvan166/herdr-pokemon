@@ -47,10 +47,19 @@ export function wildPick(taken, rnd = Math.random, how = {}) {
 }
 
 // ---- Poké Balls ---------------------------------------------------------------------
-export const BALLS = ["poke-ball", "great-ball", "ultra-ball", "master-ball"];
+export const BALLS = ["poke-ball", "great-ball", "ultra-ball", "quick-ball", "dusk-ball", "timer-ball", "master-ball"];
 // As in Pokémon GO: each species has a base rate, and a better ball or a Berry raises it as a
 // power: chance = 1 − (1 − base)^(ball × berry). Great ×1.5, Ultra ×2 (the Master Ball never fails).
-const BALL_MUL = { "poke-ball": 1, "great-ball": 1.5, "ultra-ball": 2, "master-ball": Infinity };
+const BALL_MUL = { "poke-ball": 1, "great-ball": 1.5, "ultra-ball": 2, "quick-ball": 1, "dusk-ball": 1, "timer-ball": 1, "master-ball": Infinity };
+// The games' special balls, by the moment (`how`: { throws: thrown at it before this one, night }):
+// a Quick Ball ×5 as the first ball at it (×1 after), a Dusk Ball ×3 at night, a Timer Ball better
+// the more thrown before it (×1, +0.3 a ball, ×4 at most: for a legendary's 20 balls).
+export function ballMul(ball, how = {}) {
+  if (ball === "quick-ball") return (how.throws ?? 0) === 0 ? 5 : 1;
+  if (ball === "dusk-ball") return how.night ? 3 : 1;
+  if (ball === "timer-ball") return Math.min(4, 1 + 0.3 * (how.throws ?? 0));
+  return BALL_MUL[ball];
+}
 // Berries fed before the ball (Pokémon GO's): how much likelier, and whether a catch brings twice the gift.
 export const BAIT = {
   "razz-berry": { rate: 1.5 },
@@ -71,8 +80,8 @@ export function baseRate(dex) {
 // one of yours attacking it), the base rate rises: × (2 − hp), twice at a sliver of health.
 // A wild one asleep (wildacts.js nap) is easier to catch, as in the games; a friendly one a little.
 export const NAP_CATCH = 1.5, FRIEND_CATCH = 1.2;
-export function catchChance(ball, pick, bait = null) {
-  const mul = BALL_MUL[ball];
+export function catchChance(ball, pick, bait = null, how = {}) {
+  const mul = ballMul(ball, how);
   if (!mul) return 0;
   if (mul === Infinity) return 1;
   const hp = Number.isFinite(pick.hp) ? Math.max(0, Math.min(1, pick.hp)) : 1;
@@ -207,7 +216,8 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega =
   const strong = eff > 1;
   // A hit that would take it to 0 but isn't much more than it has left (under OVERKILL × its
   // health): it hangs on with a sliver. Much more (30% left, a 100% hit): it faints.
-  const left = hp - dmg > 0 ? hp - dmg : dmg < (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp ? Math.max(0.01, Math.min(0.05, hp / 2)) : 0;
+  // (A trainer's Pokémon, not to be caught: no sliver, it faints at 0.)
+  const left = hp - dmg > 0 ? hp - dmg : !wild.trainer && dmg < (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp ? Math.max(0.01, Math.min(0.05, hp / 2)) : 0;
   return { hp: left, dmg, strong, eff, text, fainted: left <= 0.001 };
 }
 // The wild one hits back at yours (its `hp`, 0..1, kept on the strip): { hp, dmg, eff, text,
@@ -239,8 +249,8 @@ export const LEGEND_THROWS = 20; // GO gives up to 20 Premier Balls for a raid b
 // on for another ball.
 export const FLEE = 0.05;
 // One throw: { caught, shakes, fled } (the ball shakes three times before it clicks; fewer when it breaks out).
-export function throwBall(ball, pick, rnd = Math.random, bait = null) {
-  const caught = rnd() < catchChance(ball, pick, bait);
+export function throwBall(ball, pick, rnd = Math.random, bait = null, how = {}) {
+  const caught = rnd() < catchChance(ball, pick, bait, how);
   const shakes = caught ? 3 : Math.floor(rnd() * 3);
   return { caught, shakes, fled: !caught && !isLegendary(pick.dex) && rnd() < FLEE };
 }

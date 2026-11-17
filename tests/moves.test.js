@@ -141,3 +141,19 @@ test("the weather, as the main games have it: Thunder sure in rain, unsure in su
   const solar = (w) => pickMove(3, 7, seq(0, 0.9, 0.9, 0.5), { moves: ["Solar Beam"], weather: w });
   assert.ok(Math.abs(solar("rain").mul - solar("sunny").mul / 2) < 1e-9);
 });
+
+test("every Pokémon's own move has a scene of its own, drawn in finite boxes", async () => {
+  const { EXCLUSIVE } = await import("../mods/pokemon-herd/moves.js");
+  const { SIGNATURE } = await import("../mods/pokemon-herd/fx-moves.js");
+  const { signatureParts, signatureTimes } = await import("../mods/pokemon-herd/fx.js");
+  for (const [name, m] of Object.entries(EXCLUSIVE)) {
+    assert.equal(typeof SIGNATURE[name], "function", name);
+    const parts = signatureParts(m.type, 0, 120, 40, 7, null, name);
+    assert.ok(parts.length > 0, name);
+    for (const p of parts) {
+      assert.ok(p.color, name);
+      for (const v of [p.at, p.ms, p.a.x, p.a.y, p.a.w, p.a.h, p.b.x, p.b.y, p.b.w, p.b.h]) assert.ok(Number.isFinite(v), `${name}: ${JSON.stringify(p)}`);
+    }
+    assert.ok(signatureTimes(m.type, name).length > 0, name);
+  }
+});

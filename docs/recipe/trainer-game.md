@@ -214,3 +214,19 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   4: stops 4 s with ☀️ 💧 ❄️ 🍃…), `curious` (an agent working, 1 in 8: stops by its Pokémon, ❓
   3 s). By chance: `dash` (Speed 100+, 6 in 10: ×2 pace, 💨). A legendary or an outbreak's: none.
   A ball or a battle ends it. Icons only while it does it (nothing pulsing).
+- **Special balls** (`trainer.js` `ballMul`; Shop and Pickup; only when chosen, never Auto's):
+  a Quick Ball ×5 as the first ball at it (×1 after; ₽200), a Dusk Ball ×3 at night (₽120), a
+  Timer Ball ×1 +0.3 for each ball thrown before it, ×4 at most (₽120).
+- **The Shop's kinds:** chips over its list (All, Balls, Berries, Medicine, Evolution, To hold, For
+  the herd, Calls; `items.js` `GROUPS`); a click shows that kind only.
+- **Trainers** (`trainers.js`): 1 visitor in `TRAINER_ODDS` 10 is a trainer instead (not in an
+  outbreak or a raid, never one called). Ten classes (Ace Trainer, Hiker, Swimmer, Black Belt,
+  Psychic, Bug Catcher, Kindler, Punk, Engineer, Bird Keeper), each its names, types, colours and
+  pay. Its team: 2 or 3 fully evolved Pokémon of its types, no legendaries, each a nature, hitting
+  and taking as one raised to every heart (`TEAM_EFFORT`). Its first walks in with it (its figure
+  behind it: our own 12 × 18 pixel art, `framesOf`, coloured by class, cut into walking and
+  standing GIFs by `sprites.js` `ensureTrainer`, ×2), stops 35–50% of the way ("❗"; "Punk Zed
+  wants to battle!" in the corner), and waits `WAIT_MS` 3 minutes for one of yours dropped on it:
+  a wild battle, but its Pokémon can't be caught (no ball, no gift) and faints at 0 (no sliver).
+  Fainted: "… sent out …!" and its next; all beaten: "You beat Punk Zed! +₽520 and a Max Revive"
+  (`trainerPay`: its class's pay, ×1.3 for three, and its item). Ignored, it walks on.

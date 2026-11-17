@@ -444,3 +444,24 @@ test("a Revive brings one that fainted back (half its health; a Max Revive all);
   assert.ok(PRICE.revive > 0 && PRICE["max-revive"] > PRICE.revive && ITEMS.revive.art);
   assert.equal(groupOf("revive"), "Medicine");
 });
+
+test("special balls, as in the games: Quick first, Dusk at night, Timer the longer the chase; never Auto's", async () => {
+  const { ballMul, catchChance, ballFor, BALLS } = await import("../mods/pokemon-herd/trainer.js");
+  const { PRICE, ITEMS, groupOf } = await import("../mods/pokemon-herd/items.js");
+  assert.equal(ballMul("quick-ball", { throws: 0 }), 5);
+  assert.equal(ballMul("quick-ball", { throws: 1 }), 1);
+  assert.equal(ballMul("dusk-ball", { night: true }), 3);
+  assert.equal(ballMul("dusk-ball", { night: false }), 1);
+  assert.equal(ballMul("timer-ball", { throws: 0 }), 1);
+  assert.ok(Math.abs(ballMul("timer-ball", { throws: 5 }) - 2.5) < 1e-9);
+  assert.equal(ballMul("timer-ball", { throws: 30 }), 4);
+  const p = { dex: 3 };
+  assert.ok(catchChance("quick-ball", p, null, { throws: 0 }) > catchChance("ultra-ball", p));
+  assert.equal(catchChance("quick-ball", p, null, { throws: 2 }), catchChance("poke-ball", p));
+  for (const id of ["quick-ball", "dusk-ball", "timer-ball"]) {
+    assert.ok(BALLS.includes(id) && PRICE[id] > 0 && ITEMS[id].kind === "ball" && groupOf(id) === "Balls");
+  }
+  // Auto never spends one (only when chosen).
+  assert.equal(ballFor({ "quick-ball": 3 }, { dex: 3 }), null);
+  assert.equal(ballFor({ "quick-ball": 3 }, { dex: 3 }, "quick-ball"), "quick-ball");
+});
