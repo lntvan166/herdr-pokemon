@@ -1209,7 +1209,7 @@ export default class PokemonHerd extends View {
             if (tr.fighter) tr.nextAt = now + 2700; // yours goes on against the next one
             v.fainted = undefined;
             v.fight = null;
-            v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, tr.at + WAIT_MS), icon: "❗", face: "L" };
+            v.halt = { kind: "trainer", x: Math.min(fx.x, Math.max(EDGE, this.width - EDGE - 20 * scaleOf() - this.trainerGap(v, scaleOf()))), at: now, until: Math.max(now + 60000, tr.at + WAIT_MS), icon: "❗", face: "L" };
             return true;
           }
           tr.beaten = now;
@@ -1274,7 +1274,7 @@ export default class PokemonHerd extends View {
         if (now - v.ready >= 500) {
           v.start = now;
           // A rare one: its cry (once, from the leading strip), so it isn't missed while you work.
-          if (rareOf(v.pick) && this.leader && settingsNow().cryRare) cry(v.pick.dex, true); // softly
+          if (rareOf(v.pick) && !v.trainer && this.leader && settingsNow().cryRare) cry(v.pick.dex, true); // softly
           if (this.coming === "honey" || (this.coming === "legend" && v.pick.legend)) this.coming = null;
         }
       } else if (now - v.asked > 60000) {
@@ -1295,7 +1295,9 @@ export default class PokemonHerd extends View {
       if (fm && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false };
       else trv.fighter = null;
     }
-    if (v.trainer && !v.trainer.waited) { v.trainer.waited = true; if (v.act) v.act.done = true; v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" }; }
+    // (Its Pokémon placed so the trainer, beyond it, stays inside the strip, however wide it is.)
+    const cornerX = () => Math.max(EDGE, this.width - EDGE - 20 * scaleOf() - this.trainerGap(v, scaleOf()));
+    if (v.trainer && !v.trainer.waited) { v.trainer.waited = true; if (v.act) v.act.done = true; v.from = v.x = cornerX(); v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" }; }
     // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
     if (v.halt) {
       v.x = v.halt.x;
@@ -1924,6 +1926,11 @@ export default class PokemonHerd extends View {
   // The visitor, drawn as the herd is but with no name: hovering it says what it is.
   // A trainer's figure (trainers.js, sprites.js ensureTrainer) standing or walking at `x`, its
   // feet on `ground`, facing `face` ("R"/"L"); null till its picture is in.
+  // How far a trainer stands from its Pokémon's middle: past half its drawn width (a Yveltal is
+  // wide), and a little room.
+  trainerGap(v, scale) {
+    return this.drawnWidth(v.pick, "idle") / 2 + 16 * scale;
+  }
   trainerFigure(v, x, ground, face, walking, scale) {
     const art = v.trainer && this.trainerArt?.[v.trainer.cls];
     if (!art) return null;
@@ -2001,7 +2008,7 @@ export default class PokemonHerd extends View {
       }
       root.child(hpBar(x));
       // A trainer's: it stands behind its Pokémon, watching.
-      const fig = v.trainer && this.trainerFigure(v, x - ((fx.ownX ?? x) > x ? 1 : -1) * 44 * scale, ground, (fx.ownX ?? x) > x ? "R" : "L", false, scale);
+      const fig = v.trainer && this.trainerFigure(v, x - ((fx.ownX ?? x) > x ? 1 : -1) * this.trainerGap(v, scale), ground, (fx.ownX ?? x) > x ? "R" : "L", false, scale);
       if (fig) root.child(div().absolute().left(0).top(0).child(fig));
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
       const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
@@ -2104,7 +2111,7 @@ export default class PokemonHerd extends View {
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
         .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale))
         // A trainer walks in behind its Pokémon; stopped, it stands there.
-        .when(!!v.trainer, (el) => { const f = this.trainerFigure(v, mid - (v.dir === "r" ? 1 : -1) * 44 * scale, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale); return f ? el.child(f) : el; })
+        .when(!!v.trainer, (el) => { const f = this.trainerFigure(v, mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale), ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale); return f ? el.child(f) : el; })
         .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - 14)).text_size(13).font_bold()
           .text_color(actIcon === "zZ" ? "#ffffff" : t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
@@ -4019,7 +4026,7 @@ export default class PokemonHerd extends View {
     }
     // A rare one walking by (shiny, Alpha, legendary): a note in the corner while it's here.
     const rv = this.visitor;
-    if (rv?.start && !rv.fainted && !(rv.throw && (rv.throw.caught || rv.throw.fled)) && rareOf(rv.pick) && settingsNow().cryRare && !this.coming) {
+    if (rv?.start && !rv.trainer && !rv.fainted && !(rv.throw && (rv.throw.caught || rv.throw.fled)) && rareOf(rv.pick) && settingsNow().cryRare && !this.coming) {
       root.child(div().id("pokemon-rare").absolute().right(update ? 134 : 50).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(rareOf(rv.pick).color)
         .child(`${rareOf(rv.pick).mark} ${rareOf(rv.pick).what} ${fullName(rv.pick.dex, rv.pick.form)} is walking by!`));
