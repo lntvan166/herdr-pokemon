@@ -4,7 +4,7 @@
 // choose which Pokémon it is.
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
-import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder, readTextFile, appHome } from "herdr";
+import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder, readTextFile, appHome, window as herdrWindow } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast, usesPokemonSidebar, toPokemonSidebar, fromPokemonSidebar, SIDEBAR_MOD } from "./place.js";
 import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning, sunAt, rainbowArcs, rainbowFade, RAINBOW_MS } from "./scene.js";
 import { statusChange, record, loadStats, summary, duration, statLine } from "./stats.js";
@@ -463,6 +463,21 @@ const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top
     .transition("width", { duration: 450, delay: 250, easing: "ease-in" })))
   .child(div().absolute().left(0).top(0).h_full().w(Math.max(1, Math.round(36 * hp))).bg(hp > 0.5 ? "#46c46a" : hp > RED ? "#e8b062" : "#e5484d"));
 // Yours after a wild one hit back: its health (0..1), coming back over OWN_REST.
+// Updating by hand, for when Update now can't (an older copy's updater is broken, a write was
+// refused): what to ask an agent, and the same as one command for this system's shell, into this
+// copy's own folder. Shown in Settings → Updates (fields to select and copy).
+const manualUpdate = () => {
+  const dir = `${appHome()}/mods/${MOD}`;
+  const tgz = `https://codeload.github.com/${REPO}/tar.gz/refs/heads/main`;
+  const windows = (() => { try { return herdrWindow().platform === "windows"; } catch { return false; } })();
+  const side = `${appHome()}/mods/pokemon-sidebar`, win = (p) => p.replace(/\//g, "\\");
+  return {
+    agent: `Read ~/.config/herdr-app/AGENTS.md, then update the Pokerdr mod in ${dir} from https://github.com/${REPO}: copy its mods/pokemon-herd over that folder (keep the folder's name) and its mods/pokemon-sidebar over mods/pokemon-sidebar.`,
+    shell: windows
+      ? `cd $env:TEMP; curl.exe -sfL ${tgz} -o pokerdr.tgz; tar -xzf pokerdr.tgz; Copy-Item -Recurse -Force herdr-pokemon-main\\mods\\pokemon-herd\\* "${win(dir)}"; New-Item -ItemType Directory -Force "${win(side)}" | Out-Null; Copy-Item -Recurse -Force herdr-pokemon-main\\mods\\pokemon-sidebar\\* "${win(side)}"`
+      : `cd /tmp && curl -sfL ${tgz} | tar -xz && cp -R herdr-pokemon-main/mods/pokemon-herd/. "${dir}/" && mkdir -p "${side}" && cp -R herdr-pokemon-main/mods/pokemon-sidebar/. "${side}/"`,
+  };
+};
 // Its health kept for the Bag (a Berry heals it): fully healed ones dropped.
 const keepHp = (pane, rec) => {
   if (!pane) return;
@@ -2766,7 +2781,7 @@ export default class PokemonHerd extends View {
     setShared(AUTO_KEY, { tried: to, at: Date.now() });
     setShared(UPDATED_KEY, { from: VERSION, to, at: Date.now() });
     // Failed (a write refused halfway?): tried again in a few hours (update.js RETRY_MS).
-    updateNow().catch(() => setShared(AUTO_KEY, { tried: to, at: Date.now(), failed: true })).finally(() => { this.autoUpdating = false; });
+    updateNow().catch((e) => setShared(AUTO_KEY, { tried: to, at: Date.now(), failed: true, why: String(e?.message ?? e).slice(0, 200) })).finally(() => { this.autoUpdating = false; });
   }
 
   // The update waiting on GitHub (its version), or null.
@@ -2842,6 +2857,12 @@ export default class PokemonHerd extends View {
     this.settingsTab = props()?.tab ?? (props()?.update ? "updates" : firstTime ? "guide" : "strip");
     this.unlocking = false; // Trainer → Unlock all, asked once: "Sure?"
     this.updating = null; // null | "running" | "done" | an error message
+    // Update by hand: the two lines in fields, to select and copy (no clipboard for mods).
+    const hand = manualUpdate();
+    this.handAgent = InputState.new({ placeholder: "" });
+    this.handAgent.set_value(hand.agent);
+    this.handShell = InputState.new({ placeholder: "" });
+    this.handShell.set_value(hand.shell);
     this.sidebar = null; // Better Sidebar: "missing" | "patched" | "outdated" | "unpatched" (null: checking)
     this.patching = null; // null | "running" | an error message
     cx.spawn(async (cx) => {
@@ -3195,6 +3216,16 @@ export default class PokemonHerd extends View {
               cx.notify();
             });
           })),
+        // It failed (here, or by itself): why, and how to update by hand.
+        ...((() => {
+          const auto = shared(AUTO_KEY);
+          const why = this.updating && !["running", "done"].includes(this.updating) ? this.updating : upd && auto?.failed && auto.tried === upd ? auto.why ?? "it couldn't" : null;
+          if (!why) return [];
+          const t = theme();
+          const field = (id, state) => Input.new(state).id(id).h(28).px(8).rounded(6).border_1().border_color(t.border).bg(t.background).text_size(11.5).text_color(t.foreground);
+          return [line("Update by hand", `It couldn't update by itself (${why}). Ask an agent, or run the command; select a line and copy it. Your Pokémon are kept either way.`, div()),
+            div().px(4).child(field("hand-agent", this.handAgent)), div().px(4).child(field("hand-shell", this.handShell))];
+        })()),
         line("Update by itself", "A newer version, checked every few hours, installs itself (Herdr reloads the mod). Off: the Update pill, and Update now.",
           swtch("set-autoUpdate", settingsNow().autoUpdate, () => setSetting("autoUpdate", !settingsNow().autoUpdate))),
         ...(this.sidebar === "missing" ? [] : [line("Cards in Better Sidebar", this.sidebar === null ? "Checking…"

@@ -133,3 +133,16 @@ test("update by itself: a failed try is tried again hours later, not never", () 
   assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", { tried: "2.5.6", at: 0, failed: true }, 7 * 3600000), true);
   assert.equal(shouldAutoUpdate(true, "2.5.6", "2.5.5", { tried: "2.5.6", at: 0 }, 7 * 3600000), false); // tried, not failed
 });
+
+test("installUpdate: works without TextDecoder (Herdr's runtime on macOS has none)", async () => {
+  const saved = globalThis.TextDecoder;
+  delete globalThis.TextDecoder;
+  try {
+    const f = fake();
+    const mine = f.copy("pokemon-herd-2", "pokemon-herd-2", "1.6.1");
+    await update(f, "1.6.1");
+    assert.match(read(join(mine, "id.js"), "utf8"), /export const MOD = "pokemon-herd-2";[\s\S]*VERSION = "1\.9\.0"|VERSION = "1\.9\.0"[\s\S]*export const MOD = "pokemon-herd-2";/);
+  } finally {
+    globalThis.TextDecoder = saved;
+  }
+});

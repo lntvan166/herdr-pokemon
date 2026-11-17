@@ -138,7 +138,21 @@ Optional keys (`keys.json`): `"alt-shift-p": "pokemon-herd.pick"` (picker for th
 It updates itself: every few hours the strip checks GitHub, installs a newer version and says
 "✓ Updated to …" in its corner. Your Pokémon, Bag, money and Pokédex stay. Turn it off in
 **Settings → Updates → Update by itself**; then an **Update** pill shows and **Update now** installs
-it. By hand: `git pull && scripts/install.sh`.
+it. If it can't, Settings → Updates says why and shows how to update by hand.
+
+**On 2.16.1 to 2.20.0, update by hand once:** those versions' updater fails ("TextDecoder is not
+defined"), so they can't install the fix by themselves. Ask your agent: *Read
+~/.config/herdr-app/AGENTS.md, then update the Pokerdr mod from
+https://github.com/lntvan166/herdr-pokemon*. Or on macOS and Linux (the mod in its usual folder):
+
+```sh
+cd /tmp && curl -sfL https://codeload.github.com/lntvan166/herdr-pokemon/tar.gz/refs/heads/main | tar -xz \
+  && cp -R herdr-pokemon-main/mods/pokemon-herd/. ~/.config/herdr-app/mods/pokemon-herd/ \
+  && mkdir -p ~/.config/herdr-app/mods/pokemon-sidebar \
+  && cp -R herdr-pokemon-main/mods/pokemon-sidebar/. ~/.config/herdr-app/mods/pokemon-sidebar/
+```
+
+From a clone of this repo: `git pull && scripts/install.sh`.
 
 ## Art and names
 

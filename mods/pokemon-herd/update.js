@@ -81,12 +81,14 @@ export async function installUpdate(io, { app, repo, running, src, force = false
   const targets = mine.length ? mine : all;
   if (!targets.length) throw new Error("this mod's folder wasn't found under mods/");
   const out = [];
+  // The new id.js as text, read as such (no TextDecoder: Herdr's runtime on macOS has none, and
+  // every update there failed on it).
+  const newId = await read(`${src}/id.js`);
   for (const dir of targets) {
     const name = /^export const MOD = "(.*)";/m.exec(await read(`${dir}/id.js`))?.[1];
     // Its own MOD name kept in id.js as it's written (not after: no moment with another name).
-    const dec = new TextDecoder();
     const mineFiles = files.map(([p, data]) => (p === "id.js" && name
-      ? [p, (typeof data === "string" ? data : dec.decode(data)).replace(/^export const MOD = .*$/m, `export const MOD = "${name}";`)] : [p, data]));
+      ? [p, newId.replace(/^export const MOD = .*$/m, `export const MOD = "${name}";`)] : [p, data]));
     await writeAll(mineFiles, dir);
     out.push({ dir, version });
   }

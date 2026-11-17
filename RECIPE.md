@@ -178,6 +178,14 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   keeps its own `export const MOD` line. It prints "<folder> <version>" per folder, and Settings
   says "Updated mods/<folder> to <version>. It reloads by itself; if this still says <old>,
   restart Herdr." No folder found: "this mod's folder wasn't found under mods/".
+  Herdr's runtime is neither Node nor a browser: it has no `TextDecoder`, `TextEncoder`,
+  `structuredClone`, `AbortController` or `Intl` (probed in it; `tests/runtime.test.js` keeps them
+  out of the mods). The new `id.js` is read as text (`readFile(…, "utf8")`): 2.16.1–2.20.0 decoded
+  it with `TextDecoder` and every update failed. When an update fails (by hand or by itself:
+  `pokemon-herd-auto-update` keeps `why`), Settings → Updates shows "Update by hand": the reason,
+  and two fields to select and copy: what to ask an agent, and one command for this system's
+  shell (`manualUpdate`: curl and tar, then `cp -R` or PowerShell's `Copy-Item` into this copy's
+  own folder and `mods/pokemon-sidebar`).
 - **Settings → Updates** (`selfupdate.js`): "Pokémon herd" with the version ("1.0.0, the
   latest (checked once a day)", or "<new> is out; you have <v>…") and an "Update now" pill
   (live only when newer): curl the repo's main tarball, copy `mods/pokemon-herd/` over the
