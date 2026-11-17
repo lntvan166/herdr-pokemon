@@ -149,7 +149,9 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   `STATUS_COLOR`, `NOTE_MS` 1.1 s). Each
   turn: its attack, its move flying (`shots`, one per turn), the other flinching with a blow
   (the move, the damage, its health: a bar over it). Then 🎉 and "<name> won! w–l" over the
-  winner (`withResult`, shared `pokemon-herd-spar-records`, 300 pairs), 💫 over the loser. The
+  winner (today's record of those two Pokémon: `withResult`, `whoOf` = pane and species, shared
+  `pokemon-herd-spar-records` `{ day, pairs }`, 300 pairs; another Pokémon on the pane, or the next
+  day, starts at 0–0), 💫 over the loser. The
   leader pays: the winner FRIEND.spar more, `sparW`/`sparL` on each pick (the Box's facts).
   Idle ones on the row within 220 px turn to watch.
 - **Forms** (`species.js` `REGIONAL`, from `scripts/gen-species.mjs`): regional forms (Alola, Galar,

@@ -96,23 +96,28 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m) {
   return { turns, winner, hp };
 }
 
-// The record between two (picks' slots), kept as { "<slot>|<slot>": [wins of the first, of the
-// second] } (sorted slots), MAX_RECORDS at most: the pair's, from `slot`'s side: [won, lost].
+// The record between two, today's only: { day, pairs: { "<who>|<who>": [wins of the first, of the
+// second] } } (sorted), MAX_RECORDS pairs at most. `who`: one Pokémon on one pane (whoOf: an
+// agent that changes its Pokémon starts a new record, its old one's isn't carried over). From
+// `who`'s side: [won, lost]; another day's (or the old shape's) counts as none.
 export const MAX_RECORDS = 300;
+export const whoOf = (pane, pick) => `${pane}#${pick?.dex ?? 0}${pick?.form ? `-${pick.form}` : ""}`;
 const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
-export function recordOf(records, slot, other) {
-  const r = records?.[pairKey(slot, other)];
+const todays = (records, day) => (records?.day === day && records.pairs && typeof records.pairs === "object" ? records.pairs : {});
+export function recordOf(records, who, other, day) {
+  const r = todays(records, day)[pairKey(who, other)];
   if (!Array.isArray(r)) return [0, 0];
-  return slot < other ? [r[0] ?? 0, r[1] ?? 0] : [r[1] ?? 0, r[0] ?? 0];
+  return who < other ? [r[0] ?? 0, r[1] ?? 0] : [r[1] ?? 0, r[0] ?? 0];
 }
-export function withResult(records, winner, loser) {
+export function withResult(records, winner, loser, day) {
   const key = pairKey(winner, loser);
-  const r = Array.isArray(records?.[key]) ? [...records[key]] : [0, 0];
+  const pairs = todays(records, day);
+  const r = Array.isArray(pairs[key]) ? [...pairs[key]] : [0, 0];
   r[winner < loser ? 0 : 1] = (r[winner < loser ? 0 : 1] ?? 0) + 1;
-  const out = { ...(records ?? {}) };
+  const out = { ...pairs };
   delete out[key];
   out[key] = r; // the latest last
   const keys = Object.keys(out);
   for (const k of keys.slice(0, Math.max(0, keys.length - MAX_RECORDS))) delete out[k];
-  return out;
+  return { day, pairs: out };
 }

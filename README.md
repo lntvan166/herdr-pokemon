@@ -74,7 +74,7 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   turns each. The faster moves first, and moves do what they do in the games: Thunderbolt can
   paralyse, Flamethrower burn, Ice Beam freeze, Sludge Bomb poison, Air Slash make it flinch,
   Crunch lower its Defense. All are level 50; a well-raised one is a touch stronger (+1% a heart, +5%
-  at most, like Legends: Arceus' effort levels), and its nature counts (Brave: more Attack, less Speed). The winner celebrates ("Landorus won! 3–1", the pair's record), the other sits
+  at most, like Legends: Arceus' effort levels), and its nature counts (Brave: more Attack, less Speed). The winner celebrates ("Landorus won! 3–1", the two's record today), the other sits
   dizzy, nobody is hurt for real. The winner gains a little more friendship; the Box keeps each
   one's record, and those idle nearby turn to watch.
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts

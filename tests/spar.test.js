@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sparTurns, SPAR_TURNS, recordOf, withResult, MAX_RECORDS, SIDE_EFFECTS, NOTE_TEXT } from "../mods/pokemon-herd/spar.js";
+import { sparTurns, SPAR_TURNS, recordOf, withResult, whoOf, MAX_RECORDS, SIDE_EFFECTS, NOTE_TEXT } from "../mods/pokemon-herd/spar.js";
 import { duel } from "../mods/pokemon-herd/react.js";
 import { loadPicks } from "../mods/pokemon-herd/picks.js";
 
@@ -33,15 +33,25 @@ test("duel: each turn its move flies and the other flinches with the health it's
   assert.ok(end > win.at);
 });
 
-test("records: each pair's, from either side; the oldest pairs forgotten past MAX_RECORDS", () => {
-  let r = withResult({}, "p1", "p2");
-  r = withResult(r, "p1", "p2");
-  r = withResult(r, "p2", "p1");
-  assert.deepEqual(recordOf(r, "p1", "p2"), [2, 1]);
-  assert.deepEqual(recordOf(r, "p2", "p1"), [1, 2]);
-  assert.deepEqual(recordOf(r, "p1", "p9"), [0, 0]);
-  for (let i = 0; i < MAX_RECORDS + 5; i++) r = withResult(r, `x${i}`, "y");
-  assert.equal(Object.keys(r).length, MAX_RECORDS);
+test("records: today's only, each pair of Pokémon's, from either side; the oldest forgotten past MAX_RECORDS", () => {
+  const D = 100;
+  let r = withResult(undefined, "p1#6", "p2#9", D);
+  r = withResult(r, "p1#6", "p2#9", D);
+  r = withResult(r, "p2#9", "p1#6", D);
+  assert.deepEqual(recordOf(r, "p1#6", "p2#9", D), [2, 1]);
+  assert.deepEqual(recordOf(r, "p2#9", "p1#6", D), [1, 2]);
+  assert.deepEqual(recordOf(r, "p1#6", "p9#1", D), [0, 0]);
+  // Its agent changed its Pokémon: a new record, the old one's not carried over.
+  assert.equal(whoOf("p1", { dex: 6 }), "p1#6");
+  assert.equal(whoOf("p1", { dex: 37, form: "alola" }), "p1#37-alola");
+  assert.deepEqual(recordOf(r, whoOf("p1", { dex: 7 }), "p2#9", D), [0, 0]);
+  // Tomorrow: a fresh start.
+  assert.deepEqual(recordOf(r, "p1#6", "p2#9", D + 1), [0, 0]);
+  assert.deepEqual(recordOf(withResult(r, "p1#6", "p2#9", D + 1), "p1#6", "p2#9", D + 1), [1, 0]);
+  // The old shape (all days, by pane) counts as none.
+  assert.deepEqual(recordOf({ "p1|p2": [5, 5] }, "p1#6", "p2#9", D), [0, 0]);
+  for (let i = 0; i < MAX_RECORDS + 5; i++) r = withResult(r, `x${i}`, "y", D);
+  assert.equal(Object.keys(r.pairs).length, MAX_RECORDS);
   assert.equal(loadPicks({ panes: { p: { dex: 25, sparW: 3, sparL: 1 } } }).panes.p.sparW, 3);
 });
 

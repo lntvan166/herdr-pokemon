@@ -15,7 +15,7 @@ import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf,
 import { EVOLVES_FROM } from "./species.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
 const HP_KEY = `${MOD}-hp`; // yours hurt: { pane: { hp, at, rest? } } (trainer.js healthNow), shared so a Berry fed anywhere heals it
-const SPAR_KEY = `${MOD}-spar-records`; // each pair's sparring record (spar.js withResult)
+const SPAR_KEY = `${MOD}-spar-records`; // each pair's sparring record today (spar.js withResult)
 const GUIDE_KEY = `${MOD}-guide-seen`; // Settings opened once: it opens on the Guide that time
 const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
@@ -32,7 +32,7 @@ import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
 import { effortOf, healthNow, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { sparTurns, withResult, recordOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
+import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
 import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
@@ -2460,7 +2460,9 @@ export default class PokemonHerd extends View {
         // The winner: a little more friendship, the pair's record, its "won!" (with the record).
         const [wa, la] = result.winner === "a" ? [a1, a2] : [a2, a1];
         const wm = this.mons[wa.address], wp = ids[wa.address];
-        const rec = wa.pane && la.pane ? withResult(shared(SPAR_KEY) ?? {}, wa.pane, la.pane) : null;
+        // Today's record of these two Pokémon (spar.js: a new one with another Pokémon, or tomorrow).
+        const day = dayOf(now), wWho = whoOf(wa.pane, ids[wa.address]), lWho = whoOf(la.pane, ids[la.address]);
+        const rec = wa.pane && la.pane ? withResult(shared(SPAR_KEY), wWho, lWho, day) : null;
         if (this.leader && rec) {
           setShared(SPAR_KEY, rec);
           const saved = savedPicks(), w = saved[wa.pane], l = saved[la.pane];
@@ -2470,7 +2472,7 @@ export default class PokemonHerd extends View {
             if (Math.max(nw.hearts ?? 0, nl.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
           }
         }
-        const [w, l] = rec ? recordOf(rec, wa.pane, la.pane) : [0, 0];
+        const [w, l] = rec ? recordOf(rec, wWho, lWho, day) : [0, 0];
         const winStep = wm.react.seq.find((st) => st.result === "win");
         wm.sparWin = { at: winStep?.at ?? now, text: `${wp ? nameFor(wp) : "It"} won!${w + l > 1 ? ` ${w}–${l}` : ""}` };
         // Those idle nearby on its row turn to watch.
@@ -4775,8 +4777,13 @@ export default class PokemonHerd extends View {
   }
 
   // A legendary not caught yet (and not opened in Settings): shown, but can't be chosen.
+  // Trainer mode (Settings): any species not caught yet (nor a starter) too, wherever it's reached
+  // from (the grid shows only those, but its line in the card and the preview reach the others:
+  // Replace took an evolution not caught yet). "legend" | "trainer" | false.
   locked(e) {
-    return !e.form && isLocked(e.dex, pokedex(), settingsNow().legendsOpen);
+    if (!e.form && isLocked(e.dex, pokedex(), settingsNow().legendsOpen)) return "legend";
+    if (settingsNow().trainer && !trainerKeys(pokedex()).has(String(e.dex))) return "trainer";
+    return false;
   }
 
   // Icons for what the picker shows, downloaded on demand, a few at a time.
@@ -5057,7 +5064,8 @@ export default class PokemonHerd extends View {
           .child(h_flex().gap(6).items_center()
             .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`)))
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
-          .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research calls one), or open them all in Settings."
+          .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) === "trainer" ? "Trainer mode: catch one as it walks by, or raise yours till it evolves."
+            : this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research calls one), or open them all in Settings."
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
             : "Preview: click another to see it, or Replace to take this one")))
         // Favourites are starred here (or on the card, for the one it is).
