@@ -984,6 +984,24 @@ export default class PokemonHerd extends View {
     cx.notify();
   }
 
+  // A working agent's minutes, counted once a minute as they go (they counted only when it stopped:
+  // a long run, or the day's last ones, left the Research and the raid egg behind). The species'
+  // stats still take the whole run when it ends (count).
+  creditWork(a, m, now) {
+    if (!this.leader || !a.pane || m.status !== "working" || m.run?.since == null) return;
+    const ran = now - m.run.since, add = ran - (m.workCounted ?? 0);
+    if (add < 60000) return;
+    m.workCounted = ran;
+    // All agents' minutes in one write a minute (each write redraws every mod).
+    this.workPending = (this.workPending ?? 0) + add;
+    if (now - (this.workFlushed ?? 0) < 60000) return;
+    this.workFlushed = now;
+    const before = dailyNow().count.work ?? 0;
+    research("work", this.workPending / 60000);
+    this.workPending = 0;
+    this.raidEgg(before, dailyNow().count.work ?? 0, now);
+  }
+
   // Its agent changed status: the work it did goes to its species' stats, and a finished job
   // to its pane's count towards evolving (sub-agents' Pokémon don't evolve).
   count(a, pick, m, next, now) {
@@ -992,10 +1010,15 @@ export default class PokemonHerd extends View {
     if (!this.leader) return; // another strip counts
     if (pick && (c.ms || c.job)) setShared(STATS_KEY, record(stats(), pick.dex, c));
     if (c.ms && a.pane) {
-      const before = dailyNow().count.work ?? 0;
-      research("work", c.ms / 60000);
-      this.raidEgg(before, dailyNow().count.work ?? 0, now); // every 2½ hours of all agents' work, an egg
-    }
+      // What's left of the run (creditWork counted the rest as it went).
+      const add = c.ms - (m.workCounted ?? 0);
+      m.workCounted = 0;
+      if (add > 0) {
+        const before = dailyNow().count.work ?? 0;
+        research("work", add / 60000);
+        this.raidEgg(before, dailyNow().count.work ?? 0, now); // every 2½ hours of all agents' work, an egg
+      }
+    } else if (c.ms) m.workCounted = 0;
     if (!c.job) return;
     if (a.pane) research("job", 1, pick?.dex); // the day's Research: a job, and its Pokémon's type
     // Paid for the job, by how long it took (twice with an Amulet Coin): "+₽25" over its head.
@@ -2361,6 +2384,7 @@ export default class PokemonHerd extends View {
           if ((a.status === "blocked" && st.cryBlocked) || (a.status === "done" && st.cryDone)) cry(ids[a.address].dex);
         }
         onStatus(m, m.status, a.status, now, has, msOf); this.count(a, ids[a.address], m, a.status, now); m.status = a.status; changed = true; }
+      this.creditWork(a, m, now); // an agent working: its minutes count as they go (the Research, raid eggs)
       if (focus.react === a.address) { onFocus(m, effectiveMood(raw, m, now), now, has, msOf); changed = true; }
       // Poké Flute: those asleep wake now (once per use), and all stay up while it lasts.
       const flute = boosts["poke-flute"];

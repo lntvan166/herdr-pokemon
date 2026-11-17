@@ -117,7 +117,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   1 in 17).
 - **Raids** (`events.js`, shared `pokemon-herd-raid`; Settings → Trainer → Events): time, not
   jobs (a message to an agent counts as a job: jobs could be spammed). Every 150 minutes of all
-  agents' work together, 2 a day at most (`laysEgg`; it was per agent open, and seven open, most
+  agents' work together (a working agent's minutes counted once a minute as they go, `creditWork`, one write for all; they used to count only when it stopped), 2 a day at most (`laysEgg`; it was per agent open, and seven open, most
   idle, needed 17½ hours of work for one), an egg (PokeAPI's `pokemon/egg` sprite) in
   the middle of the first row, wobbling its last 30 s; 5 minutes later it hatches into a boss ×1.8
   (an Alpha at its last stage; 1 in 5 a legendary not caught yet), with a health bar, for 30
