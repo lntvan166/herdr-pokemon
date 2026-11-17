@@ -122,8 +122,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   the middle of the first row, wobbling its last 30 s; 5 minutes later it hatches into a boss ×1.8
   (an Alpha at its last stage; 1 in 5 a legendary not caught yet), with a health bar, for 30
   minutes; no other visitors meanwhile. Its bulk: `RAID_HP` 2.4, and `RAID_HP_PER` 2.4 for each agent
-  open past the first when the egg is laid (each a Pokémon that can hit it; it was by those working,
-  and a boss laid with most agents done was beaten in three hits; `newRaid` `bulk`; tuned with `scripts/sim-raid.mjs`: an eager player wins in ~13 minutes
+  on the field past the first, reckoned at each hit (`bulkFor`, `raidHit` `how.agents`: each agent a
+  Pokémon that can hit it, so opening more to beat it makes it sturdier as they come; it was fixed
+  by those working when the egg was laid, and a boss laid with most agents done fell in three hits;
+  while a raid is on, its spot (mid-strip, first row, `BOSS_CLEAR` 80 px each side × the scale) is
+  kept clear: yours don't stop there, and one standing there, asleep too, shuffles aside; tuned with `scripts/sim-raid.mjs`: an eager player wins in ~13 minutes
   whatever the team). You fight it: drop one of yours on it (near it, first row) and it steps off
   and fires its best type (`raidHit`: a wild hit's damage over its bulk, at least 3%; ×1.5 while
   its agent is working), each once a minute (`cooldownLeft`). While the battle is on, each one

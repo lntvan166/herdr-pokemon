@@ -133,3 +133,13 @@ test("2 eggs a day, however the number of agents changes; every pane's cooldown 
   assert.ok(junk.hits.every((h) => h && Number.isFinite(h.at)));
   assert.equal(junk.bulk, RAID_HP);
 });
+
+test("a raid boss's bulk is the agents on the field as it's hit: opening more to beat it makes it sturdier", async () => {
+  const { bulkFor } = await import("../mods/pokemon-herd/events.js");
+  assert.equal(bulkFor(1), RAID_HP);
+  assert.equal(bulkFor(7), RAID_HP + 6 * RAID_HP_PER);
+  const r = { ...newRaid(0, () => 0.5, { agents: 1 }), hatch: 0, until: 1e9 };
+  const one = raidHit(r, "6mX", "p1", "fire", 10, () => 0.5, { agents: 1 }).hit.dmg;
+  const seven = raidHit(r, "6mX", "p1", "fire", 10, () => 0.5, { agents: 7 }).hit.dmg;
+  assert.ok(Math.abs(one / seven - bulkFor(7) / bulkFor(1)) < 1e-6);
+});

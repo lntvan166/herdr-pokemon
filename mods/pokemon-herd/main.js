@@ -700,7 +700,8 @@ const PICK_W = 92;
 const PICK_GAP = 6;
 const PICK_ROW = 102;
 const PREVIEW_WAIT = 300; // ms a preview is shown before its animations are asked for
-const BOX_COLS = 6, BOX_ROW = 110; // the Box's grid: 84 px cells, 6 apart
+const BOX_COLS = 6, BOX_ROW = 110;
+const BOSS_CLEAR = 80; // px each side of a raid boss kept clear of yours (×the strip's scale) // the Box's grid: 84 px cells, 6 apart
 const ICON_JOBS = 8; // icon downloads at once
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -1574,7 +1575,7 @@ export default class PokemonHerd extends View {
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
     const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: live.moves, weather: this.boostNow().id }));
-    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature, weather: this.boostNow().id });
+    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature, weather: this.boostNow().id, agents: herdAgents().filter((x) => x.pane).length });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
   }
@@ -2319,6 +2320,12 @@ export default class PokemonHerd extends View {
     // Whose agent you just focused: that Pokémon wakes up and looks at you.
     const focus = focusEdge(this.lastFocus, list);
     this.lastFocus = focus.addr;
+    // A raid on: the boss's spot (mid-strip, first row, BOSS_CLEAR each side) kept clear, so its
+    // big sprite hides none of yours: none stops there, one standing there steps aside (dropped
+    // on it to strike, one still goes in, and is thrown back out).
+    const raidPh = settingsNow().raids ? raidPhase(loadRaid(shared(RAID_KEY)), now) : null;
+    const bossZone = raidPh && raidPh !== "gone" ? { lo: this.width / 2 - BOSS_CLEAR * scaleOf(), hi: this.width / 2 + BOSS_CLEAR * scaleOf() } : null;
+    const clearOf = (x) => (bossZone && x > bossZone.lo && x < bossZone.hi ? (x < this.width / 2 ? bossZone.lo - 6 : bossZone.hi + 6) : x);
     // One agent throwing must not stop the others.
     forEachSafe(list, (a, i) => {
       live.add(a.address);
@@ -2418,6 +2425,12 @@ export default class PokemonHerd extends View {
         if (Math.abs(m.x - m.seat) >= 8) { walk(m, m.seat, SPEED.idle); m.shuffle = true; m.wrap = false; changed = true; }
         else { m.dir = this.width / 2 > m.x ? "r" : "l"; m.pauseUntil = now + 60000; }
       }
+      // Standing where a raid boss is: it steps aside (not while it strikes or is thrown back).
+      if (bossZone && !m.moving && rowAt(a, i) === 0 && clearOf(m.x) !== m.x && !reacting && !(m.battleUntil > now) && !m.raidPush) {
+        m.shuffle = true; // asleep too: it shuffles aside (a sleeper's walk would stop at once)
+        walk(m, clamp(clearOf(m.x), lo, hi), SPEED.idle);
+        changed = true;
+      }
       if (m.moving) {
         const f = clamp((now - m.start) / m.dur, 0, 1);
         if (!m.wrap && (m.target < lo || m.target > hi)) {
@@ -2469,6 +2482,7 @@ export default class PokemonHerd extends View {
         // Stop somewhere with room for a name, clear of those resting (working ones too, so
         // they don't make a sleeper shuffle aside).
         target = restSpot(target, othersOnRow(i), lo, hi, REST_GAP);
+        if (rowAt(a, i) === 0) target = clamp(clearOf(target), lo, hi); // not where a raid boss stands
         // A sub-agent's Pokémon keeps close to its agent's: just behind it, whichever side it is on.
         const lead = family[a.address] && this.mons[family[a.address]];
         if (lead) target = clamp((lead.moving ? lead.target : lead.x) + (m.x < lead.x ? -1 : 1) * rand(36, 56), lo, hi);

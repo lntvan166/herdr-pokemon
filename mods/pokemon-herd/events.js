@@ -48,13 +48,15 @@ export const RAID_COOLDOWN = 60000; // each of yours hits it once a minute (drop
 export const WORKING_HIT = 1.5; // one whose agent is working hits ×1.5
 export const EGG_MS = 5 * 60000; // it hatches after 5 minutes
 export const RAID_MS = 30 * 60000; // then 30 minutes to beat the boss
-// A boss's bulk: 2.4× a wild one's beating for each agent working when it hatched (at least one).
+// A boss's bulk: 2.4× a wild one's beating for each agent on the field as it's hit (at least one).
 // Simulated (scripts/sim-raid.mjs) with the games' damage (movesets, STAB): an eager player,
 // dropping each one as soon as it's ready, beats it in about 14 minutes of the 30 whatever the
 // team (82% alone, 100% with six); one dropping one a minute wins alone, rarely against a big
 // team's boss. Each of yours faints once or twice.
 export const RAID_HP = 2.4;
 export const RAID_HP_PER = 2.4;
+// A boss's bulk with `agents` on the field: RAID_HP, and RAID_HP_PER for each one past the first.
+export const bulkFor = (agents) => RAID_HP + RAID_HP_PER * Math.max(0, (agents ?? 1) - 1);
 export const BOSS_SIZE = 1.8;
 export const RAID_CHIP = 0.03;
 export const BEATEN_MS = 90000; // about as long as the beaten boss takes to walk off // the least a hit takes off a boss
@@ -76,7 +78,7 @@ export function newRaid(now, rnd = Math.random, how = {}) {
     boss = { dex: FINALS[Math.floor(rnd() * FINALS.length)], alpha: true };
   }
   if (rnd() * 64 < 1 && hasShiny(boss.dex)) boss.shiny = true;
-  const bulk = RAID_HP + RAID_HP_PER * Math.max(0, (how.agents ?? 1) - 1);
+  const bulk = bulkFor(how.agents ?? 1);
   // `day`/`eggs`: the eggs laid that day, this one counted (how.eggs: the ones before it).
   return { v: 1, id: `${now}-${boss.dex}`, at: now, hatch: now + EGG_MS, until: now + EGG_MS + RAID_MS, boss, bulk, hp: 1, hits: [], last: {},
     ...(how.day ? { day: how.day, eggs: (how.eggs ?? 0) + 1 } : {}) };
@@ -126,7 +128,11 @@ export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {
   const d = damage(key, r.boss.dex, rnd, { alphaTarget: !!r.boss.alpha, shadowAttacker: !!how.shadow, mul: how.move?.mul ?? 1, ...(how.move?.type ? { type: how.move.type } : {}), ...moveHow(how.move), ctx: { na: how.nature, ea: how.effort } });
   // Even a weak or wrong-typed one chips it: at least RAID_CHIP of a one-agent boss, before its
   // bulk. A miss does nothing.
-  const dmg = how.move?.miss ? 0 : Math.max(RAID_CHIP * RAID_HP, d.dmg * (how.working ? WORKING_HIT : 1)) / (r.bulk ?? RAID_HP);
+  // Its bulk at this hit: by the agents on the field now (`how.agents`: each a Pokémon that can hit
+  // it), so opening more agents to beat it makes it sturdier as they come (the bulk kept from its
+  // laying, if not told).
+  const bulk = Number.isFinite(how.agents) ? bulkFor(how.agents) : r.bulk ?? RAID_HP;
+  const dmg = how.move?.miss ? 0 : Math.max(RAID_CHIP * RAID_HP, d.dmg * (how.working ? WORKING_HIT : 1)) / bulk;
   const hp = Math.max(0, r.hp - dmg);
   const bm = pickMove(r.boss.dex, key, rnd, { weather: how.weather }); // the boss's answer: its move (never a dash: it stands)
   const b = damage(r.boss.dex, key, rnd, { alphaAttacker: !!r.boss.alpha, alphaTarget: !!how.alpha, shadowTarget: !!how.shadow, mul: bm.mul, type: bm.type, ...moveHow(bm), ctx: { nb: how.nature } });
