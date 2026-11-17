@@ -172,15 +172,26 @@ async function drawnHeight(sheet, anim) {
 // Every caller's `onCore` hears when its walking, standing and sleeping are cut, not only the first
 // one's (a strip asking after the picker waited for the whole set: a Poké Ball if it never came).
 const cores = new Map(); // key -> { meta (once cut), fns: [onCore] }
+// At most BUILDS_AT_ONCE sets cut at a time, the rest waiting their turn: clicking quickly through
+// a line in the picker started a set each (a dozen ImageMagick runs at once), and Herdr gave up
+// re-rendering the view ("interrupted"). One already cut (meta.json) loads at once anyway.
+export const BUILDS_AT_ONCE = 2;
+let building = 0;
+const waiting = [];
+async function inTurn(f) {
+  if (building >= BUILDS_AT_ONCE) await new Promise((r) => waiting.push(r));
+  building++;
+  try { return await f(); } finally { building--; waiting.shift()?.(); }
+}
 export const loadSprite = (dex, shiny, form = null, onCore = null) => {
   const key = `sprite|${dex}|${shiny}|${form}`;
   const c = cores.get(key) ?? { meta: null, fns: [] };
   cores.set(key, c);
   if (onCore) { if (c.meta) { try { onCore(c.meta); } catch {} } else c.fns.push(onCore); }
-  return once(key, () => buildSprite(dex, shiny, form, (meta) => {
+  return once(key, () => inTurn(() => buildSprite(dex, shiny, form, (meta) => {
     c.meta = meta;
     for (const f of c.fns.splice(0)) { try { f(meta); } catch {} }
-  }).finally(() => cores.delete(key)));
+  })).finally(() => cores.delete(key)));
 };
 async function buildSprite(dex, shiny, form = null, onCore = null) {
   // A form is a SpriteCollab folder ("0001"); one from the tracker never makes a path of its own.

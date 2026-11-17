@@ -694,6 +694,7 @@ const PICK_COLS = 6; // the picker's grid: columns, cell width and gap, row heig
 const PICK_W = 92;
 const PICK_GAP = 6;
 const PICK_ROW = 102;
+const PREVIEW_WAIT = 300; // ms a preview is shown before its animations are asked for
 const BOX_COLS = 6, BOX_ROW = 110; // the Box's grid: 84 px cells, 6 apart
 const ICON_JOBS = 8; // icon downloads at once
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -4986,9 +4987,16 @@ export default class PokemonHerd extends View {
   }
 
   // Shows `e` ({ dex, form? }) in the preview, loading its animations.
+  // Its animations are asked for once it has been shown a moment (PREVIEW_WAIT): clicking quickly
+  // through a line no longer starts a set of sprites for each one passed.
   showPreview(e, cx, shiny = false) {
-    this.preview = { dex: e.dex, ...(e.form ? { form: e.form } : {}), shiny: shiny && hasShiny(e.dex, e.form) };
-    this.want({ ...this.preview, mega: "off" }, cx);
+    const pv = this.preview = { dex: e.dex, ...(e.form ? { form: e.form } : {}), shiny: shiny && hasShiny(e.dex, e.form) };
+    cx.spawn(async (cx) => {
+      await cx.sleep(PREVIEW_WAIT);
+      if (this.preview !== pv) return; // another one by now
+      this.want({ ...pv, mega: "off" }, cx);
+      cx.notify();
+    });
     this.fetchIcons(cx);
     cx.notify();
   }
