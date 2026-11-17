@@ -1665,11 +1665,17 @@ export default class PokemonHerd extends View {
     if (!ART_ASKED.has(EGG_ART)) { ART_ASKED.add(EGG_ART); ensureArt(EGG_ART).then(() => { ART_READY.add(EGG_ART); }).catch(() => null); }
     const hiX = Math.max(EDGE, this.width - EDGE);
     this.raidSeen ??= new Set();
+    // Redrawn only when something shows a change: its phase, a new hit, one thrown back, the boss to
+    // catch walking off, and twice a minute for its minutes left (every tick, all through a raid,
+    // was four redraws a second for over half an hour).
+    let changed = ph !== this.raidPhSeen || now - (this.raidDrawn ?? 0) >= 30000;
+    if (changed) { this.raidPhSeen = ph; this.raidDrawn = now; }
     for (const h of r.hits) {
       const k = `${r.id}-${h.at}`;
       if (this.raidSeen.has(k)) continue;
       this.raidSeen.add(k);
       if (now - h.at > 2500) continue;
+      changed = true;
       const a = list.find((x) => x.pane === h.pane);
       const m = a && this.mons[a.address];
       if (!m) continue;
@@ -1704,6 +1710,7 @@ export default class PokemonHerd extends View {
     for (const m of Object.values(this.mons)) {
       const p = m.raidPush;
       if (!p || now < p.at) continue;
+      changed = true;
       m.raidPush = null;
       clearWalk(m);
       m.from = m.x;
@@ -1722,6 +1729,7 @@ export default class PokemonHerd extends View {
     // Beaten: the boss walks off slowly, a sliver of health, for the Ultra Balls it paid.
     if (ph === "beaten" && !r.caught && this.raidVisitor !== r.id && this.leader) { // one boss to catch, not one per window
       this.raidVisitor = r.id;
+      changed = true;
       const dir = Math.random() < 0.5 ? "r" : "l";
       const to = dir === "r" ? this.width + OFF : -OFF;
       this.visitor = { id: `raid-${r.id}`, purse: 0, pick, dir, row: 0, from: bx, to, start: 0, dur: (Math.abs(to - bx) / (VISIT_SPEED / 2)) * 1000, asked: now,
@@ -1729,7 +1737,7 @@ export default class PokemonHerd extends View {
       const seen = withSeen(pokedex(), [pick.dex]);
       if (seen) saveDex(seen);
     }
-    return true;
+    return changed;
   }
 
   // The boss's picture; just hatched (HATCH_MS), it grows from a third of its size, feet on the
