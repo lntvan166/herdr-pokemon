@@ -614,7 +614,7 @@ def preview(tmp):
              "-font", FONT, "-fill", "#0b2a4a99", "-pointsize", "46", "-annotate", "+64+196", "Catch 'em while your agents code",
              "-fill", "#ffffff", "-pointsize", "46", "-annotate", "+62+192", "Catch 'em while your agents code"]
     # What there is to do, as pills: an item's picture and a word or two.
-    pills = [("poke-ball", "Catch"), ("master-ball", "Legendaries"), (None, "974 Pokémon")]
+    pills = [("poke-ball", "Catch"), ("master-ball", "Battle"), (None, "974 Pokémon")]
     x0 = 62
     for icon, word in pills:
         tw = glyph_width(word, 36)
@@ -646,10 +646,11 @@ def preview(tmp):
             text += ["-fill", DOT[st], "-draw", f"circle {x1 + 14},{y1 + 30} {x1 + 26},{y1 + 30}"]
         text += ["-font", FONT, "-fill", "#f2c94c" if not st else FG, "-pointsize", "44", "-annotate", f"+{x1 + (40 if st else 20)}+{y1 + 4}", tag]
     # The Shop, as it really is: a card with rounded corners and a soft shadow, top right.
-    shop = os.path.join(os.path.dirname(OUT), "demo", "shop.png")
+    # (Now the picker's grid: every Pokémon with its types, docs/demo/picker.png, 602x412.)
+    shop = os.path.join(os.path.dirname(OUT), "demo", "picker.png")
     card = os.path.join(tmp, "shop-card.png")
     cw = 500
-    ch = round(490 * cw / 600)
+    ch = round(412 * cw / 602)
     magick(shop, "-resize", f"{cw}x", "(", "+clone", "-alpha", "extract", "-fill", "black", "-colorize", "100",
            "-fill", "white", "-draw", f"roundrectangle 0,0 {cw - 1},{ch - 1} 22,22", ")", "-alpha", "off", "-compose", "CopyOpacity", "-composite", card)
     cx0, cy0 = 1600 - cw - 44, 36
