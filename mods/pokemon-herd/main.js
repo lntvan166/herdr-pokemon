@@ -73,6 +73,8 @@ const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while t
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
+// A legendary takes its time (half as fast): longer to go after it with its 20 balls.
+const walkSpeed = (pick) => (pick?.legend ? VISIT_SPEED / 2 : VISIT_SPEED);
 const SPAR_CHANCE = 1 / 240;
 const TEASE_CHANCE = 1 / 480; // per tick: about every 2 minutes while one is asleep near an idle one
 const FIDGET_CHANCE = 0.15; // idle, about to stroll: how often it fidgets instead (nods, sits, twirls…)
@@ -246,7 +248,7 @@ function updatePick(slot, f) {
 // dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
 let dev = null;
 import("./dev.js").then((m) => { dev = m; }, () => {});
-const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t) => openBag(t), herdAgents: () => herdAgents(), picks: () => savedPicks() };
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks() };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => loadDex(shared(DEX_KEY));
@@ -553,6 +555,11 @@ function undoLast(view) {
 const hasItem = (id, n = 1) => (bag().items[id] ?? 0) >= n;
 // A picker entry's types ({ dex, form }), as it fights: its form's (Rotom's Heat: Electric/Fire).
 const entryTypes = (e) => typesOf(fighterKey(e.dex, e.form ? { form: e.form } : {}));
+// Its types as badges in their colours (`h` px high, text `size`): the picker's grid and the Box.
+const typeBadges = (e, h, size) => h_flex().gap(2).flex_none().children(entryTypes(e).map((ty) => div().h(h).px(h > 12 ? 5 : 3).rounded(h > 12 ? 4 : 3).flex().items_center()
+  .bg(TYPE_COLOR[ty]).text_size(size).font_bold().text_color(typeText(ty)).child(typeLabel(ty))));
+// What a boxed one looks like for its animations: its own form, shine and gender, no Mega.
+const boxLook = (p) => ({ dex: p.dex, ...(p.form ? { form: p.form } : {}), shiny: !!p.shiny, ...(p.gender ? { gender: p.gender } : {}), mega: "off" });
 // Its moves in a battle (react.js duel: one per turn; a raid strike's single one), and the one
 // showing at `now` (from its gathering, CHARGE_MS before it flies, till just after it lands).
 const shotsOf = (m) => m?.react?.shots ?? (m?.react?.shot ? [m.react.shot] : []);
@@ -641,7 +648,8 @@ function menuParts(b = bag()) {
 }
 // How many Pokémon wait in the Box (the right-click menu's count).
 const boxCount = () => { try { return boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean))).length; } catch { return 0; } };
-const openBag = (tab) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}) } });
+// `sel`: the Box opened on that slot (its card showing).
+const openBag = (tab, sel = null) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}), ...(sel ? { sel } : {}) } });
 
 function tabsById() {
   const out = {};
@@ -1088,7 +1096,7 @@ export default class PokemonHerd extends View {
       // `id`: its own, for every element drawn for it (a second visitor under the first one's ids
       // kept that one's picture: only its 🎁 showed).
       // Its purse, shown over its head while the day's purses last.
-      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / VISIT_SPEED) * 1000, asked: now };
+      v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: (Math.abs(to - from) / walkSpeed(pick)) * 1000, asked: now };
       this.want(pick, cx);
     }
     if (!v) return false;
@@ -1117,7 +1125,7 @@ export default class PokemonHerd extends View {
       }
       v.from = fx.x;
       v.start = now;
-      v.dur = (Math.abs(v.to - v.from) / VISIT_SPEED) * 1000;
+      v.dur = (Math.abs(v.to - v.from) / walkSpeed(v.pick)) * 1000;
       v.walkFrom = undefined;
       v.leg = (v.leg ?? 0) + 1;
       v.fight = null;
@@ -1137,7 +1145,7 @@ export default class PokemonHerd extends View {
       }
       v.from = th.x;
       v.start = now;
-      v.dur = (Math.abs(v.to - v.from) / VISIT_SPEED) * 1000;
+      v.dur = (Math.abs(v.to - v.from) / walkSpeed(v.pick)) * 1000;
       v.walkFrom = undefined;
       v.leg = (v.leg ?? 0) + 1;
       v.broke = now;
@@ -3264,7 +3272,7 @@ export default class PokemonHerd extends View {
       const f = clamp((now - wv.start) / wv.dur, 0, 1);
       wv.from = wv.from + (wv.to - wv.from) * f;
       wv.start = now;
-      wv.dur = Math.max(1, (Math.abs(wv.to - wv.from) / VISIT_SPEED) * 1000);
+      wv.dur = Math.max(1, (Math.abs(wv.to - wv.from) / walkSpeed(wv.pick)) * 1000);
       wv.walkFrom = undefined;
       wv.leg = (wv.leg ?? 0) + 1;
     }
@@ -3920,6 +3928,8 @@ export default class PokemonHerd extends View {
 
   initBag(cx) {
     this.bagTab = ["box", "shop", "today", "dex"].includes(props()?.tab) ? props().tab : "items";
+    const sel = props()?.sel && savedPicks()[props().sel];
+    if (sel) { this.boxSel = props().sel; this.sprites ??= {}; this.want(boxLook(sel), cx); }
     // Renaming one in the Box: its slot, and the field (Enter saves; empty clears the name).
     this.renaming = null;
     this.nickInput = InputState.new({ placeholder: "Nickname (16 letters)" });
@@ -4494,7 +4504,7 @@ export default class PokemonHerd extends View {
       const picked = !!picking?.has(x.slot);
       const on = picking ? picked : x.slot === this.boxSel;
       const can = releasable(x);
-      return v_flex().id(`box-${x.slot}`).relative().w(CELL).h(92).flex_none().items_center().justify_center().gap(1)
+      return v_flex().id(`box-${x.slot}`).relative().w(CELL).h(104).flex_none().items_center().justify_center().gap(1)
         .rounded(8).border_1().border_color(on ? t.accent : "#00000000").bg(on ? t.selected : "#00000000")
         .when(!!picking && !can, (el) => el.opacity(0.4))
         .cursor_pointer().hover((st) => st.bg(on ? t.selected : t.hover))
@@ -4502,13 +4512,17 @@ export default class PokemonHerd extends View {
           if (picking) {
             if (can) picked ? picking.delete(x.slot) : picking.add(x.slot);
             this.releasingAll = false;
-          } else { this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null; }
+          } else {
+            this.boxSel = on ? null : x.slot; this.releasing = null; this.bringing = null; this.renaming = null;
+            if (!on) { this.sprites ??= {}; this.want(boxLook(x.pick), cx); } // its animations, for the card
+          }
           cx.notify();
         })
         .when(picked, (el) => el.child(div().absolute().bottom(4).right(4).size(16).rounded_full().bg(t.accent).flex().items_center().justify_center()
           .text_size(10).font_bold().text_color("#ffffff").child("✓")))
         .when(!!x.pick.locked, (el) => el.child(div().absolute().top(22).left(5).text_size(10).child("🔒")))
         .child(icon(x.pick, 48))
+        .child(div().mt(2).child(typeBadges(x.pick, 11, 7.5)))
         .child(div().w_full().px(3).text_center().truncate().text_size(11).text_color(t.foreground).child(x.pick.nick ?? nameOf(x.pick.dex)))
         .child(div().w_full().px(3).text_center().truncate().text_size(10).text_color(x.tag ? t.accent : t.muted)
           .child(x.tag ? x.tag : `♥ ${heartsText(friendOf(x.pick))}`))
@@ -4533,12 +4547,18 @@ export default class PokemonHerd extends View {
         pick.caught ? `caught in ${an(ITEMS[pick.ball ?? "poke-ball"].name)}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
-          .child(icon(pick, 48))
+          // It walking, as the picker's preview shows it (its icon till that's in).
+          .child((() => {
+            const meta = this.sprites?.[spriteKey(dressed(boxLook(pick)))];
+            return meta?.walkR ? this.spriteStage(meta, "walkR", null, t, 96, 76, 66) : icon(pick, 48);
+          })())
           .child(v_flex().flex_1().min_w(0).gap(2)
             .child(this.renaming === slot
               ? Input.new(this.nickInput).h(26).px(8).rounded(6).border_1().border_color(t.accent).bg(t.background).text_size(12.5).text_color(t.foreground)
               : div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${pick.gender ? ` ${genderMark(pick.gender)}` : ""}${tag ? ` · with ${tag}` : ""}`)))
+            .child(typeBadges(pick, 15, 9.5))
             .child(div().text_size(11.5).text_color(t.muted).child(facts)))) // all of it, wrapped: the Box is where the details are
+
         .child(h_flex().gap(6).flex_wrap().items_center()
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).
           .when(!!pick.shadow && canPurify(pick), (el) => el.child(pill(`box-purify-${slot}`, `✨ Purify (+${money(PURIFY_PAY)})`, () => {
@@ -4891,6 +4911,26 @@ export default class PokemonHerd extends View {
     cx.notify();
   }
 
+  // One of its animations (sprites.js meta: idleD, walkR, sleep) on a bit of ground, 150 × 104,
+  // a label under it; "Loading…" till it's in (the picker's preview, the Box).
+  spriteStage(meta, key, label, t, STAGE_W = 150, STAGE_H = 104, GROUND = 88) {
+    const s = meta?.[key];
+    let art = null;
+    if (s) {
+      const sc = Math.min(meta.scale >= 2 ? 1.5 : 1, (GROUND - 8) / Math.max(1, s.box.h), (STAGE_W - 10) / Math.max(1, s.box.w));
+      art = image(s.path).absolute()
+        .left(STAGE_W / 2 - (s.box.x + s.box.w / 2) * sc).top(GROUND - (s.box.y + s.box.h) * sc)
+        .w(s.w * sc).h(s.h * sc);
+    }
+    return v_flex().items_center().gap(3).flex_none()
+      .child(div().relative().w(STAGE_W).h(STAGE_H).rounded(6).overflow_hidden().bg(t.background)
+        .child(div().absolute().left(0).top(GROUND).w(STAGE_W).h(STAGE_H - GROUND).bg("#3f8f3a40"))
+        .when(!!art, (el) => el.child(art))
+        .when(!art, (el) => el.child(div().absolute().left(0).top(GROUND / 2 - 8).w(STAGE_W).text_center().text_size(11).text_color(t.muted)
+          .child(meta?.error ? "Can't be had" : "Loading…").when(!meta?.error, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 1000 })))))
+      .when(!!label, (el) => el.child(div().text_size(10.5).text_color(t.muted).child(label)));
+  }
+
   // The preview card: its idle, walk and sleep animations on a bit of ground, its line (click one
   // to preview it), the shiny look, and Choose (as a left click in the list) or ✕ (back to the card).
   renderPreview(t, cx) {
@@ -4903,24 +4943,7 @@ export default class PokemonHerd extends View {
     const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
     const inBox = Object.entries(savedPicks()).filter(([slot, b]) => slot !== props()?.slot && !onScreen.has(slot)
       && b.dex === pv.dex && (b.form ?? null) === (pv.form ?? null) && raised(b)).reverse();
-    const STAGE_W = 150, STAGE_H = 104, GROUND = 88;
-    const stage = (key, label) => {
-      const s = meta?.[key];
-      let art = null;
-      if (s) {
-        const sc = Math.min(meta.scale >= 2 ? 1.5 : 1, (GROUND - 8) / Math.max(1, s.box.h), (STAGE_W - 10) / Math.max(1, s.box.w));
-        art = image(s.path).absolute()
-          .left(STAGE_W / 2 - (s.box.x + s.box.w / 2) * sc).top(GROUND - (s.box.y + s.box.h) * sc)
-          .w(s.w * sc).h(s.h * sc);
-      }
-      return v_flex().items_center().gap(3).flex_none()
-        .child(div().relative().w(STAGE_W).h(STAGE_H).rounded(6).overflow_hidden().bg(t.background)
-          .child(div().absolute().left(0).top(GROUND).w(STAGE_W).h(STAGE_H - GROUND).bg("#3f8f3a40"))
-          .when(!!art, (el) => el.child(art))
-          .when(!art, (el) => el.child(div().absolute().left(0).top(GROUND / 2 - 8).w(STAGE_W).text_center().text_size(11).text_color(t.muted)
-            .child(meta?.error ? "Can't be had" : "Loading…").when(!meta?.error, (e2) => e2.loop("opacity", { from: 0.4, to: 1, period: 1000 })))))
-        .child(div().text_size(10.5).text_color(t.muted).child(label));
-    };
+    const stage = (key, label) => this.spriteStage(meta, key, label, t);
     const button = (id, label, on, click) => div()
       .id(id).h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).border_1()
       .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000")

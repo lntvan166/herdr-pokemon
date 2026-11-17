@@ -221,11 +221,12 @@ export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null, move
   const left = Math.max(0, hp - dmg);
   return { hp: left, dmg, eff, text, fainted: left <= 0.001 };
 }
-// A legendary: about 15 balls before it's gone (LEGEND_THROWS), each one far less likely to hold
-// it: over all 15, Poké Balls catch it 4 times in 10, Ultra Balls 6 in 10, Ultra Balls with
-// Golden Razz Berries 9 in 10. The rest of the time it gets away.
+// A legendary: 20 balls before it's gone (LEGEND_THROWS), each one far less likely to hold it:
+// over all 20 at full health, Poké Balls catch it about 1 time in 2, Ultra Balls 7 in 10, Ultra
+// Balls with Golden Razz Berries 19 in 20 (weakened to the red: 2 in 3, 9 in 10, all but sure).
+// The rest of the time it gets away.
 export const LEGEND_RATE = 0.03;
-export const LEGEND_THROWS = 15;
+export const LEGEND_THROWS = 20; // GO gives up to 20 Premier Balls for a raid boss
 // Any other breaks free and flees 1 time in 20 (half GO's: it walks off soon enough), else walks
 // on for another ball.
 export const FLEE = 0.05;

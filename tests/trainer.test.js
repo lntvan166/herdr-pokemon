@@ -151,12 +151,12 @@ test("berries: Sitrus is half a heart; Razz and Golden Razz make a catch likelie
 });
 
 import { LEGEND_THROWS } from "../mods/pokemon-herd/trainer.js";
-test("a legendary: about 15 balls, and it may get away", () => {
+test("a legendary: 20 balls, and it may get away", () => {
   const over = (ball, bait) => 1 - (1 - catchChance(ball, { dex: 150 }, bait)) ** LEGEND_THROWS;
-  assert.equal(LEGEND_THROWS, 15);
-  assert.ok(over("poke-ball") > 0.3 && over("poke-ball") < 0.5, String(over("poke-ball")));
-  assert.ok(over("ultra-ball") > 0.55 && over("ultra-ball") < 0.7, String(over("ultra-ball")));
-  assert.ok(over("ultra-ball", "golden-razz-berry") > 0.85 && over("ultra-ball", "golden-razz-berry") < 0.97);
+  assert.equal(LEGEND_THROWS, 20);
+  assert.ok(over("poke-ball") > 0.4 && over("poke-ball") < 0.55, String(over("poke-ball")));
+  assert.ok(over("ultra-ball") > 0.62 && over("ultra-ball") < 0.78, String(over("ultra-ball")));
+  assert.ok(over("ultra-ball", "golden-razz-berry") > 0.9 && over("ultra-ball", "golden-razz-berry") < 0.99);
   assert.equal(PRICE["azure-flute"], 1000);
 });
 
@@ -222,7 +222,7 @@ test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a powe
   assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.45) < 1e-9);
   assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - (1 - 0.55 ** 2)) < 1e-9);
   assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.8 ** 2.25)) < 1e-9);
-  // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 15 balls).
+  // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 20 balls).
   const seq = (...xs) => () => xs.shift();
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.02)).fled, true); // missed, then fled
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.5)).fled, false);

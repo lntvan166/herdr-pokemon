@@ -173,7 +173,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Legendaries** (`LEGENDARY`): locked in the picker and for new agents until one is caught
   (Settings → Trainer → Unlock all, with "Sure?", opens them). One visitor in 150 is one; the
   Azure Flute (₽1,000) and the day's Research call one: always one not caught yet, while any are
-  left (`wildPick` with the Pokédex's caught). About 15 balls before one flees.
+  left (`wildPick` with the Pokédex's caught). 20 balls before one flees (`LEGEND_THROWS`, as GO's Premier Balls at most); it walks at half speed (`walkSpeed`), time to go after it.
 - **Genders** (`gender.js`, data `gender-data.js` from `scripts/gen-gender.mjs`: PokeAPI's
   female rate in eighths, -1 genderless; SpriteCollab's female sprites): a wild one rolled one
   (`rollGender`); a saved one without, given one by its slot (`genderFrom(hash(pane:gender))`,
@@ -519,7 +519,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   new agent being given one (in the strip's tick, before its fresh picks are saved), takes the
   latest raised one of that species and form, as it was (the picker's Mega setting kept; the
   pane's own item kept if the boxed one holds none, else back into the Bag), and forgets its
-  old pane. Labels: the picker card says "All Charmeleon so far: 6 done · 1m" (all of that species).
+  old pane. Labels: the picker card says "All Charmeleon so far: 6 done · 1m" (all of that species). In the Bag's Box tab each
+  one shows its types as coloured badges (`typeBadges`, as the picker's grid); the one clicked
+  walks in its card (`spriteStage`, its own form, shine and gender: `boxLook`), its types beside
+  its name. `openBag("box", slot)` opens it on that one.
 - **Badge progress** (`badgeProgress`, `nextBadge` in `items.js`): under each badge not yet
   earned, a 28×3 px bar (`accent` on `border`) at its fraction (jobs of 10 / 100 / 1000, work of
   24 h, the longest job of an hour, the most hearts of 5; 0 for Thunder and Marsh, which are

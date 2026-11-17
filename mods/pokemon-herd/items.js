@@ -134,7 +134,7 @@ export function itemAbout(id) {
   if (id === "leftovers") return "For a Pokémon to hold: it never goes hungry, however long its agent waits on you.";
   if (id === "exp-share") return "For a Pokémon to hold: each job its agent finishes also counts for the Pokémon on screen furthest from evolving.";
   if (id === "honey") return "Calls a wild Pokémon over right away, with its gift.";
-  if (id === "azure-flute") return "Calls a legendary Pokémon over. Hard to catch: about 15 balls before it's gone, and it may get away.";
+  if (id === "azure-flute") return "Calls a legendary Pokémon over. Hard to catch: 20 balls before it's gone, and it may get away.";
   if (id === "x-speed") return "For 10 minutes the whole herd is on the go: faster, and hardly stopping.";
   if (id === "poke-flute") return "Wakes every sleeping Pokémon, and keeps the herd up for 10 minutes.";
   if (id === "x-attack") return "For 10 minutes the herd spars and teases each other again and again.";
