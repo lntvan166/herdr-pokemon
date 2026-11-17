@@ -12,7 +12,10 @@ import { isLegendary, typesOf, NATURES } from "./trainer.js";
 
 export const TRAINER_ODDS = 10; // 1 visitor in 10 is a trainer (not in an outbreak or a raid)
 export const WAIT_MS = 3 * 60000; // how long it waits for a battle, then walks on
-export const TEAM_EFFORT = 1.05; // its Pokémon, as raised as yours can be (trainer.js effortOf)
+export const TEAM_EFFORT = 1.1; // its Pokémon, a touch stronger than yours can be raised (trainer.js effortOf: 1.05 at most)
+// Now and then a star: its last Pokémon a legendary (LEGEND_ODDS), or one of its team Mega
+// Evolved (MEGA_ODDS); it pays more for it (trainerPay).
+export const LEGEND_ODDS = 0.12, MEGA_ODDS = 0.25;
 
 // Each class: its title, names, the types its team is of, its colours, and its pay.
 // Colours: H hair, C cap (or hair again), T top, P trousers, B shoes, A arms' sleeves.
@@ -42,8 +45,10 @@ export const CLASSES = [
 const FINALS = WALKABLE.filter((dex) => EVOLVES_FROM[dex] !== undefined && evolutionsOf(dex).length === 0 && !isLegendary(dex));
 const NATURE_IDS = Object.keys(NATURES);
 
-// A trainer, as it comes: { cls (its id), title, name, team: [{ dex, nature }], at }.
-export function newTrainer(rnd = Math.random, now = 0) {
+// A trainer, as it comes: { cls (its id), title, name, team: [{ dex, nature, mega? (its kind:
+// "X", "Y", ""), legend? }], at }. `how.megaOf(dex)`: the Mega kind it can take, or null.
+const LEGENDS = WALKABLE.filter((d) => isLegendary(d));
+export function newTrainer(rnd = Math.random, now = 0, how = {}) {
   const c = CLASSES[Math.floor(rnd() * CLASSES.length)];
   const pool = c.types ? FINALS.filter((d) => typesOf(d).some((t) => c.types.includes(t))) : FINALS;
   const n = rnd() < 0.5 ? 2 : 3;
@@ -52,13 +57,23 @@ export function newTrainer(rnd = Math.random, now = 0) {
     const dex = pool[Math.floor(rnd() * pool.length)];
     if (!team.some((m) => m.dex === dex)) team.push({ dex, nature: NATURE_IDS[Math.floor(rnd() * NATURE_IDS.length)] });
   }
+  // A star: a legendary in its last place, or a Mega of one that has one.
+  if ((how.force === "legend" || (how.force !== "mega" && rnd() < LEGEND_ODDS)) && LEGENDS.length) team[team.length - 1] = { dex: LEGENDS[Math.floor(rnd() * LEGENDS.length)], nature: NATURE_IDS[Math.floor(rnd() * NATURE_IDS.length)], legend: true };
+  else if ((how.force === "mega" || rnd() < MEGA_ODDS) && how.megaOf) {
+    let i = team.findIndex((m) => how.megaOf(m.dex) != null);
+    if (i < 0 && how.force === "mega") { const d = pool.find((x) => how.megaOf(x) != null) ?? FINALS.find((x) => how.megaOf(x) != null); if (d) { team[0] = { dex: d, nature: team[0].nature }; i = 0; } }
+    if (i >= 0) team[i] = { ...team[i], mega: how.megaOf(team[i].dex) };
+  }
   return { cls: c.id, title: c.title, name: c.names[Math.floor(rnd() * c.names.length)], team, at: now };
 }
 export const classOf = (id) => CLASSES.find((c) => c.id === id) ?? CLASSES[0];
-// Beating it: its class's pay (more for a bigger team) and item.
+// Beating it: its class's pay (×1.3 for three, ×1.5 with a Mega, ×2.5 with a legendary) and
+// item; a Rare Candy too for a Mega, an Azure Flute for a legendary. { money, items: [[id, n]] }.
 export function trainerPay(tr) {
   const c = classOf(tr.cls);
-  return { money: Math.round(c.pay * (tr.team.length >= 3 ? 1.3 : 1)), item: c.item[0], count: c.item[1] };
+  const mega = tr.team.some((m) => m.mega != null), legend = tr.team.some((m) => m.legend);
+  const money = Math.round(c.pay * (tr.team.length >= 3 ? 1.3 : 1) * (mega ? 1.5 : 1) * (legend ? 2.5 : 1));
+  return { money, items: [[c.item[0], c.item[1]], ...(mega ? [["rare-candy", 1]] : []), ...(legend ? [["azure-flute", 1]] : [])] };
 }
 
 // How a trainer looks: 12 × 20 pixels, a letter a colour (CLASSES colors; S skin, E eyes, "."

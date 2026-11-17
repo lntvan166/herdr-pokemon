@@ -24,6 +24,8 @@ import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupd
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
 import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT } from "./trainers.js";
+// A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
+const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
@@ -1154,10 +1156,12 @@ export default class PokemonHerd extends View {
       // Its purse, shown over its head while the day's purses last.
       // Now and then a trainer instead (trainers.js): its first Pokémon walks in with it, stops
       // halfway and waits for a battle; it can't be caught. Not one called (Honey, a legendary).
-      const tr = !outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1 ? newTrainer(Math.random, now) : pick.devTrainer ? newTrainer(Math.random, now) : null;
+      const megaOf = (d) => megaForm(d)?.kind ?? null; // the Mega it can take (dex.js), or null
+      const tr = (!outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1) || pick.devTrainer ? newTrainer(Math.random, now, { megaOf, ...(typeof pick.devTrainer === "string" ? { force: pick.devTrainer } : {}) }) : null;
       delete pick.devTrainer;
       if (tr) {
-        pick = { dex: tr.team[0].dex, nature: tr.team[0].nature, trainer: true, mega: "off", size: 1 };
+        pick = trainerMon(tr.team[0]);
+        for (const m of tr.team) if (m.mega != null) this.want(trainerMon(m), cx, true); // its Mega's sprites, ahead
         cx.spawn(async (cx) => { this.trainerArt ??= {}; this.trainerArt[tr.cls] = await ensureTrainer(tr.cls).catch(() => null); cx.notify(); });
       }
       // What it does besides walking by (wildacts.js): a dash sets its pace now, a tease a bigger purse.
@@ -1199,7 +1203,7 @@ export default class PokemonHerd extends View {
           if (tr.idx + 1 < tr.team.length) {
             tr.idx++;
             const nx = tr.team[tr.idx];
-            v.pick = { dex: nx.dex, nature: nx.nature, trainer: true, mega: "off", size: 1 };
+            v.pick = trainerMon(nx);
             this.want(v.pick, cx);
             v.sentOut = { at: now, dex: nx.dex };
             if (tr.fighter) tr.nextAt = now + 2700; // yours goes on against the next one
@@ -1210,7 +1214,7 @@ export default class PokemonHerd extends View {
           }
           tr.beaten = now;
           tr.paid = trainerPay(tr);
-          if (this.leader) payOut(tr.paid);
+          if (this.leader) { payOut({ money: tr.paid.money }); for (const [id, n] of tr.paid.items) payOut({ item: id, count: n }); }
         }
         if (now >= v.fainted + (tr ? 4500 : 2200)) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
@@ -2000,7 +2004,7 @@ export default class PokemonHerd extends View {
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
       const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
       const tp = v.trainer?.paid;
-      const said = v.trainer?.beaten ? `You beat ${v.trainer.title} ${v.trainer.name}! +${money(tp.money)} and ${tp.count > 1 ? `${tp.count} ${ITEMS[tp.item].name}s` : `a ${ITEMS[tp.item].name}`}`
+      const said = v.trainer?.beaten ? `You beat ${v.trainer.title} ${v.trainer.name}! +${money(tp.money)}, ${tp.items.map(([id, n]) => (n > 1 ? `${n} ${ITEMS[id].name}s` : ITEMS[id].name)).join(", ")}`
         : v.fainted ? `${wildName} fainted…`
         : now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
         : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
@@ -2846,7 +2850,7 @@ export default class PokemonHerd extends View {
         // FORM_BASE) fights as itself; one without, as its species ×1.2 (trainer.js MEGA_HIT).
         const mega = megaShown(pk, "working");
         const ownKey = fighterKey(pk.dex, { form: pk.form, mega: mega ? (megaForm(pk.dex, pk.megaKind)?.kind ?? "") : null });
-        const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
+        const wildKey = fighterKey(v.pick.dex, { form: v.pick.form, mega: v.pick.mega === "on" ? (megaForm(v.pick.dex, v.pick.megaKind)?.kind ?? "") : null }); // a trainer's Mega fights as one
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
         const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: pk.moves, weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it

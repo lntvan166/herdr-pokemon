@@ -13,7 +13,7 @@ test("a trainer: 2 or 3 fully evolved Pokémon of its class's types, no legendar
     const c = classOf(tr.cls);
     assert.ok(tr.team.length >= 2 && tr.team.length <= 3, String(tr.team.length));
     assert.equal(new Set(tr.team.map((m) => m.dex)).size, tr.team.length);
-    for (const m of tr.team) {
+    for (const m of tr.team.filter((x) => !x.legend)) {
       assert.ok(EVOLVES_FROM[m.dex] !== undefined && evolutionsOf(m.dex).length === 0 && !isLegendary(m.dex), String(m.dex));
       if (c.types) assert.ok(typesOf(m.dex).some((t) => c.types.includes(t)), `${c.id} ${m.dex}`);
       assert.ok(m.nature);
@@ -23,11 +23,27 @@ test("a trainer: 2 or 3 fully evolved Pokémon of its class's types, no legendar
   assert.ok(TRAINER_ODDS >= 5 && WAIT_MS >= 60000);
 });
 
-test("beating one pays its class's money (more for three) and an item that exists", () => {
+test("beating one pays its class's money (more for three, a Mega, a legendary) and items that exist", () => {
   for (const c of CLASSES) {
-    const two = trainerPay({ cls: c.id, team: [1, 2] }), three = trainerPay({ cls: c.id, team: [1, 2, 3] });
-    assert.ok(two.money > 0 && three.money > two.money && ITEMS[two.item], c.id);
+    const m = (d) => ({ dex: d });
+    const two = trainerPay({ cls: c.id, team: [m(1), m(2)] }), three = trainerPay({ cls: c.id, team: [m(1), m(2), m(3)] });
+    const mega = trainerPay({ cls: c.id, team: [m(1), { dex: 6, mega: "X" }] }), legend = trainerPay({ cls: c.id, team: [m(1), { dex: 150, legend: true }] });
+    assert.ok(two.money > 0 && three.money > two.money && mega.money > two.money && legend.money > mega.money, c.id);
+    for (const p of [two, mega, legend]) assert.ok(p.items.every(([id, n]) => ITEMS[id] && n > 0), c.id);
+    assert.ok(mega.items.some(([id]) => id === "rare-candy") && legend.items.some(([id]) => id === "azure-flute"));
   }
+});
+
+test("now and then a star: a legendary last, or a Mega of one that has one", async () => {
+  const { LEGEND_ODDS, MEGA_ODDS } = await import("../mods/pokemon-herd/trainers.js");
+  let legends = 0, megas = 0;
+  for (let i = 0; i < 2000; i++) {
+    const tr = newTrainer(Math.random, 0, { megaOf: (d) => (d % 5 === 0 ? "" : null) });
+    if (tr.team.some((m) => m.legend)) { legends++; assert.ok(tr.team.at(-1).legend && isLegendary(tr.team.at(-1).dex)); }
+    if (tr.team.some((m) => m.mega != null)) { megas++; assert.ok(tr.team.find((m) => m.mega != null).dex % 5 === 0); }
+  }
+  assert.ok(Math.abs(legends / 2000 - LEGEND_ODDS) < 0.04, String(legends));
+  assert.ok(megas > 0 && MEGA_ODDS < 0.5);
 });
 
 test("its look: every frame 12 × 18, every letter a colour; its Pokémon faint at 0 (no sliver: not to be caught)", () => {
