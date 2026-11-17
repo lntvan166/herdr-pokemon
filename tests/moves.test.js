@@ -122,3 +122,22 @@ test("a Pokémon's own move (EXCLUSIVE): always among its four; Judgment takes t
   assert.equal(pickMove(908, 3, () => 0.99, { moves: ["Flower Trick"] }).crit, true);
   assert.equal(pickMove(718, 6, () => 0.99, { moves: ["Thousand Arrows"] }).eff, 1);
 });
+
+test("the weather, as the main games have it: Thunder sure in rain, unsure in sun; Blizzard sure in snow; Solar Beam weak in rain", async () => {
+  const { weatherMiss, weatherPower, missOf } = await import("../mods/pokemon-herd/moves.js");
+  assert.equal(weatherMiss("Thunder", "rain"), 0);
+  assert.equal(weatherMiss("Hurricane", "storm"), 0);
+  assert.equal(weatherMiss("Thunder", "sunny"), 0.5);
+  assert.equal(weatherMiss("Thunder", "night"), missOf("Thunder"));
+  assert.equal(weatherMiss("Blizzard", "snow"), 0);
+  assert.equal(weatherPower("Solar Beam", "rain"), 0.5);
+  assert.equal(weatherPower("Solar Beam", "sunny"), 1);
+  assert.equal(weatherPower("Flamethrower", "rain"), 1);
+  // Used: a Thunder in the rain lands on a roll that would miss it otherwise.
+  const seq = (...xs) => { let i = 0; return () => xs[i++]; };
+  const thunder = (w) => pickMove(25, 7, seq(0, 0.9, 0.9, 0.2), { moves: ["Thunder"], weather: w });
+  assert.equal(thunder(null).miss, true);
+  assert.equal(thunder("rain").miss, false);
+  const solar = (w) => pickMove(3, 7, seq(0, 0.9, 0.9, 0.5), { moves: ["Solar Beam"], weather: w });
+  assert.ok(Math.abs(solar("rain").mul - solar("sunny").mul / 2) < 1e-9);
+});

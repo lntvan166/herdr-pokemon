@@ -1548,8 +1548,8 @@ export default class PokemonHerd extends View {
     if (raidPhase(r, at) !== "battle" || !pick || !a.pane) return;
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
-    const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: live.moves }));
-    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature });
+    const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: live.moves, weather: this.boostNow().id }));
+    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature, weather: this.boostNow().id });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
   }
@@ -2495,7 +2495,7 @@ export default class PokemonHerd extends View {
       const [k1, k2] = [keyOf(a1), keyOf(a2)];
       const side = (a, k, o) => {
         const meta = this.spriteFor(ids[a.address], a.status);
-        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size, moves: ids[a.address]?.moves })), blue: k === "6mX" } : null; // its move (moves.js), named
+        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size, moves: ids[a.address]?.moves, weather: this.boostNow().id })), blue: k === "6mX" } : null; // its move (moves.js), named
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
       // Too close: they hop apart first (a quick slide, facing each other), then battle, room
@@ -2527,7 +2527,7 @@ export default class PokemonHerd extends View {
       // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
       if (k1 && k2) {
         const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves }; };
-        const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv));
+        const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv), this.boostNow().id);
         for (const tn of result.turns) if (tn.move) tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; // Mega Charizard X's blue fire (a turn it lost has no move)
         duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, result, back ? { ...spots, back: BACK } : spots);
         for (const [m, a, o] of [[m1, a1, a2], [m2, a2, a1]]) {
@@ -2703,7 +2703,7 @@ export default class PokemonHerd extends View {
         const wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
-        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: pk.moves })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size })); // each one's move (moves.js), the weather's boost on it
+        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: pk.moves, weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
         const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk) });

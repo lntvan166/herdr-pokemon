@@ -46,7 +46,7 @@ export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", fr
 // moves, { by, skip } when it can't (paralysis, freezing, flinching), with { tick: { kind, dmg, hp } }
 // when its burn or poison hurts it after. Each picks its move as the round starts; Ice Shard
 // (PRIORITY) goes first whatever the Speed.
-export function sparTurns(A, B, rnd = Math.random, boost = (m) => m) {
+export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = null) {
   const side = { a: A, b: B }, hp = { a: 1, b: 1 };
   const st = { a: { stage: {} }, b: { stage: {} } }; // status, stat stages (multipliers)
   const turns = [];
@@ -55,7 +55,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m) {
   const over = () => hp.a <= 0 || hp.b <= 0;
   for (let round = 0; round < SPAR_TURNS && !over(); round++) {
     // Each picks its move, then the one with the quicker move (Ice Shard) or the faster goes first.
-    const moves = { a: boost(pickMove(A.key, B.key, rnd, { targetSize: B.size, moves: A.moves })), b: boost(pickMove(B.key, A.key, rnd, { targetSize: A.size, moves: B.moves })) };
+    const moves = { a: boost(pickMove(A.key, B.key, rnd, { targetSize: B.size, moves: A.moves, weather })), b: boost(pickMove(B.key, A.key, rnd, { targetSize: A.size, moves: B.moves, weather })) };
     const pa = PRIORITY[moves.a.name] ?? 0, pb = PRIORITY[moves.b.name] ?? 0, sa = speed("a"), sb = speed("b");
     const first = pa !== pb ? (pa > pb ? "a" : "b") : sa > sb ? "a" : sb > sa ? "b" : rnd() < 0.5 ? "a" : "b";
     let flinched = false;

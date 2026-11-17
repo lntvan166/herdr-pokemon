@@ -118,6 +118,17 @@ export const CRIT_HIT = 1.5;
 // 80%, Fire Blast 85%; Swift and Aura Sphere never miss). One without a known accuracy: MISS.
 export const MISS = 0.05;
 export const missOf = (name) => { const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
+// The weather, as the main games have it (main.js boostNow().id: "rain", "storm", "sunny",
+// "snow"…): in rain Thunder and Hurricane never miss, in the sun they hit half the time; in snow
+// Blizzard never misses; Solar Beam is half as strong in rain or snow.
+const RAINY = new Set(["rain", "storm"]);
+export function weatherMiss(name, weather) {
+  if ((name === "Thunder" || name === "Hurricane") && RAINY.has(weather)) return 0;
+  if ((name === "Thunder" || name === "Hurricane") && weather === "sunny") return 0.5;
+  if (name === "Blizzard" && weather === "snow") return 0;
+  return missOf(name);
+}
+export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.has(weather) || weather === "snow") ? 0.5 : 1);
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
@@ -158,7 +169,7 @@ export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t
 // One move by `attacker` at `target` (fighter keys): { type, name, physical, ultimate, crit, miss,
 // power, mul, eff }. `mul`: what it does to the damage besides its power (0 when it misses).
 // `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
-// `how.moves`: the names chosen for it (a pick's `moves`). A signature move chosen is used as one
+// `how.weather`: the weather's id (weatherMiss, weatherPower). `how.moves`: the names chosen for it (a pick's `moves`). A signature move chosen is used as one
 // (its own look).
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const set = movesetOf(attacker, how.moves);
@@ -167,7 +178,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // What each would do (its own move as its rule makes it: Judgment's type, Arrows on a flier).
   const typeOf = (m) => (EXCLUSIVE[m.name]?.judgment ? judgedType(target) : m.type);
   const effOf = (m) => { const e = effectOn(typeOf(m), target); return e === 0 && EXCLUSIVE[m.name]?.flying && typesOf(target).includes("flying") ? 1 : e; };
-  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - missOf(m.name))) ** PICK_SHARP); // what it'd do, times how sure it is to hit
+  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - weatherMiss(m.name, how.weather)) * weatherPower(m.name, how.weather)) ** PICK_SHARP); // what it'd do, times how sure it is to hit
   const total = weights.reduce((x, y) => x + y, 0);
   let r = rnd() * total, k = 0;
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
@@ -180,12 +191,12 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const crit = ex?.crit === "always" || rnd() < (ex?.crit === "high" ? 1 / 8 : CRIT);
   const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
   // Its accuracy, and a small target's dodging (weather.js sizeMiss): it hits only if both let it.
-  const miss = rnd() < 1 - (1 - missOf(name)) * (1 - (sizeMiss(how.targetSize) ?? 0));
+  const miss = rnd() < 1 - (1 - weatherMiss(name, how.weather)) * (1 - (sizeMiss(how.targetSize) ?? 0));
   const physical = ex ? ex.physical : ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…), chosen or not
   // Judgment: the type that does most to it (its plate's; Arceus is that type: STAB).
   const type = ex?.judgment ? judgedType(target) : base.type;
   let eff = effectOn(type, target);
   if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
   const stab = own.includes(type) || !!ex?.judgment;
-  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1), eff };
+  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
 }
