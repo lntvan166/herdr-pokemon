@@ -85,7 +85,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Damage** (`trainer.js` `damage`, `gameDamage`): the games' (Gen 5+, level 50): ((2×50/5+2) ×
   power × Attack/Defense (physical) or Sp. Atk/Sp. Def (special) / 50 + 2) × the type's effect
   (×4 … ×0) × 85–100%, over the target's HP (`STATS`); × STAB and crit (the move's `mul`), Alpha
-  ×1.3/×0.8, Shadow ×1.2. Battles on the strip × `DAMAGE_SCALE` 0.65 (a wild one weakened to
+  ×1.3/×0.8 (a wild Alpha hitting yours ×1.5, `WILD_ALPHA_HIT`: yours faints in ~62% of catches
+  against one, 41% against any other), Shadow ×1.2. Battles on the strip × `DAMAGE_SCALE` 0.65 (a wild one weakened to
   the red in about 3½ hits, ~2% knocked out; raids re-tuned, `RAID_HP` 2.4); sparring at the
   games' own numbers (a knockout in one blow can happen). All are level 50 (`LEVEL`); being raised counts a
   little (`effortOf`: +1% to its stats, not HP, a heart, +5% at most; in the wild and raids only

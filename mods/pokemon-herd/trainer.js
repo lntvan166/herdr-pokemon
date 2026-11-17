@@ -215,14 +215,17 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega =
 // 5 ♥, 10% less). It faints at 0 and rests a while (OWN_REST); its hearts are untouched.
 export const OWN_REST = 10 * 60000;
 export const OWN_TAKE = 0.85;
+// A wild Alpha hits harder than one of yours that's an Alpha (×1.3): simulated, yours faints in
+// ~62% of catches against one (41% against any other), knocked out by one hit 1 in 8.
+export const WILD_ALPHA_HIT = 1.5;
 // Its health now from what was kept ({ hp, at, rest? }: after a hit, back to full over OWN_REST),
 // or null while it rests after fainting.
 export const healthNow = (rec, now) => (!rec ? 1 : now < (rec.rest ?? 0) ? null : Math.min(1, (rec.hp ?? 1) + (now - (rec.at ?? now)) / OWN_REST));
 export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null, move = null, ctx = undefined) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
-  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul, ...(type ? { type } : {}), ...moveHow(move), ctx });
+  const hit = damage(wild.dex, own.dex, rnd, { alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul, ...(type ? { type } : {}), ...moveHow(move), ctx });
   const { eff, text } = hit;
-  const dmg = hit.dmg * OWN_TAKE * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
+  const dmg = hit.dmg * (wild.alpha ? WILD_ALPHA_HIT : 1) * OWN_TAKE * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
   const left = Math.max(0, hp - dmg);
   return { hp: left, dmg, eff, text, fainted: left <= 0.001 };
 }
