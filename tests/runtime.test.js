@@ -6,7 +6,8 @@ import { join } from "node:path";
 // Herdr's mod runtime isn't Node or a browser: probed in it (2026-11-17, dev.js "globals"), these
 // are missing. TextDecoder broke every update from 2.16.1 to 2.20.0 (on every system). None of
 // them may be used in the mods.
-const MISSING = ["TextDecoder", "TextEncoder", "structuredClone", "AbortController", "Intl.", "new Response", "new Headers"];
+// setTimeout and setInterval are there but throw ("not available in the shell, use cx.timer").
+const MISSING = ["TextDecoder", "TextEncoder", "structuredClone", "AbortController", "Intl.", "new Response", "new Headers", "setTimeout(", "setInterval("];
 
 const files = (dir) => readdirSync(dir).flatMap((n) => {
   const p = join(dir, n);

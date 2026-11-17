@@ -20,7 +20,8 @@ const GUIDE_KEY = `${MOD}-guide-seen`; // Settings opened once: it opens on the 
 const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
-import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
+import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
+import { PHASE_TEXT } from "./update.js";
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
@@ -761,17 +762,22 @@ export default class PokemonHerd extends View {
       }
     });
     // keys.json: "alt-shift-p": "pokemon-herd.pick" chooses the focused agent's Pokémon.
-    cx.spawn(async () => {
+    cx.spawn(async (cx) => {
+      // Each command on its own: one that throws is logged, and the next still comes (a throw
+      // here ended the loop, and every later command, the keys' too, did nothing till a restart).
       for (;;) {
-        const c = await nextCommand();
-        if (c === "bag") { openBag(); continue; }
-        if (dev?.command?.(c, devApi)) continue; // dev.js, on this machine only
-        if (c === "settings") { openSettings(this.update()); continue; }
-        if (c === "about") { openSettings(this.update(), "about"); continue; } // Settings → About
-        if (c !== "pick") continue;
-        const list = herdAgents();
-        const a = list.find((x) => x.focused) ?? list[0];
-        if (a) this.openPicker(a, assignAll(list).ids[a.address], tagOf(a, tabsById()));
+        let c;
+        try { c = await nextCommand(); } catch (e) { logOnce(e, console.log, Date.now(), this.errSeen); await cx.sleep(1000); continue; }
+        try {
+          if (c === "bag") { openBag(); continue; }
+          if (dev?.command?.(c, devApi)) continue; // dev.js, on this machine only
+          if (c === "settings") { openSettings(this.update()); continue; }
+          if (c === "about") { openSettings(this.update(), "about"); continue; } // Settings → About
+          if (c !== "pick") continue;
+          const list = herdAgents();
+          const a = list.find((x) => x.focused) ?? list[0];
+          if (a) this.openPicker(a, assignAll(list).ids[a.address], tagOf(a, tabsById()));
+        } catch (e) { logOnce(e, console.log, Date.now(), this.errSeen); }
       }
     });
   }
@@ -2138,6 +2144,7 @@ export default class PokemonHerd extends View {
     this.festSeen = fest;
     if (now - fest < FESTIVAL_MS) changed = true;
     if (this.resume) { this.resume = false; changed = true; } // after a gap: walk on (renderStrip)
+    if (this.autoUpdating) changed = true; // its progress on the pill, while it updates by itself
     const live = new Set();
     // Where the resting others on agent i's row are, or are headed (read live, so one move frees
     // the next). Working ones are left out: they keep walking, so nobody makes room for them.
@@ -3201,7 +3208,7 @@ export default class PokemonHerd extends View {
     const upd = this.newerVersion();
     return [
       panel(
-        line("Pokerdr", this.updating === "running" ? "Downloading…"
+        line("Pokerdr", this.updating === "running" ? (() => { const g = updateProgress(); return g ? `${PHASE_TEXT[g.phase] ?? "Updating"}… ${Math.round(100 * g.f)}%` : "Updating…"; })()
           : this.updating === "done" ? `Updated ${(this.updated ?? []).map((u) => `mods/${u.dir.split("/").pop()} to ${u.version}`).join(", ")}. It reloads by itself; if this still says ${VERSION}, restart Herdr.`
           : this.updating ? `Couldn't update: ${this.updating}`
           : upd ? `${upd} is out; you have ${VERSION}. Your Pokémon, Bag and badges stay.`
@@ -3209,6 +3216,8 @@ export default class PokemonHerd extends View {
           : `${VERSION}, the latest (checked once a day).`,
           button("update-now", "Update now", !!upd && this.updating !== "running" && this.updating !== "done", (cx) => {
             this.updating = "running";
+            // The bar moves: a frame every 150 ms till it's done.
+            cx.spawn(async (cx) => { while (this.updating === "running") { await cx.sleep(150); cx.notify(); } });
             cx.spawn(async (cx) => {
               try {
                 const done = await updateNow();
@@ -3218,6 +3227,9 @@ export default class PokemonHerd extends View {
               cx.notify();
             });
           })),
+        // Updating: a bar (update.js progressAt: the download by time, the files as they're written).
+        ...(this.updating === "running" ? [div().mx(4).mb(6).h(6).rounded_full().bg(theme().border).overflow_hidden()
+          .child(div().h(6).rounded_full().bg(theme().accent).w(`${Math.round(100 * (updateProgress()?.f ?? 0))}%`))] : []),
         // It failed (here, or by itself): why, and how to update by hand.
         ...((() => {
           const auto = shared(AUTO_KEY);
@@ -3721,7 +3733,14 @@ export default class PokemonHerd extends View {
       .child("☰"));
     // A newer release on GitHub: a small pill in the corner; it opens Settings → Updates.
     const update = this.update();
-    if (update) {
+    const going = this.autoUpdating && updateProgress(now);
+    if (going) {
+      // Updating by itself: how far, a bar filling under the words.
+      root.child(div().id("pokemon-updating").absolute().right(50).top(4).h(16).w(96).rounded(8).overflow_hidden().bg("#00000080")
+        .child(div().absolute().left(0).top(0).h(16).w(Math.round(96 * going.f)).bg(t.accent).opacity(0.85))
+        .child(div().absolute().left(0).top(0).w(96).h(16).flex().items_center().justify_center().text_size(10).text_color("#ffffff")
+          .child(`Updating ${Math.round(100 * going.f)}%`)));
+    } else if (update) {
       root.child(div().id("pokemon-update").absolute().right(50).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).bg(t.accent).text_color(t.accent_foreground)
         .cursor_pointer().on_click(() => openSettings(update))

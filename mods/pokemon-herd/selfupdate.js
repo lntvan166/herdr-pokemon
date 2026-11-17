@@ -4,7 +4,7 @@
 import { exec, appHome } from "herdr";
 import * as fs from "fs/promises";
 import { MOD, REPO, VERSION } from "./id.js";
-import { installUpdate } from "./update.js";
+import { installUpdate, progressAt } from "./update.js";
 
 const MOD_DIR = `${appHome()}/mods/${MOD}`;
 const SIDEBAR_DIR = `${appHome()}/mods/better-sidebar`;
@@ -42,22 +42,37 @@ async function removeTree(dir) {
 // Picks, stats and the Bag live in shared state, not there, so nothing is lost. Returns
 // [{ dir, version }] of what was updated.
 // (`app`: where Herdr's mods are: its home, or a folder to try it in.)
+// The update running now, if any (module state: every view in this window reads it): its step,
+// for progressAt. `lastDownload`: how long the last download took (ms), what the next one's bar
+// is timed by.
+export const updateStep = { phase: null, at: 0 };
+let lastDownload = 8000;
+const step = (s) => Object.assign(updateStep, { at: Date.now(), n: undefined, total: undefined, ...s });
+export const updateProgress = (now = Date.now()) => (updateStep.phase ? { phase: updateStep.phase, f: progressAt({ ...updateStep, expect: lastDownload }, now) } : null);
+
 export async function updateNow(app = appHome()) {
   const tmp = `${appHome()}/data/${MOD}/update-${Date.now()}`;
   await fs.mkdir(tmp, { recursive: true });
   try {
     const tgz = `${tmp}/main.tar.gz`;
     const url = `https://codeload.github.com/${REPO}/tar.gz/refs/heads/main`;
+    step({ phase: "download" });
+    const t0 = Date.now();
     const d = await run(["curl", "/usr/bin/curl"], ["-sfL", "--retry", "2", "--connect-timeout", "10", "-o", tgz, url], 120000);
     if (d.code !== 0) throw new Error(`download failed: ${lastLine(d)}`);
+    lastDownload = Math.max(1000, Date.now() - t0);
+    step({ phase: "unpack" });
     const x = await run(["tar", "/usr/bin/tar", "/bin/tar"], ["-xzf", tgz, "-C", tmp], 120000);
     if (x.code !== 0) throw new Error(`unpacking failed: ${lastLine(x)}`);
     const top = (await fs.readdir(tmp, { withFileTypes: true })).find((e) => e.isDirectory());
     const src = top && `${tmp}/${top.name}/mods/pokemon-herd`;
     if (!src || !(await fs.exists(`${src}/main.js`))) throw new Error("the download has no mods/pokemon-herd");
-    return await installUpdate(fs, { app, repo: REPO, running: VERSION, src });
+    const done = await installUpdate(fs, { app, repo: REPO, running: VERSION, src, onStep: (s) => { if (s.phase === "write") Object.assign(updateStep, s); else step(s); } });
+    step({ phase: "done" });
+    return done;
   } finally {
     await removeTree(tmp).catch(() => null);
+    if (updateStep.phase !== "done") step({ phase: null }); // failed: no bar
   }
 }
 

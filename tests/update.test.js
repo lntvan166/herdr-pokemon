@@ -146,3 +146,23 @@ test("installUpdate: works without TextDecoder (Herdr's runtime on macOS has non
     globalThis.TextDecoder = saved;
   }
 });
+
+test("an update's progress: the download by time (never past 95% of its share), then the files as they're written", async () => {
+  const { progressAt, PHASES } = await import("../mods/pokemon-herd/update.js");
+  assert.equal(progressAt(null), 0);
+  assert.equal(progressAt({ phase: "download", at: 0, expect: 10000 }, 0), 0);
+  assert.ok(Math.abs(progressAt({ phase: "download", at: 0, expect: 10000 }, 5000) - 0.3) < 1e-9);
+  assert.ok(progressAt({ phase: "download", at: 0, expect: 10000 }, 60000) < PHASES.download[1]); // a slow one waits under its share
+  assert.equal(progressAt({ phase: "unpack", at: 0 }), PHASES.unpack[0]);
+  assert.equal(progressAt({ phase: "write", n: 0, total: 10 }), PHASES.write[0]);
+  assert.ok(Math.abs(progressAt({ phase: "write", n: 5, total: 10 }) - 0.875) < 1e-9);
+  assert.equal(progressAt({ phase: "done" }), 1);
+  // installUpdate tells each step: read, then each file written, counting up to the total.
+  const f = fake();
+  f.copy("pokemon-herd", "pokemon-herd", "1.6.1");
+  const steps = [];
+  await installUpdate(io, { app: f.app, repo: "lntvan166/herdr-pokemon", running: "1.6.1", src: f.src, onStep: (s) => steps.push(s) });
+  assert.equal(steps[0].phase, "read");
+  const writes = steps.filter((s) => s.phase === "write");
+  assert.ok(writes.length > 0 && writes.every((s, i) => s.n === i && s.total >= writes.filter((w) => w.total === s.total).length));
+});

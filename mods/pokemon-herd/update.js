@@ -45,7 +45,21 @@ export function shouldAutoUpdate(on, latest, running, tried, now = Date.now()) {
 // isn't newer than `running` (no downgrade, no reinstall; `force` for a hand-run reinstall), every
 // file read into memory first (a broken download fails before anything is touched), then written
 // with main.js last (Herdr reloads the mod as its files change: till main.js lands, the old one runs).
-export async function installUpdate(io, { app, repo, running, src, force = false }) {
+// An update's progress, 0..1, for a bar (Settings, the strip's pill): the steps weighed by how
+// long they take. The download's size isn't told (GitHub sends it in chunks), so it moves by
+// time against the last download's (`expect` ms), never past 95% of its share; the rest by the
+// files written so far. `p`: { phase: "download" | "unpack" | "read" | "write" | "done", at (the
+// phase's start), expect?, n?, total? }.
+export const PHASES = { download: [0, 0.6], unpack: [0.6, 0.7], read: [0.7, 0.75], write: [0.75, 1], done: [1, 1] };
+export const PHASE_TEXT = { download: "Downloading", unpack: "Unpacking", read: "Reading the files", write: "Writing the files", done: "Done" };
+export function progressAt(p, now = Date.now()) {
+  const [a, b] = PHASES[p?.phase] ?? [0, 0];
+  if (p?.phase === "download") return a + (b - a) * Math.min(0.95, Math.max(0, now - (p.at ?? now)) / Math.max(1000, p.expect ?? 8000));
+  if (p?.phase === "write" && p.total > 0) return a + (b - a) * Math.min(1, (p.n ?? 0) / p.total);
+  return a;
+}
+
+export async function installUpdate(io, { app, repo, running, src, force = false, onStep = () => {} }) {
   const read = (p) => io.readFile(p, "utf8");
   const has = (p) => io.exists(p);
   // A folder's files, read: [[relative path, contents]], main.js last.
@@ -58,8 +72,10 @@ export async function installUpdate(io, { app, repo, running, src, force = false
     }
     return out.sort(([a], [b]) => (a === "main.js") - (b === "main.js"));
   };
+  let written = 0, toWrite = 0;
   const writeAll = async (files, to) => {
     for (const [p, data] of files) {
+      onStep({ phase: "write", n: written++, total: toWrite });
       const dir = p.includes("/") ? `${to}/${p.slice(0, p.lastIndexOf("/"))}` : to;
       await io.mkdir(dir, { recursive: true });
       await io.writeFile(`${to}/${p}`, data);
@@ -68,6 +84,7 @@ export async function installUpdate(io, { app, repo, running, src, force = false
   const copyTree = async (from, to) => writeAll(await load(from), to);
   const version = versionIn(await read(`${src}/id.js`));
   if (!force && !isNewer(version, running)) throw new Error(`the download is ${version ?? "no version"}, not newer than ${running}`);
+  onStep({ phase: "read" });
   const files = await load(src); // all of it, before a single file is written
   const mods = `${app}/mods`;
   const mine = [], all = [];
@@ -80,6 +97,7 @@ export async function installUpdate(io, { app, repo, running, src, force = false
   }
   const targets = mine.length ? mine : all;
   if (!targets.length) throw new Error("this mod's folder wasn't found under mods/");
+  toWrite = files.length * targets.length;
   const out = [];
   // The new id.js as text, read as such (no TextDecoder: Herdr's runtime on macOS has none, and
   // every update there failed on it).
