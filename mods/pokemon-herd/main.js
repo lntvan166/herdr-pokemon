@@ -38,7 +38,7 @@ import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
 import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { blowWord, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL, ensureTrainer } from "./sprites.js";
@@ -1202,6 +1202,7 @@ export default class PokemonHerd extends View {
             v.pick = { dex: nx.dex, nature: nx.nature, trainer: true, mega: "off", size: 1 };
             this.want(v.pick, cx);
             v.sentOut = { at: now, dex: nx.dex };
+            if (tr.fighter) tr.nextAt = now + 2700; // yours goes on against the next one
             v.fainted = undefined;
             v.fight = null;
             v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, tr.at + WAIT_MS), icon: "❗", face: "L" };
@@ -1214,7 +1215,15 @@ export default class PokemonHerd extends View {
         if (now >= v.fainted + (tr ? 4500 : 2200)) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
       }
-      if (v.trainer) { v.fight = null; v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" }; return true; } // it waits for the next one of yours
+      if (v.trainer) {
+        // A trainer's battle goes on by itself, exchange after exchange, till one is down; yours
+        // down, it waits for another of yours (its team keeps the health it has).
+        v.fight = null;
+        v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
+        if (fx.back?.fainted) v.trainer.fighter = null;
+        else v.trainer.nextAt = now + 500;
+        return true;
+      }
       v.from = fx.x;
       v.start = now;
       v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
@@ -1272,6 +1281,15 @@ export default class PokemonHerd extends View {
       return false;
     }
     // A trainer: waiting in its corner from the moment it's there.
+    // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
+    // there and up (as if dropped on it again).
+    const trv = v.trainer;
+    if (trv?.fighter && trv.nextAt && now >= trv.nextAt && !v.fight && !v.throw && !trv.beaten) {
+      const fm = this.mons[trv.fighter];
+      trv.nextAt = null;
+      if (fm && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false };
+      else trv.fighter = null;
+    }
     if (v.trainer && !v.trainer.waited) { v.trainer.waited = true; if (v.act) v.act.done = true; v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" }; }
     // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
     if (v.halt) {
@@ -1849,7 +1867,9 @@ export default class PokemonHerd extends View {
     const v = this.visitor;
     if (!v?.start || v.throw || v.fight || v.fainted || !Number.isFinite(v.x)) return false;
     const rows = this.grid(herdAgents().length)?.rows ?? 1;
-    return Math.min(v.row, rows - 1) === row && Math.abs(v.x - m.x) <= 70;
+    // (The one fighting a trainer's, going on: from where it fought, a battle's gap away.)
+    const reach = v.trainer?.fighter && this.mons[v.trainer.fighter] === m ? MAX_GAP + 30 : 70;
+    return Math.min(v.row, rows - 1) === row && Math.abs(v.x - m.x) <= reach;
   }
 
   // A wild Pokémon caught: into the Box (a heart, a nature), the Pokédex, the day's Research, and
@@ -2852,6 +2872,7 @@ export default class PokemonHerd extends View {
         const ownMove = { ...om, eff: hit.eff, blue: ownKey === "6mX" };
         const wildMove = { ...wm, eff: back?.eff ?? 1 };
         const away = v.x > spot ? 1 : -1; // from yours toward the wild one
+        if (v.trainer) v.trainer.fighter = drop.addr; // it fights on till one of them is down
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
           x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
