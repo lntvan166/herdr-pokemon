@@ -96,3 +96,23 @@ test("each of the more moves has its own look, well formed, and its power from t
     assert.ok((physical ? physicalTimes(type, name) : specialTimes(type, name)).length > 0);
   }
 });
+
+test("a Pokémon's own move (EXCLUSIVE): always among its four; Judgment takes the type that does most", async () => {
+  const { EXCLUSIVE, exclusiveOf, judgedType, learnableOf } = await import("../mods/pokemon-herd/moves.js");
+  assert.equal(movesetOf(493)[0].name, "Judgment");
+  assert.equal(movesetOf(150)[0].name, "Psystrike");
+  assert.equal(movesetOf(25)[0].name, "Volt Tackle");
+  assert.equal(movesetOf(26).some((m) => m.name === "Volt Tackle"), false); // Raichu doesn't
+  assert.ok(movesetOf(493).length <= 4);
+  assert.ok(learnableOf(493).some((m) => m.name === "Judgment" && m.exclusive));
+  for (const [name, m] of Object.entries(EXCLUSIVE)) assert.ok(m.type && m.power > 0 && m.dex.length && exclusiveOf(m.dex[0]).some((x) => x.name === name), name);
+  // Judgment: ×4 on Charizard (Rock), Dragonite (Ice), Tyranitar (Fighting); ×2 on Gengar (Ground).
+  assert.equal(judgedType(6), "rock");
+  assert.equal(judgedType(149), "ice");
+  assert.equal(judgedType(248), "fighting");
+  const j = pickMove(493, 6, () => 0.01, { moves: ["Judgment"] });
+  assert.deepEqual([j.name, j.type, j.eff, j.stab, j.exclusive], ["Judgment", "rock", 4, true, true]);
+  // Flower Trick always lands a critical hit; Thousand Arrows hits a Flying type.
+  assert.equal(pickMove(908, 3, () => 0.99, { moves: ["Flower Trick"] }).crit, true);
+  assert.equal(pickMove(718, 6, () => 0.99, { moves: ["Thousand Arrows"] }).eff, 1);
+});

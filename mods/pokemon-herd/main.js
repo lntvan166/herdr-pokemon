@@ -1291,7 +1291,7 @@ export default class PokemonHerd extends View {
     if (now >= launch - CHARGE_MS && now < launch) out.push(fxCharge(`${id}-c`, style, x0, y, this.fxFirst(`${id}-c`)));
     // A signature move: its own look (fx.js signatureParts), timed to land when it's hit.
     if (move?.ultimate) {
-      for (const [k, p] of signatureParts(move.type, x0, x1, y, land % 100000, style).entries()) {
+      for (const [k, p] of signatureParts(move.type, x0, x1, y, land % 100000, style, move.name).entries()) {
         const t = land + p.at;
         if (now >= t && now < t + p.ms + 60) out.push(fxSig(`${id}-g${k}`, p, this.fxFirst(`${id}-g${k}`)));
       }
@@ -1389,7 +1389,7 @@ export default class PokemonHerd extends View {
     // A move: it gathers (a frame as it starts, one to set it moving), fires, lands.
     const moveTimes = (key, type, launch, land, physical = false, ultimate = false, name = null) => {
       times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, launch + 280, launch + 560, land, land + 70, land + 290);
-      if (ultimate) for (const t of signatureTimes(type)) times.push(land + t);
+      if (ultimate) for (const t of signatureTimes(type, name)) times.push(land + t);
       else if (!physical && type) for (const t of specialTimes(type, name)) times.push(land + t);
       sounds.push([`${key}-c`, launch - CHARGE_MS, "charge"], [`${key}-l`, launch, launchSound(type, physical)]);
     };
@@ -5003,7 +5003,7 @@ export default class PokemonHerd extends View {
     const chosen = !!chosenOf(key, e.moves);
     const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => MOVES[m.type]?.[2]).filter((n) => n && !set.some((m) => m.name === n)))];
     const chip = (m, on = true) => h_flex().h(18).px(6).gap(4).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type]).opacity(on ? 1 : 0.4)
-      .when(!!m.sig, (el) => el.border_1().border_color("#ffd23f"))
+      .when(!!m.sig || !!m.exclusive, (el) => el.border_1().border_color(m.exclusive ? "#ffffff" : "#ffd23f"))
       .child(div().text_size(10.5).font_semibold().text_color(typeText(m.type)).child(m.name))
       .child(div().text_size(9).text_color(typeText(m.type)).opacity(0.75).child(String(powerOf(m.name))));
     const pill = (id, label, click) => div().id(id).h(18).px(7).rounded(4).flex().items_center().flex_none().text_size(10.5).border_1()
@@ -5025,7 +5025,7 @@ export default class PokemonHerd extends View {
     const all = learnableOf(key);
     return v_flex().gap(6)
       .child(row)
-      .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. Gold: a signature move (it fires, and misses 1 in 5).`))
+      .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. Gold: a signature move (it fires, and misses 1 in 5); white: its own.`))
       .child(h_flex().gap(4).flex_wrap()
         .children(all.map((m, i) => {
           const on = names.includes(m.name);

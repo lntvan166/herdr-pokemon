@@ -184,3 +184,14 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a click takes or drops one, `MAX_MOVES` 4 at most, at least one; "Default" goes back to its own
   four. Chosen moves are used in the wild, raids and spars; a signature move chosen is used as one
   (it fires, misses 1 in 5). No cost and no limit but what it learns.
+- **Their own moves** (`moves.js` `EXCLUSIVE`, 44): a move only one Pokémon (or its line) knows,
+  as in the games (Judgment Arceus, Psystrike Mewtwo, Roar of Time Dialga, Spacial Rend Palkia,
+  Aeroblast Lugia, Sacred Fire Ho-Oh, Volt Tackle Pikachu, Pyro Ball Cinderace, Flower Trick
+  Meowscarada…), with its power, type and side. Always among its four (in place of its last), and
+  in Change (a white edge). Used as a signature move is drawn (`fx.js` `signatureParts`, its
+  type's scene; Judgment its own: `fx-moves.js` `SIGNATURE`, light gathered, then pillars of light
+  in the judged type's colours coming down), but as sure to hit as any move and as physical as
+  it is. Rules: Judgment's type is the one that does most to the other (`judgedType`, with STAB);
+  `crit: "high"` 1 in 8 (Spacial Rend, Aeroblast, Snipe Shot), `"always"` (Flower Trick);
+  Thousand Arrows hits a Flying type (neutral); Oblivion Wing drains ¾; Sacred Fire burns half the
+  time, Blue Flare and Bolt Strike 1 in 5 (spar.js `SIDE_EFFECTS`).

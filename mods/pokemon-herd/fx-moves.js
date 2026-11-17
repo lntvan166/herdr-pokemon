@@ -383,3 +383,25 @@ export const SPECIAL = {
     return out;
   },
 };
+
+// A Pokémon's own move, drawn in place of its type's signature scene (fx.js signatureParts, `at`
+// from when it lands; c: x0 → x1 at y, g the ground, sky above, st its type's colours).
+export const SIGNATURE = {
+  // Judgment: Arceus gathers light (a golden ring), orbs rise off it, then pillars of light in the
+  // judged type's colours come down on the other, one after another, and burst on the ground.
+  "Judgment": ({ x0, x1, y, g, sky, P, O, ring, flash, st, rnd }) => {
+    const out = [ring(-520, x0, y - 6, 54, 12, "#ffd75e", 320, 0.9), flash(-480, x0, y - 6, 40, "#fff2c0", 300)];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      out.push(P(-460 + i * 20, 260, O(x0 + Math.cos(a) * 10, y - 6 + Math.sin(a) * 6, 6, 6, 1), O(x0 + Math.cos(a) * 18, sky - 10, 4, 4, 0.2), i % 2 ? "#ffd75e" : st.hot, { round: true, ease: "ease-in" }));
+    }
+    for (let i = 0; i < 7; i++) {
+      const xx = x1 + (i - 3) * 9 + (rnd() - 0.5) * 6, at = -200 + i * 45, top = sky - 20;
+      out.push(P(at, 160, O(xx, top, 4, 4, 1), O(xx, (top + g) / 2, 6, g - top, 1), i % 2 ? st.core : st.mid, { ease: "ease-in" }),
+        P(at + 160, 260, O(xx, (top + g) / 2, 6, g - top, 0.9), O(xx, (top + g) / 2, 2, g - top, 0), "#ffffff"),
+        P(at + 150, 300, O(xx, g - 2, 6, 3, 1), O(xx, g - 2, 22, 4, 0), st.glow, { round: true }));
+    }
+    out.push(flash(0, x1, y, 54, st.hot, 320), ring(0, x1, y, 12, 70, "#ffd75e", 420), ring(80, x1, g - 2, 10, 80, st.core, 460));
+    return out;
+  },
+};

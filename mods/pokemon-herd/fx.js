@@ -1,4 +1,4 @@
-import { PHYSICAL, SPECIAL } from "./fx-moves.js";
+import { PHYSICAL, SPECIAL, SIGNATURE } from "./fx-moves.js";
 // Battle effects, worked out here and drawn by main.js: what a move looks like by its type (a
 // glowing shot with a tail), the burst where a blow lands, how far the target is knocked back and
 // whether it shakes, the word that pops up ("Super effective!"). GPUI animates the parts natively
@@ -269,7 +269,7 @@ export const RESIDUE_FROM = 150, RESIDUE_MS = 1300, RESIDUE_FADE = 260;
 export const SIG_GROUND = 16;
 const P = (at, ms, a, b, color, more = {}) => ({ at, ms, a, b, color, ...more });
 const O = (x, y, w, h, o = 1) => ({ x, y, w, h, o });
-export function signatureParts(type, x0, x1, y, seed = 1, style = null) {
+export function signatureParts(type, x0, x1, y, seed = 1, style = null, name = null) {
   let s = seed % 2147483647 || 1;
   const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   const st = style ?? MOVE[type] ?? MOVE.normal; // its colours (Mega Charizard X: blue fire)
@@ -277,6 +277,8 @@ export function signatureParts(type, x0, x1, y, seed = 1, style = null) {
   const g = y + SIG_GROUND, sky = Math.max(2, y - 46);
   const ring = (at, x, yy, d0, d1, color, ms = 420, o = 0.9) => P(at, ms, O(x, yy, d0, d0, o), O(x, yy, d1, d1, 0), color, { round: true, ring: true });
   const flash = (at, x, yy, d, color, ms = 260) => P(at, ms, O(x, yy, d * 0.4, d * 0.4, 1), O(x, yy, d, d, 0), color, { round: true });
+  // A Pokémon's own move with a look of its own (fx-moves.js SIGNATURE: Judgment).
+  if (SIGNATURE[name]) return SIGNATURE[name]({ x0, x1, y, g, sky, dir, dist, mid, st, rnd, P, O, ring, flash });
   const out = [];
   switch (type) {
     case "normal": // Giga Impact: a white blast charging across, a shockwave where it lands
@@ -406,7 +408,7 @@ export function signatureParts(type, x0, x1, y, seed = 1, style = null) {
   return out;
 }
 // When a signature move's parts set off, ms after it lands (frames are asked for then).
-export const signatureTimes = (type) => [...new Set(signatureParts(type, 0, 100, 40).flatMap((p) => [p.at, p.at + 40]))];
+export const signatureTimes = (type, name = null) => [...new Set(signatureParts(type, 0, 100, 40, 1, null, name).flatMap((p) => [p.at, p.at + 40]))];
 
 // ---- physical moves: each its own mark where it lands ------------------------------------------
 // The physical move of each type (moves.js, names[0]) leaves its own mark on the target as it

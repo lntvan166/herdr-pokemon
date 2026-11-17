@@ -52,17 +52,73 @@ export const MORE_MOVES = {
   steel: [["Metal Claw", true], ["Mirror Shot", false], ["Iron Tail", true]],
   fairy: [["Fairy Wind", false], ["Draining Kiss", false], ["Dazzling Gleam", false]],
 };
+// Moves only one Pokémon (or its line) knows, as in the games: its own, always among its four
+// (movesetOf), drawn as a signature move. { type, power, physical, dex: [who knows it], and its
+// rule as the games have it: judgment (Arceus: its plate's type, so the type that does most to
+// the other), crit: "high" (1 in 8) | "always", flying (hits a Flying type, neutral) }.
+export const EXCLUSIVE = {
+  "Judgment": { type: "normal", power: 100, physical: false, dex: [493], judgment: true },
+  "Psystrike": { type: "psychic", power: 100, physical: false, dex: [150] },
+  "Roar of Time": { type: "dragon", power: 150, physical: false, dex: [483] },
+  "Spacial Rend": { type: "dragon", power: 100, physical: false, dex: [484], crit: "high" },
+  "Shadow Force": { type: "ghost", power: 120, physical: true, dex: [487] },
+  "Origin Pulse": { type: "water", power: 110, physical: false, dex: [382] },
+  "Precipice Blades": { type: "ground", power: 120, physical: true, dex: [383] },
+  "Dragon Ascent": { type: "flying", power: 120, physical: true, dex: [384] },
+  "Aeroblast": { type: "flying", power: 100, physical: false, dex: [249], crit: "high" },
+  "Sacred Fire": { type: "fire", power: 100, physical: true, dex: [250] },
+  "Blue Flare": { type: "fire", power: 130, physical: false, dex: [643] },
+  "Bolt Strike": { type: "electric", power: 130, physical: true, dex: [644] },
+  "Oblivion Wing": { type: "flying", power: 80, physical: false, dex: [717] },
+  "Thousand Arrows": { type: "ground", power: 90, physical: true, dex: [718], flying: true },
+  "Sunsteel Strike": { type: "steel", power: 100, physical: true, dex: [791] },
+  "Moongeist Beam": { type: "ghost", power: 100, physical: false, dex: [792] },
+  "Photon Geyser": { type: "psychic", power: 100, physical: false, dex: [800] },
+  "Behemoth Blade": { type: "steel", power: 100, physical: true, dex: [888] },
+  "Behemoth Bash": { type: "steel", power: 100, physical: true, dex: [889] },
+  "Dynamax Cannon": { type: "dragon", power: 100, physical: false, dex: [890] },
+  "Astral Barrage": { type: "ghost", power: 120, physical: false, dex: [898] },
+  "Doom Desire": { type: "steel", power: 140, physical: false, dex: [385] },
+  "Psycho Boost": { type: "psychic", power: 140, physical: false, dex: [386] },
+  "Seed Flare": { type: "grass", power: 120, physical: false, dex: [492] },
+  "V-create": { type: "fire", power: 180, physical: true, dex: [494] },
+  "Secret Sword": { type: "fighting", power: 85, physical: false, dex: [647] },
+  "Relic Song": { type: "normal", power: 75, physical: false, dex: [648] },
+  "Techno Blast": { type: "normal", power: 120, physical: false, dex: [649] },
+  "Hyperspace Hole": { type: "psychic", power: 80, physical: false, dex: [720] },
+  "Steam Eruption": { type: "water", power: 110, physical: false, dex: [721] },
+  "Spectral Thief": { type: "ghost", power: 90, physical: true, dex: [802] },
+  "Volt Tackle": { type: "electric", power: 120, physical: true, dex: [25] },
+  "Night Daze": { type: "dark", power: 85, physical: false, dex: [570, 571] },
+  "Spirit Shackle": { type: "ghost", power: 80, physical: true, dex: [724] },
+  "Darkest Lariat": { type: "dark", power: 85, physical: true, dex: [727] },
+  "Sparkling Aria": { type: "water", power: 90, physical: false, dex: [730] },
+  "Drum Beating": { type: "grass", power: 80, physical: true, dex: [812] },
+  "Pyro Ball": { type: "fire", power: 120, physical: true, dex: [815] },
+  "Snipe Shot": { type: "water", power: 80, physical: false, dex: [818], crit: "high" },
+  "Flower Trick": { type: "grass", power: 70, physical: true, dex: [908], crit: "always" },
+  "Torch Song": { type: "fire", power: 80, physical: false, dex: [911] },
+  "Aqua Step": { type: "water", power: 80, physical: true, dex: [914] },
+  "Headlong Rush": { type: "ground", power: 120, physical: true, dex: [901] },
+  "Stone Axe": { type: "rock", power: 65, physical: true, dex: [900] },
+};
+// Its own move(s), if it has one: [{ type, name, physical, exclusive }].
+export const exclusiveOf = (attacker) => {
+  const dex = parseInt(attacker, 10);
+  return Object.entries(EXCLUSIVE).filter(([, m]) => m.dex.includes(dex)).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
+};
 // Moving first whatever the Speed (+1, as the games' Ice Shard); healing by part of the damage done.
 export const PRIORITY = { "Ice Shard": 1 };
-export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75 };
-export const ULTIMATE = 1 / 8; // a signature move (its power: Blast Burn 150)
+export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75, "Oblivion Wing": 0.75 };
+export const ULTIMATE = 1 / 8;
+export const MAX_MOVES = 4; // a signature move (its power: Blast Burn 150)
 export const CRIT = 1 / 16; // a critical hit, ×1.5
 export const CRIT_HIT = 1.5;
 export const MISS = 0.05, MISS_ULTIMATE = 0.2;
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
-export const powerOf = (name) => MOVE_POWER[name] ?? 80;
+export const powerOf = (name) => EXCLUSIVE[name]?.power ?? MOVE_POWER[name] ?? 80;
 export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. Atk)
 // The moves it knows (not the signature ones): [{ type, name, physical }]: its four (MOVESET:
 // the key, else its species'), or, with none (Ditto), its types' as before.
@@ -71,9 +127,8 @@ export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. At
 const entryOf = (i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2], ...(i >= SIG_FROM ? { sig: true } : {}) });
 export function learnableOf(attacker) {
   const l = LEARNS[attacker] ?? LEARNS[String(parseInt(attacker, 10))];
-  return l ? l.map(entryOf) : movesetOf(attacker);
+  return [...exclusiveOf(attacker), ...(l ? l.map(entryOf) : movesetOf(attacker).filter((m) => !m.exclusive))];
 }
-export const MAX_MOVES = 4;
 // The moves chosen for it (a pick's `moves`: names), kept to those it can really learn, at most
 // four; null when none of them is (it then knows its own four).
 export function chosenOf(attacker, names) {
@@ -87,12 +142,16 @@ export function movesetOf(attacker, chosen = null) {
   const picked = chosen && chosenOf(attacker, chosen);
   if (picked) return picked;
   const set = MOVESET[attacker] ?? MOVESET[String(parseInt(attacker, 10))];
-  if (set?.length) return set.map((i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2] }));
+  const mine = exclusiveOf(attacker); // its own move first, in place of its last one (a coverage move)
+  if (set?.length) return [...mine, ...set.map((i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2] }))].slice(0, Math.max(MAX_MOVES, mine.length));
   const own = typesOf(attacker).filter((t) => MOVES[t]);
   const types = own.length > 1 ? own.slice(0, 2) : [...own, ...(own[0] === "normal" ? [] : ["normal"])];
   return types.flatMap((t) => [{ type: t, name: MOVES[t][0], physical: true }, { type: t, name: MOVES[t][1], physical: false }]);
 }
 
+// Judgment's type against `target`: the one that does most (the first of TYPE_ORDER on a tie).
+const TYPE_ORDER = Object.keys(MOVES);
+export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t, target) > effectOn(best, target) ? t : best), "normal");
 // One move by `attacker` at `target` (fighter keys): { type, name, physical, ultimate, crit, miss,
 // power, mul, eff }. `mul`: what it does to the damage besides its power (0 when it misses).
 // `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
@@ -102,16 +161,27 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const set = movesetOf(attacker, how.moves);
   const own = typesOf(attacker);
   const stabOf = (t) => (own.includes(t) ? STAB : 1);
-  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effectOn(m.type, target), 0.5) * stabOf(m.type)) ** PICK_SHARP);
+  // What each would do (its own move as its rule makes it: Judgment's type, Arrows on a flier).
+  const typeOf = (m) => (EXCLUSIVE[m.name]?.judgment ? judgedType(target) : m.type);
+  const effOf = (m) => { const e = effectOn(typeOf(m), target); return e === 0 && EXCLUSIVE[m.name]?.flying && typesOf(target).includes("flying") ? 1 : e; };
+  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1)) ** PICK_SHARP);
   const total = weights.reduce((x, y) => x + y, 0);
   let r = rnd() * total, k = 0;
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
   const base = set[k];
-  const ultimate = rnd() < ULTIMATE || !!base.sig;
-  const crit = rnd() < CRIT;
-  const miss = rnd() < Math.max(ultimate ? MISS_ULTIMATE : MISS, sizeMiss(how.targetSize) ?? 0);
-  const name = base.sig ? base.name : ultimate ? MOVES[base.type][2] : base.name;
-  const physical = ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…), chosen or not
-  const stab = own.includes(base.type);
-  return { type: base.type, name, physical, ultimate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1), eff: effectOn(base.type, target) };
+  const ex = base.exclusive ? EXCLUSIVE[base.name] : null;
+  const roll = rnd();
+  // Its own move: itself (drawn as a signature move, but as sure to hit as any, and as physical as
+  // it is); else 1 in 8 its type's signature move.
+  const ultimate = !!ex || roll < ULTIMATE || !!base.sig;
+  const crit = ex?.crit === "always" || rnd() < (ex?.crit === "high" ? 1 / 8 : CRIT);
+  const miss = rnd() < Math.max(ultimate && !ex ? MISS_ULTIMATE : MISS, sizeMiss(how.targetSize) ?? 0);
+  const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
+  const physical = ex ? ex.physical : ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…), chosen or not
+  // Judgment: the type that does most to it (its plate's; Arceus is that type: STAB).
+  const type = ex?.judgment ? judgedType(target) : base.type;
+  let eff = effectOn(type, target);
+  if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
+  const stab = own.includes(type) || !!ex?.judgment;
+  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1), eff };
 }

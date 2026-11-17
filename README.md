@@ -57,7 +57,10 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   Focus Blast, Leaf Blade, Draining Kiss; Caterpie just Bug Bite and Tackle. The picker, its preview
   and the Box show each one's moves; **Change** lets you teach yours any of the moves it really
   learns (weak ones and signature moves too, Gallade's Close Combat), four at most. A weak move
-  (Tackle, Ember) is never one it starts with unless it knows nothing else. Every move has its own look, from Ember's sparks to
+  (Tackle, Ember) is never one it starts with unless it knows nothing else. Legendaries and a few others
+  have their own move, as in the games: Arceus's Judgment takes the type that hits hardest,
+  Mewtwo's Psystrike, Dialga's Roar of Time, Pikachu's Volt Tackle, Meowscarada's Flower Trick (always
+  a critical hit) and 40 more. Every move has its own look, from Ember's sparks to
   Hydro Pump's torrent and Fire Blast's five-pointed burst. Damage as the
   games reckon it: each move's power, Attack against Defense or Sp. Atk against Sp. Def, HP,
   STAB, the type chart; now and then a signature move (Blast Burn, Thunder), 1 in 16 "A critical

@@ -27,6 +27,9 @@ export const SIDE_EFFECTS = {
   "Icicle Crash": ["flinch", 0.3], "Rock Slide": ["flinch", 0.3], "Bite": ["flinch", 0.3], "Twister": ["flinch", 0.2],
   "Rock Smash": ["def", 0.5], "Iron Tail": ["def", 0.3], "Acid": ["spd", 0.1], "Focus Blast": ["spd", 0.1],
   "Mud Shot": ["spe", 1], "Bulldoze": ["spe", 1], "Struggle Bug": ["spa", 1], "Snarl": ["spa", 1],
+  // Pokémon's own moves (moves.js EXCLUSIVE).
+  "Sacred Fire": ["brn", 0.5], "Blue Flare": ["brn", 0.2], "Steam Eruption": ["brn", 0.3], "Pyro Ball": ["brn", 0.1],
+  "Bolt Strike": ["par", 0.2], "Volt Tackle": ["par", 0.1], "Seed Flare": ["spd", 0.4],
 };
 export const STATUS_TEXT = { par: "It's paralyzed!", brn: "It's burned!", psn: "It's poisoned!", frz: "It's frozen solid!", atk: "Its Attack fell!", def: "Its Defense fell!", spa: "Its Sp. Atk fell!", spd: "Its Sp. Def fell!", spe: "Its Speed fell!" };
 export const SKIP_TEXT = { par: "Fully paralyzed!", frz: "Frozen solid!", flinch: "It flinched!" };
