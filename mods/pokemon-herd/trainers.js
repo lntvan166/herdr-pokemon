@@ -17,7 +17,7 @@ export const TEAM_EFFORT = 1.1; // its Pokémon, a touch stronger than yours can
 // it pays more for each (trainerPay). The likelier the more of them you have yourself (`owned`:
 // { legends caught, megas: yours that can Mega Evolve, alphas }): trainers keep up with you.
 export const LEGEND_ODDS = 0.12, MEGA_ODDS = 0.25; // with none of your own
-export const STAR_CAP = { legend: 0.15, mega: 0.25, alpha: 0.2 }; // never likelier than this
+export const STAR_CAP = { legend: 0.2, mega: 0.3, alpha: 0.25 }; // never likelier than this
 export function starOdds(owned = {}) {
   return {
     legend: Math.min(STAR_CAP.legend, 0.05 + 0.01 * (owned.legends ?? 0)),
@@ -69,9 +69,11 @@ export function newTrainer(rnd = Math.random, now = 0, how = {}) {
   // Stars: a legendary in its last place, or a Mega of one that has one; and maybe an Alpha.
   const odds = starOdds(how.owned);
   if ((how.force === "legend" || (!how.force && rnd() < odds.legend)) && LEGENDS.length) team[team.length - 1] = { dex: LEGENDS[Math.floor(rnd() * LEGENDS.length)], nature: NATURE_IDS[Math.floor(rnd() * NATURE_IDS.length)], legend: true };
-  else if ((how.force === "mega" || (!how.force && rnd() < odds.mega)) && how.megaOf) {
-    let i = team.findIndex((m) => how.megaOf(m.dex) != null);
-    if (i < 0 && how.force === "mega") { const d = pool.find((x) => how.megaOf(x) != null) ?? FINALS.find((x) => how.megaOf(x) != null); if (d) { team[0] = { dex: d, nature: team[0].nature }; i = 0; } }
+  // (Each on its own: a team can have all three, a legendary, a Mega and an Alpha, each a
+  // different one of its Pokémon.)
+  if ((how.force === "mega" || (!how.force && rnd() < odds.mega)) && how.megaOf) {
+    let i = team.findIndex((m) => !m.legend && how.megaOf(m.dex) != null);
+    if (i < 0 && how.force === "mega") { const d = pool.find((x) => how.megaOf(x) != null) ?? FINALS.find((x) => how.megaOf(x) != null); if (d && !team[0].legend) { team[0] = { dex: d, nature: team[0].nature }; i = 0; } }
     if (i >= 0) team[i] = { ...team[i], mega: how.megaOf(team[i].dex) };
   }
   if (how.force === "alpha" || (!how.force && rnd() < odds.alpha)) {
