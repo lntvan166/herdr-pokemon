@@ -704,6 +704,7 @@ const PICK_GAP = 6;
 const PICK_ROW = 102;
 const PREVIEW_WAIT = 300; // ms a preview is shown before its animations are asked for
 const BOX_COLS = 6, BOX_ROW = 110;
+const TRAINER_DRAW_H = 56; // a trainer's drawn picture, this tall (×the strip's scale)
 const BOSS_CLEAR = 80; // px each side of a raid boss kept clear of yours (×the strip's scale) // the Box's grid: 84 px cells, 6 apart
 const ICON_JOBS = 8; // icon downloads at once
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -1166,7 +1167,8 @@ export default class PokemonHerd extends View {
       delete pick.devAct;
       v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: 0, asked: now, act, ...(act?.kind === "dash" ? { speedK: DASH_SPEED } : {}) };
       if (act?.kind === "tease" && v.purse) v.purse = Math.round(v.purse * TEASE_PURSE);
-      if (tr) { v.trainer = { ...tr, idx: 0 }; v.purse = 0; v.gift = "none"; v.giftAt = 0; }
+      // A trainer doesn't walk by: it waits in the strip's right corner, its Pokémon before it.
+      if (tr) { v.trainer = { ...tr, idx: 0 }; v.purse = 0; v.gift = "none"; v.giftAt = 0; v.dir = "l"; v.row = 0; v.from = this.width - EDGE - 60; v.to = v.from - 1; v.dur = 1000; }
       v.dur = (Math.abs(to - from) / paceOf(v)) * 1000;
       this.want(pick, cx);
     }
@@ -1202,7 +1204,7 @@ export default class PokemonHerd extends View {
             v.sentOut = { at: now, dex: nx.dex };
             v.fainted = undefined;
             v.fight = null;
-            v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, tr.at + WAIT_MS) };
+            v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, tr.at + WAIT_MS), icon: "❗", face: "L" };
             return true;
           }
           tr.beaten = now;
@@ -1212,7 +1214,7 @@ export default class PokemonHerd extends View {
         if (now >= v.fainted + (tr ? 4500 : 2200)) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
       }
-      if (v.trainer) { v.fight = null; v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS) }; return true; } // it waits for the next one of yours
+      if (v.trainer) { v.fight = null; v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" }; return true; } // it waits for the next one of yours
       v.from = fx.x;
       v.start = now;
       v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
@@ -1269,6 +1271,8 @@ export default class PokemonHerd extends View {
       }
       return false;
     }
+    // A trainer: waiting in its corner from the moment it's there.
+    if (v.trainer && !v.trainer.waited) { v.trainer.waited = true; if (v.act) v.act.done = true; v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" }; }
     // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
     if (v.halt) {
       v.x = v.halt.x;
@@ -1276,6 +1280,7 @@ export default class PokemonHerd extends View {
       const h = v.halt;
       v.halt = null;
       v.pick.asleep = false;
+      if (h.kind === "trainer") { this.visitor = null; this.visitAt = next(); return true; } // waited long enough: gone
       if (h.kind === "tease") { v.speedK = FLEE_SPEED; v.fleeUntil = now + 2500; } // off it runs, laughing
       if (h.kind === "challenge" && this.mons[h.target]) this.dropAt = { addr: h.target, dizzy: false }; // they fight, as if dropped on it
       v.from = h.x;
@@ -1895,7 +1900,8 @@ export default class PokemonHerd extends View {
   trainerFigure(v, x, ground, face, walking, scale) {
     const art = v.trainer && this.trainerArt?.[v.trainer.cls];
     if (!art) return null;
-    const k = scale * 1.4, w = art.w * k, h = art.h * k;
+    // A drawn picture (art/trainers/<class>.png) is scaled to TRAINER_DRAW_H; ours by its pixels.
+    const k = art.custom ? (TRAINER_DRAW_H * scale) / art.h : scale * 1.4, w = art.w * k, h = art.h * k;
     return image(art[`${walking ? "walk" : "stand"}${face}`]).absolute().left(x - w / 2).top(ground - h).w(w).h(h);
   }
 

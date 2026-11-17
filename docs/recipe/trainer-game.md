@@ -223,10 +223,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   outbreak or a raid, never one called). Ten classes (Ace Trainer, Hiker, Swimmer, Black Belt,
   Psychic, Bug Catcher, Kindler, Punk, Engineer, Bird Keeper), each its names, types, colours and
   pay. Its team: 2 or 3 fully evolved Pokémon of its types, no legendaries, each a nature, hitting
-  and taking as one raised to every heart (`TEAM_EFFORT`). Its first walks in with it (its figure
-  behind it: our own 12 × 18 pixel art, `framesOf`, coloured by class, cut into walking and
-  standing GIFs by `sprites.js` `ensureTrainer`, ×2), stops 35–50% of the way ("❗"; "Punk Zed
-  wants to battle!" in the corner), and waits `WAIT_MS` 3 minutes for one of yours dropped on it:
+  and taking as one raised to every heart (`TEAM_EFFORT`). It doesn't walk by: it stands in the strip's right
+  corner, its first Pokémon before it ("❗"; "Punk Zed wants to battle!" in the corner), and waits
+  `WAIT_MS` 3 minutes for one of yours dropped on it, then it's gone. Its figure: a picture shipped
+  in `art/trainers/<class>.png` (standing, facing left, see-through; drawn `TRAINER_DRAW_H` 56 px
+  tall × the scale, flipped once for facing right), else our own 12 × 18 pixel art (`framesOf`,
+  coloured by class, `sprites.js` `ensureTrainer`). A battle:
   a wild battle, but its Pokémon can't be caught (no ball, no gift) and faints at 0 (no sliver).
   Fainted: "… sent out …!" and its next; all beaten: "You beat Punk Zed! +₽520 and a Max Revive"
   (`trainerPay`: its class's pay, ×1.3 for three, and its item). Ignored, it walks on.

@@ -16,7 +16,7 @@ async function moveFile(tmp, dest) {
 }
 const removeFile = (path) => fs.unlink(path).catch(() => null);
 
-import { DATA_REL, REPO } from "./id.js";
+import { DATA_REL, REPO, MOD } from "./id.js";
 export { DATA_REL };
 const DATA = `${appHome()}/${DATA_REL}`;
 const PMD = "https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/sprite";
@@ -451,6 +451,17 @@ async function ensureTrainerNow(cls) {
   const { classOf, framesOf, pixelsOf, TRAINER_W, TRAINER_H } = await import("./trainers.js");
   const dir = `${DATA}/trainers/${cls}`;
   const rel = `${DATA_REL}/trainers/${cls}`;
+  // A picture drawn for it, shipped with the mod (art/trainers/<class>.png: standing, facing left,
+  // see-through): that, and the same facing right (flipped once); its size as drawn.
+  const own = `mods/${MOD}/art/trainers/${cls}.png`;
+  if (await fs.exists(`${appHome()}/${own}`).catch(() => false)) {
+    if (!(await imageMagick())) return null;
+    const size = (await im("identify", ["-format", "%w %h", `${appHome()}/${own}`])).split(" ").map(Number);
+    await fs.mkdir(dir, { recursive: true });
+    const right = `${dir}/own-right.png`;
+    if (!(await fs.exists(right).catch(() => false))) { await im("convert", [`${appHome()}/${own}`, "-flop", `${right}.part.png`]); await moveFile(`${right}.part.png`, right); }
+    return { custom: true, standL: own, walkL: own, standR: `${rel}/own-right.png`, walkR: `${rel}/own-right.png`, w: size[0], h: size[1] };
+  }
   const out = { walkR: `${rel}/walkR.gif`, walkL: `${rel}/walkL.gif`, standR: `${rel}/standR.gif`, standL: `${rel}/standL.gif`, w: TRAINER_W * TRAINER_SCALE, h: TRAINER_H * TRAINER_SCALE };
   if (await fs.exists(`${dir}/standL.gif`).catch(() => false)) return out;
   if (!(await imageMagick())) return null;
