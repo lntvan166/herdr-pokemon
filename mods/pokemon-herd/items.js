@@ -122,8 +122,8 @@ export function stoneTakers(kind) {
 
 // What an item does, in a sentence.
 export function itemAbout(id) {
-  if (id === "berry") return "A quarter of a heart for a Pokémon; three Berries a day each, then it's full. A hungry one eats one by itself when you answer its agent.";
-  if (id === "sitrus-berry") return "Half a heart for a Pokémon; three Berries a day each, then it's full.";
+  if (id === "berry") return "A quarter of a heart for a Pokémon, and a quarter of its health back if a wild one hurt it; three a day each for hearts. A hungry one eats one by itself when you answer its agent.";
+  if (id === "sitrus-berry") return "Half a heart for a Pokémon, and half its health back if a wild one hurt it; three a day each for hearts.";
   if (id === "razz-berry") return "Fed to a wild Pokémon before the ball: half again as likely to catch it.";
   if (id === "golden-razz-berry") return "Fed before the ball: two and a half times as likely to catch it. For a shiny or a legendary.";
   if (id === "pinap-berry") return "Fed before the ball: if it's caught, it brings twice the gift.";

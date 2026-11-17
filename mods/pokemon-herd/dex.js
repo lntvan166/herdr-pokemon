@@ -75,7 +75,9 @@ const ENTRIES = WALKABLE.flatMap((dex) => [{ dex }, ...formsOf(dex).map((f) => (
 export const REGIONS = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Hisui", "Paldea"];
 const LAST_DEX = [151, 251, 386, 493, 649, 721, 809, 898, 905, Infinity];
 export function regionOf(e) {
-  if (e.form) return formsOf(e.dex).find((f) => f.form === e.form)?.label.split(" ")[0] ?? null;
+  // A regional form: its region ("Alola"); another form (Rotom's "Heat"): its species' region.
+  const word = e.form ? formsOf(e.dex).find((f) => f.form === e.form)?.label.split(" ")[0] : null;
+  if (word && REGIONS.includes(word)) return word;
   return REGIONS[LAST_DEX.findIndex((last) => e.dex <= last)];
 }
 
@@ -91,6 +93,8 @@ export function searchEntries(query, limit, only = {}) {
     if (only.region && regionOf(e) !== only.region) continue;
     if (only.mega && (e.form || !megaForm(e.dex))) continue;
     if (only.keys && !only.keys.has(`${e.dex}${e.form ? `-${e.form}` : ""}`)) continue;
+    // `types`: one or two, all of them its own (`typesOf`: the caller's, trainer.js's).
+    if (only.types?.length && !only.types.every((t) => only.typesOf?.(e).includes(t))) continue;
     const label = e.form ? fold(formsOf(e.dex).find((x) => x.form === e.form).label) : "";
     const hit = !f || FOLDED.get(e.dex).includes(f) || label.includes(f) || String(e.dex) === num || String(e.dex).padStart(3, "0").startsWith(f);
     if (!hit) continue;

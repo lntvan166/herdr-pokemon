@@ -66,8 +66,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   its own type that does most to it (`bestType`) flies over and lands; the wild one flinches and
   loses health; 650 ms later it lets fly back with its own type. Each fights as it looks: a Mega
   or a regional form with its own stats and types (`base-stats.js` `FORM_BASE`, `fighterKey`),
-  a Mega without data as its species ×1.2 hitting, ×0.85 taking. Damage: real base stats and
-  the type chart (×4 and ×2 softened); in the red a hit three times its health knocks it out.
+  a Mega without data as its species ×1.2 hitting, ×0.85 taking. Damage: the games' (see
+  Damage); in the red a hit three times its health knocks it out. Yours takes `OWN_TAKE` 0.85 of
+  the wild one's hit, 2% less a heart. Its health is kept in shared state `pokemon-herd-hp`
+  (`{ pane: { hp, at, rest? } }`, `healthNow`: back to full over 10 minutes, null while it rests
+  after fainting), so a Berry fed from the Bag or the Box heals it (`HEAL`: an Oran Berry a
+  quarter, a Sitrus Berry half; 💚), even once it has had its three Berries' hearts for the day.
 - **Battle effects** (`fx.js`, drawn by `main.js` with native transitions and loops): a move
   first gathers at the mouth (`CHARGE_MS` 340: sparks drawn in, a glow swelling), then goes
   its own way: a special move flies as `specialParts` draws it (Flamethrower a stream of flame,
@@ -88,18 +92,38 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   knockout; over its head the games' word ("Super effective!", "Not very effective…", "No
   effect…") and the damage floating up ("-23%"; yours hurt in red); a health bar's loss shows
   white, draining away. A plain strike lands lightly in white and gold.
-- **Moves** (`moves.js`): for each type a physical, a special and a signature move (`MOVES`).
-  A fighter uses its best type (`bestType`); physical 70% of the time (`LEAN`) when its Attack is
-  at least its Sp. Atk (`base-stats.js` `PHYSICAL`, by species and form), 30% otherwise: it rushes
-  in (a dash, `speedLines` trailing it; each type's physical move its own mark on the target,
-  `physicalParts`; a plain strike `slashParts` claw marks), else it fires its
-  type's way. A signature move is drawn its own way instead (fx.js `signatureParts`: parts timed
-  from when it lands, drawn by main.js `fxSig`; `signatureTimes` asks for the frames). Always its own type, resisted or not; damage goes by the move's type
-  (`damage(…, { type })`). A heavy blow (power ≥ 0.85: super effective, a crit, a
-  signature move) holds both still `HITSTOP` (90 ms) before the knock back (`stopOf`, `dashAt`'s
-  `stop`). A miss (`MISS` 1/20, `MISS_ULTIMATE` 1/5) does nothing: "Missed!", the
-  target hops aside (fx.js `MISS_KNOCK`), no burst, flash or sound; a raid hit too. 1 in 8 the signature move (×1.5, gold name), 1 in 16 a critical hit (×1.5, "A
-  critical hit!" over the target). The move's name shows over the one using it as it gathers.
+- **Moves** (`moves.js`): for each type a physical, a special and a signature move (`MOVES`),
+  and three more (`MORE_MOVES`: a weak one young Pokémon know, Tackle, Ember, Water Gun, and
+  stronger ones, Fire Blast, Hydro Pump, Outrage…; 90 to know in all), each with its power from
+  PokeAPI (`base-stats.js` `MOVE_POWER`: Fire Punch 75, Flamethrower 90, Blast Burn 150). Each
+  Pokémon knows four (`MOVESET`, by `scripts/gen-stats.mjs` from PokeAPI's learnsets: among those
+  moves, the ones it really learns, levelling up first, a TM, tutor or egg move ×0.3 so only to
+  fill in (Bulbasaur: Solar Beam, Vine Whip, Double-Edge, Tackle; Caterpie: Bug Bite, Tackle);
+  its two best of its own types and its two best others for coverage, best by
+  power ×1.3 on its stronger side ×1.5 its own type; a type it learns none of here gets that
+  type's move on its stronger side; a Mega knows its species'). Each turn it picks one, chance ∝
+  (expected damage × STAB)^3 (`PICK_SHARP`): mostly its best, now and then another. 1 in 8 that
+  type's signature move instead (it fires), 1 in 16 a critical hit (×1.5), STAB ×1.5 for its own
+  type. A physical move rushes in (a dash, `speedLines`; its type's mark on the target,
+  `physicalParts`), a special one fires its own way (`specialParts`), a signature move has its
+  own scene (`signatureParts`; `fxSig` draws them). Each of `MORE_MOVES` has its own look
+  (`fx-moves.js` `PHYSICAL`, `SPECIAL`, by name, the same parts: Tackle a white smack, Double-Edge
+  a heavy burst with recoil sparks, Fire Blast a fireball bursting in five flames, Hydro Pump a
+  white-capped torrent, Giga Drain green motes drawn back, Solar Beam light gathered then a thick
+  beam, Icicle Crash icicles dropped from above, Rock Slide rocks tumbling, Phantom Force a dark
+  hole opening by it, Knock Off something knocked flying…). A heavy blow (power ≥ 0.85) holds both still
+  `HITSTOP` (90 ms) before the knock back. A miss (`MISS` 1/20, `MISS_ULTIMATE` 1/5) does nothing:
+  "Missed!", the target hops aside. The move's name shows over the one using it as it gathers.
+- **Damage** (`trainer.js` `damage`, `gameDamage`): the games' (Gen 5+, level 50): ((2×50/5+2) ×
+  power × Attack/Defense (physical) or Sp. Atk/Sp. Def (special) / 50 + 2) × the type's effect
+  (×4 … ×0) × 85–100%, over the target's HP (`STATS`); × STAB and crit (the move's `mul`), Alpha
+  ×1.3/×0.8, Shadow ×1.2. Battles on the strip × `DAMAGE_SCALE` 0.65 (a wild one weakened to
+  the red in about 3½ hits, ~2% knocked out; raids re-tuned, `RAID_HP` 2.4); sparring at the
+  games' own numbers (a knockout in one blow can happen). All are level 50 (`LEVEL`); being raised counts a
+  little (`effortOf`: +1% to its stats, not HP, a heart, +5% at most; in the wild and raids only
+  its attack, its hearts already softening what it takes). Its nature (`NATURE_STATS`): +10% one stat, −10% another (Hasty: Speed
+  up, Defense down; Brave: Attack/Speed; Jolly: Speed/Sp. Atk; Calm: Sp. Def/Attack; Lazy:
+  Defense/Sp. Def).
 - **The big moments** (`fx.js` EVOLVE_MS, MEGA_MS, HATCH_*): evolving, it pulses while a column
   of light stands over it, motes rising and a ring swelling out, then a gold burst and "✨
   Evolved!" (3 s); Mega Evolving, a sphere of light round it and the Key Stone's six colours
@@ -213,7 +237,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
     `#8fb878` / `#7f9e85`; clouds at 75 % and stars at 95 % so they still show on it.
   - A cloud or the moon right above a Pokémon's head or bubble fades to 15 %, so the bubble stays
     readable. It uses the heads' places on the last frame.
-  - Seasons (`seasonAt`): spring, summer, autumn, winter, 3 hours each, the cycle one step later
+  - Seasons (`seasonAt`): spring, summer, autumn, winter, 2 hours each, the cycle one step later
     each day (so a given hour changes season from day to day); the last 20 minutes blend into the
     next. The grass band changes most, so each season reads at a glance. Spring: pink blossom
     trees (`#f7a8cc`), lime grass (`#9be060`), 2 px pink/yellow flowers every 7–22 px. Summer: deep
@@ -227,8 +251,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
     flickers.
 - **The Pokémon:** one per agent, an animated sprite cut from PMD SpriteCollab.
   - Its feet stand on the ground line, with a soft shadow (`#00000030`).
-  - Sprites are drawn 2× with nearest-neighbour scaling, or 1× for big ones whose frames are
-    over 64 px tall.
+  - Sprites are drawn with nearest-neighbour scaling at 2×, else 1.5×, else 1×: the biggest
+    that keeps it under 84 px tall (`sheets.js` `spriteScale`, by how tall it's drawn in its first
+    frame, kept as `drawn`; not by its frame: big ones were all 1× by their big frames, so Lugia
+    and Wailord came out smaller than Pikachu). One cut at another scale is made again.
   - While a sprite downloads, a small Poké Ball (`#e3350d` / `#f4f4f4`) pulses in its place.
 - **Names:** under each Pokémon's feet. Each shows a 6 px status dot (theme colour `working`,
   `blocked`, `done` or `idle`) and the tab's name (or the space's), in 10.5 px text.
@@ -270,6 +296,36 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **The menu:** a 236 px popup, two rows: "Bag" (right: "n items · g/8 badges") and "Settings";
   under them, when a newer release is out, how to update. Each row closes the menu and opens its
   dialog.
+- **Sparring** (`spar.js` `sparTurns`, `react.js` `duel`): a real battle. Round by round, the faster
+  first (Speed, `speedOf`: its nature and effort, halved when paralysed; the same, a coin toss),
+  each uses one of its moves (`pickMove`, the
+  weather's boost) at the games' own numbers (`damage` × `SPAR_HIT`, which undoes
+  `DAMAGE_SCALE`: a knockout in one blow can happen), till one is at 0 or after `SPAR_TURNS` 3
+  each (more health left wins). Each picks its move as the round starts; Ice Shard (`PRIORITY`)
+  goes first whatever the Speed; Giga Drain, Drain Punch and Draining Kiss (`DRAIN`) heal it by
+  half (¾) of what they took ("Its energy was drained!"); Hex is twice as strong on one with a
+  status. A move's side effect as in the games (`SIDE_EFFECTS`: Body Slam
+  paralyses 30%, Flamethrower burns 10%, Ice Beam freezes 10%, Sludge Bomb poisons 30%, Air
+  Slash 30% / Waterfall 20% flinch, Crunch Defense −1 stage 20%, Shadow Ball Sp. Def, Mud Shot and Bulldoze Speed, Snarl Sp. Atk…):
+  paralysed, it loses a turn 1 in 4; frozen, none till it thaws (1 in 5 a turn); burned, 1/16 of
+  its health after it moves and its physical moves halved; poisoned, 1/8; a flinch only from the
+  one that moved first; a stat a stage down ×⅔. Each shows the games' words over it in the
+  status colour ("It's paralyzed!", "Fully paralyzed!", "Hurt by its burn!": `NOTE_TEXT`,
+  `STATUS_COLOR`, `NOTE_MS` 1.1 s). Each
+  turn: its attack, its move flying (`shots`, one per turn), the other flinching with a blow
+  (the move, the damage, its health: a bar over it). Then 🎉 and "<name> won! w–l" over the
+  winner (`withResult`, shared `pokemon-herd-spar-records`, 300 pairs), 💫 over the loser. The
+  leader pays: the winner FRIEND.spar more, `sparW`/`sparL` on each pick (the Box's facts).
+  Idle ones on the row within 220 px turn to watch.
+- **Forms** (`species.js` `REGIONAL`, from `scripts/gen-species.mjs`): regional forms (Alola, Galar,
+  Hisui, Paldea), and any other SpriteCollab form that walks and that PokeAPI keeps as a Pokémon
+  of its own (`<species>-<form>`: rotom-heat, giratina-origin, shaymin-sky, landorus-therian…;
+  not Megas, Gigantamax, totems, Primal, Minior's colours, Pumpkaboo's sizes). Their types and
+  stats from `gen-stats.mjs`; one that isn't regional belongs to its species' region (`regionOf`).
+- **Picker filters**: a Filters button (how many are on) opens a panel: ★, Mega, Legendary, a
+  region, and up to two types (`searchEntries` `types` + `typesOf`: both its own; a third
+  replaces the first picked). Every entry shows its types as coloured badges (`types.js`
+  `TYPE_COLOR`).
 - **Settings** (`settings.js`, shared state `pokemon-herd-settings`; dialog 520×740, props
   `{ settings }`, command `pokemon-herd.settings`; `pokemon-herd.about` opens its About tab):
   stays open, every change applies at once. About: the version, Open on GitHub, a ★ Star, Open an

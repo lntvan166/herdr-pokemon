@@ -14,12 +14,14 @@ import { isNewer, shouldAutoUpdate } from "./update.js";
 import { fold, hasShiny, dexNo, megaForm, megaForms, setMegas, fullName, nameOf, searchEntries, REGIONS, regionOf, chainOf, formsOf, coatOf, hasForm } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
 import { MOD, LEGACY_KEY, VERSION, REPO, STATS_KEY, BAG_KEY, SETTINGS_KEY, FOLDERS_KEY, SINCE_KEY, FAVORITES_KEY } from "./id.js";
+const HP_KEY = `${MOD}-hp`; // yours hurt: { pane: { hp, at, rest? } } (trainer.js healthNow), shared so a Berry fed anywhere heals it
+const SPAR_KEY = `${MOD}-spar-records`; // each pair's sparring record (spar.js withResult)
 const GUIDE_KEY = `${MOD}-guide-seen`; // Settings opened once: it opens on the Guide that time
 const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, sidebarState, patchSidebar } from "./selfupdate.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -27,11 +29,13 @@ import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove } from "./moves.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
-import { typeOf, TYPE_ICON } from "./types.js";
-import { baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
+import { effortOf, healthNow, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
+import { sparTurns, withResult, recordOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
+import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { blowWord, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL } from "./sprites.js";
@@ -457,6 +461,16 @@ const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top
     .transition("width", { duration: 450, delay: 250, easing: "ease-in" })))
   .child(div().absolute().left(0).top(0).h_full().w(Math.max(1, Math.round(36 * hp))).bg(hp > 0.5 ? "#46c46a" : hp > RED ? "#e8b062" : "#e5484d"));
 // Yours after a wild one hit back: its health (0..1), coming back over OWN_REST.
+// Its health kept for the Bag (a Berry heals it): fully healed ones dropped.
+const keepHp = (pane, rec) => {
+  if (!pane) return;
+  const now = Date.now();
+  const all = Object.fromEntries(Object.entries(shared(HP_KEY) ?? {}).filter(([, r]) => r && (now < (r.rest ?? 0) || healthNow(r, now) < 1)));
+  setShared(HP_KEY, { ...all, [pane]: rec });
+};
+const hpOf = (slot) => healthNow(shared(HP_KEY)?.[slot], Date.now());
+// A Berry eaten: `amount` more health (the strip it's on picks it up: care).
+const healBy = (slot, amount) => { const hp = hpOf(slot); if (amount && hp != null && hp < 1) keepHp(slot, { hp: Math.min(1, hp + amount), at: Date.now() }); };
 const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + (now - (m.hpAt ?? now)) / OWN_REST) : 1);
 // An Alpha: a red glow behind it (breathing), and a red α by its head.
 const ALPHA_RED = "#e5484d";
@@ -537,6 +551,12 @@ function undoLast(view) {
 // Whether the Bag still has `n` of `id`, read at the click (not when the dialog was drawn:
 // another window, or a hungry one's meal, may have used the last one since).
 const hasItem = (id, n = 1) => (bag().items[id] ?? 0) >= n;
+// A picker entry's types ({ dex, form }), as it fights: its form's (Rotom's Heat: Electric/Fire).
+const entryTypes = (e) => typesOf(fighterKey(e.dex, e.form ? { form: e.form } : {}));
+// Its moves in a battle (react.js duel: one per turn; a raid strike's single one), and the one
+// showing at `now` (from its gathering, CHARGE_MS before it flies, till just after it lands).
+const shotsOf = (m) => m?.react?.shots ?? (m?.react?.shot ? [m.react.shot] : []);
+const shotAt = (m, now, after = 300) => shotsOf(m).find((sh) => now >= sh.at - CHARGE_MS && now < sh.until + after) ?? null;
 // "a Poké Ball", "an Ultra Ball".
 const an = (name) => `${/^[AEIOU]/.test(name) ? "an" : "a"} ${name}`;
 // The α in an Alpha's name tag (before its name).
@@ -1058,8 +1078,9 @@ export default class PokemonHerd extends View {
       let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught), boost: this.boostNow().types, share: WEATHER_SHARE });
       this.legendNext = false;
       if (outbreak) pick = outbreakPick(pick, outbreak);
-      pick = { ...pick, size: rollSize(), ...((g) => (g ? { gender: g } : {}))(rollGender(pick.dex)) }; // XXS..XXL (weather.js), ♂/♀ (gender.js)
       dev?.wild?.(pick, devApi); // dev.js: a wild one asked for
+      // Its size and gender, once its species is settled (an outbreak's, one asked for).
+      pick = { ...pick, ...(pick.size ? {} : { size: rollSize() }), ...(pick.gender !== undefined ? {} : ((g) => (g ? { gender: g } : {}))(rollGender(pick.dex))) }; // XXS..XXL (weather.js), ♂/♀ (gender.js)
       const seen = withSeen(pokedex(), [pick.dex]); // the Pokédex has seen it
       if (seen) saveDex(seen);
       const dir = (Math.random() < 0.5 ? "r" : "l");
@@ -1086,6 +1107,7 @@ export default class PokemonHerd extends View {
         own.hpAt = now;
         // (Hit, it flinches and is knocked back: its battle's steps and blows, set when it began.)
         if (fx.back.fainted) { own.restUntil = now + OWN_REST; own.faintAt = now; own.react = { anim: null, until: now + 3000, icon: "💫" }; }
+        keepHp(agents().find((x) => x.address === fx.own)?.pane, { hp: own.hp, at: now, ...(fx.back.fainted ? { rest: own.restUntil } : {}) });
       }
       if (now < fx.until) return true;
       if (fx.fainted) {
@@ -1188,7 +1210,7 @@ export default class PokemonHerd extends View {
     const marks = [];
     for (const x of blows ?? []) {
       if (!x.physical || !x.type || x.miss || now < x.at - 150 || now >= x.at + 700) continue;
-      for (const [j, p] of physicalParts(x.type, cx, midY0, ground - 2, x.dir, x.at % 100000, x.style).entries()) {
+      for (const [j, p] of physicalParts(x.type, cx, midY0, ground - 2, x.dir, x.at % 100000, x.style, x.name).entries()) {
         const t = x.at + p.at;
         if (now >= t && now < t + p.ms + 60) marks.push(fxSig(`pm-${key}-${x.at}-${j}`, p, this.fxFirst(`pm-${key}-${x.at}-${j}`)));
       }
@@ -1247,7 +1269,7 @@ export default class PokemonHerd extends View {
     }
     // A special move: its own look as it flies (fx.js specialParts).
     if (move?.type && kind !== "dash") {
-      for (const [k, p] of specialParts(move.type, x0, x1, y, land % 100000, style).entries()) {
+      for (const [k, p] of specialParts(move.type, x0, x1, y, land % 100000, style, move.name).entries()) {
         const t = land + p.at;
         if (now >= t && now < t + p.ms + 60) out.push(fxSig(`${id}-s${k}`, p, this.fxFirst(`${id}-s${k}`)));
       }
@@ -1329,22 +1351,24 @@ export default class PokemonHerd extends View {
     const blowTimes = (b, key) => {
       const st = stopOf(b);
       if (st) times.push(b.at + st, b.at + st + KNOCK_OUT + 5, b.at + st + SHAKE_MS + 5);
-      if (b.physical && b.type && !b.miss) for (const t of physicalTimes(b.type)) times.push(b.at + t);
+      if (b.physical && b.type && !b.miss) for (const t of physicalTimes(b.type, b.name)) times.push(b.at + t);
       times.push(b.at, b.at + 40, b.at + KNOCK_OUT + 5, b.at + SHAKE_MS + 5, b.at + 470, b.at + 560, b.at + 900, b.at + 1000, b.at + 1300,
         b.at + RESIDUE_FROM, b.at + RESIDUE_FROM + 40, b.at + RESIDUE_FROM + RESIDUE_MS - RESIDUE_FADE, b.at + RESIDUE_FROM + RESIDUE_MS);
       if (!b.miss) sounds.push([`${key}-hit-${b.at}`, b.at, hitSound(b.p)]);
     };
     // A move: it gathers (a frame as it starts, one to set it moving), fires, lands.
-    const moveTimes = (key, type, launch, land, physical = false, ultimate = false) => {
+    const moveTimes = (key, type, launch, land, physical = false, ultimate = false, name = null) => {
       times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, launch + 280, launch + 560, land, land + 70, land + 290);
       if (ultimate) for (const t of signatureTimes(type)) times.push(land + t);
-      else if (!physical && type) for (const t of specialTimes(type)) times.push(land + t);
+      else if (!physical && type) for (const t of specialTimes(type, name)) times.push(land + t);
       sounds.push([`${key}-c`, launch - CHARGE_MS, "charge"], [`${key}-l`, launch, launchSound(type, physical)]);
     };
     for (const [addr, m] of Object.entries(this.mons ?? {})) {
+      if (m.sparWin) times.push(m.sparWin.at, m.sparWin.at + 40, m.sparWin.at + 1200, m.sparWin.at + 1500);
+      for (const n of m.sparNotes ?? []) times.push(n.at, n.at + 40, n.until - 300, n.until);
+      if (m.sparHp) times.push(m.sparHp.until);
       for (const b of m.blows ?? []) blowTimes(b, addr);
-      const sh = m.react?.shot;
-      if (sh && now < m.react.until + 400) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until, sh.move?.physical, sh.move?.ultimate);
+      if (m.react && now < m.react.until + 400) for (const sh of shotsOf(m)) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until, sh.move?.physical, sh.move?.ultimate, sh.move?.name);
     }
     const v = this.visitor;
     if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
@@ -1359,7 +1383,7 @@ export default class PokemonHerd extends View {
     if (v?.fight) {
       const f = v.fight;
       times.push(f.at, f.hitAt, f.backAt);
-      if (f.back && f.wildMove) moveTimes(`wild-${f.at}`, f.wildMove.type, f.backLaunch, f.backHit, f.wildMove.physical, f.wildMove.ultimate);
+      if (f.back && f.wildMove) moveTimes(`wild-${f.at}`, f.wildMove.type, f.backLaunch, f.backHit, f.wildMove.physical, f.wildMove.ultimate, f.wildMove.name);
       if (f.blow) blowTimes(f.blow, `wild-${v.id}`);
     }
     // A raid's blows: each hit, the boss's answer, the push back.
@@ -1367,7 +1391,7 @@ export default class PokemonHerd extends View {
     const raid = loadRaid(shared(RAID_KEY));
     for (const h of raid?.hits ?? []) {
       times.push(h.at);
-      if (h.back) moveTimes(`boss-${h.at}`, h.back.type, h.at + COUNTER_MS, h.at + COUNTER_MS + 320, false, h.back.ultimate);
+      if (h.back) moveTimes(`boss-${h.at}`, h.back.type, h.at + COUNTER_MS, h.at + COUNTER_MS + 320, false, h.back.ultimate, h.back.physical ? null : h.back.name);
     }
     for (const m of Object.values(this.mons ?? {})) if (m.raidPush) times.push(m.raidPush.at);
     if (v?.throw) {
@@ -1431,7 +1455,7 @@ export default class PokemonHerd extends View {
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
     const move = this.boosted(pickMove(key, r.boss.dex));
-    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move });
+    const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
   }
@@ -1507,6 +1531,7 @@ export default class PokemonHerd extends View {
       m.hp = hp;
       m.hpAt = now;
       if (hp <= 0.001) { m.restUntil = now + RAID_REST; m.faintAt = now; m.react = { anim: null, until: now + 3000, icon: "💫" }; }
+      keepHp(agents().find((x) => this.mons[x.address] === m)?.pane, { hp, at: now, ...(hp <= 0.001 ? { rest: m.restUntil } : {}) });
     }
     // Beaten: the boss walks off slowly, a sliver of health, for the Ultra Balls it paid.
     if (ph === "beaten" && !r.caught && this.raidVisitor !== r.id && this.leader) { // one boss to catch, not one per window
@@ -1630,7 +1655,7 @@ export default class PokemonHerd extends View {
       const dir = tx > bx ? 1 : -1;
       const lb = this.moveLabel(`mvb-${r.id}-${h.at}`, h.back, bx, Math.max(2, headY - 26), from, now);
       if (lb) root.child(lb);
-      root.children(this.fxMove(`bossshot-${r.id}-${h.at}`, { type: h.back.type, eff: h.back.eff, ultimate: h.back.ultimate }, bx + dir * 22, tx - dir * 12, Math.round((headY + ground) / 2), from, until, now, true));
+      root.children(this.fxMove(`bossshot-${r.id}-${h.at}`, { type: h.back.type, eff: h.back.eff, ultimate: h.back.ultimate, name: h.back.physical ? null : h.back.name }, bx + dir * 22, tx - dir * 12, Math.round((headY + ground) / 2), from, until, now, true));
     }
     return 1;
   }
@@ -1958,6 +1983,14 @@ export default class PokemonHerd extends View {
   // there is one (a heart back). Idle (its agent not working nor waiting): now and then it finds
   // an item (items.js pickup) for the Bag.
   care(a, m, now) {
+    // Fed a Berry (the Bag, the Box: HP_KEY kept higher than it has): it heals, 💚.
+    const kept = a.pane && shared(HP_KEY)?.[a.pane];
+    if (kept && kept.at > (m.hpAt ?? 0) && now >= (m.restUntil ?? 0)) {
+      const before = ownHp(m, now);
+      m.hp = kept.hp;
+      m.hpAt = kept.at;
+      if (ownHp(m, now) > before + 0.01) { m.hpLost = { prev: before, at: now }; this.note(m, "💚", now, 2500); }
+    }
     if (!this.leader) { if (m.note && now >= m.note.until) m.note = null; return; } // another strip counts
     // Hunger, Berries and quick-answer hearts are for agents with a pane (a sub-agent's Pokémon
     // is its agent's, younger: it has no friendship of its own to feed).
@@ -2379,9 +2412,47 @@ export default class PokemonHerd extends View {
         if (!ready) this.want(p, cx, true);
         wait = Math.max(wait, MEGA_SHORT.burst + (ready ? 500 : 1800));
       }
-      battle(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, Math.random, back ? { ...spots, back: BACK } : spots);
-      // The blows that land on each (fx.js): knocked away from the other; the special one by its type.
-      for (const [m, o] of [[m1, m2], [m2, m1]]) {
+      // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
+      if (k1 && k2) {
+        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature }; };
+        const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv));
+        for (const tn of result.turns) tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; // Mega Charizard X's blue fire
+        duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, result, back ? { ...spots, back: BACK } : spots);
+        for (const [m, a, o] of [[m1, a1, a2], [m2, a2, a1]]) {
+          const [mine, theirs] = [ids[a.address], ids[o.address]];
+          const steps = m.react.seq.filter((st) => st.blow && st.move);
+          for (const st of steps) {
+            const mv = st.move, eff = st.eff ?? 1;
+            (m.blows ??= []).push({ at: st.at, dir: m.react.face === "r" ? -1 : 1, p: mv.ultimate || mv.crit ? Math.max(0.85, power(eff)) : power(eff), kb: knockMul(theirs?.size, mine?.size),
+              style: moveStyle(mv.type, mv.blue), word: blowWord(eff, mv.crit), num: damageText(st.dmg, eff), type: mv.type, name: mv.name, miss: mv.miss, physical: mv.physical });
+          }
+          // Its health through the battle: full, then what each blow (or its burn) leaves it.
+          m.sparHp = { until: m.react.until, steps: m.react.seq.filter((st) => st.hp !== undefined).map((st) => ({ at: st.at, hp: st.hp })) };
+          // The game's words over it: "It's paralyzed!", "It flinched!", "Hurt by its burn!".
+          m.sparNotes = m.react.seq.filter((st) => st.note).map((st) => ({ at: st.at, until: st.until, text: NOTE_TEXT[st.note[0]][st.note[1]], color: STATUS_COLOR[st.note[1]] ?? "#ffffff" }));
+        }
+        // The winner: a little more friendship, the pair's record, its "won!" (with the record).
+        const [wa, la] = result.winner === "a" ? [a1, a2] : [a2, a1];
+        const wm = this.mons[wa.address], wp = ids[wa.address];
+        const rec = wa.pane && la.pane ? withResult(shared(SPAR_KEY) ?? {}, wa.pane, la.pane) : null;
+        if (this.leader && rec) {
+          setShared(SPAR_KEY, rec);
+          updatePick(wa.pane, (p) => withFriend({ ...p, sparW: (p.sparW ?? 0) + 1 }, FRIEND.spar));
+          updatePick(la.pane, (p) => ({ ...p, sparL: (p.sparL ?? 0) + 1 }));
+        }
+        const [w, l] = rec ? recordOf(rec, wa.pane, la.pane) : [0, 0];
+        const winStep = wm.react.seq.find((st) => st.result === "win");
+        wm.sparWin = { at: winStep?.at ?? now, text: `${wp ? nameFor(wp) : "It"} won!${w + l > 1 ? ` ${w}–${l}` : ""}` };
+        // Those idle nearby on its row turn to watch.
+        const mid = (spots.ax + spots.bx) / 2;
+        list.forEach((b, j) => {
+          const o = this.mons[b.address];
+          if (!o || o === m1 || o === m2 || o.moving || o.mood !== "idle" || rowAt(b, j) !== rowAt(a1, list.indexOf(a1)) || Math.abs(o.x - mid) > 220) return;
+          o.dir = mid > o.x ? "r" : "l";
+        });
+      } else battle(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, Math.random, back ? { ...spots, back: BACK } : spots);
+      // (The old script's blows: a plain strike each, then one special.)
+      for (const [m, o] of k1 && k2 ? [] : [[m1, m2], [m2, m1]]) {
         for (const st of m.react.seq) {
           if (!st.blow) continue;
           const mv = o.react.shot?.move;
@@ -2515,9 +2586,11 @@ export default class PokemonHerd extends View {
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
         const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size })); // each one's move (moves.js), the weather's boost on it
-        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type);
+        // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
+        // what it takes, hitBack).
+        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk) });
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul, wm.type);
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul, wm.type, wm, { nb: pk.nature });
         if (back && wm.miss) back.text = "It missed!";
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.
@@ -2553,12 +2626,12 @@ export default class PokemonHerd extends View {
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
           x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
-          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || om.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, om.crit), miss: om.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type },
+          blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || om.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, om.crit), miss: om.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type, name: om.name },
         };
         const seq = [{ at, until: at + ms, anim: sp }];
         if (back) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
         dm.react = { seq, until: back ? backHit + 700 : at + ms + 300, face: dm.dir, shot: { at: launch, until: hitAt, from: spot, to: v.x, move: ownMove } };
-        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type });
+        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
       }
@@ -3148,7 +3221,7 @@ export default class PokemonHerd extends View {
       mod: MOD,
       kind: "dialog",
       width: 640,
-      height: 680,
+      height: 760, // room for the type filter too
       props: { picker: true, slot: slotOf(a), current: pick, tag },
     });
   }
@@ -3381,7 +3454,13 @@ export default class PokemonHerd extends View {
               .opacity(first ? 0 : 0.95).transition("opacity", { duration: 280, easing: "ease-out" }));
           })
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
-          .when(ownHp(m, now) < 1, (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))));
+          .when(ownHp(m, now) < 1 && !(m.sparHp && now < m.sparHp.until), (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))))
+          // Sparring: its health in the battle (full, then what each blow leaves it), drained white.
+          .when(!!m.sparHp && now < m.sparHp.until, (el) => {
+            const done = m.sparHp.steps.filter((st) => now >= st.at);
+            const cur = done.at(-1), prev = done.at(-2)?.hp ?? 1;
+            return el.child(healthBar(SLOT_MID, headY - 6, cur?.hp ?? 1, cur ? this.lostOf(`spar-${a.address}`, { prev, at: cur.at }, now) : null));
+          });
       } else {
         // Loading (or no ImageMagick): a little Poké Ball waits in its place.
         const r = 9 * scale;
@@ -3452,7 +3531,7 @@ export default class PokemonHerd extends View {
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
           .child(this.withBlows(`mon-${a.address}`, m.blows,
             m.evolveFx && now - m.evolveFx.at >= EVOLVE_WHITE && now - m.evolveFx.at < EVOLVE_BURST && m.evolveFx.from ? body.opacity(0) : body, SLOT_MID, headY, ground, now,
-            m.react?.shot && travelOf(m.react.shot.move?.type, m.react.shot.move?.physical) === "dash" ? lungeOf(dashAt(m.react.shot.from, m.react.shot.to, m.react.shot.at, m.react.shot.until, now, stopOfMove(m.react.shot.move)), m.react.shot.move, m.react.shot.at) : null))
+            ((sh) => sh && travelOf(sh.move?.type, sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 22)).justify_center().text_size(12.5).child(bubble)))
@@ -3463,15 +3542,22 @@ export default class PokemonHerd extends View {
           // A battle's special move: its type's icon flies across to the other (one transition,
           // set once: from where it starts on the first frame, to the other on the next ones).
           // (fx.js: its type's colours and look, a glow, a tail), landing as the other is hit.
-          .when(!!m.react?.shot && now >= m.react.shot.at - CHARGE_MS && now < m.react.shot.until + 300, (el) => {
-            const sh = m.react.shot;
+          .when(!!shotAt(m, now), (el) => {
+            const sh = shotAt(m, now);
             const dir = sh.to >= sh.from ? 1 : -1;
             return el.children(this.fxMove(`shot-${a.address}-${sh.at}`, sh.move, sw / 2 + dir * 14, sw / 2 + (sh.to - sh.from) - dir * 12,
               Math.round((headY + ground) / 2) - 2, sh.at, sh.until, now));
           })
+          // A note in a spar ("It's burned!"), over it while it lasts.
+          .children((m.sparNotes ?? []).filter((n) => now >= n.at && now < n.until).map((n) => fxWord(`note-${a.address}-${n.at}`, [n.text, n.color], SLOT_MID,
+            Math.max(2, headY - 30), this.fxFirst(`note-${a.address}-${n.at}`) ? 0 : now < n.until - 300 ? 1 : 2)))
+          // It won a spar: "Charizard won! 3–1" (the pair's record) over it while it celebrates.
+          .when(!!m.sparWin && now >= m.sparWin.at && now < m.sparWin.at + 1500, (el) => el.child(fxWord(`win-${a.address}-${m.sparWin.at}`,
+            [m.sparWin.text, "#ffd23f"], SLOT_MID, Math.max(2, headY - 30), this.fxFirst(`win-${a.address}-${m.sparWin.at}`) ? 0 : now < m.sparWin.at + 1200 ? 1 : 2)))
           // Its move's name over its head as it gathers and lets fly ("Flamethrower!").
-          .when(!!m.react?.shot?.move?.name, (el) => {
-            const lb = this.moveLabel(`mv-${a.address}-${m.react.shot.at}`, m.react.shot.move, SLOT_MID, Math.max(2, headY - 30), m.react.shot.at, now);
+          .when(!!shotAt(m, now, 700)?.move?.name, (el) => {
+            const sh = shotAt(m, now, 700);
+            const lb = this.moveLabel(`mv-${a.address}-${sh.at}`, sh.move, SLOT_MID, Math.max(2, headY - 30), sh.at, now);
             return lb ? el.child(lb) : el;
           })
           // A raid on: whether it can hit the boss yet (⏳ 35s) or rests after fainting (💫 1m).
@@ -4081,7 +4167,7 @@ export default class PokemonHerd extends View {
     const tab = this.bagTab ?? "items";
     const daily = dailyNow();
     const boxed = boxList(saved, new Set(agents().map((a) => a.pane).filter(Boolean)));
-    const how = { night: isNight(), day: dayOf(Date.now()) }; // Berries: three a day each
+    const how = { night: isNight(), day: dayOf(Date.now()), hpOf }; // Berries: three a day each (and they heal one hurt)
     const ids = Object.keys(ITEMS);
     const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
     // Usable now: an evolution first (that's news), then hearts.
@@ -4104,13 +4190,15 @@ export default class PokemonHerd extends View {
       : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
       : first.use === "jobs" ? `${ITEMS[usable[0]].name} brings ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${CANDY_JOBS} jobs closer to evolving`
       : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
+      : first.use === "heal" ? `${ITEMS[usable[0]].name} can heal ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
       : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${usable[0] === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
     const use = (id, h) => {
       const live = savedPicks()[h.slot]; // as saved now: never a stale copy (it may have moved since)
       if (!live || !hasItem(id)) return;
-      const r = useItem(live, h.slot, id, { night: isNight(), day: dayOf(Date.now()) }, Date.now());
+      const r = useItem(live, h.slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
       if (!r) return;
       savePicks({ [h.slot]: r.pick });
+      healBy(h.slot, r.heal);
       saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0)); // what it held goes back in
       if (r.evolved) noteEvolved();
       if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
@@ -4315,7 +4403,8 @@ export default class PokemonHerd extends View {
                 ? `becomes ${fullName(h.after.dex, h.after.form)}`
                 : h.use === "hold" ? (h.pick.held ? `holds it; its ${ITEMS[h.pick.held].name} comes back` : "holds it")
                 : h.use === "jobs" ? `${h.pick.jobs ?? 0} → ${h.after.jobs}/${evolveJobs(h.pick.dex)} jobs`
-                : `♥ ${heartsText(friendOf(h.pick))} → ${heartsText(friendOf(h.after))}`)))
+                : h.use === "heal" ? `health ${Math.round(100 * (hpOf(h.slot) ?? 1))}% → ${Math.round(100 * Math.min(1, (hpOf(h.slot) ?? 1) + HEAL[sel]))}%`
+                : `♥ ${heartsText(friendOf(h.pick))} → ${heartsText(friendOf(h.after))}${(hpOf(h.slot) ?? 1) < 1 ? ` · heals ${Math.round(100 * HEAL[sel])}%` : ""}`)))
             .child(div().id(`use-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
               .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold()
               .cursor_pointer()
@@ -4440,7 +4529,7 @@ export default class PokemonHerd extends View {
       const c = cardOf(pick);
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
-      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
+      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", (pick.sparW || pick.sparL) ? `sparring ${pick.sparW ?? 0}–${pick.sparL ?? 0}` : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
         pick.caught ? `caught in ${an(ITEMS[pick.ball ?? "poke-ball"].name)}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
@@ -4473,12 +4562,13 @@ export default class PokemonHerd extends View {
             this.nickInput.focus();
           }))
           // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
-          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { day: dayOf(Date.now()) }) === "hearts").map((id) =>
+          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>
             pill(`box-feed-${id}-${slot}`, `Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => {
               const live = hasItem(id) && savedPicks()[slot];
-              const r = live && useItem(live, slot, id, { day: dayOf(Date.now()) }, Date.now());
+              const r = live && useItem(live, slot, id, { day: dayOf(Date.now()), hpOf }, Date.now());
               if (!r) return;
               savePicks({ [slot]: r.pick });
+              healBy(slot, r.heal);
               saveBag(addItem(bag(), id, -1));
               if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
               research("berry");
@@ -4604,7 +4694,9 @@ export default class PokemonHerd extends View {
     const mine = settingsNow().trainer ? trainerKeys(pokedex()) : null;
     let keys = fav ? new Set(favs().filter((k) => !mine || mine.has(k))) : mine;
     if (legend) keys = new Set([...LEGENDARY].map(String).filter((k) => !keys || keys.has(k)));
-    return keys ? { ...rest, keys } : rest;
+    // A type picked: its types as it fights (its regional form's, Rotom's appliance's…).
+    const typed = rest.types?.length ? { ...rest, typesOf: entryTypes } : rest;
+    return keys ? { ...typed, keys } : typed;
   }
 
   // A legendary not caught yet (and not opened in Settings): shown, but can't be chosen.
@@ -4735,7 +4827,8 @@ export default class PokemonHerd extends View {
             v_flex().flex_1().min_w(0).gap(2)
               .child(h_flex().gap(6).items_center()
                 .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`)))
-                .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
+                .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`))
+                .children(entryTypes(cur).map((ty) => div().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty)))))
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
               .child(h_flex().min_w(0).gap(1).items_center()
                 .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().flex_none().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
@@ -4922,16 +5015,17 @@ export default class PokemonHerd extends View {
       .when(!ids.length, (el) => el.child(div().text_size(11).text_color(t.dim)
         .child("Nothing for it yet. Idle Pokémon find Berries and stones; a long job earns a Rare Candy.")))
       .children(ids.map((id) => {
-        const use = itemUse(cur, slot, id, { night, day: dayOf(Date.now()) });
+        const use = itemUse(cur, slot, id, { night, day: dayOf(Date.now()), hpOf });
         return div()
           .id(`use-${id}`).h(24).px(8).rounded(6).flex().items_center().flex_none().gap(4).text_size(11.5).border_1()
           .border_color(t.border).text_color(use ? t.foreground : t.dim)
           .when(!!use, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => {
             if (!hasItem(id)) return cx.notify();
-            const r = useItem(this.livePick(), slot, id, { night: isNight(), day: dayOf(Date.now()) }, Date.now());
+            const r = useItem(this.livePick(), slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
             if (r && (id === "berry" || id === "sitrus-berry")) research("berry"); // the day's Research
             if (!r) return;
             savePicks({ [slot]: r.pick });
+            healBy(slot, r.heal);
             saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0));
             if (r.evolved) noteEvolved();
             if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
@@ -4946,13 +5040,14 @@ export default class PokemonHerd extends View {
     const t = theme();
     const p = props() ?? {};
     const all = searchEntries(this.filter, Infinity, this.searchOnly()).entries; // every match: scroll to browse them all
-    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav || this.only.legend);
+    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav || this.only.legend || this.only.types);
     const favKeys = favs();
     const dexNow = pokedex();
     // Read here, not in the list's renderer: shared state read in there (Herdr's layout pass)
     // left the whole grid blank.
     const legendsOpen = settingsNow().legendsOpen;
     const lockedHere = (e) => !e.form && isLocked(e.dex, dexNow, legendsOpen);
+    const activeFilters = [this.only.fav, this.only.mega, this.only.legend, this.only.region].filter(Boolean).length + (this.only.types?.length ?? 0);
     // A small toggle: the filter row's chips.
     const chip = (id, label, on, flip) => div()
       .id(id).h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11).border_1()
@@ -5029,17 +5124,35 @@ export default class PokemonHerd extends View {
         Input.new(this.input).h(34).flex_none().px(10).rounded(8).border_1().border_color(t.accent)
           .bg(t.background).text_size(12.5).text_color(t.foreground),
       )
-      // Filters, on top of the search: species that can Mega Evolve, and one region (click again: all).
-      .child(
-        h_flex().flex_wrap().gap(4).items_center().flex_none()
+      // Filters: one button (how many are on), opening a panel with them all: ★, Mega, Legendary,
+      // a region, and up to two types (both: Fire + Flying; a third replaces the first picked).
+      .child(h_flex().gap(6).items_center().flex_none()
+        .child(chip("filters", `Filters${activeFilters ? ` · ${activeFilters}` : ""} ${this.filtersOpen ? "▴" : "▾"}`, this.filtersOpen || activeFilters > 0, () => { this.filtersOpen = !this.filtersOpen; }))
+        .when(activeFilters > 0, (el) => el.child(chip("filters-clear", "Clear", false, () => { this.only = {}; })))
+        // What's on, at a glance, when the panel is shut.
+        .when(!this.filtersOpen, (el) => el.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child([
+          this.only.fav && "★", this.only.mega && "Mega", this.only.legend && "Legendary", this.only.region, ...(this.only.types ?? []).map(typeLabel)].filter(Boolean).join(" · ")))))
+      .when(!!this.filtersOpen, (el) => el.child(v_flex().gap(6).p(8).rounded(8).bg(t.raised).flex_none()
+        .child(h_flex().flex_wrap().gap(4).items_center()
           .child(chip("only-fav", favKeys.length ? `★ ${favKeys.length}` : "★", !!this.only.fav, () => { this.only = { ...this.only, fav: !this.only.fav }; }))
           .child(chip("only-mega", "Mega", !!this.only.mega, () => { this.only = { ...this.only, mega: !this.only.mega }; }))
-          .child(chip("only-legend", "✦ Legendary", !!this.only.legend, () => { this.only = { ...this.only, legend: !this.only.legend }; }))
-          .child(div().w(1).h(14).mx(3).bg(t.border))
-          .children(REGIONS.map((r) => chip(`only-${r}`, r, this.only.region === r, () => {
-            this.only = { ...this.only, region: this.only.region === r ? undefined : r };
-          }))),
-      )
+          .child(chip("only-legend", "✦ Legendary", !!this.only.legend, () => { this.only = { ...this.only, legend: !this.only.legend }; })))
+        .child(h_flex().flex_wrap().gap(4).items_center().children(REGIONS.map((r) => chip(`only-${r}`, r, this.only.region === r, () => {
+          this.only = { ...this.only, region: this.only.region === r ? undefined : r };
+        }))))
+        .child(h_flex().flex_wrap().gap(3).items_center().children(TYPES.map((ty) => {
+          const picked = this.only.types ?? [], on = picked.includes(ty);
+          return div().id(`only-type-${ty}`).h(20).px(7).rounded(10).flex().items_center().flex_none().text_size(10.5).font_semibold()
+            .bg(TYPE_COLOR[ty]).text_color(typeText(ty)).opacity(on || !picked.length ? 1 : 0.45)
+            .border_1().border_color(on ? t.foreground : "#00000000").cursor_pointer()
+            .on_click((_e, cx) => {
+              const types = on ? picked.filter((x) => x !== ty) : [...picked, ty].slice(-2); // two at most
+              this.only = { ...this.only, types: types.length ? types : undefined };
+              this.fetchIcons(cx);
+              cx.notify();
+            })
+            .child(typeLabel(ty));
+        })))))
       // A virtual list of grid rows: only what's on screen is drawn, so all ~974 scroll smoothly.
       // It reports only the row clicked; the pointer's x says which cell.
       .child(
@@ -5062,8 +5175,11 @@ export default class PokemonHerd extends View {
                   .rounded(8).border_1()
                   .border_color(current ? t.accent : "#00000000")
                   .bg(current ? t.selected : "#00000000")
-                  .child(this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(56).flex_none() : div().size(56).flex_none())
+                  .child(this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(48).flex_none() : div().size(48).flex_none())
                   .child(div().text_size(9.5).text_color(t.dim).child(dexNo(e.dex)))
+                  // Its types, as badges in their colours.
+                  .child(h_flex().gap(2).flex_none().children(entryTypes(e).map((ty) => div().h(11).px(3).rounded(3).flex().items_center()
+                    .bg(TYPE_COLOR[ty]).text_size(7.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty)))))
                   .child(div().w_full().px(2).text_center().truncate().text_size(11).text_color(t.foreground).child(fullName(e.dex, e.form)))
                   .when(isFavorite(favKeys, e), (el) => el.child(div().absolute().top(4).right(6).text_size(12).text_color("#f2c94c").child("★")))
                   .when(lockedHere(e), (el) => el.opacity(0.4).child(div().absolute().top(4).left(6).text_size(11).child("🔒")))
@@ -5086,6 +5202,6 @@ export default class PokemonHerd extends View {
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
-      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega || this.only.legend ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
+      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega || this.only.legend || this.only.types ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
   }
 }

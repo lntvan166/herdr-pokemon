@@ -49,15 +49,15 @@ export function mix(a, b, t) {
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("")}`;
 }
 
-// Seasons: 0 spring, 1 summer, 2 autumn, 3 winter. Each lasts 3 hours, and each day starts one
+// Seasons: 0 spring, 1 summer, 2 autumn, 3 winter. Each lasts 2 hours, and each day starts one
 // further on, so the same hour of the day sees a different season tomorrow. The last 20 minutes
 // of a season blend into the next. Returns { a: this season, b: the next, t: how far into b }.
 export function seasonAt(date) {
   const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
   const h = date.getHours();
-  const a = (Math.floor(h / 3) + day) % 4;
-  const into = (h % 3) * 60 + date.getMinutes();
-  return { a, b: (a + 1) % 4, t: Math.min(1, Math.max(0, (into - 160) / 20)) };
+  const a = (Math.floor(h / 2) + day) % 4;
+  const into = (h % 2) * 60 + date.getMinutes();
+  return { a, b: (a + 1) % 4, t: Math.min(1, Math.max(0, (into - 100) / 20)) };
 }
 
 // What each season does to the colours: [colour key, the colour it leans to, how far]. The grass

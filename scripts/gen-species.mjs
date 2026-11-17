@@ -23,6 +23,19 @@ for (const line of (await get(NAMES)).split("\n").slice(1)) {
   if (lang === "9" && name) names.set(Number(id), name);
 }
 
+// Forms beyond the regional ones: a SpriteCollab form that walks and that PokeAPI keeps as a
+// Pokémon of its own (its own types or stats: "<species>-<form>", e.g. rotom-heat, giratina-origin,
+// shaymin-sky, landorus-therian; gen-stats.mjs then finds its stats). Not Megas, Gigantamax, totems
+// or Primal (Megas are their own thing here), not Minior's core colours or Pumpkaboo's sizes (the
+// mod has its own sizes), not "Female" (gender.js).
+const CSV = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv";
+const speciesIdent = new Map((await (await fetch(`${CSV}/pokemon_species.csv`)).text()).trim().split("\n").slice(1).map((l) => l.split(",")).map(([id, ident]) => [Number(id), ident]));
+const ownPokemon = new Set((await (await fetch(`${CSV}/pokemon.csv`)).text()).trim().split("\n").slice(1).map((l) => l.split(",")).filter((c) => c.at(-1) === "0").map((c) => c[1]));
+const SKIP = /mega|gmax|totem|primal|eternamax|^minior-|^pumpkaboo-|^gourgeist-/;
+const otherForm = (dex, name) => {
+  const ident = `${speciesIdent.get(dex)}-${name.trim().replace(/[ _]+/g, "-").toLowerCase()}`;
+  return name !== "Female" && ownPokemon.has(ident) && !SKIP.test(ident);
+};
 const rows = [];
 const regional = []; // [dex, form folder, label, has a shiny (1/0)]: Alola, Galar, Hisui, Paldea forms that walk
 for (const [key, entry] of Object.entries(tracker)) {
@@ -34,7 +47,9 @@ for (const [key, entry] of Object.entries(tracker)) {
   for (const [form, sub] of Object.entries(entry.subgroups ?? {})) {
     const walks = "Walk" in (sub.sprite_files ?? {});
     const shinyForm = "Walk" in (sub.subgroups?.["0001"]?.sprite_files ?? {}) ? 1 : 0;
-    if (walks && /^(Alola|Galar|Hisui|Paldea)(_(Combat|Blaze|Aqua))?$/.test(sub.name)) regional.push([dex, form, sub.name.replace(/_/g, " "), shinyForm]);
+    // Regional forms, and other forms the games treat as their own Pokémon (otherForm).
+    const other = !!sub.name && otherForm(dex, sub.name);
+    if (walks && (other || /^(Alola|Galar|Hisui|Paldea)(_(Combat|Blaze|Aqua))?$/.test(sub.name))) regional.push([dex, form, sub.name.replace(/_/g, " "), shinyForm]);
   }
 }
 rows.sort((a, b) => a[0] - b[0]);

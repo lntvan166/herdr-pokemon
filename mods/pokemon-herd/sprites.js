@@ -4,7 +4,7 @@
 import { exec, appHome } from "herdr";
 import * as fs from "fs/promises";
 import { REACTIONS, FIDGETS, FACING } from "./react.js";
-import { sheetPlan } from "./sheets.js";
+import { sheetPlan, spriteScale } from "./sheets.js";
 import { megasFrom, isStale } from "./megas.js";
 import { versionIn } from "./update.js";
 
@@ -46,7 +46,8 @@ async function im(kind, args) {
   const t = await imageMagick();
   if (!t) throw new Error("ImageMagick not found");
   const [cmd, ...pre] = t[kind];
-  const r = await exec(cmd, [...pre, ...args]);
+  // A time limit: one that hung (it happened, cutting a reaction) held its whole set "loading".
+  const r = await exec(cmd, [...pre, ...args], { timeout: 30000 });
   if (r.code !== 0) throw new Error(r.stderr.trim() || `${cmd} failed`);
   return r.stdout.trim();
 }
@@ -123,8 +124,8 @@ async function cut(sheet, anim, row, scale, out) {
   ]);
   const box = await im("convert", [out, "-coalesce", "-background", "none", "-flatten", "-format", "%@", "info:"]);
   const m = box.match(/(\d+)x(\d+)\+(-?\d+)\+(-?\d+)/);
-  const fw = anim.fw * scale;
-  const fh = anim.fh * scale;
+  const fw = Math.round(anim.fw * scale); // (1.5x: a half pixel, rounded as ImageMagick does)
+  const fh = Math.round(anim.fh * scale);
   const bb = m ? { x: +m[3], y: +m[4], w: +m[1], h: +m[2] } : { x: 0, y: 0, w: fw, h: fh };
   return { w: fw, h: fh, box: bb };
 }
@@ -145,6 +146,13 @@ async function dropSheets(dir) {
   }
 }
 
+// How tall a Pokémon is drawn in its sheet's first frame (px, at 1x): its frame trimmed of the
+// see-through around it.
+async function drawnHeight(sheet, anim) {
+  const bb = await im("convert", [sheet, "-crop", `${anim.fw}x${anim.fh}+0+0`, "+repage", "-trim", "-format", "%h", "info:"]);
+  return Number(bb) || 99;
+}
+
 // Builds (once) and returns a Pokémon's sprite set: { walkR, walkL, idleR, idleL, idleD, sleep,
 // react: { <anim>: cut + { ms } } }, each cut { path, w, h, box }. Shiny ones come from
 // SpriteCollab's shiny sub-folder; `form` (a folder under sprite/<dex>/) picks a form, e.g. its
@@ -153,7 +161,19 @@ async function dropSheets(dir) {
 // are cut together and handed to `onCore` (with no reactions yet) so it can show at once; its
 // reactions are cut after, four at a time.
 // `form` "female": its female sprite (gender.js femaleSprite), sprite/<dex>/0000/<0000|0001>/0002.
-export const loadSprite = (dex, shiny, form = null, onCore = null) => once(`sprite|${dex}|${shiny}|${form}`, () => buildSprite(dex, shiny, form, onCore));
+// Every caller's `onCore` hears when its walking, standing and sleeping are cut, not only the first
+// one's (a strip asking after the picker waited for the whole set: a Poké Ball if it never came).
+const cores = new Map(); // key -> { meta (once cut), fns: [onCore] }
+export const loadSprite = (dex, shiny, form = null, onCore = null) => {
+  const key = `sprite|${dex}|${shiny}|${form}`;
+  const c = cores.get(key) ?? { meta: null, fns: [] };
+  cores.set(key, c);
+  if (onCore) { if (c.meta) { try { onCore(c.meta); } catch {} } else c.fns.push(onCore); }
+  return once(key, () => buildSprite(dex, shiny, form, (meta) => {
+    c.meta = meta;
+    for (const f of c.fns.splice(0)) { try { f(meta); } catch {} }
+  }).finally(() => cores.delete(key)));
+};
 async function buildSprite(dex, shiny, form = null, onCore = null) {
   // A form is a SpriteCollab folder ("0001"); one from the tracker never makes a path of its own.
   if (form && form !== "female" && !/^\d{4}$/.test(form)) throw new Error(`odd form ${form}`);
@@ -164,7 +184,11 @@ async function buildSprite(dex, shiny, form = null, onCore = null) {
   if (await fs.exists(metaFile).catch(() => false)) {
     try {
       const meta = JSON.parse(await fs.readFile(metaFile, "utf8"));
-      if (meta.version === VERSION) { dropSheets(dir); return meta; } // (sheets left from before: gone)
+      // (One cut at another scale than spriteScale gives now, by its frame's size before: made again.)
+      // (`drawn` kept with it, so this is the same measure as when it was cut; one from before has
+      // only its box to go by, once.)
+      const stale = spriteScale(meta.drawn ?? (meta.walkR?.box?.h ?? 0) / (meta.scale || 2)) !== meta.scale;
+      if (meta.version === VERSION && !stale) { dropSheets(dir); return meta; } // (sheets left from before: gone)
     } catch {}
   }
   await fs.mkdir(dir, { recursive: true });
@@ -189,9 +213,10 @@ async function buildSprite(dex, shiny, form = null, onCore = null) {
   for (const n of plan.optional) {
     if (!have.has(`${dir}/${n}.png`)) for (const [name, anim] of Object.entries(reacts)) if (anim.name === n) delete reacts[name];
   }
-  // Big Pokémon (Onix, Gyarados...) have big frames: draw those at 1x.
-  const scale = walk.fh > 64 ? 1 : 2;
-  const meta = { version: VERSION, dex, shiny, scale, react: {} };
+  // How big it's drawn: 2x, or less for a big one so it stays under SHOWN_MAX (spriteScale).
+  const drawn = await drawnHeight(`${dir}/${walk.name}.png`, walk).catch(() => 30);
+  const scale = spriteScale(drawn);
+  const meta = { version: VERSION, dex, shiny, scale, drawn, react: {} };
   const rel = `${DATA_REL}/sprites/${folder}`;
   await Promise.all(CUTS.map(async ([key, which, row]) => {
     const anim = pick[which];
@@ -207,8 +232,9 @@ async function buildSprite(dex, shiny, form = null, onCore = null) {
     for (const [side, row] of rows) {
       jobs.push(async () => {
         const f = `react-${name}${side}.gif`;
-        const sz = await cut(`${dir}/${anim.name}.png`, anim, row, scale, `${dir}/${f}`);
-        meta.react[`${name}${side}`] = { path: `${rel}/${f}`, ...sz, ms };
+        // One reaction that can't be cut is left out, not the whole set.
+        const sz = await cut(`${dir}/${anim.name}.png`, anim, row, scale, `${dir}/${f}`).catch(() => null);
+        if (sz) meta.react[`${name}${side}`] = { path: `${rel}/${f}`, ...sz, ms };
       });
     }
   }

@@ -1,3 +1,4 @@
+import { PHYSICAL, SPECIAL } from "./fx-moves.js";
 // Battle effects, worked out here and drawn by main.js: what a move looks like by its type (a
 // glowing shot with a tail), the burst where a blow lands, how far the target is knocked back and
 // whether it shakes, the word that pops up ("Super effective!"). GPUI animates the parts natively
@@ -178,7 +179,7 @@ export function chargeParts(style, seed = 1) {
 // (yours hurt: red).
 export function damageText(dmg, eff = 1, own = false) {
   if (!(dmg > 0) || eff === 0) return null; // no effect: no number
-  const pct = Math.max(1, Math.round(100 * dmg));
+  const pct = Math.min(100, Math.max(1, Math.round(100 * dmg))); // (more than it had: 100%)
   const color = own ? "#ff8a80" : eff >= 2 ? "#ffd23f" : eff < 1 ? "#c8ccd4" : "#ffffff";
   return [`-${pct}%`, color];
 }
@@ -414,7 +415,7 @@ export const signatureTimes = (type) => [...new Set(signatureParts(type, 0, 100,
 // A slash a pixel-step at a time, from (x, y) `n` steps of (sx, sy): small squares, drawn at once.
 const steps = (at, ms, x, y, n, sx, sy, colors, size = 3) => Array.from({ length: n }, (_, i) =>
   P(at, ms, O(x + i * sx, y + i * sy, size, size, 1), O(x + i * sx, y + i * sy, size, size, 0), colors[i % colors.length]));
-export function physicalParts(type, x, y, g, dir = 1, seed = 1, style = null) {
+export function physicalParts(type, x, y, g, dir = 1, seed = 1, style = null, name = null) {
   let s = seed % 2147483647 || 1;
   const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   const st = style ?? MOVE[type] ?? MOVE.normal;
@@ -423,6 +424,8 @@ export function physicalParts(type, x, y, g, dir = 1, seed = 1, style = null) {
   const fist = (color, glow) => [P(-120, 120, O(x - dir * 26, y, 10, 10, 1), O(x - dir * 4, y, 12, 12, 1), color, { round: true, ease: "ease-in" }),
     P(-120, 120, O(x - dir * 30, y, 16, 16, 0.5), O(x - dir * 6, y, 20, 20, 0.6), glow, { round: true, ease: "ease-in" })];
   const out = [];
+  // A move with its own look (fx-moves.js).
+  if (PHYSICAL[name]) return PHYSICAL[name]({ x, y, g, dir, st, rnd, P, O, ring, puff, steps, fist });
   switch (type) {
     case "normal": // Body Slam: it lands flat on it, a squash of white and dust
       out.push(P(0, 300, O(x, y + 4, 20, 8, 1), O(x, y + 6, 54, 6, 0), st.hot, { round: true }), ring(0, x, g, 10, 64, "#c8bca8", 420));
@@ -512,13 +515,13 @@ export function physicalParts(type, x, y, g, dir = 1, seed = 1, style = null) {
   return out;
 }
 // When a physical move's marks set off, ms after it lands.
-export const physicalTimes = (type) => [...new Set(physicalParts(type, 50, 40, 56).flatMap((p) => [p.at, p.at + 40]))];
+export const physicalTimes = (type, name = null) => [...new Set(physicalParts(type, 50, 40, 56, 1, 1, null, name).flatMap((p) => [p.at, p.at + 40]))];
 
 // ---- special moves: each its own look as it flies ----------------------------------------------
 // The special move of each type (moves.js, names[1]), fired from where it stands: parts as
 // signatureParts, `at` from when it lands (from -FLY: the shortest flight, 320 ms), x0 → x1 at y.
 export const FLY = 320;
-export function specialParts(type, x0, x1, y, seed = 1, style = null) {
+export function specialParts(type, x0, x1, y, seed = 1, style = null, name = null) {
   let s = seed % 2147483647 || 1;
   const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   const st = style ?? MOVE[type] ?? MOVE.normal;
@@ -529,6 +532,7 @@ export function specialParts(type, x0, x1, y, seed = 1, style = null) {
   // Something flying x0 → x1 (dy up or down), from `at` till it lands.
   const fly = (at, w, h, color, more = {}, dy = 0, o = 1) => P(at, -at, O(x0, y + dy, w, h, o), O(x1, y + dy, w, h, o), color, { ease: "linear", ...more });
   const out = [];
+  if (SPECIAL[name]) return SPECIAL[name]({ x0, x1, y, g, dir, dist, mid, st, rnd, P, O, ring, flash, fly, FLY });
   switch (type) {
     case "normal": // Hyper Voice: rings of sound rolling out to it
       for (let i = 0; i < 3; i++) out.push(P(-FLY + i * 70, FLY - i * 70, O(x0, y, 6, 12, 1), O(x1, y, 14, 34, 0.5), i % 2 ? st.hot : st.core, { round: true, ring: true, ease: "linear" }));
@@ -647,7 +651,7 @@ export function specialParts(type, x0, x1, y, seed = 1, style = null) {
   }
   return out;
 }
-export const specialTimes = (type) => [...new Set(specialParts(type, 0, 100, 40).flatMap((p) => [p.at, p.at + 40]))];
+export const specialTimes = (type, name = null) => [...new Set(specialParts(type, 0, 100, 40, 1, null, name).flatMap((p) => [p.at, p.at + 40]))];
 
 // ---- Mega Evolution, as the games play it ----------------------------------------------------
 // Full (as its agent starts working): the Key Stone's rainbow beams

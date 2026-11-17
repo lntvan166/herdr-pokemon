@@ -99,16 +99,16 @@ test("overHead: a cloud or the moon right above a Pokémon's head or bubble, not
   assert.equal(overHead({ x: 110, y: 10, w: 40, h: 12 }, []), false);
 });
 
-test("seasonAt: a season every 3 hours, one step on each day, a 20-minute blend into the next", async () => {
+test("seasonAt: a season every 2 hours, one step on each day, a 20-minute blend into the next", async () => {
   const { seasonAt } = await import("../mods/pokemon-herd/scene.js");
   const d = (h, m = 0, day = 10) => new Date(2026, 10, day, h, m);
   const a = seasonAt(d(0)).a;
-  assert.equal(seasonAt(d(3)).a, (a + 1) % 4);
-  assert.equal(seasonAt(d(12)).a, a); // 4 slots of 3 hours: back around at noon
+  assert.equal(seasonAt(d(2)).a, (a + 1) % 4);
+  assert.equal(seasonAt(d(8)).a, a); // 4 slots of 2 hours: back around at 8
   assert.equal(seasonAt(d(0, 0, 11)).a, (a + 1) % 4); // tomorrow starts one later
   assert.deepEqual(seasonAt(d(1)), { a, b: (a + 1) % 4, t: 0 });
-  assert.equal(seasonAt(d(2, 50)).t, 0.5);
-  assert.equal(seasonAt(d(2, 40)).t, 0);
+  assert.equal(seasonAt(d(1, 50)).t, 0.5);
+  assert.equal(seasonAt(d(1, 40)).t, 0);
 });
 
 test("palette with a season: autumn turns leaves warm, winter whitens, spring brings flowers", () => {

@@ -46,6 +46,8 @@ export function loadPicks(current, legacy) {
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
       const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
       panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
+        // Sparring won and lost (spar.js), kept.
+        ...(Number.isInteger(p.sparW) && p.sparW > 0 ? { sparW: p.sparW } : {}), ...(Number.isInteger(p.sparL) && p.sparL > 0 ? { sparL: p.sparL } : {}),
         // Its gender (gender.js): kept, or for one saved before genders came, one by its slot.
         ...((g) => (g ? { gender: g } : {}))(validGender(p.dex, p.gender) ? p.gender : genderFrom(p.dex, hash(`${pane}:gender`))), ...(caught && isWalkable(p.caughtAs) ? { caughtAs: p.caughtAs } : {}) };
     }
@@ -184,11 +186,19 @@ export function purified(pick) {
   return withFriend(rest, HEART_PTS);
 }
 
-// What an item from the Bag would do for it: "evolve", "hearts", "hold", or null (no use now).
+// A Berry heals one hurt by a wild one or a raid boss, as in the games (an Oran Berry a quarter
+// of its health, a Sitrus Berry half); not one that fainted (it rests). `how.hpOf(slot)`: its
+// health now, 0..1, or null while it rests.
+export const HEAL = { berry: 0.25, "sitrus-berry": 0.5 };
+const hurtOf = (slot, how) => { const hp = how.hpOf?.(slot); return hp != null && hp < 1; };
+// What an item from the Bag would do for it: "evolve", "hearts" (and heals, if hurt), "heal", "hold", or null (no use now).
 const candied = (pick) => ({ ...pick, jobs: (pick.jobs ?? 0) + CANDY_JOBS });
 export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
-  if (id === "berry" || id === "sitrus-berry") return friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX ? "hearts" : null;
+  if (id === "berry" || id === "sitrus-berry") {
+    if (friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX) return "hearts";
+    return hurtOf(slot, how) ? "heal" : null; // no more hearts today, but hurt: it heals
+  }
   if (id === "rare-candy") {
     // 5 jobs on its count: "evolve" when that's enough (or friendship is met), "jobs" when it only
     // brings it closer; nothing for one that can't level up.
@@ -206,9 +216,11 @@ export function itemUse(pick, slot, id, how = {}) {
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
-  if (use === "hearts") {
+  if (use === "hearts" || use === "heal") {
+    const heal = hurtOf(slot, how) ? HEAL[id] : 0;
+    if (use === "heal") return { pick, evolved: false, heal };
     const fed = how.day ? { fed: { day: how.day, n: fedOn(pick, how.day) + 1 } } : {};
-    return { pick: { ...withFriend(pick, id === "sitrus-berry" ? FRIEND.sitrus : FRIEND.berry), ...fed }, evolved: false };
+    return { pick: { ...withFriend(pick, id === "sitrus-berry" ? FRIEND.sitrus : FRIEND.berry), ...fed }, evolved: false, ...(heal ? { heal } : {}) };
   }
   if (id === "rare-candy" && use) {
     const fed = candied(pick);

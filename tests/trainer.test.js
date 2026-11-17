@@ -247,24 +247,32 @@ test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, 
   assert.deepEqual(loadDex(d).alpha, [1]);
 });
 
-import { hitWild, strongAgainst, powerRatio } from "../mods/pokemon-herd/trainer.js";
-test("weakening: hits by base stats and type; weakened, easier to catch; it hangs on above the red", () => {
+import { hitWild, strongAgainst, gameDamage, isPhysicalKey, OVERKILL } from "../mods/pokemon-herd/trainer.js";
+test("weakening: hits as the games reckon them; weakened, easier to catch; it hangs on above the red", () => {
   assert.ok(strongAgainst(4, 1)); // Charmander (fire) against Bulbasaur (grass)
   assert.ok(!strongAgainst(1, 4));
-  assert.ok(powerRatio(150, 129) === 2.5 && powerRatio(129, 143) === 0.35); // Mewtwo on Magikarp; Magikarp on Snorlax
+  const exp = gameDamage(4, 1, 80, isPhysicalKey(4), 2, 0); // its best type (fire, ×2), power 80, the low roll
   const h = hitWild({ dex: 1 }, 4, () => 0);
-  assert.ok(Math.abs(h.hp - (1 - 0.18 * powerRatio(4, 1) * 1.5)) < 1e-9 && h.strong && !h.fainted);
-  assert.equal(hitWild({ dex: 1, hp: 0.2 }, 150, () => 1).fainted, true); // Mewtwo: far too much
-  assert.equal(hitWild({ dex: 1, hp: 0.3 }, 150, () => 1).fainted, true); // 30% left, a hit of ~114%: over three times
-  assert.equal(hitWild({ dex: 1, hp: 0.4 }, 150, () => 1).fainted, false); // 40% left: under three times, a sliver
-  assert.equal(hitWild({ dex: 1, hp: 0.1 }, 25, () => 1).hp, 0.05); // a little too much: it hangs on
-  assert.equal(hitWild({ dex: 1, hp: 0.1 }, 25, () => 1).fainted, false);
+  assert.ok(Math.abs(h.hp - (1 - exp)) < 1e-9 && h.strong && !h.fainted);
+  // Mewtwo: far too much (over OVERKILL times what's left) knocks it out; a little too much, it hangs on.
+  const big = gameDamage(150, 1, 80, isPhysicalKey(150), 2, 1);
+  for (const hp of [0.1, 0.2, 0.3, 0.4]) assert.equal(hitWild({ dex: 1, hp }, 150, () => 1).fainted, big >= OVERKILL * hp, String(hp));
+  const small = gameDamage(25, 1, 80, isPhysicalKey(25), 0.5, 1); // Pikachu's electric on grass: ½
+  const sliver = hitWild({ dex: 1, hp: small * 0.9 }, 25, () => 1);
+  assert.ok(!sliver.fainted && sliver.hp > 0 && sliver.hp <= 0.05);
   assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.2 * 1.9) < 1e-9);
   assert.equal(catchChance("poke-ball", { dex: 3, hp: 1 }), catchChance("poke-ball", { dex: 3 }));
   assert.ok(catchChance("poke-ball", { dex: 1, hp: 0 }) <= 0.95);
 });
+test("the games' damage: physical by Attack on Defense, special by Sp. Atk on Sp. Def, over HP", () => {
+  // Alakazam (Sp. Atk 135, Attack 50): its special hits far harder than a physical move would.
+  assert.ok(gameDamage(65, 68, 80, false, 1, 0.5) > 2 * gameDamage(65, 68, 80, true, 1, 0.5));
+  // Snorlax (HP 160) takes less of its health than Pikachu from the same move.
+  assert.ok(gameDamage(6, 143, 90, false, 1, 0.5) < gameDamage(6, 25, 90, false, 1, 0.5));
+  assert.ok(gameDamage(6, 3, 90, false, 2, 0.5) / gameDamage(6, 3, 90, false, 1, 0.5) > 1.9); // ×2 as the games
+});
 test("an Alpha of yours hits harder", () => {
-  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0, true).hp - (1 - 0.18 * powerRatio(1, 4) * 1.3)) < 1e-9);
+  assert.ok(Math.abs(hitWild({ dex: 4 }, 1, () => 0, true).hp - (1 - gameDamage(1, 4, 80, isPhysicalKey(1), 1, 0) * 1.3)) < 1e-9);
 });
 
 import { effectOn, bestEffect, EFFECT, hitBack, typesOf } from "../mods/pokemon-herd/trainer.js";
@@ -387,4 +395,37 @@ test("Shadow: some Alphas, hitting and taking harder; purified at enough hearts,
   assert.equal(p.shadow, undefined);
   assert.equal(p.alpha, true);
   assert.equal(p.hearts, PURIFY_HEARTS + 1);
+});
+
+test("effort: +1% a heart (5 at most), level 50 for all; natures ±10%", async () => {
+  const { effortOf, gameDamage, speedOf } = await import("../mods/pokemon-herd/trainer.js");
+  assert.equal(effortOf(null), 1);
+  assert.equal(effortOf({}), 1);
+  assert.equal(effortOf({ hearts: 3 }), 1.03);
+  assert.equal(effortOf({ hearts: 9 }), 1.05);
+  const plain = gameDamage(6, 9, 90, true, 1, 0.5);
+  assert.ok(gameDamage(6, 9, 90, true, 1, 0.5, { ea: 1.05 }) > plain);
+  assert.ok(gameDamage(6, 9, 90, true, 1, 0.5, { ea: 1.05 }) < plain * 1.08); // a little
+  assert.ok(gameDamage(6, 9, 90, true, 1, 0.5, { na: "calm" }) < plain); // Calm: −10% Attack
+  assert.equal(gameDamage(6, 9, 90, false, 1, 0.5, { na: "calm" }), gameDamage(6, 9, 90, false, 1, 0.5)); // its Sp. Atk as it was
+  assert.ok(speedOf(6, { nature: "jolly" }) > speedOf(6));
+});
+
+test("a Berry heals one hurt (Oran ¼, Sitrus ½), even with no hearts left to give; not one resting", async () => {
+  const { itemUse, useItem, HEAL, FED_MAX } = await import("../mods/pokemon-herd/picks.js");
+  const { healthNow, OWN_REST } = await import("../mods/pokemon-herd/trainer.js");
+  const hurt = { hpOf: () => 0.4, day: 5 }, fine = { hpOf: () => 1, day: 5 }, resting = { hpOf: () => null, day: 5 };
+  const full = { dex: 25, friend: 1e9, fed: { day: 5, n: FED_MAX } };
+  assert.equal(itemUse(full, "p", "berry", fine), null);
+  assert.equal(itemUse(full, "p", "berry", resting), null);
+  assert.equal(itemUse(full, "p", "berry", hurt), "heal");
+  assert.equal(useItem(full, "p", "sitrus-berry", hurt).heal, HEAL["sitrus-berry"]);
+  const r = useItem({ dex: 25 }, "p", "berry", hurt);
+  assert.equal(r.heal, 0.25);
+  assert.ok(r.pick.friend > 0); // and a quarter of a heart
+  assert.equal(useItem({ dex: 25 }, "p", "berry", fine).heal, undefined);
+  // Its health: back to full over OWN_REST; null while it rests.
+  assert.equal(healthNow(null, 0), 1);
+  assert.equal(healthNow({ hp: 0.5, at: 0 }, OWN_REST / 4), 0.75);
+  assert.equal(healthNow({ hp: 0, at: 0, rest: 1000 }, 500), null);
 });

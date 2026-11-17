@@ -5,7 +5,7 @@
 // minutes of work, not jobs: a message to an agent counts as a job, so jobs could be spammed. Pure.
 import { WALKABLE, evolutionsOf, hasShiny } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
-import { isLegendary, damage, dayOf, bestType } from "./trainer.js";
+import { isLegendary, damage, dayOf, bestType, moveHow } from "./trainer.js";
 import { pickMove } from "./moves.js";
 
 // ---- Mass Outbreak ------------------------------------------------------------------------
@@ -48,12 +48,13 @@ export const RAID_COOLDOWN = 60000; // each of yours hits it once a minute (drop
 export const WORKING_HIT = 1.5; // one whose agent is working hits ×1.5
 export const EGG_MS = 5 * 60000; // it hatches after 5 minutes
 export const RAID_MS = 30 * 60000; // then 30 minutes to beat the boss
-// A boss's bulk: 3× a wild one's beating for each agent working when it hatched (at least one).
-// Simulated (scripts/sim-raid.mjs): an eager player, dropping each one as soon as it's ready, beats
-// it in about 13 minutes of the 30 whatever the team (84% alone, 99% with six); one dropping one a
-// minute wins alone, rarely against a big team's boss. Each of yours faints once or twice.
-export const RAID_HP = 3;
-export const RAID_HP_PER = 3;
+// A boss's bulk: 2.4× a wild one's beating for each agent working when it hatched (at least one).
+// Simulated (scripts/sim-raid.mjs) with the games' damage (movesets, STAB): an eager player,
+// dropping each one as soon as it's ready, beats it in about 14 minutes of the 30 whatever the
+// team (82% alone, 100% with six); one dropping one a minute wins alone, rarely against a big
+// team's boss. Each of yours faints once or twice.
+export const RAID_HP = 2.4;
+export const RAID_HP_PER = 2.4;
 export const BOSS_SIZE = 1.8;
 export const RAID_CHIP = 0.03;
 export const BEATEN_MS = 90000; // about as long as the beaten boss takes to walk off // the least a hit takes off a boss
@@ -118,16 +119,16 @@ export function laysEgg(before, after, phase, agents = 1, laid = 0) {
 // the attacker (`back`: its effect, and the share of health it takes, as a wild one's hit back), and
 // knocks it away (BOSS_PUSH px from the boss): no one crowds round it.
 export const COUNTER_MS = 1200, BOSS_PUSH = 150; // (its own move gathers first: fx.js CHARGE_MS)
-export const RAID_BACK = 0.75; // the boss's answer hurts ¾ of a wild one's hit back
+export const RAID_BACK = 0.6; // the boss's answer hurts 0.6 of a wild one's hit back (its moves have STAB and coverage)
 export const RAID_REST = 2 * 60000; // fainted in a raid: back in 2 minutes (not a wild fight's 10)
 export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {
-  const d = damage(key, r.boss.dex, rnd, { alphaTarget: !!r.boss.alpha, shadowAttacker: !!how.shadow, mul: how.move?.mul ?? 1, ...(how.move?.type ? { type: how.move.type } : {}) });
+  const d = damage(key, r.boss.dex, rnd, { alphaTarget: !!r.boss.alpha, shadowAttacker: !!how.shadow, mul: how.move?.mul ?? 1, ...(how.move?.type ? { type: how.move.type } : {}), ...moveHow(how.move), ctx: { na: how.nature, ea: how.effort } });
   // Even a weak or wrong-typed one chips it: at least RAID_CHIP of a one-agent boss, before its
   // bulk. A miss does nothing.
   const dmg = how.move?.miss ? 0 : Math.max(RAID_CHIP * RAID_HP, d.dmg * (how.working ? WORKING_HIT : 1)) / (r.bulk ?? RAID_HP);
   const hp = Math.max(0, r.hp - dmg);
   const bm = pickMove(r.boss.dex, key, rnd); // the boss's answer: its move (never a dash: it stands)
-  const b = damage(r.boss.dex, key, rnd, { alphaAttacker: !!r.boss.alpha, alphaTarget: !!how.alpha, shadowTarget: !!how.shadow, mul: bm.mul, type: bm.type });
+  const b = damage(r.boss.dex, key, rnd, { alphaAttacker: !!r.boss.alpha, alphaTarget: !!how.alpha, shadowTarget: !!how.shadow, mul: bm.mul, type: bm.type, ...moveHow(bm), ctx: { nb: how.nature } });
   const back = hp > 0 ? { type: bm.type, name: bm.name, crit: bm.crit, ultimate: bm.ultimate, miss: bm.miss, eff: b.eff, dmg: b.dmg * 0.75 * RAID_BACK * (1 - 0.02 * Math.min(5, how.hearts ?? 0)) } : null;
   const mv = how.move ? { name: how.move.name, physical: how.move.physical, crit: how.move.crit, ultimate: how.move.ultimate, miss: how.move.miss, ...(how.move.boosted ? { boosted: how.move.boosted } : {}) } : {};
   const hit = { at: now, pane, key, type, eff: d.eff, dmg, ...mv, ...(back ? { back } : {}), ...(how.drop ? { drop: true } : {}) };

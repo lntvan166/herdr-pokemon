@@ -207,6 +207,60 @@ export function battle(a, b, A, B, now, rnd = Math.random, at = null) {
   return end;
 }
 
+// Sparring as a real battle (spar.js sparTurns: `fight` { turns, winner }): turn by turn, the one
+// moving plays its attack (rushing in: a strike; firing: its special), its move flies (`shots`,
+// one per turn, for fx.js), and the other flinches as it lands (a `blow` step carrying the move,
+// the damage and the health it's left with; a miss: no flinch). Then the winner celebrates (🎉,
+// `result: "win"`) and the loser sits dizzy (💫). Sets a.react and b.react ({ seq, until, face,
+// shots }) and lastSpar; returns when it's over. `at`: as battle().
+export const DUEL_FLY = 420; // a move's flight, launch to landing
+// How long a note stays up ("It's burned!", "It flinched!").
+export const NOTE_MS = 1100;
+export function duel(a, b, A, B, now, fight, at = null) {
+  const len = (S, anim, min) => (anim ? Math.max(min, S.msOf(anim)) : NO_ANIM_MS);
+  const seq = { a: [], b: [] }, shots = { a: [], b: [] };
+  const pos = at ? { a: at.ax, b: at.bx } : { a: a.x, b: b.x };
+  const side = { a: A, b: B };
+  let t = now;
+  if (at?.back) {
+    seq.a.push({ at: now, until: now + at.back, anim: reactionAnim("hopBack", A.has) });
+    seq.b.push({ at: now, until: now + at.back, anim: reactionAnim("hopBack", B.has) });
+    t += at.back + 100;
+  }
+  for (const tn of fight.turns) {
+    const k = tn.by, dk = k === "a" ? "b" : "a", S = side[k], D = side[dk];
+    // It can't move (paralysed, frozen, flinched): a shudder and the game's words.
+    if (tn.skip) {
+      seq[k].push({ at: t, until: t + NOTE_MS, anim: reactionAnim("startle", S.has), note: ["skip", tn.skip] });
+      t += NOTE_MS + 200;
+      continue;
+    }
+    const anim = reactionAnim(tn.move.physical ? "spar" : "special", S.has) ?? reactionAnim("spar", S.has);
+    const d = len(S, anim, 700);
+    seq[k].push({ at: t, until: t + d, anim });
+    const launch = t + Math.round(d * 0.4), land = launch + DUEL_FLY;
+    shots[k].push({ at: launch, until: land, from: pos[k], to: pos[dk], move: tn.move });
+    const hurt = tn.move.miss ? null : reactionAnim("startle", D.has);
+    const hd = len(D, hurt, 500);
+    seq[dk].push({ at: land, until: land + hd, anim: hurt, blow: "special", eff: tn.move.eff ?? 1, move: tn.move, dmg: tn.dmg, hp: tn.hp });
+    t = Math.max(t + d, land + hd) + 200;
+    // What its move did besides ("It's paralyzed!"), then its own burn or poison hurting it.
+    if (tn.drain) { seq[k].push({ at: t, until: t + NOTE_MS, anim: null, note: ["drain", "drain"], hp: tn.drain.hp }); t += NOTE_MS + 100; }
+    if (tn.effect) { seq[dk].push({ at: t, until: t + NOTE_MS, anim: null, note: ["effect", tn.effect] }); t += NOTE_MS + 100; }
+    if (tn.tick) { seq[k].push({ at: t, until: t + NOTE_MS, anim: reactionAnim("startle", S.has), note: ["tick", tn.tick.kind], hp: tn.tick.hp }); t += NOTE_MS + 100; }
+  }
+  const w = fight.winner, l = w === "a" ? "b" : "a";
+  seq[w].push({ at: t, until: t + 1500, anim: reactionAnim("celebrate", side[w].has), icon: "🎉", result: "win" });
+  seq[l].push({ at: t, until: t + 1500, anim: null, icon: "💫", result: "lose" });
+  const end = t + 1700;
+  a.dir = pos.b > pos.a ? "r" : "l";
+  b.dir = pos.a > pos.b ? "r" : "l";
+  a.react = { seq: seq.a, until: end, face: a.dir, shots: shots.a };
+  b.react = { seq: seq.b, until: end, face: b.dir, shots: shots.b };
+  a.lastSpar = b.lastSpar = now;
+  return end;
+}
+
 // Where two about to battle stand: BATTLE_GAP apart about their middle, each keeping its side,
 // inside lo..hi (pushed in together at an edge). Already that far apart: where they are.
 export const BATTLE_GAP = 70;

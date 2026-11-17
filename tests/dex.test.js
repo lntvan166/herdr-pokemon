@@ -47,12 +47,12 @@ test("megaForm: the walking Mega's folder, and whether it has a shiny", () => {
 import { formsOf, fullName, searchEntries, hasForm, regionOf, REGIONS } from "../mods/pokemon-herd/dex.js";
 test("regional forms", () => {
   assert.deepEqual(formsOf(37), [{ form: "0001", label: "Alola", shiny: true }]);
-  assert.deepEqual(formsOf(25), []);
+  assert.deepEqual(formsOf(25).map((f) => f.label), ["Libre", "Cosplay"]); // its own Pokémon in PokeAPI
   assert.ok(!formsOf(77).some((f) => f.label.includes("Alternate"))); // fan variants left out
   assert.equal(formsOf(128).length, 3); // Paldean Tauros: Combat, Blaze, Aqua
   assert.equal(fullName(37, "0001"), "Vulpix (Alola)");
   assert.equal(fullName(37), "Vulpix");
-  assert.ok(hasForm(37, "0001") && !hasForm(37, "0009") && !hasForm(25, "0001"));
+  assert.ok(hasForm(37, "0001") && !hasForm(37, "0009") && !hasForm(25, "0001")); // (Pikachu's caps: not forms)
   assert.equal(hasShiny(52, "0002"), false); // Galarian Meowth: no shiny sprite
   assert.equal(hasShiny(52), true);
 });
@@ -78,7 +78,8 @@ test("regionOf: by dex number, or a form's own region", () => {
 
 test("searchEntries filters by region and by Mega", () => {
   const kanto = searchEntries("", Infinity, { region: "Kanto" }).entries;
-  assert.ok(kanto.length > 100 && kanto.every((e) => e.dex <= 151 && !e.form));
+  // Kanto: its species, and their forms that aren't another region's (Pikachu Libre…).
+  assert.ok(kanto.length > 100 && kanto.every((e) => e.dex <= 151 && (!e.form || regionOf(e) === "Kanto")));
   const alola = searchEntries("vulpix", 99, { region: "Alola" }).entries;
   assert.deepEqual(alola, [{ dex: 37, form: "0001" }]);
   const megas = searchEntries("", Infinity, { mega: true }).entries;
@@ -102,4 +103,22 @@ test("searchEntries: only the favourites", () => {
   const keys = new Set(["25", "37-0001"]);
   assert.deepEqual(searchEntries("", Infinity, { keys }).entries, [{ dex: 25 }, { dex: 37, form: "0001" }]);
   assert.deepEqual(searchEntries("vulpix", 9, { keys }).entries, [{ dex: 37, form: "0001" }]);
+});
+
+test("Rotom's appliance forms: their own types, its species' region, named", async () => {
+  const { formsOf, fullName, regionOf } = await import("../mods/pokemon-herd/dex.js");
+  const { typesOf, fighterKey } = await import("../mods/pokemon-herd/trainer.js");
+  assert.deepEqual(formsOf(479).map((f) => f.label), ["Heat", "Wash", "Frost", "Fan", "Mow"]);
+  assert.equal(regionOf({ dex: 479, form: "0001" }), "Sinnoh");
+  assert.match(fullName(479, "0001"), /Rotom.*Heat/);
+  assert.deepEqual(typesOf(fighterKey(479, { form: "0002" })), ["electric", "water"]);
+});
+
+test("searchEntries by type: one, or two together (as it fights: a form's own types)", async () => {
+  const { typesOf, fighterKey } = await import("../mods/pokemon-herd/trainer.js");
+  const typesOfE = (e) => typesOf(fighterKey(e.dex, e.form ? { form: e.form } : {}));
+  const fireFly = searchEntries("", Infinity, { types: ["fire", "flying"], typesOf: typesOfE }).entries;
+  assert.ok(fireFly.some((e) => e.dex === 6) && fireFly.every((e) => ["fire", "flying"].every((t) => typesOfE(e).includes(t))));
+  const water = searchEntries("rotom", 9, { types: ["water"], typesOf: typesOfE }).entries;
+  assert.deepEqual(water, [{ dex: 479, form: "0002" }]); // Rotom Wash
 });

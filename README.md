@@ -8,7 +8,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 
 ## Highlights
 
-- 🐾 **974 Pokémon**, regional forms, **Mega Evolution** while an agent works or battles (stronger as a Mega), shinies.
+- 🐾 **974 Pokémon** and 104 forms (regional ones, Rotom's appliances, Giratina Origin, Shaymin Sky, the Therians…), each with its own types; the picker shows every one's types and filters by up to two. **Mega Evolution** while an agent works or battles (stronger as a Mega), shinies.
 - 🎯 **Catch wild Pokémon** walking across the strip with Poké Balls and Berries.
 - ⚔️ **Battle them first**: real base stats and the full type chart ("It's super effective!").
   They hit back.
@@ -51,17 +51,29 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 - **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
   and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
-- **Named moves.** Each uses its best type's move: rushing in (streaks behind it, and each
-  move its own mark: Fire Punch's fist of flame, Crunch's jaws, Earthquake's cracks, X-Scissor's X) or firing from where it stands (Flamethrower, Psychic),
-  mostly by its stats but mixed up. Now and then a signature move (×1.5), each with its own look: Thunder strikes out
-  of the sky, Blast Burn erupts from the ground, Draco Meteor rains down, Shadow Force tears a rift,
-  and 1 in 16 "A critical hit!" (×1.5). 1 in 20 misses ("Missed!", it hops aside), a signature move 1 in 5.
+- **Movesets from the games.** Each Pokémon knows four of 90 moves, the ones it really learns
+  levelling up (from PokeAPI's learnsets): two of its own types and two for coverage. Charizard:
+  Flamethrower, Air Slash, Dragon Claw, Crunch; Bulbasaur: Solar Beam, Vine Whip, Double-Edge,
+  Tackle; Caterpie just Bug Bite and Tackle. Every move has its own look, from Ember's sparks to
+  Hydro Pump's torrent and Fire Blast's five-pointed burst. Damage as the
+  games reckon it: each move's power, Attack against Defense or Sp. Atk against Sp. Def, HP,
+  STAB, the type chart; now and then a signature move (Blast Burn, Thunder), 1 in 16 "A critical
+  hit!", 1 in 20 a miss. Physical moves rush in (streaks behind, each its own mark: Fire Punch's
+  fist of flame, Crunch's jaws), special ones fire their own way (Flamethrower's stream, Surf's wave).
 - **Moves you can see.** Yours steps off a little, gathers power and uses its best type against
   it, each move its own way: Flamethrower a stream of fire, Surf a wave, Thunderbolt a jagged
   bolt, Ice Beam a beam that freezes, Sludge Bomb globs lobbed over, Moonblast a moon… A hit
   flashes, throws sparks and knocks it back, the damage floats up and the health bar drains; a
   super-effective one shakes it. Sounds too, a click away (🔇 in the strip's corner). Megas and regional forms fight with their own types
   and stats (Mega Charizard X: Fire/Dragon, blue fire).
+- **Sparring is a real battle.** Two of yours (now and then by themselves, or one dropped on
+  another) take turns with named moves, health bars and all, till one is down or after three
+  turns each. The faster moves first, and moves do what they do in the games: Thunderbolt can
+  paralyse, Flamethrower burn, Ice Beam freeze, Sludge Bomb poison, Air Slash make it flinch,
+  Crunch lower its Defense. All are level 50; a well-raised one is a touch stronger (+1% a heart, +5%
+  at most, like Legends: Arceus' effort levels), and its nature counts (Brave: more Attack, less Speed). The winner celebrates ("Landorus won! 3–1", the pair's record), the other sits
+  dizzy, nobody is hurt for real. The winner gains a little more friendship; the Box keeps each
+  one's record, and those idle nearby turn to watch.
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
   lost). Pick a strong attacker with a good type.
 - **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a bit more than

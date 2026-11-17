@@ -2,7 +2,7 @@
 // legendary Pokémon. Pure.
 import { WALKABLE, REGIONS, regionOf, nameOf, isWalkable, hasShiny, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
-import { BASE, FORM_BASE } from "./base-stats.js";
+import { BASE, FORM_BASE, STATS } from "./base-stats.js";
 import { typeOf, TYPES } from "./types.js";
 
 // ---- legendary and mythical Pokémon ------------------------------------------------
@@ -139,16 +139,50 @@ export const EFFECT = {
   0.25: { text: "It's not very effective…", mul: 0.4 },
   0: { text: "It doesn't affect it…", mul: 0 },
 };
-// One attack's share of the target's health: 18–32%, × attack over defence (base stats), × the
-// type's effect; an Alpha hits ×1.3 and takes ×0.8.
-// `how.type`: the move's own type (moves.js; a Normal move when its own types are resisted).
+// One attack's share of the target's health, as the games reckon it (Gen 5+, both at level 50, no
+// same-type bonus): ((2×50/5+2) × the move's power × its Attack/Sp. Atk over the other's
+// Defense/Sp. Def / 50 + 2) × the type's effect (×4 … ×0) × 85–100%, over the other's HP: a
+// physical move by Attack against Defense, a special one by Sp. Atk against Sp. Def (base-stats.js
+// STATS). An Alpha hits ×1.3 and takes ×0.8; Shadow ×1.2 both ways; `how.mul`: the move's (a
+// critical hit ×1.5). `how.type`, `how.power`, `how.physical`: the move's (moves.js pickMove);
+// without one, its best type at power 80, by its stronger side.
+export const LEVEL = 50;
+// All damage × this: the games' numbers (with STAB and coverage moves) end a fight in two hits;
+// the strip's battles keep their pace (a wild one weakened to the red, a spar of a few turns).
+export const DAMAGE_SCALE = 0.65;
+const statsFull = (k) => STATS[k] ?? STATS[String(parseInt(k, 10))] ?? [70, 70, 70, 70, 70];
+export const isPhysicalKey = (k) => { const s = statsFull(k); return s[1] >= s[3]; };
+// A nature's ×1.1 and ×0.9, as the games' (stat index: 1 Attack, 2 Defense, 3 Sp. Atk, 4 Sp. Def,
+// 5 Speed). The mod's Lazy is the games' Lax.
+export const NATURE_STATS = { hasty: [5, 2], brave: [1, 5], jolly: [5, 3], calm: [4, 1], lazy: [2, 4] };
+const natureK = (nature, i) => { const n = NATURE_STATS[nature]; return n?.[0] === i ? 1.1 : n?.[1] === i ? 0.9 : 1; };
+// A stat at level 50 (its base; ×nature, ×effort), and HP.
+const statAt = (b, k = 1) => Math.floor((Math.floor(((2 * b + 31) * LEVEL) / 100) + 5) * k);
+const hpAt = (b) => Math.floor(((2 * b + 31) * LEVEL) / 100) + LEVEL + 10;
+// Every Pokémon is level 50; being raised counts a little, like Legends: Arceus' effort levels:
+// +1% to its stats (not HP) a heart, +5% at most. One with no pick: 1.
+export const EFFORT_PER_HEART = 0.01;
+export const effortOf = (pick) => 1 + EFFORT_PER_HEART * Math.min(5, Math.max(0, pick?.hearts ?? 0));
+// Its Speed in a battle (`who`: { nature, effort }): the faster moves first, as in the games.
+export const speedOf = (k, who = {}) => statAt(statsFull(k)[5] ?? 70, natureK(who.nature, 5) * (who.effort ?? 1));
+// `ctx`: { na, nb (natures), ea, eb (efforts) } of the attacker and the target; none, 1.
+export function gameDamage(attacker, target, power, physical, eff, roll, ctx = {}) {
+  const a = statsFull(attacker), d = statsFull(target);
+  const A = statAt(physical ? a[1] : a[3], natureK(ctx.na, physical ? 1 : 3) * (ctx.ea ?? 1));
+  const D = statAt(physical ? d[2] : d[4], natureK(ctx.nb, physical ? 2 : 4) * (ctx.eb ?? 1));
+  const base = Math.floor(Math.floor((Math.floor((2 * LEVEL) / 5 + 2) * power * A) / D) / 50) + 2;
+  return (base * eff * (0.85 + 0.15 * roll) * DAMAGE_SCALE) / hpAt(d[0]);
+}
 export function damage(attacker, target, rnd = Math.random, how = {}) {
   const eff = how.type ? effectOn(how.type, target) : bestEffect(attacker, target);
-  const dmg = (0.18 + 0.14 * rnd()) * powerRatio(attacker, target) * EFFECT[eff].mul * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1)
-    * (how.shadowAttacker ? SHADOW_HIT : 1) * (how.shadowTarget ? SHADOW_TAKE : 1) * (how.mul ?? 1); // `mul`: the move's (moves.js)
+  const physical = how.physical ?? isPhysicalKey(attacker);
+  const dmg = gameDamage(attacker, target, how.power ?? 80, physical, eff, rnd(), how.ctx) * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1)
+    * (how.shadowAttacker ? SHADOW_HIT : 1) * (how.shadowTarget ? SHADOW_TAKE : 1) * (how.mul ?? 1);
   return { dmg, eff, text: EFFECT[eff].text };
 }
 
+// A move's power and side for damage(), if it has them.
+export const moveHow = (m) => ({ ...(Number.isFinite(m?.power) ? { power: m.power } : {}), ...(typeof m?.physical === "boolean" ? { physical: m.physical } : {}) });
 export const RED = 0.2; // its bar turns red, blinking: the next hit may be too much
 export const OVERKILL = 3; // simulated: careful players (stopping in the red) knock out ~5%, greedy ones ~15–20%
 const statsOf = (dex) => baseOf(dex) ?? [70, 70];
@@ -158,9 +192,11 @@ export const MEGA_HIT = 1.2, MEGA_TAKE = 0.85;
 // A Shadow Pokémon (1 Alpha in 3, SHADOW_SHARE) hits harder and takes more, as in GO; caught, it
 // stays Shadow till purified (picks.js purified, at PURIFY_HEARTS).
 export const SHADOW_SHARE = 1 / 3, SHADOW_HIT = 1.2, SHADOW_TAKE = 1.2;
-export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false, shadow = false, mul = 1, type = null) {
+// `move`: the move used (moves.js pickMove: its power, physical or special).
+// `ctx`: natures and efforts (gameDamage).
+export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega = false, shadow = false, mul = 1, type = null, move = null, ctx = undefined) {
   const hp = Number.isFinite(wild.hp) ? wild.hp : 1;
-  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha, shadowAttacker: shadow, shadowTarget: !!wild.shadow, mul, ...(type ? { type } : {}) });
+  const hit = damage(attacker, wild.dex, rnd, { alphaAttacker: alpha, alphaTarget: !!wild.alpha, shadowAttacker: shadow, shadowTarget: !!wild.shadow, mul, ...(type ? { type } : {}), ...moveHow(move), ctx });
   const { eff, text } = hit;
   const dmg = hit.dmg * (mega ? MEGA_HIT : 1);
   const strong = eff > 1;
@@ -170,14 +206,18 @@ export function hitWild(wild, attacker, rnd = Math.random, alpha = false, mega =
   return { hp: left, dmg, strong, eff, text, fainted: left <= 0.001 };
 }
 // The wild one hits back at yours (its `hp`, 0..1, kept on the strip): { hp, dmg, eff, text,
-// fainted }. Yours is raised, so a little sturdier: ¾ of the damage, and a touch less for each heart (2%:
+// fainted }. Yours is raised, so a little sturdier: OWN_TAKE of the damage, and a touch less for each heart (2%:
 // 5 ♥, 10% less). It faints at 0 and rests a while (OWN_REST); its hearts are untouched.
 export const OWN_REST = 10 * 60000;
-export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null) {
+export const OWN_TAKE = 0.85;
+// Its health now from what was kept ({ hp, at, rest? }: after a hit, back to full over OWN_REST),
+// or null while it rests after fainting.
+export const healthNow = (rec, now) => (!rec ? 1 : now < (rec.rest ?? 0) ? null : Math.min(1, (rec.hp ?? 1) + (now - (rec.at ?? now)) / OWN_REST));
+export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null, move = null, ctx = undefined) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
-  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul, ...(type ? { type } : {}) });
+  const hit = damage(wild.dex, own.dex, rnd, { alphaAttacker: !!wild.alpha, alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul, ...(type ? { type } : {}), ...moveHow(move), ctx });
   const { eff, text } = hit;
-  const dmg = hit.dmg * 0.75 * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
+  const dmg = hit.dmg * OWN_TAKE * (1 - 0.02 * Math.min(5, own.hearts ?? 0)) * (own.mega ? MEGA_TAKE : 1);
   const left = Math.max(0, hp - dmg);
   return { hp: left, dmg, eff, text, fainted: left <= 0.001 };
 }
