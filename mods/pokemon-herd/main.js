@@ -23,7 +23,7 @@ import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -494,6 +494,8 @@ const keepHp = (pane, rec) => {
 const hpOf = (slot) => healthNow(shared(HP_KEY)?.[slot], Date.now());
 // A Berry eaten: `amount` more health (the strip it's on picks it up: care).
 const healBy = (slot, amount) => { const hp = hpOf(slot); if (amount && hp != null && hp < 1) keepHp(slot, { hp: Math.min(1, hp + amount), at: Date.now() }); };
+// A Revive: up from fainting at once, with `amount` of its health (its rest kept no more).
+const reviveBy = (slot, amount) => { if (amount && hpOf(slot) === null) keepHp(slot, { hp: amount, at: Date.now() }); };
 const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + (now - (m.hpAt ?? now)) / OWN_REST) : 1);
 // An Alpha: a red glow behind it (breathing), and a red α by its head.
 const ALPHA_RED = "#e5484d";
@@ -2120,6 +2122,12 @@ export default class PokemonHerd extends View {
   care(a, m, now) {
     // Fed a Berry (the Bag, the Box: HP_KEY kept higher than it has): it heals, 💚.
     const kept = a.pane && shared(HP_KEY)?.[a.pane];
+    // Revived (kept newer than its faint, no rest in it): up at once, 💊.
+    if (kept && now < (m.restUntil ?? 0) && kept.at > (m.faintAt ?? 0) && !(kept.rest > now)) {
+      m.restUntil = 0;
+      m.hp = 0; m.hpAt = kept.at - 1;
+      this.note(m, "💊", now, 2500);
+    }
     if (kept && kept.at > (m.hpAt ?? 0) && now >= (m.restUntil ?? 0)) {
       const before = ownHp(m, now);
       m.hp = kept.hp;
@@ -4393,6 +4401,7 @@ export default class PokemonHerd extends View {
       : first.use === "evolve" ? `${ITEMS[usable[0]].name} can evolve ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) now`
       : first.use === "jobs" ? `${ITEMS[usable[0]].name} brings ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${CANDY_JOBS} jobs closer to evolving`
       : first.use === "hold" ? `${ITEMS[usable[0]].name} can be held by ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
+      : first.use === "revive" ? `${ITEMS[usable[0]].name} can bring ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) back up now`
       : first.use === "heal" ? `${ITEMS[usable[0]].name} can heal ${fullName(first.pick.dex, first.pick.form)} (${first.tag})`
       : `${ITEMS[usable[0]].name} can give ${fullName(first.pick.dex, first.pick.form)} (${first.tag}) ${usable[0] === "sitrus-berry" ? "half a heart" : "a quarter of a heart"}`;
     const use = (id, h) => {
@@ -4402,6 +4411,7 @@ export default class PokemonHerd extends View {
       if (!r) return;
       savePicks({ [h.slot]: r.pick });
       healBy(h.slot, r.heal);
+      reviveBy(h.slot, r.revive);
       saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0)); // what it held goes back in
       if (r.evolved) noteEvolved();
       if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
@@ -4606,6 +4616,7 @@ export default class PokemonHerd extends View {
                 ? `becomes ${fullName(h.after.dex, h.after.form)}`
                 : h.use === "hold" ? (h.pick.held ? `holds it; its ${ITEMS[h.pick.held].name} comes back` : "holds it")
                 : h.use === "jobs" ? `${h.pick.jobs ?? 0} → ${h.after.jobs}/${evolveJobs(h.pick.dex)} jobs`
+                : h.use === "revive" ? `fainted → up now, ${Math.round(100 * (REVIVE[sel] ?? 0.5))}% health`
                 : h.use === "heal" ? `health ${Math.round(100 * (hpOf(h.slot) ?? 1))}% → ${Math.round(100 * Math.min(1, (hpOf(h.slot) ?? 1) + HEAL[sel]))}%`
                 : `♥ ${heartsText(friendOf(h.pick))} → ${heartsText(friendOf(h.after))}${(hpOf(h.slot) ?? 1) < 1 ? ` · heals ${Math.round(100 * HEAL[sel])}%` : ""}`)))
             .child(div().id(`use-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
@@ -4777,6 +4788,15 @@ export default class PokemonHerd extends View {
             this.nickInput.set_value(pick.nick ?? "");
             this.nickInput.focus();
           }))
+          // Fainted, resting: a Revive or Max Revive brings it back now.
+          .children(["revive", "max-revive"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
+            pill(`box-revive-${id}-${slot}`, `${ITEMS[id].name} ×${bag().items[id]}`, () => {
+              const live = hasItem(id) && savedPicks()[slot];
+              const r = live && useItem(live, slot, id, { hpOf }, Date.now());
+              if (!r) return;
+              saveBag(addItem(bag(), id, -1));
+              reviveBy(slot, r.revive);
+            })))
           // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
           .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>
             pill(`box-feed-${id}-${slot}`, `Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => {
@@ -4785,6 +4805,8 @@ export default class PokemonHerd extends View {
               if (!r) return;
               savePicks({ [slot]: r.pick });
               healBy(slot, r.heal);
+            reviveBy(slot, r.revive);
+              reviveBy(slot, r.revive);
               saveBag(addItem(bag(), id, -1));
               if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
               research("berry");
@@ -5290,7 +5312,7 @@ export default class PokemonHerd extends View {
     const slot = props()?.slot;
     const night = isNight();
     const mine = new Set(evolveNeeds(cur).flatMap((n) => n.ways).filter((w) => w.startsWith("stone:")).map((w) => `${w.slice(6)}-stone`));
-    const ids = ["berry", "sitrus-berry", "rare-candy", ...STONES.map((k) => `${k}-stone`).filter((id) => mine.has(id)), ...HELD_IDS].filter((id) => b.items[id]);
+    const ids = ["berry", "sitrus-berry", "revive", "max-revive", "rare-candy", ...STONES.map((k) => `${k}-stone`).filter((id) => mine.has(id)), ...HELD_IDS].filter((id) => b.items[id]);
     // Wraps onto a second line when there are many (a long Bag ran past the card's edge).
     return h_flex().flex_wrap().w_full().gap(6).items_center().flex_none()
       // What it holds: click to take it back into the Bag.
@@ -5320,6 +5342,7 @@ export default class PokemonHerd extends View {
             if (!r) return;
             savePicks({ [slot]: r.pick });
             healBy(slot, r.heal);
+            reviveBy(slot, r.revive);
             saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0));
             if (r.evolved) noteEvolved();
             if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));

@@ -39,7 +39,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   the wild one's hit, 2% less a heart. Its health is kept in shared state `pokemon-herd-hp`
   (`{ pane: { hp, at, rest? } }`, `healthNow`: back to full over 10 minutes, null while it rests
   after fainting), so a Berry fed from the Bag or the Box heals it (`HEAL`: an Oran Berry a
-  quarter, a Sitrus Berry half; 💚), even once it has had its three Berries' hearts for the day.
+  quarter, a Sitrus Berry half; 💚), even once it has had its three Berries' hearts for the day. A Berry can't help one that fainted (it rests 10 minutes); a **Revive** (₽300, Shop and Pickup) brings it back at once with half its health, a **Max Revive** (₽800) with all of it (`picks.js` `REVIVE`; the Bag, the Box's pill and the picker's card; 💊 on the strip).
 - **Battle effects** (`fx.js`, drawn by `main.js` with native transitions and loops): a move
   first gathers at the mouth (`CHARGE_MS` 340: sparks drawn in, a glow swelling), then goes
   its own way: a special move flies as `specialParts` draws it (Flamethrower a stream of flame,
@@ -133,8 +133,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   waiting shows "⏳ 35s" over its head, one resting "💫 1m"; dropped too soon it says so and hops
   back off the boss. The boss faces whoever hit it last, flinches as a blow lands, and turns to
   strike back (SpAttack, Shoot, Attack). Unless that beats it, the boss
-  fires back 0.9 s later (its best type, half a wild hit back's damage; fainted, it rests 2
-  minutes) and throws the attacker off to
+  fires back 0.9 s later (its best type, half a wild hit back's damage; fainted, it rests 3
+  minutes, `RAID_REST`, or a Revive brings it back at once) and throws the attacker off to
   150 px from it (30 px further if it stood further): no crowding round it; at 0 health it rests.
   Beaten: ₽300 (a legendary ₽600) and 3 Ultra Balls, and it walks off slowly with a sliver of
   health and a ball over its head, to be caught. Its notes: "🥚 Raid egg · hatches in 4m",

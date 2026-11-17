@@ -13,6 +13,9 @@ const STONE_ICON = { fire: "🔥", water: "💧", thunder: "⚡", leaf: "🍃", 
 export const ITEMS = {
   berry: { name: "Oran Berry", icon: "🍓", art: "items/oran-berry" },
   "sitrus-berry": { name: "Sitrus Berry", icon: "🍋", art: "items/sitrus-berry" },
+  // Medicine: one that fainted (resting) back up at once, at half its health or all of it.
+  revive: { name: "Revive", icon: "💊", art: "items/revive" },
+  "max-revive": { name: "Max Revive", icon: "💎", art: "items/max-revive" },
   // Berries for catching (as in Pokémon GO): fed before each ball while one is set (Bag → Feed).
   "razz-berry": { name: "Razz Berry", icon: "🍒", art: "items/razz-berry", kind: "bait" },
   "golden-razz-berry": { name: "Golden Razz Berry", icon: "🌟", art: "items/golden-razz-berry", kind: "bait" },
@@ -47,7 +50,7 @@ export const PRICE = {
   // enough to throw 15 at a legendary; a Master Ball about eight days.
   berry: 20, "sitrus-berry": 80, "razz-berry": 40, "pinap-berry": 40, "golden-razz-berry": 300, "silver-pinap-berry": 200,
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "master-ball": 25000,
-  honey: 150, "azure-flute": 1000, "rare-candy": 600,
+  honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800,
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])),
   ...Object.fromEntries(HELD_IDS.map((id) => [id, 2000])),
   "x-speed": 150, "poke-flute": 100, "x-attack": 200, "soda-pop": 100, "festival-ticket": 250,
@@ -90,6 +93,7 @@ export const maxBuy = (bag, id) => (PRICE[id] ? Math.max(0, Math.min(MAX_ITEM - 
 export const GROUPS = [
   ["Balls", (id) => ITEMS[id].kind === "ball"],
   ["Berries", (id) => id === "berry" || id.endsWith("-berry")],
+  ["Medicine", (id) => id === "revive" || id === "max-revive"],
   ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone")],
   ["To hold", (id) => ITEMS[id].kind === "held"],
   ["For the herd", (id) => ITEMS[id].kind === "boost" || id === "festival-ticket"],
@@ -122,6 +126,8 @@ export function stoneTakers(kind) {
 
 // What an item does, in a sentence.
 export function itemAbout(id) {
+  if (id === "revive") return "Brings one that fainted back at once, with half its health (it would rest 10 minutes).";
+  if (id === "max-revive") return "Brings one that fainted back at once, with all its health.";
   if (id === "berry") return "A quarter of a heart for a Pokémon, and a quarter of its health back if a wild one hurt it; three a day each for hearts. A hungry one eats one by itself when you answer its agent.";
   if (id === "sitrus-berry") return "Half a heart for a Pokémon, and half its health back if a wild one hurt it; three a day each for hearts.";
   if (id === "razz-berry") return "Fed to a wild Pokémon before the ball: half again as likely to catch it.";
@@ -166,7 +172,7 @@ export const MAX_ITEM = 999; // as the newer games' Bag
 const PICKUP = [
   ["berry", 18], ["sitrus-berry", 6], ["razz-berry", 10], ["pinap-berry", 5], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
   ["poke-ball", 22], ["great-ball", 7], ["ultra-ball", 2],
-  ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 3], ["honey", 4], ["berry", 3], ...HELD_IDS.map((id) => [id, 0.6]),
+  ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 3], ["honey", 4], ["berry", 3], ["revive", 2], ["max-revive", 0.5], ...HELD_IDS.map((id) => [id, 0.6]),
 ];
 export function pickup(rnd = Math.random) {
   let r = rnd() * PICKUP.reduce((t, [, w]) => t + w, 0);

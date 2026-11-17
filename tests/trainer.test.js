@@ -430,3 +430,17 @@ test("a Berry heals one hurt (Oran ¼, Sitrus ½), even with no hearts left to g
   assert.equal(healthNow({ hp: 0.5, at: 0 }, OWN_REST / 4), 0.75);
   assert.equal(healthNow({ hp: 0, at: 0, rest: 1000 }, 500), null);
 });
+
+test("a Revive brings one that fainted back (half its health; a Max Revive all); not one awake", async () => {
+  const { itemUse, useItem, REVIVE } = await import("../mods/pokemon-herd/picks.js");
+  const { PRICE, ITEMS, groupOf } = await import("../mods/pokemon-herd/items.js");
+  const resting = { hpOf: () => null }, awake = { hpOf: () => 0.3 };
+  assert.equal(itemUse({ dex: 25 }, "p", "revive", resting), "revive");
+  assert.equal(itemUse({ dex: 25 }, "p", "revive", awake), null);
+  assert.equal(itemUse({ dex: 25 }, "p", "berry", resting), "hearts"); // a Berry: a heart, no heal while it rests
+  assert.equal(useItem({ dex: 25 }, "p", "revive", resting).revive, 0.5);
+  assert.equal(useItem({ dex: 25 }, "p", "max-revive", resting).revive, 1);
+  assert.deepEqual(REVIVE, { revive: 0.5, "max-revive": 1 });
+  assert.ok(PRICE.revive > 0 && PRICE["max-revive"] > PRICE.revive && ITEMS.revive.art);
+  assert.equal(groupOf("revive"), "Medicine");
+});

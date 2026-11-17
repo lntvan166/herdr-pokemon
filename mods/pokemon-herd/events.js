@@ -123,7 +123,7 @@ export function laysEgg(before, after, phase, laid = 0) {
 // knocks it away (BOSS_PUSH px from the boss): no one crowds round it.
 export const COUNTER_MS = 1200, BOSS_PUSH = 150; // (its own move gathers first: fx.js CHARGE_MS)
 export const RAID_BACK = 0.6; // the boss's answer hurts 0.6 of a wild one's hit back (its moves have STAB and coverage)
-export const RAID_REST = 2 * 60000; // fainted in a raid: back in 2 minutes (not a wild fight's 10)
+export const RAID_REST = 3 * 60000; // fainted in a raid: back in 3 minutes (not a wild fight's 10); a Revive at once
 export function raidHit(r, key, pane, type, now, rnd = Math.random, how = {}) {
   const d = damage(key, r.boss.dex, rnd, { alphaTarget: !!r.boss.alpha, shadowAttacker: !!how.shadow, mul: how.move?.mul ?? 1, ...(how.move?.type ? { type: how.move.type } : {}), ...moveHow(how.move), ctx: { na: how.nature, ea: how.effort } });
   // Even a weak or wrong-typed one chips it: at least RAID_CHIP of a one-agent boss, before its

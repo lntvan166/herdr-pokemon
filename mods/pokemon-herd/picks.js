@@ -192,11 +192,15 @@ export function purified(pick) {
 // of its health, a Sitrus Berry half); not one that fainted (it rests). `how.hpOf(slot)`: its
 // health now, 0..1, or null while it rests.
 export const HEAL = { berry: 0.25, "sitrus-berry": 0.5 };
+// Revive and Max Revive: one resting after fainting (how.hpOf gives null) back at once, at half or
+// all its health.
+export const REVIVE = { revive: 0.5, "max-revive": 1 };
 const hurtOf = (slot, how) => { const hp = how.hpOf?.(slot); return hp != null && hp < 1; };
-// What an item from the Bag would do for it: "evolve", "hearts" (and heals, if hurt), "heal", "hold", or null (no use now).
+// What an item from the Bag would do for it: "evolve", "hearts" (and heals, if hurt), "heal", "revive", "hold", or null (no use now).
 const candied = (pick) => ({ ...pick, jobs: (pick.jobs ?? 0) + CANDY_JOBS });
 export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
+  if (REVIVE[id]) return how.hpOf && how.hpOf(slot) === null ? "revive" : null;
   if (id === "berry" || id === "sitrus-berry") {
     if (friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX) return "hearts";
     return hurtOf(slot, how) ? "heal" : null; // no more hearts today, but hurt: it heals
@@ -218,6 +222,7 @@ export function itemUse(pick, slot, id, how = {}) {
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
+  if (use === "revive") return { pick, evolved: false, revive: REVIVE[id] };
   if (use === "hearts" || use === "heal") {
     const heal = hurtOf(slot, how) ? HEAL[id] : 0;
     if (use === "heal") return { pick, evolved: false, heal };

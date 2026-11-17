@@ -85,7 +85,8 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   teleports out of a missed ball, Machop picks a fight, Eevee stops to say hello, a Fire type
   basks on a sunny day, a fast one dashes across.
 - **It hits back.** Yours has a health bar too; at 0 it faints and rests 10 minutes (no hearts
-  lost). Pick a strong attacker with a good type.
+  lost), or a **Revive** brings it back at once. Berries heal one that's hurt. Pick a strong
+  attacker with a good type.
 - **Watch the bar.** The weaker it is, the easier the catch, up to **×2**. A hit a little more than
   its health leaves it a sliver; a hit **twice its health or more** knocks it out, and in the red
   **half again** (20% left and a 30% hit: gone). The bar blinks red when the next hit may be too much. Then throw.
