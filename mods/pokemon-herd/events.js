@@ -65,7 +65,7 @@ const LEGENDS = WALKABLE.filter((dex) => isLegendary(dex));
 // A raid, as kept in shared state: { v: 1, id, at (the egg), hatch, until, boss: { dex, alpha?,
 // legend?, shiny? }, hp (0..1), hits: [{ at, pane, key, type, eff, dmg }], beaten?, paid? }.
 // `how`: { caught: the Pokédex's caught (a legendary boss is a new one), agents: how many agents
-// are working (its bulk: RAID_HP, and RAID_HP_PER for each one past the first) }.
+// open, each a Pokémon that can hit it (its bulk: RAID_HP, and RAID_HP_PER for each one past the first) }.
 export function newRaid(now, rnd = Math.random, how = {}) {
   let boss;
   if (rnd() < RAID_LEGEND) {
@@ -107,7 +107,7 @@ export function raidPhase(r, now) {
 // `before` to `after` past a multiple of RAID_WORK (MAX_EGGS a day at most), and none is on now.
 // `laid`: the eggs laid today already (eggsOn). (It was RAID_WORK × the agents open: seven open,
 // mostly idle or done, needed 17½ hours of work for one egg. The boss is as sturdy as the agents
-// working when it hatches, so a big team still meets a bigger one.)
+// open when it's laid, so a big team still meets a bigger one.)
 export function laysEgg(before, after, phase, laid = 0) {
   const per = RAID_WORK;
   const a = Math.floor(before / per), b = Math.floor(after / per);

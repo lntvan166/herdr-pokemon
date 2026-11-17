@@ -1549,13 +1549,15 @@ export default class PokemonHerd extends View {
     return fighterKey(pick.dex, { form: pick.form, mega: megaShown(pick, "working") ? (megaForm(pick.dex, pick.megaKind)?.kind ?? "") : null });
   }
   // The day's work went from `before` to `after` minutes (the counting strip): every 2½ hours of
-  // of all agents' work together (2 a day at most), with none on, an egg; its boss as sturdy as the agents working.
+  // of all agents' work together (2 a day at most), with none on, an egg; its boss as sturdy as the agents open (each a Pokémon to hit it).
   raidEgg(before, after, now) {
     if (!settingsNow().raids) return;
     const r = loadRaid(shared(RAID_KEY));
     const day = dayOf(now), laid = eggsOn(r, day); // the day's eggs so far: 2 at most, however many agents
     if (!laysEgg(before, after, raidPhase(r, now), laid)) return;
-    const agentsNow = herdAgents().filter((x) => x.pane && x.status === "working").length; // its bulk: by the agents working
+    // Its bulk: by the Pokémon that can hit it, every agent open (by those working, a boss hatched
+    // with most agents done was the least, and seven beat it in three hits).
+    const agentsNow = herdAgents().filter((x) => x.pane).length;
     setShared(RAID_KEY, newRaid(now, Math.random, { caught: new Set(pokedex().caught), agents: agentsNow, day, eggs: laid }));
   }
   // One of yours (`a`, its agent; `pick`) hits the boss at `at` (harder while its agent works).
