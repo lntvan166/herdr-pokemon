@@ -116,9 +116,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   5–6 of its species, a shiny among them 1 outbreak in 3 (an ordinary 20 minutes at Often: ~4,
   1 in 17).
 - **Raids** (`events.js`, shared `pokemon-herd-raid`; Settings → Trainer → Events): time, not
-  jobs (a message to an agent counts as a job: jobs could be spammed). Every 150 minutes of work
-  per agent (the agents' minutes over how many there are), 2 a day at most (`laysEgg`; about 0.7
-  a day on a light day, 1.7 on a busy one: `scripts/sim-raid.mjs day`), an egg (PokeAPI's `pokemon/egg` sprite) in
+  jobs (a message to an agent counts as a job: jobs could be spammed). Every 150 minutes of all
+  agents' work together, 2 a day at most (`laysEgg`; it was per agent open, and seven open, most
+  idle, needed 17½ hours of work for one), an egg (PokeAPI's `pokemon/egg` sprite) in
   the middle of the first row, wobbling its last 30 s; 5 minutes later it hatches into a boss ×1.8
   (an Alpha at its last stage; 1 in 5 a legendary not caught yet), with a health bar, for 30
   minutes; no other visitors meanwhile. Its bulk: 3 for each agent working when it hatches (at least
@@ -136,7 +136,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   health and a ball over its head, to be caught. Its notes: "🥚 Raid egg · hatches in 4m",
   "⚔ Raid: Alpha Tyranitar · 24m left", "⚔ Raid won!…" (90 s, or 8 s once caught), "… got away".
 - **Today's events** (the Bag's Today tab, `todayEvents`): under the Research, a row for raids
-  (the work per agent to the next egg as a bar, "egg 1 of 2 today"; an egg hatching; the boss's
+  (the agents' work to the next egg as a bar, "egg 1 of 2 today"; an egg hatching; the boss's
   health in a raid on) and one for the day's outbreak (its species and time, the time left while
   on, or over).
 - **Legendaries** (`LEGENDARY`): locked in the picker and for new agents until one is caught

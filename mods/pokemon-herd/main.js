@@ -994,7 +994,7 @@ export default class PokemonHerd extends View {
     if (c.ms && a.pane) {
       const before = dailyNow().count.work ?? 0;
       research("work", c.ms / 60000);
-      this.raidEgg(before, dailyNow().count.work ?? 0, now); // every 4 hours of work, an egg
+      this.raidEgg(before, dailyNow().count.work ?? 0, now); // every 2½ hours of all agents' work, an egg
     }
     if (!c.job) return;
     if (a.pane) research("job", 1, pick?.dex); // the day's Research: a job, and its Pokémon's type
@@ -1526,12 +1526,12 @@ export default class PokemonHerd extends View {
     return fighterKey(pick.dex, { form: pick.form, mega: megaShown(pick, "working") ? (megaForm(pick.dex, pick.megaKind)?.kind ?? "") : null });
   }
   // The day's work went from `before` to `after` minutes (the counting strip): every 2½ hours of
-  // work per agent (2 a day at most), with none on, an egg; its boss as sturdy as the agents working.
+  // of all agents' work together (2 a day at most), with none on, an egg; its boss as sturdy as the agents working.
   raidEgg(before, after, now) {
     if (!settingsNow().raids) return;
     const r = loadRaid(shared(RAID_KEY));
     const day = dayOf(now), laid = eggsOn(r, day); // the day's eggs so far: 2 at most, however many agents
-    if (!laysEgg(before, after, raidPhase(r, now), herdAgents().filter((x) => x.pane).length, laid)) return;
+    if (!laysEgg(before, after, raidPhase(r, now), laid)) return;
     const agentsNow = herdAgents().filter((x) => x.pane && x.status === "working").length; // its bulk: by the agents working
     setShared(RAID_KEY, newRaid(now, Math.random, { caught: new Set(pokedex().caught), agents: agentsNow, day, eggs: laid }));
   }
@@ -3246,7 +3246,7 @@ export default class PokemonHerd extends View {
       ),
       heading("Events"),
       panel(
-        line("Raids", "Every 2½ hours of work per agent in a day (2 at most), an egg; 5 minutes on, a boss: drag your Pokémon onto it, each once a minute (harder while its agent works). Beat it to catch it.",
+        line("Raids", "Every 2½ hours of your agents' work in a day, all together (2 at most), an egg; 5 minutes on, a boss: drag your Pokémon onto it, each once a minute (harder while its agent works). Beat it to catch it.",
           swtch("set-raids", st.raids, () => setSetting("raids", !st.raids))),
         line("Mass Outbreaks", "Once a day, one species walks by again and again for 20 minutes, shinies likelier.",
           swtch("set-outbreaks", st.outbreaks, () => setSetting("outbreaks", !st.outbreaks))),
@@ -4182,18 +4182,17 @@ export default class PokemonHerd extends View {
     // The weather (weather.js): which types it boosts.
     const w = this.boostNow();
     out.push([w.icon, weatherText(w).replace(/^\S+ /, ""), "Their moves hit ×1.2, and more of them walk by", null, false]);
-    // Raids: the egg's hatching, the boss's health, or the work (per agent) to the next egg.
+    // Raids: the egg's hatching, the boss's health, or the work (all agents') to the next egg.
     const r = loadRaid(shared(RAID_KEY));
     const ph = raidPhase(r, now);
     const boss = r ? `${r.boss.alpha ? "Alpha " : ""}${fullName(r.boss.dex)}` : "";
-    const agentsN = Math.max(1, herdAgents().filter((x) => x.pane).length);
-    const per = (daily.count.work ?? 0) / agentsN;
+    const per = daily.count.work ?? 0; // all agents' work today, together
     const laid = Math.min(MAX_EGGS, eggsOn(r, dayOf(now))); // the eggs laid today (kept with the raid)
     if (!st.raids) out.push(["⚔", "Raids are off", "Settings → Trainer → Events", null, false]);
     else if (ph === "egg") out.push(["🥚", `A raid egg: it hatches in ${left(r.hatch - now)}`, "Then drag your Pokémon onto its boss", 1 - (r.hatch - now) / EGG_MS, true]);
     else if (ph === "battle") out.push(["⚔", `Raid on: ${boss} · ${left(r.until - now)} left`, `${Math.round(100 * r.hp)}% of its health left · drag yours onto it`, 1 - r.hp, true]);
     else if (laid >= MAX_EGGS) out.push(["🥚", `Raids: both of today's eggs laid`, "More tomorrow", 1, false]);
-    else out.push(["🥚", `Next raid egg: egg ${laid + 1} of ${MAX_EGGS} today`, `${hm(per % RAID_WORK)} of ${hm(RAID_WORK)} of work per agent`, (per % RAID_WORK) / RAID_WORK, false]);
+    else out.push(["🥚", `Next raid egg: egg ${laid + 1} of ${MAX_EGGS} today`, `${hm(per % RAID_WORK)} of ${hm(RAID_WORK)} of your agents' work`, (per % RAID_WORK) / RAID_WORK, false]);
     // The outbreak: called or on now, coming at a time today, or over.
     const on = st.outbreaks ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
     const d = new Date(now);

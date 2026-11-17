@@ -38,10 +38,8 @@ test("during an outbreak most visitors are its species, a legendary stays itself
   assert.equal(outbreakPick({ dex: 16 }, o, () => 0).shiny, true); // 1 in 16 hit
 });
 
-test("raids: an egg every 2½ hours of work per agent (2 a day at most), it hatches, then 30 minutes", () => {
-  assert.equal(laysEgg(3 * RAID_WORK - 10, 3 * RAID_WORK + 5, null, 3), true); // three agents: 3 × 2½ hours in all
-  assert.equal(laysEgg(RAID_WORK - 10, RAID_WORK + 5, null, 3), false); // not yet, with three
-  assert.equal(laysEgg(RAID_WORK - 10, RAID_WORK + 5, null), true); // one agent: its 2½ hours
+test("raids: an egg every 2½ hours of all agents' work together (2 a day at most), it hatches, then 30 minutes", () => {
+  assert.equal(laysEgg(RAID_WORK - 10, RAID_WORK + 5, null), true); // 2½ hours in all, however many agents are open
   assert.equal(laysEgg(RAID_WORK + 5, RAID_WORK + 50, null), false); // not again till 8
   assert.equal(laysEgg(2 * RAID_WORK - 1, 2 * RAID_WORK, "gone"), true);
   assert.equal(laysEgg(0, RAID_WORK - 1, null), false);
@@ -122,7 +120,7 @@ test("2 eggs a day, however the number of agents changes; every pane's cooldown 
   let r = null, laid = 0;
   const steps = [[0, 160, 1], [160, 310, 2], [310, 460, 3], [460, 610, 4]];
   for (const [b, a, n] of steps) {
-    if (laysEgg(b, a, null, n, eggsOn(r, 100))) { r = newRaid(0, () => 0.5, { day: 100, eggs: eggsOn(r, 100) }); laid++; }
+    if (laysEgg(b, a, null, eggsOn(r, 100))) { r = newRaid(0, () => 0.5, { day: 100, eggs: eggsOn(r, 100) }); laid++; }
   }
   assert.equal(laid, MAX_EGGS);
   assert.equal(eggsOn(r, 101), 0); // a new day

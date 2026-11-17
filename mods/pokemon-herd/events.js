@@ -103,12 +103,13 @@ export function raidPhase(r, now) {
   if (now < r.until) return "battle";
   return now < r.until + 8000 ? "gone" : null;
 }
-// Whether work done lays an egg: the day's minutes of work (all agents') went from `before` to
-// `after` past a multiple of RAID_WORK × `agents` (MAX_EGGS a day at most), and none is on now.
-// `laid`: the eggs laid today already (eggsOn): never more than MAX_EGGS, however the number of
-// agents changes through the day (it moves the multiples).
-export function laysEgg(before, after, phase, agents = 1, laid = 0) {
-  const per = RAID_WORK * Math.max(1, agents);
+// Whether work done lays an egg: the day's minutes of work (all agents' together) went from
+// `before` to `after` past a multiple of RAID_WORK (MAX_EGGS a day at most), and none is on now.
+// `laid`: the eggs laid today already (eggsOn). (It was RAID_WORK × the agents open: seven open,
+// mostly idle or done, needed 17½ hours of work for one egg. The boss is as sturdy as the agents
+// working when it hatches, so a big team still meets a bigger one.)
+export function laysEgg(before, after, phase, laid = 0) {
+  const per = RAID_WORK;
   const a = Math.floor(before / per), b = Math.floor(after / per);
   return laid < MAX_EGGS && b > a && b >= 1 && b <= MAX_EGGS && (phase === null || phase === "gone");
 }
