@@ -7,6 +7,14 @@ import { REACTIONS, FIDGETS, FACING } from "./react.js";
 import { sheetPlan, spriteScale } from "./sheets.js";
 import { megasFrom, isStale } from "./megas.js";
 import { versionIn } from "./update.js";
+// Files moved and removed with Herdr's fs, not mv/rm/mkdir: those are shell built-ins on
+// Windows, not programs, so exec can't start them there. (fs has no rename: a move is a copy of
+// the bytes, then the part file removed.)
+async function moveFile(tmp, dest) {
+  await fs.writeFile(dest, await fs.readFile(tmp));
+  await fs.unlink(tmp).catch(() => null);
+}
+const removeFile = (path) => fs.unlink(path).catch(() => null);
 
 import { DATA_REL, REPO } from "./id.js";
 export { DATA_REL };
@@ -254,8 +262,7 @@ async function ensureWhiteNow(rel) {
   if (await fs.exists(out).catch(() => false)) return;
   const tmp = out.replace(/\.gif$/, ".part.gif");
   await im("convert", [src, "-coalesce", "-fill", "white", "-colorize", "100", "-set", "dispose", "Background", tmp]);
-  const r = await exec("mv", ["-f", tmp, out]);
-  if (r.code !== 0) throw new Error("white move failed");
+  await moveFile(tmp, out);
 }
 
 // An Alpha's ring on the ground: an ellipse, a bright red rim round a pale red inside, drawn once
@@ -269,8 +276,7 @@ export async function ensureRing() {
   const tmp = `${file}.part.png`;
   await im("convert", ["-size", "240x48", "xc:none", "-fill", "#ff5a5a50", "-stroke", "#ff4040", "-strokewidth", "5",
     "-draw", "ellipse 120,24 114,19 0,360", tmp]);
-  const r = await exec("mv", ["-f", tmp, file]);
-  if (r.code !== 0) throw new Error("ring move failed");
+  await moveFile(tmp, file);
   return RING_REL;
 }
 
@@ -290,8 +296,7 @@ export async function ensureMegaMark() {
     "-stroke", "none", "-fill", "#ffffffee", "-draw", "circle 32,32 32,14",
     "-fill", "#b070ff", "-draw", "path 'M 32,18 C 44,30 42,44 32,46 C 22,44 20,30 32,18 Z'",
     "-fill", "#ffffff", "-draw", "circle 32,38 32,34", tmp]);
-  const r = await exec("mv", ["-f", tmp, file]);
-  if (r.code !== 0) throw new Error("mega mark move failed");
+  await moveFile(tmp, file);
   return MEGA_MARK_REL;
 }
 
@@ -316,8 +321,7 @@ async function ensureIconNow(dex, form) {
   const tmp = `${file}.part`;
   await curl([[tmp, `${PORTRAITS}/${pad(dex)}${form ? `/${form}` : ""}/Normal.png`]]);
   if (await imageMagick()) await im("mogrify", ["-scale", "200%", tmp]).catch(() => null);
-  const r = await exec("mv", ["-f", tmp, file]); // no fs.rename here
-  if (r.code !== 0) throw new Error("icon move failed");
+  await moveFile(tmp, file);
 }
 
 // Item and badge art from PokeAPI's sprites ("items/fire-stone", "badges/3"), downloaded once.
@@ -333,8 +337,7 @@ async function ensureArtNow(key) {
   const tmp = `${file}.part`;
   await curl([[tmp, `${POKEAPI}/${key}.png`]]);
   if (key.startsWith("items/") && (await imageMagick())) await im("mogrify", ["-scale", "200%", tmp]).catch(() => null);
-  const r = await exec("mv", ["-f", tmp, file]);
-  if (r.code !== 0) throw new Error("art move failed");
+  await moveFile(tmp, file);
 }
 
 // A species' cry (PokeAPI's cries, Ogg Vorbis), turned into an MP3 for playSound with ffmpeg.
@@ -352,7 +355,7 @@ export async function ensureCry(dex) {
   const ogg = `${dir}/${dex}.ogg`;
   await curl([[ogg, `${CRIES}/${dex}.ogg`]]);
   const r = await exec("ffmpeg", ["-loglevel", "error", "-y", "-i", ogg, "-q:a", "5", file]);
-  await exec("rm", ["-f", ogg]).catch(() => null);
+  await removeFile(ogg);
   return r.code === 0 ? cryPath(dex) : null;
 }
 
@@ -387,7 +390,7 @@ export async function savedMegas() {
 export const refreshMegas = (saved, now = Date.now()) => once("megas", () => refreshMegasNow(saved, now)); // one download (10 MB) for every window
 async function refreshMegasNow(saved, now = Date.now()) {
   if (!isStale(saved?.at, now)) return null;
-  await exec("mkdir", ["-p", DATA]);
+  await fs.mkdir(DATA, { recursive: true });
   const tmp = `${DATA}/tracker.json.part`;
   let megas = saved?.megas ?? {};
   try {
@@ -395,7 +398,7 @@ async function refreshMegasNow(saved, now = Date.now()) {
     const fresh = megasFrom(JSON.parse(await fs.readFile(tmp, "utf8")));
     if (Object.keys(fresh).length) megas = fresh; // an empty or odd tracker never wipes the list
   } finally {
-    await exec("rm", ["-f", tmp]).catch(() => null);
+    await removeFile(tmp);
     await fs.writeFile(MEGAS_FILE, JSON.stringify({ v: 2, at: now, megas }));
   }
   return megas;
@@ -411,7 +414,7 @@ export async function latestVersion(now = Date.now(), fresh = false) {
     saved = JSON.parse(await fs.readFile(LATEST_FILE, "utf8"));
   } catch {}
   if (!fresh && !isStale(saved?.at, now)) return saved?.version ?? null;
-  await exec("mkdir", ["-p", DATA]);
+  await fs.mkdir(DATA, { recursive: true });
   const tmp = `${DATA}/id.js.part`;
   let version = saved?.version ?? null;
   try {
@@ -420,7 +423,7 @@ export async function latestVersion(now = Date.now(), fresh = false) {
   } catch {
     // offline or rate-limited: try again tomorrow
   } finally {
-    await exec("rm", ["-f", tmp]).catch(() => null);
+    await removeFile(tmp);
     await fs.writeFile(LATEST_FILE, JSON.stringify({ at: now, version }));
   }
   return version;
