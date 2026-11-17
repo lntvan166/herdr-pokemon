@@ -122,3 +122,8 @@ test("searchEntries by type: one, or two together (as it fights: a form's own ty
   const water = searchEntries("rotom", 9, { types: ["water"], typesOf: typesOfE }).entries;
   assert.deepEqual(water, [{ dex: 479, form: "0002" }]); // Rotom Wash
 });
+
+test("RECIPE.md stays under herdr.dev's 64 KB (the gallery skips a bigger one)", async () => {
+  const { statSync } = await import("node:fs");
+  assert.ok(statSync(new URL("../RECIPE.md", import.meta.url)).size < 60 * 1024);
+});
