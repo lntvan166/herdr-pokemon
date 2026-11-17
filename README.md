@@ -13,7 +13,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 - ⚔️ **Battle them first**: real base stats and the full type chart ("It's super effective!").
   They hit back.
 - ✦ **Legendaries** locked until you catch one; **Alphas** α, bigger and tougher.
-- 📋 **Daily Research**: three tasks from your work; finish all three and a legendary appears.
+- 📋 **Daily Research**: three tasks from your work; finish all three for an Azure Flute that calls a legendary when you're ready.
 - ₽ **Pokédollars** from your agents' work, a **Shop**, a **Box**, a **Pokédex**.
 - 💗 **Hearts and evolution** that grow with your agents: 15 jobs then 30, a stone, friendship. A Rare Candy is 5 jobs.
 - 🗂 **Pokémon Sidebar**: your agents as cards with their Pokémon.
@@ -35,7 +35,7 @@ for you when it's blocked. Meanwhile wild Pokémon walk by to battle and catch.
 | **Mass Outbreak** | Once a day, for 20 minutes, one species keeps walking by; shinies 1 in 16. |
 | **Box** | Sort it, Lock (🔒) the ones you love, and release many at once (Select → Duplicates keeps the best of each species). Each one released leaves ₽10, ₽50 for a shiny or an Alpha. |
 | **Rare ones** | Shiny 1 in 64 · Alpha 1 in 40 (½ as easy, ₽150, ♥2) · Legendary 1 in 150, or call one with the Azure Flute. |
-| **Today** | Three Research tasks a day, each paying ₽ or balls; all three: 5 Ultra Balls and a legendary. |
+| **Today** | Three Research tasks a day, each paying ₽ or balls; all three: 5 Ultra Balls and an Azure Flute (call a legendary when you're watching). |
 | **Pokédollars** | Jobs pay ₽1 + ₽5 a minute (about ₽300 an hour of agents' work). Shop via **☰ in the strip's corner (or right-click the ground) → Box → Shop**. Anything sells back for half. |
 | **Hearts** | Pats, quick answers, spars and Berries (three a day). Most evolve after 15 jobs, then 30 more; a Rare Candy counts for 5. |
 
@@ -103,7 +103,7 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
 | α **Alpha** | 1 wild one in 40 | Bigger, a red ring and α. Half as easy to catch and tougher in battle; carries ₽150 and twice the gift. Caught, it stays an Alpha: ♥2, hits harder, takes less. |
 | ☾ **Shadow Alpha** | 1 Alpha in 3 | A dark violet aura. Hits and takes ×1.2. Caught, purify it in the Box once it has ♥4: it stays an Alpha, gains a heart and ₽100. |
 | ⇕ **XXL / XXS** | 1 wild one in 40 each (XL / XS 1 in 8) | Not stronger: an XXS is hard to hit (moves miss it 1 in 8), an XXL is heavy (knocked back less, knocks the other further). Caught, it keeps its size (in the Box); the Pokédex keeps each species' biggest and smallest, and one that would beat it says so under its feet. |
-| ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) or by finishing the day's Research | Mewtwo, Rayquaza… always one you haven't caught yet, till you have them all. Locked in the picker until you catch one. Very hard: it walks slowly, and you have 20 balls before it runs away. |
+| ✦ **Legendary** | 1 wild one in 150, or called by the **Azure Flute** (₽1,000) (one for finishing the day's Research) | Mewtwo, Rayquaza… always one you haven't caught yet, till you have them all. Locked in the picker until you catch one. Very hard: it walks slowly, and you have 20 balls before it runs away. |
 
 **Genders.** Each Pokémon is ♂ or ♀ as its species is in the games (Chansey always ♀, Tauros
 always ♂, Magnemite neither). 59 species look different as females, and the strip draws them so:

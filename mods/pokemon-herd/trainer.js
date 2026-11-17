@@ -7,7 +7,7 @@ import { typeOf, TYPES } from "./types.js";
 
 // ---- legendary and mythical Pokémon ------------------------------------------------
 // They don't come to new agents, nor can they be chosen in the picker, until one is caught.
-// A wild one walks by now and then (LEGEND_ODDS), and the day's Research, all done, calls one.
+// A wild one walks by now and then (LEGEND_ODDS), and an Azure Flute (the day's Research, all done, gives one) calls one.
 const LEGENDS = [144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, ...range(377, 386), ...range(480, 494),
   ...range(638, 649), ...range(716, 721), 772, 773, ...range(785, 792), 800, 801, 802, 807, 808, 809, ...range(888, 898),
   905, 1001, 1002, 1003, 1004, 1007, 1008, 1014, 1015, 1016, 1017, 1024, 1025];
@@ -431,7 +431,7 @@ export const TASKS = {
   spar: { goals: [2, 3], text: (n) => `Watch ${n} spars`, pay: () => ({ money: 180 }) },
 };
 // Balls as pay are worth about what the money tasks pay (₽450–750: 15–20 Poké Balls, 8 Great
-// Balls); all three done: 5 Ultra Balls, and a legendary comes.
+// Balls); all three done: 5 Ultra Balls, and an Azure Flute (main.js research) to call a legendary.
 export const BONUS = { item: "ultra-ball", count: 5 };
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 export const taskText = (t) => TASKS[t.id]?.text(t.goal, t.type) ?? t.id;

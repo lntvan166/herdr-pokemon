@@ -270,13 +270,15 @@ function payOut(p) {
   saveBag(b);
 }
 // Something the Research counts happened (`ev`: job, type, work, quick, pet, catch, gift, berry,
-// spar; `dex`: whose). Pays each task as it is done; all three call a legendary over. Returns
+// spar; `dex`: whose). Pays each task as it is done; all three give an Azure Flute (a legendary
+// called when you choose: it came at once, and a task done by agents' work alone, nobody watching,
+// lost it). Returns
 // what was finished, for a note on the strip.
 function research(ev, n = 1, dex = null) {
   const r = progress(dailyNow(), ev, n, dex);
   setShared(DAILY_KEY, r.daily);
   for (const t of r.done) payOut(taskPay(t));
-  if (r.bonus) { payOut(BONUS); setShared(LEGEND_KEY, Date.now()); }
+  if (r.bonus) { payOut(BONUS); payOut({ item: "azure-flute", count: 1 }); }
   return r;
 }
 // Pokédollars from clicking about (a visitor's purse, "purse"; a pat or a spar, "tip"), within the
@@ -1754,6 +1756,8 @@ export default class PokemonHerd extends View {
     const b0 = bag();
     const bait = baitFor(b0.items, v.pick, ball, shared(BAIT_KEY)); // the one set, or Auto's pick
     saveBag(addItem(bait ? addItem(b0, bait, -1) : b0, ball, -1));
+    // A Master Ball thrown: back to Auto, so the next wild one doesn't take another by mistake.
+    if (ball === "master-ball" && shared(BALL_KEY) === "master-ball") setShared(BALL_KEY, null);
     v.throws = (v.throws ?? 0) + 1;
     if (bait) research("berry"); // a Berry fed to a wild one counts too
     const now = Date.now();
@@ -2988,7 +2992,7 @@ export default class PokemonHerd extends View {
       ["⚔️", "Weaken it", "Drop one of yours on it (a Mega Evolves, and hits harder). Stop at red."],
       ["🍒", "Berries", "Razz before a ball: easier catch. Oran, Sitrus: hearts."],
       ["✨", "Rare ones", "Shiny 1 in 64 · Alpha α 1 in 40 · Legendary 1 in 150."],
-      ["📋", "Today", "3 tasks a day. All three: 5 Ultra Balls and a legendary."],
+      ["📋", "Today", "3 tasks a day. All three: 5 Ultra Balls and an Azure Flute, to call a legendary when you're ready."],
       ["₽", "Pokédollars", "Jobs pay by the minute. Shop: ☰ → Box → Shop."],
       ["🥚", "Raids", "Work lays an egg (twice a day at most). Drag yours onto its boss, once a minute each."],
       ["🌈", "Weather", "Rain, night or the season boosts some types: their moves hit harder, more walk by (Today)."],
@@ -4042,40 +4046,54 @@ export default class PokemonHerd extends View {
       .child(div().text_size(12).text_color(t.foreground).child(p.money ? money(p.money) : `${p.count > 1 ? `${p.count} × ` : ""}${ITEMS[p.item]?.name ?? p.item}`));
     const all = daily.tasks.every((x) => x.n >= x.goal);
     const shown = (x) => (x.id === "work" ? `${Math.floor(x.n / 60)}h${String(Math.floor(x.n % 60)).padStart(2, "0")} of ${x.goal / 60}h` : `${Math.floor(x.n)} of ${x.goal}`);
-    return v_flex().flex_none().h(h).gap(10)
-      .child(div().text_size(12).text_color(daily.yesterday ? t.foreground : t.muted)
-        .child(daily.yesterday ? recapText(daily.yesterday) : "Today's Research: three tasks from your day's work. New ones at midnight."))
-      .children(daily.tasks.map((x, i) => {
-        const done = x.n >= x.goal;
-        return h_flex().id(`task-${i}`).h(58).px(14).gap(12).items_center().rounded(10).bg(t.raised)
-          .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none()
-            .bg(done ? t.accent : t.border).text_color(done ? t.accent_foreground : t.muted).text_size(13)
-            .child(done ? "✓" : String(i + 1)))
-          .child(v_flex().flex_1().min_w(0).gap(5)
-            .child(div().text_size(13).text_color(done ? t.muted : t.foreground).truncate().child(taskText(x)))
-            .child(h_flex().gap(8).items_center()
-              .child(bar(x.n / x.goal, 160))
-              .child(div().text_size(11.5).text_color(t.muted).child(done ? "Done, paid" : shown(x)))))
-          .child(reward(taskPay(x)));
-      }))
-      .child(h_flex().h(58).px(14).gap(12).items_center().rounded(10).bg(t.raised).border_1().border_color(all ? t.accent : t.raised)
-        .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none().text_size(14)
-          .child("✦"))
-        .child(v_flex().flex_1().min_w(0).gap(3)
-          .child(div().text_size(13).text_color(t.foreground).child(all ? "All three done: a legendary Pokémon is on its way" : "All three: a legendary Pokémon walks by"))
-          .child(div().text_size(11.5).text_color(t.muted).child(settingsNow().visitors === "off" ? "Visitors are off (Settings): it can't come." : "Have a Master Ball or an Ultra Ball ready.")))
-        .child(reward(BONUS)))
-      // The day's events: how far to the next raid egg (or the raid on), and the day's outbreak.
-      .children(this.todayEvents(daily).map(([icon, title, sub, frac, live], k) => h_flex().id(`event-${k}`).h(50).px(14).gap(12).items_center().rounded(10).bg(t.raised)
-        .child(div().size(26).rounded_full().flex().items_center().justify_center().flex_none().text_size(14)
-          .when(!!live, (el) => el.loop("opacity", { from: 0.5, to: 1, period: 1100 })).child(icon))
-        .child(v_flex().flex_1().min_w(0).gap(4)
-          .child(div().text_size(12.5).text_color(t.foreground).truncate().child(title))
-          .child(h_flex().gap(8).items_center()
-            .when(frac !== null, (el) => el.child(bar(frac, 120)))
-            .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted).child(sub))))))
+    const doneN = daily.tasks.filter((x) => x.n >= x.goal).length;
+    // Two parts, each a heading and one card of rows split by thin lines: the Research (its three
+    // tasks and what all three give), then what's on today (weather, the raid egg, the outbreak).
+    const heading = (title, right, extra = null) => h_flex().gap(8).items_center().px(2)
+      .child(div().text_size(13).font_semibold().text_color(t.foreground).child(title))
+      .when(!!extra, (el) => el.child(extra))
       .child(div().flex_1())
-      .child(div().text_size(11.5).text_color(t.muted).child("Tasks change at midnight; each pays the moment it's done."));
+      .child(div().text_size(11).text_color(t.muted).child(right));
+    const card = (rows) => v_flex().rounded(10).bg(t.raised).overflow_hidden()
+      .children(rows.flatMap((r, i) => (i ? [div().h(1).mx(14).bg(t.border), r] : [r])));
+    const dot = (content, on, live = false) => div().size(24).rounded_full().flex().items_center().justify_center().flex_none()
+      .bg(on ? t.accent : t.border).text_color(on ? t.accent_foreground : t.muted).text_size(12.5)
+      .when(live, (el) => el.loop("opacity", { from: 0.5, to: 1, period: 1100 })).child(content);
+    const tasks = daily.tasks.map((x, i) => {
+      const done = x.n >= x.goal;
+      return h_flex().id(`task-${i}`).h(50).px(14).gap(12).items_center()
+        .child(dot(done ? "✓" : String(i + 1), done))
+        .child(v_flex().flex_1().min_w(0).gap(4)
+          .child(div().text_size(12.5).text_color(done ? t.muted : t.foreground).truncate().child(taskText(x)))
+          .child(h_flex().gap(8).items_center()
+            .child(bar(x.n / x.goal, 140))
+            .child(div().text_size(11).text_color(t.muted).child(done ? "Done, paid" : shown(x)))))
+        .child(reward(taskPay(x)));
+    });
+    const bonus = h_flex().h(52).px(14).gap(12).items_center().bg(all ? t.selected : "#00000000")
+      .child(dot("✦", all))
+      .child(v_flex().flex_1().min_w(0).gap(3)
+        .child(div().text_size(12.5).text_color(t.foreground).child(all ? "All three done: an Azure Flute is in your Bag" : "All three: an Azure Flute, to call a legendary"))
+        .child(div().text_size(11).text_color(t.muted).truncate().child(settingsNow().visitors === "off" ? "Visitors are off (Settings): it can't come." : "Use it from the menu when you're watching; have a Master Ball or Ultra Balls ready.")))
+      .child(reward(BONUS))
+      .child(div().text_size(12).text_color(t.muted).child("+"))
+      .child(art(ITEMS["azure-flute"]?.art, 20));
+    const events = this.todayEvents(daily).map(([icon, title, sub, frac, live], k) => h_flex().id(`event-${k}`).h(46).px(14).gap(12).items_center()
+      .child(div().size(24).flex().items_center().justify_center().flex_none().text_size(14)
+        .when(!!live, (el) => el.loop("opacity", { from: 0.5, to: 1, period: 1100 })).child(icon))
+      .child(v_flex().flex_1().min_w(0).gap(4)
+        .child(div().text_size(12.5).text_color(t.foreground).truncate().child(title))
+        .child(h_flex().gap(8).items_center()
+          .when(frac !== null, (el) => el.child(bar(frac, 120)))
+          .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child(sub)))));
+    return v_flex().flex_none().h(h).gap(8)
+      .child(heading("Research", "New tasks at midnight · each pays when done",
+        div().h(18).px(7).rounded_full().flex().items_center().text_size(11).bg(doneN === 3 ? t.accent : t.border).text_color(doneN === 3 ? t.accent_foreground : t.foreground).child(`${doneN}/3`)))
+      .child(card([...tasks, bonus]))
+      .when(!!daily.yesterday, (el) => el.child(div().px(2).text_size(11).text_color(t.muted).truncate().child(recapText(daily.yesterday))))
+      .child(div().h(6))
+      .child(heading("On today", "Weather, the raid egg, the outbreak"))
+      .child(card(events));
   }
 
   // Today's events, each [icon, title, what's next, progress 0..1 or null, on now?].
@@ -5092,7 +5110,7 @@ export default class PokemonHerd extends View {
             .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pv.shiny ? "✨ " : ""}${fullName(pv.dex, pv.form)}`)))
             .child(div().text_size(11).text_color(t.dim).child(`${dexNo(pv.dex)} · ${regionOf(pv) ?? ""}`)))
           .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) === "trainer" ? "Trainer mode: catch one as it walks by, or raise yours till it evolves."
-            : this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research calls one), or open them all in Settings."
+            : this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research gives an Azure Flute to call one), or open them all in Settings."
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
             : "Preview: click another to see it, or Replace to take this one")))
         // Favourites are starred here (or on the card, for the one it is).

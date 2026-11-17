@@ -15,7 +15,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Prices are set from a working day (~₽3,000); anything sells back for half.
 - **Catching:** a visitor's first click takes its gift and purse; then, with a ball over its
   head, a click throws one: the chosen ball (Bag, menu, or right-click the visitor) or Auto
-  (cheapest; an Ultra Ball for a shiny, an Alpha or a legendary; never a Master Ball: that one only when chosen). A Berry goes
+  (cheapest; an Ultra Ball for a shiny, an Alpha or a legendary; never a Master Ball: that one only when chosen, and once thrown the choice goes back to Auto). A Berry goes
   before each ball (Razz ×1.5, Golden Razz ×2.5, Pinap: twice the gift, Silver Pinap: both): the
   one set in the Bag or the menu, None, or Auto (the default; `baitFor`: none with a Master Ball,
   the best there is for a rare one, a Razz for any other only when the ball alone is under 50%).
@@ -173,7 +173,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **Pokédex:** species seen and caught by region; goals at 5, 15, 30, 60, 100, 200 caught pay
   money, Ultra Balls, Master Balls. A species caught shiny can be chosen shiny in the picker.
 - **Today:** three Research tasks a day, drawn from the date (every window agrees), each paying
-  when done (money, or 15–20 Poké Balls, 8 Great Balls); all three: 5 Ultra Balls and a legendary walks by. Yesterday sums up in a line.
+  when done (money, or 15–20 Poké Balls, 8 Great Balls); all three: 5 Ultra Balls and an Azure Flute, to call a legendary when you choose (it came at once, and a task done by agents' work alone, nobody watching, lost it). Yesterday sums up in a line.
 - **Trainer mode** (Settings → Trainer, off by default, its tab twinkling): only caught species
   and the three Kanto starters can be chosen or come to new agents.
 
