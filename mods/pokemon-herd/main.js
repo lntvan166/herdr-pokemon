@@ -1220,8 +1220,9 @@ export default class PokemonHerd extends View {
         // down, it waits for another of yours (its team keeps the health it has).
         v.fight = null;
         v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
-        if (fx.back?.fainted) v.trainer.fighter = null;
-        else v.trainer.nextAt = now + 500;
+        // (Yours fainted: it stops, unless another was switched in meanwhile.)
+        if (fx.back?.fainted && v.trainer.fighter === fx.own) v.trainer.fighter = null;
+        else if (v.trainer.fighter) v.trainer.nextAt = now + 500;
         return true;
       }
       v.from = fx.x;
@@ -2755,8 +2756,24 @@ export default class PokemonHerd extends View {
     }
     // Dropped by you: shaken, it reels (💫); on one asleep, it pokes it awake and they spar; on
     // one awake, they spar now (a heart each, as sparring, when neither sparred in 10 min).
-    const drop = this.dropAt;
+    let drop = this.dropAt;
     this.dropAt = null;
+    // A trainer's battle on (an exchange playing, or the next one due): another of yours dropped on
+    // its Pokémon switches in (the one fighting steps back, kept from fainting); the battle goes on
+    // with it once this exchange is over. The one fighting dragged away: it stops.
+    const tv = this.visitor;
+    const sm = drop && this.mons[drop.addr];
+    if (sm && tv?.trainer && !tv.trainer.beaten && (tv.fight || tv.trainer.nextAt) && Math.abs(sm.x - tv.x) <= 120 && drop.addr !== tv.trainer.fighter) {
+      if (now < (sm.restUntil ?? 0)) this.note(sm, "💫", now, 2500);
+      else {
+        tv.trainer.fighter = drop.addr;
+        tv.trainer.nextAt ??= now; // (playing: after it, as the exchange ends)
+        this.note(sm, "🔁", now, 2000);
+      }
+      sm.pauseUntil = now + 20000;
+      drop = null; // handled: nothing else happens to it
+    }
+    if (sm && drop && tv?.trainer?.fighter === drop.addr && Math.abs(sm.x - tv.x) > MAX_GAP + 30) { tv.trainer.fighter = null; tv.trainer.nextAt = null; }
     const dj = drop ? list.findIndex((a) => a.address === drop.addr) : -1;
     const dm = dj >= 0 && this.mons[drop.addr];
     const dMeta = dm && this.spriteFor(ids[drop.addr], list[dj].status);
