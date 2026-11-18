@@ -263,7 +263,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   to 41. A day's climb ~₽600 and its small gifts. Switching in (another of yours than the last to fight it,
   that one still up; `trainer.lastOwn`) costs it `TOWER_SWITCH` (10%) of its health, "🔄 −10%"
   (simulated: switching every exchange to the best-typed made ~9.4 floors against ~6.7 played
-  straight; with 10%, ~6.3: no gain in it; 20% ~4.5; a full free hit ~4.4, too harsh). Three faints of yours (`TOWER_LIVES`; each one out of the climb)
+  straight; with 10%, ~6.3: no gain in it; 20% ~4.5; a full free hit ~4.4, too harsh). Three faints of yours (`TOWER_LIVES`, or as many as there are
+  of yours on screen if fewer: `towerLives`; each one out of the climb; none of yours left to
+  send, the rest closed or out: over at once, "no one left"; with two it waited, three lives and
+  nobody to send, till its trainer gave up)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
   (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.
   No healing by itself while a climb is on (`trainer.js` `healed`/`healthNow(rec, now, frozenFrom)`,
@@ -283,3 +286,6 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   enough), it stops a moment (its words, if it just won), then turns and walks off to the right,
   out of the strip, and is gone: never just vanishing. No battle with it meanwhile (`wildNear`),
   not kept through a reload (`visitorSig`).
+- **A climb waiting** (the strip says what for): a wild one here when it begins hurries off
+  (`hurry`, ×4 pace: it walked the whole strip first, a minute or more), "a wild one is leaving
+  first"; a raid on, "next trainer after the raid"; else "trainer coming…" (its sprites building).

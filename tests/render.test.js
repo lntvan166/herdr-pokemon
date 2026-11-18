@@ -366,6 +366,24 @@ test("the Battle Tower: switching in costs 10%", () => {
   assert.ok(Math.abs(hpOf("t1") - (t1Before - 0.1)) < 1e-9, `switched in: 10% less (${hpOf("t1")})`);
 });
 
+// Two of yours only: two lives, and the climb ends once both are out (it waited, three lives and
+// nobody to send, till its trainer gave up).
+test("the Battle Tower: as many lives as Pokémon, ended when none is left", () => {
+  seed();
+  const KEY = `${ids.MOD}-tower`;
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now(), wins: 2, faints: 0, out: [], nextAt: Date.now() + 99999 } });
+  // Three agents: t0..t2 (p0..p2). Two of them out, the third closed: none left.
+  st.towerFaint("t0", Date.now());
+  st.towerFaint("t1", Date.now());
+  assert.ok(H.store.get(KEY).run, "one still up: on");
+  H.store.set(KEY, { ...H.store.get(KEY), run: { ...H.store.get(KEY).run, out: ["p0", "p1", "p2"] } });
+  st.visit(H.agents(), {}, null, Date.now(), cx);
+  assert.equal(H.store.get(KEY).run, null, "nobody left: over");
+  assert.equal(st.towerOver?.why, "no one left");
+});
+
 // A climb begun with a wild one walking by: it hurries off (not a whole walk across the strip),
 // and the Tower's trainer comes in right after.
 test("the Battle Tower: a wild one here hurries off for its trainer", () => {
