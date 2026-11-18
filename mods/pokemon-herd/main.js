@@ -3651,6 +3651,14 @@ export default class PokemonHerd extends View {
   }
 
   render(cx) {
+    if (!dev?.slow) return this.renderView(cx);
+    const t0 = Date.now();
+    const out = this.renderView(cx);
+    dev.slow(this.picker ? "picker" : this.bagView ? "bag" : this.monView ? "mon" : this.menu ? "menu" : this.settingsView ? "settings" : "strip", Date.now() - t0);
+    return out;
+  }
+
+  renderView(cx) {
     if (this.toastView) return this.renderToast();
     if (this.menu) return this.renderMenu();
     if (this.monView) return this.renderMon();
@@ -5285,6 +5293,18 @@ export default class PokemonHerd extends View {
 
   // The card on top of the picker: who it is now, what its species has done, its evolution line
   // (click one to switch) and how close it is to evolving, with the Everstone to stop that.
+  // The card in one line (the filters open): who it is, its hearts, how close to evolving.
+  renderCurrentLine(cur, t) {
+    const need = needsText(cur);
+    const progress = cur.stay ? "Everstone: won't evolve" : need ? `Evolves ${need}` : this.chainEntries().length > 1 ? "Fully evolved" : "Doesn't evolve";
+    return h_flex().h(44).px(10).gap(10).items_center().rounded(8).border_1().border_color(t.border).flex_none()
+      .child(this.icons[entryKey(cur)] === "ready" ? image(iconPath(cur.dex, cur.form)).size(32).flex_none() : div().size(32).flex_none())
+      .child(div().text_size(13).font_semibold().text_color(t.foreground).flex_none().child(sparkled(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`)))
+      .child(typeBadges(cur, 15, 9.5))
+      .child(h_flex().gap(1).flex_none().children(Array.from({ length: MAX_HEARTS }, (_, i) => div().text_size(11.5).text_color(i < (cur.hearts ?? 0) ? HEART : t.border).child("♥"))))
+      .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted).child(progress));
+  }
+
   renderCurrent(cur, t) {
     const chain = this.chainEntries();
     const isCur = (e) => e.dex === cur.dex && (e.form ?? null) === (cur.form ?? null);
@@ -5610,9 +5630,10 @@ export default class PokemonHerd extends View {
           ),
       )
       .when(!!this.preview, (el) => el.child(this.renderPreview(t, cx)))
-      // (Both give their room to the list while the filters are open; the Box row while a search
-      // or a filter narrows it too: then you're looking for a kind.)
-      .when(!this.preview && !this.filtersOpen && !!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
+      // (While the filters are open, the card shrinks to one line and the Box row goes, for the
+      // list's room; the Box row goes while a search or a filter narrows it too: then you're
+      // looking for a kind.)
+      .when(!this.preview && !!cur?.dex, (el) => el.child(this.filtersOpen ? this.renderCurrentLine(cur, t) : this.renderCurrent(cur, t)))
       // Waiting in the Box (raised, their agents gone), latest first: one click brings one out
       // here, whatever its kind (else only found by its species' preview).
       .when(!this.preview && !this.boxing && !narrowed && !this.filtersOpen && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
