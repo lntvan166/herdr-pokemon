@@ -542,3 +542,13 @@ test("loadPicks keeps a Mega's own moves (by kind), four at most, names only", (
   assert.deepEqual(panes.p.megaMoves, { X: ["Outrage", "Dragon Claw", "Earthquake", "Flamethrower"] });
   assert.deepEqual(panes.p.moves, ["Flamethrower"]);
 });
+
+test("leaderOf: a copy laid out (shown) leads over one never laid out, however early that one came", () => {
+  const copies = new Map();
+  assert.equal(leaderOf(copies, "hidden", 0, 3000, false), true, "alone: it leads");
+  assert.equal(leaderOf(copies, "shown", 100, 3000, true), true, "the shown one takes it");
+  assert.equal(leaderOf(copies, "hidden", 200, 3000, false), false);
+  assert.equal(leaderOf(copies, "shown", 300, 3000, true), true);
+  // Two shown: the first of them, as before.
+  assert.equal(leaderOf(copies, "shown2", 400, 3000, true), false);
+});

@@ -48,7 +48,10 @@ const beatenSay = (tr) => { const l = BEATEN_SAYS[tr.cls] ?? ["You win!"]; retur
 const OWN_FAINT_MS = 1400; // one of yours fainting: greyed out this long
 const SEND_APEX = 280, SEND_OPEN = 540, SHINY_IN = [0, 380];
 const SHINY_STYLE = { glow: "#fff4b0", core: "#ffe27a", mid: "#fffbe0", hot: "#ffffff", look: "star" };
-const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1800, WIN_PAY_END = 4800;
+// The strip's corner buttons (☰, 🔊: right 6..46, top 4..22): what a trainer says and pays, by
+// the right corner where it stands, keeps left of them (it covered ☰ for seconds).
+const CORNER_W = 56;
+const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1300, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
@@ -2363,18 +2366,20 @@ export default class PokemonHerd extends View {
       const leaving = won >= WIN_WALK_AT;
       const fig = tr && this.trainerFigure(v, figX, ground, leaving ? "R" : (fx.ownX ?? x) > x ? "R" : "L", leaving, scale);
       if (fig) root.child(div().id(`trainer-out-${v.id}`).absolute().top(0).left(leaving ? this.width + 80 - figX : 0)
-        .transition("left", { duration: WIN_WALK_MS, easing: "ease-in" }).child(fig)
+        .transition("left", { duration: WIN_WALK_MS, easing: "linear" }).child(fig) // (walking: even steps; ease-in sat still, then it was gone)
         .when(!leaving, (el) => { const b = this.trainerBalls(v, figX, ground, scale); return b ? el.child(b) : el; }));
       if (tr?.beaten && won < WIN_SAY_MS) {
+        // Over its head, kept left of the corner buttons (by its head, it sat on yours, standing
+        // there to fight it).
         const size = this.trainerSize(v, scale);
         const top = Math.max(2, ground - (size?.h ?? 40) - 30);
-        root.child(div().absolute().left(Math.min(this.width - 170, figX - 80)).top(top).w(160).flex().justify_center()
+        root.child(div().absolute().left(Math.min(this.width - CORNER_W - 160, figX - 80)).top(top).w(160).flex().justify_center()
           .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${beatenSay(tr)}”`)));
       }
       if (tr?.beaten && tr.paid?.money && won >= WIN_SAY_MS && won < WIN_PAY_END) {
         // Its pay: ₽ and the gifts' pictures, rising from where its Pokémon fell and fading.
         const id = `win-pay-${v.id}`, first = this.fxFirst(id);
-        root.child(div().id(id).absolute().left(x - 80).w(160).top(first ? headY : Math.max(0, headY - 34)).opacity(first ? 1 : 0)
+        root.child(div().id(id).absolute().left(Math.min(this.width - CORNER_W - 160, x - 80)).w(160).top(first ? headY + 10 : Math.max(24, headY - 24)).opacity(first ? 1 : 0)
           .transition("top", { duration: 1600, easing: "ease-out" }).transition("opacity", { duration: 600, delay: 1800, easing: "ease-in" })
           .flex().justify_center().gap(4).items_center()
           .child(div().px(6).h(18).rounded(9).bg("#000000b8").flex().items_center().gap(4).text_size(11.5).font_bold().text_color("#ffd23f")
@@ -2506,7 +2511,8 @@ export default class PokemonHerd extends View {
           const b = halt && this.trainerBalls(v, tx, ground, scale); // its team, once it waits
           // It won that one: its words, a moment.
           const size = cheering && this.trainerSize(v, scale);
-          const said = size && div().absolute().left(tx - 80).top(Math.max(2, ground - size.h - 30)).w(160).flex().justify_center()
+          // (Kept left of the corner buttons: this box sits at left - mid on the strip.)
+          const said = size && div().absolute().left(Math.min(tx - 80, this.width - CORNER_W - 160 - (left - mid))).top(Math.max(2, ground - size.h - 30)).w(160).flex().justify_center()
             .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${wonSay(v.trainer)}”`));
           return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
@@ -2683,7 +2689,7 @@ export default class PokemonHerd extends View {
     const tabs = tabsById();
     // One strip counts (jobs, finds, hunger, Berries, gifts, new agents' Pokémon): the leader.
     this.me ??= `${now}-${Math.random().toString(36).slice(2, 8)}`;
-    this.leader = leaderOf(COPIES, this.me, now);
+    this.leader = leaderOf(COPIES, this.me, now, 3000, !!this.sized);
     // A new player (no Pokémon saved yet, the first time): their agents as cards in the sidebar.
     if (this.leader && !shared(CARDS_KEY)) {
       setShared(CARDS_KEY, now);

@@ -507,13 +507,19 @@ export function expShareTarget(picks, giver) {
 // here, in memory, with no shared-state write (that was a write every second, all day, each one
 // redrawing every mod in every window). `copies`: a Map of copy id -> when it last ticked, kept
 // by the module; the first one still ticking (within `ttl`) leads, so it stays the same one.
-export function leaderOf(copies, me, now, ttl = 3000) {
-  copies.set(me, now);
-  for (const [id, at] of copies) {
-    if (now - at < ttl) return id === me;
-    copies.delete(id); // gone quiet: closed, or its window gone
+// `shown`: this copy is laid out (it knows its size). The leader is the first live copy that is
+// (one never laid out, in a window or place not shown, led and no wild one ever came: the shown
+// strip waited), else the first live one.
+export function leaderOf(copies, me, now, ttl = 3000, shown = true) {
+  copies.set(me, { at: now, shown });
+  let first = null;
+  for (const [id, c] of copies) {
+    const at = typeof c === "number" ? c : c.at;
+    if (!(now - at < ttl)) { copies.delete(id); continue; } // gone quiet: closed, or its window gone
+    if (typeof c === "object" && c.shown) return id === me;
+    first ??= id;
   }
-  return true;
+  return first === null || first === me;
 }
 export function electLeader(cur, me, now, ttl = 3000) {
   const free = !cur || typeof cur.id !== "string" || !(now - cur.at < ttl);
