@@ -5455,7 +5455,18 @@ export default class PokemonHerd extends View {
       .children(set.map((m) => chip(m)))
       .when(sigs.length > 0 && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
       .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : slot; })));
-    if (!editing) return row;
+    // Its Mega's own four, when they differ and none are chosen (Mega Charizard X: Outrage…): a
+    // Mega fought with moves its card never showed. Chosen ones are the same four for both.
+    const megaSets = chosen || e.form ? [] : megaForms(e.dex).map(({ kind }) => {
+      const mk = fighterKey(e.dex, { mega: kind });
+      const ms = mk === key ? null : movesetOf(mk);
+      return ms && ms.map((m) => m.name).join() !== set.map((m) => m.name).join() ? [kind, ms] : null;
+    }).filter(Boolean);
+    const megaLines = megaSets.map(([kind, ms]) => h_flex().gap(4).flex_wrap().items_center()
+      .child(div().text_size(11).text_color(t.muted).mr(2).child(`As Mega${kind ? ` ${kind}` : ""}`))
+      .children(ms.map((m) => chip(m)))
+      .child(div().ml(4).text_size(10.5).text_color(t.dim).child("its own four, till you choose (then the same for both)")));
+    if (!editing) return megaLines.length ? v_flex().gap(4).child(row).children(megaLines) : row;
     const names = set.map((m) => m.name);
     const all = learnableOf(key);
     return v_flex().gap(6)
