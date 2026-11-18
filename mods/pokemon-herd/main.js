@@ -1887,6 +1887,8 @@ export default class PokemonHerd extends View {
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
+    // Its last minute (to hatch, or left to fight it) counted in seconds: a redraw each second.
+    if (egg) for (const end of [egg.hatch, egg.until]) if (end - now < 61000 && end > now) for (let k = 1; k <= 60; k++) if (end - k * 1000 > now) times.push(end - k * 1000);
     for (const m of Object.values(this.mons ?? {})) {
       if (m.evolveFx) times.push(m.evolveFx.at + 40, m.evolveFx.at + EVOLVE_WHITE, ...EVOLVE_SWAPS.map((s) => m.evolveFx.at + s), m.evolveFx.at + EVOLVE_BURST - 60, m.evolveFx.at + EVOLVE_BURST, m.evolveFx.at + EVOLVE_BURST + 40, m.evolveFx.at + EVOLVE_MS - 300, m.evolveFx.at + EVOLVE_MS);
       if (m.megaFx) for (const t of m.megaFx.on ? [...megaTimes(m.megaFx.full), megaTiming(m.megaFx.full).total, megaTiming(m.megaFx.full).total - 300] : [40, 470]) times.push(m.megaFx.at + t);
@@ -2105,7 +2107,8 @@ export default class PokemonHerd extends View {
     const ground = grounds[0];
     const bx = this.width / 2;
     const name = `${r.boss.alpha ? "Alpha " : ""}${r.boss.shiny ? "✨ " : ""}${fullName(r.boss.dex)}`;
-    const mins = (ms) => `${Math.max(1, Math.ceil(ms / 60000))}m`;
+    // Minutes; its last one in seconds (redrawn each second then: raidSeconds).
+    const mins = (ms) => (ms < 60000 ? `${Math.max(1, Math.ceil(ms / 1000))}s` : `${Math.ceil(ms / 60000)}m`);
     const note = ph === "egg" ? `🥚 Raid egg · hatches in ${mins(r.hatch - now)}`
       : ph === "battle" ? `⚔ Raid: ${name} · ${mins(r.until - now)} left` // how: the Guide, the Today tab
       : ph === "beaten" ? (r.caught ? `⚔ Raid won: ${name} caught!` : `⚔ Raid won! ${money(raidReward(r.boss).money)}, 3 Ultra Balls · catch it before it's gone`)
