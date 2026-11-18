@@ -23,7 +23,7 @@ import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
-import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS } from "./trainers.js";
+import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
 // What a trainer says, beaten (its class's words; one of them by its name, the same each time).
 const BEATEN_SAYS = {
@@ -3182,6 +3182,19 @@ export default class PokemonHerd extends View {
       } else if (v.trainer?.tower && towerNow().run?.out.includes(list[dj].pane)) {
         this.note(dm, "🗼 out of this climb", now, 2500); // fainted once in it: out till it ends
       } else {
+        // The Tower: switching in (another than the last of yours to fight it, that one still up)
+        // costs TOWER_SWITCH of its health (simulated: switching every exchange to the best-typed
+        // made a climb ~9 floors, playing it straight ~7; with this, ~6: no gain in it).
+        const trv0 = v.trainer;
+        if (trv0?.tower && trv0.lastOwn && trv0.lastOwn !== drop.addr && !(this.mons[trv0.lastOwn]?.restUntil > now)) {
+          const before = ownHp(dm, now);
+          dm.hpLost = { prev: before, at: now };
+          dm.hp = Math.max(0.01, before - TOWER_SWITCH);
+          dm.hpAt = now;
+          keepHp(list[dj].pane, { hp: dm.hp, at: now });
+          this.note(dm, `🔄 −${Math.round(TOWER_SWITCH * 100)}%`, now, 2000);
+        }
+        if (trv0?.tower) trv0.lastOwn = drop.addr;
         // It Mega Evolves for the fight: a Mega with its own stats and types (base-stats.js
         // FORM_BASE) fights as itself; one without, as its species ×1.2 (trainer.js MEGA_HIT).
         const mega = megaShown(pk, "working");
@@ -3414,7 +3427,7 @@ export default class PokemonHerd extends View {
         const tw = towerNow();
         return tw.run
           ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${TOWER_LIVES - tw.run.faints} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
-          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}3 lives, 1 heal a floor`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0 } }));
+          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}3 lives · 1 heal a floor · switching in −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0 } }));
       })())
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
       .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", `Ball to throw · ${named(m.ball, true)}`, [[null, "Auto"], ...m.balls.map((id) => [id, String(b.items[id])])], m.ball,

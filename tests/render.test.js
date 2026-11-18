@@ -336,6 +336,36 @@ test("the Battle Tower: one heal a floor", () => {
   assert.ok(K.handlers["mon-use-berry:on_click"], "a Berry again");
 });
 
+// In a climb, switching in another of yours (the last one still up) costs it 10% of its health;
+// the first one in doesn't pay.
+test("the Battle Tower: switching in costs 10%", () => {
+  seed();
+  const KEY = `${ids.MOD}-tower`;
+  H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now() - 1000, wins: 0, faints: 0, out: [], nextAt: 0 } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx); // its Pokémon placed
+  const now = Date.now();
+  const tr = { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9, nature: "calm" }], idx: 0, tower: 1, effort: 1.1, waited: true };
+  st.visitor = { id: "sw", pick: { dex: 9, nature: "calm", trainer: true, mega: "off" }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, gift: "none", purse: 0, trainer: tr,
+    halt: { kind: "trainer", x: 600, at: now, until: now + 120000, icon: "❗", face: "L" } };
+  for (const a of ["t0", "t1"]) { const m = st.mons[a]; m.x = 560; m.moving = false; m.row = 0; }
+  const hpOf = (a) => (Number.isFinite(st.mons[a].hp) ? st.mons[a].hp : 1);
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  assert.equal(tr.lastOwn, "t0", "t0 fights it");
+  assert.equal(hpOf("t0"), 1, "the first one in: no cost");
+  const t1Before = hpOf("t1");
+  st.visitor.fight = null; st.visitor.pick.hp = 1;
+  st.dropAt = { addr: "t1", dizzy: false };
+  st.tick(cx);
+  assert.equal(tr.lastOwn, "t1");
+  assert.ok(Math.abs(hpOf("t1") - (t1Before - 0.1)) < 1e-9, `switched in: 10% less (${hpOf("t1")})`);
+});
+
 // A climb over: each one's health as it stood (no healing in it), healing again from now.
 test("the Battle Tower: health as it stood when the climb ends", () => {
   seed();

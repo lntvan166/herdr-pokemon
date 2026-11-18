@@ -260,7 +260,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   used on this floor, next on the next floor"; the strip: "1 heal this floor" / "heal used").
   Simulated with the game's battles and the user's team (Sitrus; 7 with legendaries / 3 of them):
   2 a climb ~8 / ~4.4 floors; 1 a floor ~9 / ~5.6; 2 a floor ~11 / ~9.3; unlimited ~13 / ~13, up
-  to 41. A day's climb ~₽600 and its small gifts. Three faints of yours (`TOWER_LIVES`; each one out of the climb)
+  to 41. A day's climb ~₽600 and its small gifts. Switching in (another of yours than the last to fight it,
+  that one still up; `trainer.lastOwn`) costs it `TOWER_SWITCH` (10%) of its health, "🔄 −10%"
+  (simulated: switching every exchange to the best-typed made ~9.4 floors against ~6.7 played
+  straight; with 10%, ~6.3: no gain in it; 20% ~4.5; a full free hit ~4.4, too harsh). Three faints of yours (`TOWER_LIVES`; each one out of the climb)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
   (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.
   No healing by itself while a climb is on (`trainer.js` `healed`/`healthNow(rec, now, frozenFrom)`,
