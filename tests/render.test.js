@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 register("./render/loader.mjs", import.meta.url);
+globalThis.__freezePicks = true; // the saved Pokémon, never changed in place: a write to them throws
 process.env.POKEMON_TEST_HOME = mkdtempSync(join(tmpdir(), "pokemon-render-"));
 
 let H, K, Herd, ids;
@@ -25,16 +26,18 @@ before(async () => {
 
 // Three agents (p0 Charizard, p1 Vulpix, p2 Eevee) and three waiting in the Box: a raised
 // Eevee, a locked Pikachu, and a Lucario (a favourite kind).
+let rev = 1;
+const setPanes = (panes) => { H.store.set(ids.MOD, { v: 2, panes }); H.store.set(`${ids.MOD}-picks-rev`, ++rev); }; // as savePicks does
 function seed() {
   H.store.clear();
-  H.store.set(ids.MOD, { v: 2, panes: {
+  setPanes({
     "box-1-133": { dex: 133, hearts: 2, jobs: 4 },
     "box-2-25": { dex: 25, locked: true, jobs: 1 },
     "box-3-448": { dex: 448, hearts: 1, jobs: 2 },
     p0: { dex: 6, hearts: 3, jobs: 12, held: "lucky-egg" },
     p1: { dex: 37, jobs: 1 },
     p2: { dex: 133 },
-  } });
+  });
   H.store.set(ids.BAG_KEY, { v: 1, money: 5000, items: { berry: 3, "sitrus-berry": 2, revive: 1, "fire-stone": 1, "soothe-bell": 1 }, marks: {} });
   H.store.set(ids.FAVORITES_KEY, { v: 1, keys: ["448"] });
   for (const k of Object.keys(K.handlers)) delete K.handlers[k];
@@ -171,7 +174,7 @@ test("a Mega's moves: a Change of their own", () => {
 // One Mega only (Gallade, kind ""): Change on one row opens that row only.
 test("one Mega only: each row's Change opens its own", () => {
   seed();
-  H.store.set(ids.MOD, { v: 2, panes: { ...H.store.get(ids.MOD).panes, p1: { dex: 475, jobs: 70 } } });
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 475, jobs: 70 } });
   const v = view({ bag: true, tab: "box", sel: "p1" });
   v.render(cx);
   for (const k of Object.keys(K.handlers)) delete K.handlers[k];
@@ -243,6 +246,25 @@ test("a visitor is back after a reload; not one caught", () => {
   // Caught: none kept.
   a.caught({ ...a.visitor, trainer: undefined, throw: { ball: "poke-ball" } });
   assert.equal(H.store.get(KEY), null);
+});
+
+// From one tick or render to the next, the saved Pokémon are read again only after a save (its
+// stamp, PICKS_REV_KEY): not ~250 of them read and checked 4 times a second.
+test("the saved Pokémon are read again only after a save", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  st.render(cx);
+  const r0 = H.reads[ids.MOD] ?? 0;
+  st.render(cx); st.render(cx);
+  assert.equal((H.reads[ids.MOD] ?? 0) - r0, 0, "nothing saved: not read again");
+  const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
+  m.render(cx);
+  click("mon-take:on_click"); // a save
+  const r1 = H.reads[ids.MOD] ?? 0;
+  st.render(cx);
+  assert.equal((H.reads[ids.MOD] ?? 0) - r1, 1, "saved: read once more");
+  assert.equal(H.store.get(ids.MOD).panes.p0.held, undefined);
 });
 
 test("the strip draws", () => {

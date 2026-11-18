@@ -626,6 +626,13 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   fallback. 51 species have no walking animation and are never handed out.
 - One missing optional reaction sheet must not sink the Pokémon, so fetch those one by one.
 - Don't open the right panel from the mod: Files/Changes own it.
+- Herdr cuts a render or a tick short past its time (~50 ms: "This view could not be
+  re-rendered: interrupted", clicks dead), and every `shared()` read is a full copy. Read the
+  saved Pokémon (`savedPicks`), the Pokédex and the favourites once per render or tick
+  (`readOnce`), and the Pokémon not at all while nothing was saved: every save stamps
+  `pokemon-herd-picks-rev`, and the same stamp means the same ones (`picksNow`). Never change
+  them in place (the render tests freeze them). A full Box (~250) read and checked on every
+  tick made it 40–900 ms with the machine busy.
 
 ## Done when
 

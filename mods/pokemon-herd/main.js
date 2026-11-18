@@ -119,7 +119,27 @@ function keptRead(key, load) {
   return kept.get(key);
 }
 const forgetKept = (key) => kept.delete(key);
-const savedPicks = () => keptRead(MOD, () => loadPicks(shared(MOD), null).panes);
+// And from one tick to the next: every save stamps PICKS_REV_KEY (a small number, cheap to
+// read); the same stamp as last read, the same Pokémon, kept (`picksCache`) instead of read and
+// checked again (~250 of them, a 47 KB copy: most of a tick's time, 40–900 ms with the machine
+// busy). Never changed in place (tests freeze it: `globalThis.__freezePicks`).
+const PICKS_REV_KEY = `${MOD}-picks-rev`;
+let picksCache = null; // { rev, panes }
+function picksNow() {
+  const rev = shared(PICKS_REV_KEY) ?? 0; // (none yet: 0, till the first save)
+  if (picksCache?.rev === rev) return picksCache.panes;
+  const panes = loadPicks(shared(MOD), null).panes;
+  if (globalThis.__freezePicks) { for (const p of Object.values(panes)) Object.freeze(p); Object.freeze(panes); }
+  picksCache = { rev, panes };
+  return panes;
+}
+// After a save: a new stamp, so every copy (the picker, the Bag, another window) reads them again.
+function picksSaved() {
+  picksCache = null;
+  setShared(PICKS_REV_KEY, Date.now() * 1000 + Math.floor(Math.random() * 1000));
+  forgetKept(MOD);
+}
+const savedPicks = () => keptRead(MOD, picksNow);
 function readOnce(f) {
   if (onceDepth++ === 0) kept.clear();
   try { return f(); } finally { if (--onceDepth === 0) kept.clear(); }
@@ -136,7 +156,7 @@ function savePicks(update) {
   try { onScreen = agents().map((a) => a.pane).filter(Boolean); } catch {}
   const { panes, returned } = trimPanes(next, 300, new Set([...onScreen, ...Object.keys(update)]));
   setShared(MOD, { v: 2, panes });
-  forgetKept(MOD); // (a render that saves reads them again)
+  picksSaved(); // (a render that saves reads them again)
   if (returned.length) {
     let b = bag();
     for (const id of returned) b = addItem(b, id);
@@ -191,7 +211,7 @@ function forgetPanes(keys) {
   const next = { ...savedPicks() };
   for (const k of keys) delete next[k];
   setShared(MOD, { v: 2, panes: next });
-  forgetKept(MOD);
+  picksSaved();
 }
 
 const paneless = {}; // sub-agents' picks: not saved, only kept while the app runs
@@ -843,7 +863,7 @@ export default class PokemonHerd extends View {
     this.height = 112;
     // Switching over from the upstream mod: its agents keep their Pokémon.
     const start = loadPicks(shared(MOD), shared(LEGACY_KEY));
-    if (start.migrated) setShared(MOD, { v: 2, panes: start.panes });
+    if (start.migrated) { setShared(MOD, { v: 2, panes: start.panes }); picksSaved(); }
     this.mons = {}; // address -> { x, from, target, dir, moving, start, dur, pauseUntil, mood }
     this.sprites = {}; // dex number -> meta | "loading" | { error }
     this.hover = null;
@@ -3699,7 +3719,16 @@ export default class PokemonHerd extends View {
           .child(div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${p.tag ? ` · ${p.tag}` : ""}`)))
           .child(typeBadges(pick, 14, 9))
           .child(div().text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate()
-            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · ")))))
+            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
+        // Its four moves (as it is), two by two, in their types' colours.
+        .child((() => {
+          const ms = movesFor(pick, fighterKey(pick.dex, pick.form ? { form: pick.form } : {}));
+          const chip = (m) => div().h(17).px(5).rounded(4).flex().items_center().flex_none().bg(TYPE_COLOR[m.type])
+            .when(!!m.exclusive, (el) => el.border_1().border_color("#ffffff"))
+            .text_size(10).font_semibold().text_color(typeText(m.type)).child(m.name);
+          return v_flex().gap(3).items_end().flex_none()
+            .children([ms.slice(0, 2), ms.slice(2, 4)].filter((r) => r.length).map((r) => h_flex().gap(3).children(r.map(chip))));
+        })()))
       // From the Bag: what does something to it now (a Berry, a Revive, a stone that evolves it).
       .when(items.length > 0, (el) => el.child(v_flex().gap(4)
         .child(label("🎒 Use from the Bag"))
