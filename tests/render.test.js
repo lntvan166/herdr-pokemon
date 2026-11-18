@@ -299,6 +299,24 @@ test("the Battle Tower: start, a trainer, three faints and it's over", () => {
   assert.equal(st.visitor, null);
 });
 
+// A trainer beaten: its balls, its words, its pay rising, then it walks off: all drawn.
+test("a trainer beaten draws its win (balls, words, pay, walking off)", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  const now = Date.now();
+  for (const won of [100, 3500]) {
+    st.visitor = { id: `w-${won}`, pick: { dex: 9, hp: 0 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, fainted: now - won - 2200,
+      fight: { at: now - won - 3000, until: now - won - 2500, x: 1100, ownX: 1000, fainted: true, hp: 0, own: "t0" },
+      trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 3 }, { dex: 6 }, { dex: 9 }], idx: 2, beaten: now - won, winner: "t0", paid: { money: 540, items: [["rare-candy", 3]] } } };
+    st.render(cx);
+  }
+});
+
 test("the strip draws", () => {
   seed();
   const v = view({ rows: 1, scale: 0.75 });

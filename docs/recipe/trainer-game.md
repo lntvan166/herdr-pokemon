@@ -255,3 +255,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a Master Ball from the 21st). Three faints of yours (`TOWER_LIVES`; each one out of the climb)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
   (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.
+- **A trainer's team and its defeat** (main.js `trainerBalls`, `BEATEN_SAYS`, `WIN_WALK_AT`):
+  over a waiting or fighting trainer's head, a ball for each of its Pokémon (red, grey once
+  down). Beaten: the one of yours that won cheers (🎉, `onCelebrate`, once); the trainer says a
+  line of its class in a white bubble; its pay rises off the field (+₽ and the gifts' pictures,
+  fading); at WIN_WALK_AT (2.8 s) it turns and walks out of the strip on the right (WIN_WALK_MS,
+  1.8 s), and is gone then. One-shot transitions only: nothing loops.

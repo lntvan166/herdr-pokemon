@@ -25,6 +25,16 @@ import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
 import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerPay, loadTower, TOWER_LIVES, TOWER_NEXT_MS } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
+// What a trainer says, beaten (its class's words; one of them by its name, the same each time).
+const BEATEN_SAYS = {
+  ace: ["You're really strong!", "I'll train harder."], hiker: ["Rock solid… but not enough!", "I'm crumbling!"],
+  swimmer: ["I'm all washed up!", "Swept away!"], blackbelt: ["Hoo-ah! A fine fight!", "My fists failed me!"],
+  psychic: ["I foresaw this… it still stings.", "My mind went blank!"], bugcatcher: ["My bugs! Aww…", "Bugged out!"],
+  kindler: ["I got burned!", "My fire's out…"], punk: ["Tch. Not bad.", "Whatever. You win."],
+  engineer: ["Short-circuited!", "Back to the drawing board."], birdkeeper: ["My birds, grounded!", "Clipped my wings…"],
+};
+const beatenSay = (tr) => { const l = BEATEN_SAYS[tr.cls] ?? ["You win!"]; return l[[...tr.name].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length]; };
+const WIN_WALK_AT = 2800, WIN_WALK_MS = 1800; // a beaten trainer: says its words, then walks off
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
@@ -1398,6 +1408,7 @@ export default class PokemonHerd extends View {
             return true;
           }
           tr.beaten = now;
+          tr.winner = fx.own; // (it cheers: care)
           tr.paid = tr.tower ? towerPay(tr.tower) : trainerPay(tr);
           if (this.leader) {
             payOut({ money: tr.paid.money });
@@ -1408,7 +1419,7 @@ export default class PokemonHerd extends View {
             if (tr.tower) this.towerFighter = tr.fighter ?? null; // it takes on the next one too
           }
         }
-        if (now >= v.fainted + (tr ? 4500 : 2200)) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
+        if (now >= (tr?.beaten ? tr.beaten + WIN_WALK_AT + WIN_WALK_MS : v.fainted + (tr ? 4500 : 2200))) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
       }
       if (v.trainer) {
@@ -2135,12 +2146,29 @@ export default class PokemonHerd extends View {
   trainerGap(v, scale) {
     return this.drawnWidth(v.pick, "idle") / 2 + 16 * scale;
   }
-  trainerFigure(v, x, ground, face, walking, scale) {
+  // How big a trainer is drawn: { w, h }, or null till its picture is in.
+  trainerSize(v, scale) {
     const art = v.trainer && this.trainerArt?.[v.trainer.cls];
     if (!art) return null;
     // A drawn picture (art/trainers/<class>.png) is scaled to TRAINER_DRAW_H; ours by its pixels.
-    const k = art.custom ? (TRAINER_DRAW_H * scale) / art.h : scale * 1.4, w = art.w * k, h = art.h * k;
-    return image(art[`${walking ? "walk" : "stand"}${face}`]).absolute().left(x - w / 2).top(ground - h).w(w).h(h);
+    const k = art.custom ? (TRAINER_DRAW_H * scale) / art.h : scale * 1.4;
+    return { w: art.w * k, h: art.h * k };
+  }
+  trainerFigure(v, x, ground, face, walking, scale) {
+    const art = v.trainer && this.trainerArt?.[v.trainer.cls];
+    const size = this.trainerSize(v, scale);
+    if (!art || !size) return null;
+    return image(art[`${walking ? "walk" : "stand"}${face}`]).absolute().left(x - size.w / 2).top(ground - size.h).w(size.w).h(size.h);
+  }
+  // Over a trainer's head, as in the games: a ball for each of its Pokémon, grey once down.
+  trainerBalls(v, x, ground, scale) {
+    const tr = v.trainer, size = this.trainerSize(v, scale);
+    if (!tr || !size) return null;
+    const n = tr.team.length, d = 7, gap = 3, w = n * d + (n - 1) * gap;
+    const down = (i) => i < tr.idx || (i === tr.idx && !!v.fainted);
+    return h_flex().absolute().left(x - w / 2).top(Math.max(1, ground - size.h - d - 4)).gap(gap)
+      .children(tr.team.map((_m, i) => div().size(d).rounded_full().border_1()
+        .border_color(down(i) ? "#6b6b6b" : "#ffffff").bg(down(i) ? "#3a3a3a" : "#e5484d").opacity(down(i) ? 0.7 : 1)));
   }
 
   renderVisitor(root, grounds, scale) {
@@ -2212,8 +2240,32 @@ export default class PokemonHerd extends View {
       }
       root.child(hpBar(x));
       // A trainer's: it stands behind its Pokémon, watching.
-      const fig = v.trainer && this.trainerFigure(v, x - ((fx.ownX ?? x) > x ? 1 : -1) * this.trainerGap(v, scale), ground, (fx.ownX ?? x) > x ? "R" : "L", false, scale);
-      if (fig) root.child(div().absolute().left(0).top(0).child(fig));
+      // Beaten: its words in a bubble, its pay rising off the field, then it turns and walks out
+      // of the strip (WIN_WALK_AT after, over WIN_WALK_MS); the one of yours that won cheers (care).
+      const tr = v.trainer;
+      const figX = x - ((fx.ownX ?? x) > x ? 1 : -1) * this.trainerGap(v, scale);
+      const won = tr?.beaten ? now - tr.beaten : -1;
+      const leaving = won >= WIN_WALK_AT;
+      const fig = tr && this.trainerFigure(v, figX, ground, leaving ? "R" : (fx.ownX ?? x) > x ? "R" : "L", leaving, scale);
+      if (fig) root.child(div().id(`trainer-out-${v.id}`).absolute().top(0).left(leaving ? this.width + 80 - figX : 0)
+        .transition("left", { duration: WIN_WALK_MS, easing: "ease-in" }).child(fig)
+        .when(!leaving, (el) => { const b = this.trainerBalls(v, figX, ground, scale); return b ? el.child(b) : el; }));
+      if (tr?.beaten && won < WIN_WALK_AT) {
+        const size = this.trainerSize(v, scale);
+        const top = Math.max(2, ground - (size?.h ?? 40) - 30);
+        root.child(div().absolute().left(Math.min(this.width - 170, figX - 80)).top(top).w(160).flex().justify_center()
+          .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${beatenSay(tr)}”`)));
+      }
+      if (tr?.beaten && tr.paid && won < 2600) {
+        // Its pay: ₽ and the gifts' pictures, rising from where its Pokémon fell and fading.
+        const id = `win-pay-${v.id}`, first = this.fxFirst(id);
+        root.child(div().id(id).absolute().left(x - 80).w(160).top(first ? headY : Math.max(0, headY - 34)).opacity(first ? 1 : 0)
+          .transition("top", { duration: 1800, easing: "ease-out" }).transition("opacity", { duration: 700, delay: 1700, easing: "ease-in" })
+          .flex().justify_center().gap(4).items_center()
+          .child(div().px(6).h(18).rounded(9).bg("#000000b8").flex().items_center().gap(4).text_size(11.5).font_bold().text_color("#ffd23f")
+            .child(`+${money(tr.paid.money)}`)
+            .children(tr.paid.items.map(([id2]) => this.itemMark(id2, 16)))));
+      }
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
       const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
       const tp = v.trainer?.paid;
@@ -2316,7 +2368,12 @@ export default class PokemonHerd extends View {
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
         .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale))
         // A trainer walks in behind its Pokémon; stopped, it stands there.
-        .when(!!v.trainer, (el) => { const f = this.trainerFigure(v, mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale), ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale); return f ? el.child(f) : el; })
+        .when(!!v.trainer, (el) => {
+          const tx = mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale);
+          const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale);
+          const b = halt && this.trainerBalls(v, tx, ground, scale); // its team, once it waits
+          return f ? el.child(f).when(!!b, (e2) => e2.child(b)) : el;
+        })
         .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - 14)).text_size(13).font_bold()
           .text_color(actIcon === "zZ" ? "#ffffff" : t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
@@ -2687,6 +2744,9 @@ export default class PokemonHerd extends View {
       if (noted !== !!m.note) changed = true;
       const has = new Set(Object.keys(meta?.react ?? {}));
       const msOf = (name) => meta.react[name].ms;
+      // The one of yours that just beat a trainer: it cheers (🎉), once.
+      const won = this.visitor?.trainer;
+      if (won?.beaten && won.winner === a.address && won.cheered !== won.beaten) { won.cheered = won.beaten; onCelebrate(m, now, has, msOf); m.pauseUntil = m.react.until + 500; changed = true; }
       // A caught Pokémon's nature (trainer.js): a Lazy one naps sooner, a Calm one later.
       const pk = ids[a.address];
       const raw = moodOf(a, tabs, now, after * natureMul(pk, "sleep"));
