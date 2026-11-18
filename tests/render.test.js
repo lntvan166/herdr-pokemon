@@ -154,13 +154,19 @@ test("the Bag's Box tab: a card's actions", () => {
 // render ("This view could not be re-rendered: interrupted", its buttons dead).
 test("a render reads the saved Pokémon once", () => {
   seed();
-  const reads = () => H.reads[ids.MOD] ?? 0;
-  const once = (v, label) => { const r0 = reads(); v.render(cx); assert.ok(reads() - r0 <= 1, `${label}: ${reads() - r0} reads`); };
+  // The saved Pokémon, the Pokédex and the favourites: each read once at most.
+  const keys = [ids.MOD, `${ids.MOD}-dex`, ids.FAVORITES_KEY];
+  const once = (v, label) => {
+    const r0 = Object.fromEntries(keys.map((k) => [k, H.reads[k] ?? 0]));
+    v.render(cx);
+    for (const k of keys) assert.ok((H.reads[k] ?? 0) - r0[k] <= 1, `${label}: ${k} read ${(H.reads[k] ?? 0) - r0[k]} times`);
+  };
   const v = picker();
   once(v, "picker");
   v.showPreview({ dex: 38 }, cx);
   once(v, "preview");
   v.filtersOpen = true;
+  v.only = { types: ["dragon"] };
   once(v, "preview, filters open");
   once(view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" }), "a Pokémon's menu");
   const st = view({ rows: 1, scale: 0.75 });

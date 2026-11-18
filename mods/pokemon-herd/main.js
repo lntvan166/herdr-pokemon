@@ -107,16 +107,20 @@ const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.for
 // kept till it ends (`readOnce`: nothing is saved while a view draws): a preview with ~250 in
 // the Box went past Herdr's time for a render ("This view could not be re-rendered:
 // interrupted", in loadPicks), and its buttons did nothing.
-let picksOnce = null, onceDepth = 0;
-const savedPicks = () => {
-  if (onceDepth && picksOnce) return picksOnce;
-  const panes = loadPicks(shared(MOD), null).panes;
-  if (onceDepth) picksOnce = panes;
-  return panes;
-};
+// The same for the Pokédex (read and checked: 6 times in a preview) and the favourites: `kept`,
+// by key, dropped when this mod saves that key (`forgetKept`).
+const kept = new Map();
+let onceDepth = 0;
+function keptRead(key, load) {
+  if (!onceDepth) return load();
+  if (!kept.has(key)) kept.set(key, load());
+  return kept.get(key);
+}
+const forgetKept = (key) => kept.delete(key);
+const savedPicks = () => keptRead(MOD, () => loadPicks(shared(MOD), null).panes);
 function readOnce(f) {
-  if (onceDepth++ === 0) picksOnce = null;
-  try { return f(); } finally { if (--onceDepth === 0) picksOnce = null; }
+  if (onceDepth++ === 0) kept.clear();
+  try { return f(); } finally { if (--onceDepth === 0) kept.clear(); }
 }
 
 function savePicks(update) {
@@ -130,7 +134,7 @@ function savePicks(update) {
   try { onScreen = agents().map((a) => a.pane).filter(Boolean); } catch {}
   const { panes, returned } = trimPanes(next, 300, new Set([...onScreen, ...Object.keys(update)]));
   setShared(MOD, { v: 2, panes });
-  picksOnce = null; // (a render that saves reads them again)
+  forgetKept(MOD); // (a render that saves reads them again)
   if (returned.length) {
     let b = bag();
     for (const id of returned) b = addItem(b, id);
@@ -167,8 +171,8 @@ function liveForBadges(saved = savedPicks()) {
 }
 
 // The favourite Pokémon (the picker's ★), shared by every pane.
-const favs = () => loadFavorites(shared(FAVORITES_KEY));
-const setFavs = (keys) => setShared(FAVORITES_KEY, { v: 1, keys });
+const favs = () => keptRead(FAVORITES_KEY, () => loadFavorites(shared(FAVORITES_KEY)));
+const setFavs = (keys) => { setShared(FAVORITES_KEY, { v: 1, keys }); forgetKept(FAVORITES_KEY); };
 
 // Every agent on the strip: herdr's agents, and (Settings: Sub-agents) the sub-agents it leaves out.
 function herdAgents() {
@@ -185,7 +189,7 @@ function forgetPanes(keys) {
   const next = { ...savedPicks() };
   for (const k of keys) delete next[k];
   setShared(MOD, { v: 2, panes: next });
-  picksOnce = null;
+  forgetKept(MOD);
 }
 
 const paneless = {}; // sub-agents' picks: not saved, only kept while the app runs
@@ -301,8 +305,8 @@ import("./dev.js").then((m) => { dev = m; }, () => {});
 const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag) => openMon(slot, pick, tag), openPick: (slot, pick, tag, more) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag, ...more } }) };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
-const pokedex = () => loadDex(shared(DEX_KEY));
-const saveDex = (d) => setShared(DEX_KEY, d);
+const pokedex = () => keptRead(DEX_KEY, () => loadDex(shared(DEX_KEY)));
+const saveDex = (d) => { setShared(DEX_KEY, d); forgetKept(DEX_KEY); };
 // The types of the Pokémon on screen (the Research's type task names one of them).
 function typesOnScreen() {
   try {
