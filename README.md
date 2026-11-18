@@ -48,15 +48,17 @@ Today and Pokédex), the ball and Berry to throw, and **Settings** (with a **Gui
 
 A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** and they battle:
 
-- **Damage** comes from real base stats (your Pokémon's best attack against its best defence)
-  and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
+- **The faster moves first** (Speed, as the games: its nature and how it's raised count), then
+  the other strikes back. **Damage** comes from real base stats (your Pokémon's best attack
+  against its best defence) and the full type chart, both types: *"It's extremely effective!"* (×4), *"It's super
   effective!"* (×2), *"It's not very effective…"*, *"It doesn't affect…"* (×0).
 - **Movesets from the games.** Each Pokémon knows four of 90 moves, the ones it really learns
   levelling up (from PokeAPI's learnsets): two of its own types (one of each, if it has two) and
   two for coverage. Charizard: Flamethrower, Air Slash, Dragon Claw, Crunch; Gallade: Psycho Cut,
   Focus Blast, Leaf Blade, Draining Kiss; Caterpie just Bug Bite and Tackle. The picker, its preview
   and the Box show each one's moves; **Change** lets you teach yours any of the moves it really
-  learns (weak ones and signature moves too, Gallade's Close Combat), four at most. A weak move
+  learns (weak ones and signature moves too, Gallade's Close Combat), four at most; a Mega has
+  its own four (Mega Charizard X: Outrage), to change apart. A weak move
   (Tackle, Ember) is never one it starts with unless it knows nothing else. Legendaries and a few others
   have their own move, as in the games: Arceus's Judgment takes the type that hits hardest,
   Mewtwo's Psystrike, Dialga's Roar of Time, Pikachu's Volt Tackle, Meowscarada's Flower Trick (always
@@ -80,9 +82,16 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   at most, like Legends: Arceus' effort levels), and its nature counts (Brave: more Attack, less Speed). The winner celebrates ("Landorus won! 3–1", the two's record today), the other sits
   dizzy, nobody is hurt for real. The winner gains a little more friendship; the Box keeps each
   one's record, and those idle nearby turn to watch.
-- **Trainers come by.** Now and then a trainer (a Hiker, a Swimmer, a Black Belt, a Punk…, drawn in
-  our own pixel art) waits in the strip's corner with its Pokémon and wants to battle (for 3 minutes): two or three fully evolved
-  ones of its types, as strong as yours. Beat them one after another for Pokédollars and an item.
+- **Trainers come by.** Now and then a trainer (a Hiker, a Swimmer, a Black Belt, a Punk…) walks
+  to the strip's corner, throws out its Pokémon and wants to battle (for 3 minutes): two or three
+  fully evolved ones of its types, now and then a legendary, a Mega or an Alpha among them, its
+  team as balls under its feet. Beat them one after another for a few Pokédollars and a ball or a
+  Berry (now and then a fine gift: a Rare Candy, an Azure Flute…); it says a word and walks off.
+  Win, and it cheers instead.
+- **The Battle Tower** (☰ menu): trainers one after another, as long as you keep winning, each a
+  little stronger. Three lives (as many as your Pokémon, if fewer), one heal a floor, no healing
+  by itself in it, and one swapped in from the Box comes in hurt. Each floor pays once a day, with
+  a ball or a Berry, and every 7th a bigger gift; the Today tab keeps your best.
 - **Wild ones have their ways.** About 1 in 4 do something on the way: Gengar sneaks up and
   pokes one of yours awake, Snorlax naps halfway (easier to catch, cross if you wake it), Abra
   teleports out of a missed ball, Machop picks a fight, Eevee stops to say hello, a Fire type
@@ -172,6 +181,7 @@ From a clone of this repo: `git pull && scripts/install.sh`.
   them by `scripts/make-demos.py`.
 - Names, evolutions, base stats and types: [PokeAPI](https://github.com/PokeAPI/pokeapi)'s CSVs
   (`scripts/gen-species.mjs`, `scripts/gen-stats.mjs`). Item and badge art: PokeAPI's sprites.
+- Trainers' pictures: drawn for Pokerdr with ChatGPT's image generation, in the sprites' style.
 - Pokémon Sidebar is a fork of [Better Sidebar](https://github.com/munza/herdr-mods) by Tawsif
   Aqib (Apache-2.0).
 - Pokémon and all related names are trademarks of Nintendo, Creatures and GAME FREAK. This is an
