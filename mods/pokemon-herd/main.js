@@ -63,7 +63,7 @@ import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS,
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL, ensureTrainer } from "./sprites.js";
-import { cachedIcons, ensureRing, RING_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
+import { cachedIcons, ensureRing, RING_REL, AURA_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const AMBIENT_MS = 1000; // snow, leaves, a rainbow: redrawn once a second (each redraw is the whole window)
@@ -637,22 +637,28 @@ ensureRing().then(() => { RING.ready = true; }, () => {});
 // `still`: one of yours, on the strip all day: its ring only, not breathing, no motes (the moving
 // glow is for a wild one or a raid boss, there a moment).
 const alphaGlow = (mid, ground, box, scale, shadow = false, still = false) => {
-  // A red ring on the ground under its feet (wider than its shadow), breathing; and a few red
-  // motes rising beside it. No box round it.
+  // As in Legends: Arceus: a red aura behind it, breathing (not a Shadow one: its violet flames);
+  // a soft red ring on the ground under its feet (wider than its shadow), breathing; and red
+  // motes rising round it, each a bright core in a red glow.
   const w = Math.max(26, box.w * scale * 1.15), h = Math.max(9, 11 * scale);
-  // Red motes drifting up round it, each on its own beat: [x across its width, how high it
-  // starts (of its height), how far it rises (px), period ms, size px].
+  const aw = box.w * scale * 1.6, ah = box.h * scale * 1.35;
+  // [x across its width, how high it starts (of its height), how far it rises (px), period ms, size px].
   const motes = [[-0.5, 0.15, 22, 1900, 3], [0.45, 0.3, 26, 2300, 2], [-0.25, 0.45, 18, 1700, 2],
     [0.3, 0.1, 24, 2100, 3], [0.05, 0.6, 16, 2600, 2], [-0.4, 0.7, 14, 1500, 2]];
   return div().absolute().left(0).top(0)
+    .when(RING.ready && !shadow, (el) => el.child(image(AURA_REL).absolute().left(mid - aw / 2).top(ground - box.h * scale * 1.18).w(aw).h(ah)
+      .when(!still, (e2) => e2.loop("opacity", { from: 0.6, to: 1, period: 2600 })).when(still, (e2) => e2.opacity(0.8))))
     .child((RING.ready ? image(RING_REL) : div().rounded_full().border_2().border_color("#ff4a4a").bg("#ff5a5a44"))
-      .absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).when(!still, (el) => el.loop("opacity", { from: 0.45, to: 1, period: 1400 })).when(still, (el) => el.opacity(0.75)))
+      .absolute().left(mid - w / 2).top(ground - h / 2 - 1).w(w).h(h).when(!still, (el) => el.loop("opacity", { from: 0.55, to: 1, period: 1400 })).when(still, (el) => el.opacity(0.8)))
     .children((still ? [] : motes).map(([dx, dy, rise, period, size], k) => {
       const y = ground - dy * box.h * scale;
-      return div().absolute().left(mid + dx * box.w * scale).top(y).size(size).rounded_full()
-        .bg(shadow ? (k % 2 ? "#3a1a5a" : "#9a5aff") : k % 3 === 2 ? "#ffb070" : "#ff4a4a")
+      const core = shadow ? (k % 2 ? "#c9a0ff" : "#9a5aff") : k % 3 === 2 ? "#ffd2a0" : "#ffb0a0";
+      const glow = shadow ? "#7a3ad866" : k % 3 === 2 ? "#ff8a3a66" : "#ff3a3a66";
+      const g = size + 4;
+      return div().absolute().left(mid + dx * box.w * scale - g / 2).top(y).size(g).rounded_full().bg(glow).flex().items_center().justify_center()
         .loop("top", { from: y, to: y - rise, period, easing: "linear" })
-        .loop("opacity", { from: 0, to: 0.95, period: period / 2 });
+        .loop("opacity", { from: 0, to: 0.95, period: period / 2 })
+        .child(div().size(size).rounded_full().bg(core));
     }))
     // Shadow: dark violet flames standing behind it, slowly.
     .when(shadow, (el) => el.children([[-0.32, 0.9, 1700], [0, 1.05, 2100], [0.3, 0.85, 1900]].map(([dx, hh, period]) => {
@@ -4190,7 +4196,7 @@ export default class PokemonHerd extends View {
         const shadowW = Math.max(14, Math.round(s.box.w * 0.7)) * scale;
         body = div()
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale, !!pick.shadow, true))) // over its shadow, not darkened by it; still
+          .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale, !!pick.shadow))) // over its shadow, not darkened by it; breathing, motes rising (the user's choice: an Alpha shows it)
           .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
           // A blow landing: it flashes white (and the hurt pose's silhouette is made ahead).
           .when(true, (el) => {

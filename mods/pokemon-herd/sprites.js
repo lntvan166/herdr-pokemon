@@ -278,16 +278,25 @@ async function ensureWhiteNow(rel) {
 
 // An Alpha's ring on the ground: an ellipse, a bright red rim round a pale red inside, drawn once
 // (a box with round ends looked like a pill, not a ring). Returns its path as drawn.
-export const RING_REL = `${DATA_REL}/art/alpha-ring.png`;
+// An Alpha's marks (Legends: Arceus): a soft red ring on the ground under it (a glowing rim, a
+// faint fill fading in) and a red aura behind it (bright at its heart, fading out). Drawn once.
+export const RING_REL = `${DATA_REL}/art/alpha-ring-v3.png`;
+export const AURA_REL = `${DATA_REL}/art/alpha-aura-v2.png`;
 export async function ensureRing() {
-  const file = `${DATA}/art/alpha-ring.png`;
-  if (await fs.exists(file).catch(() => false)) return RING_REL;
+  const file = `${DATA}/art/alpha-ring-v3.png`, aura = `${DATA}/art/alpha-aura-v2.png`;
+  if ((await fs.exists(file).catch(() => false)) && (await fs.exists(aura).catch(() => false))) return RING_REL;
   if (!(await imageMagick())) throw new Error("ImageMagick not found");
   await fs.mkdir(`${DATA}/art`, { recursive: true });
-  const tmp = `${file}.part.png`;
-  await im("convert", ["-size", "240x48", "xc:none", "-fill", "#ff5a5a50", "-stroke", "#ff4040", "-strokewidth", "5",
-    "-draw", "ellipse 120,24 114,19 0,360", tmp]);
+  const tmp = `${file}.part.png`, fill = `${DATA}/art/alpha-ring-fill.part.png`, rim = `${DATA}/art/alpha-ring-rim.part.png`;
+  await im("convert", ["-size", "240x60", "radial-gradient:#ff3a3a-none", "-alpha", "set", "-channel", "A", "-evaluate", "multiply", "0.6", "+channel", fill]);
+  await im("convert", ["-size", "240x60", "xc:none", "-fill", "none", "-stroke", "#ff4636", "-strokewidth", "6", "-draw", "ellipse 120,30 112,22 0,360", "-blur", "0x1.1", rim]);
+  await im("convert", [fill, rim, "-compose", "over", "-composite", tmp]);
   await moveFile(tmp, file);
+  await removeFile(fill).catch(() => null);
+  await removeFile(rim).catch(() => null);
+  const atmp = `${aura}.part.png`;
+  await im("convert", ["-size", "200x240", "radial-gradient:#ff2a2a-none", "-alpha", "set", "-channel", "A", "-evaluate", "multiply", "0.85", "+channel", atmp]);
+  await moveFile(atmp, aura);
   return RING_REL;
 }
 
