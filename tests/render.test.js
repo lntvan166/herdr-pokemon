@@ -382,12 +382,13 @@ test("the Battle Tower: as many lives as Pokémon, ended when none is left", () 
   st.visit(H.agents(), {}, null, Date.now(), cx);
   assert.equal(H.store.get(KEY).run, null, "nobody left: over");
   assert.equal(st.towerOver?.why, "no one left");
-  // Lives are set as it begins: two then, two all along (more agents opened: no more lives).
+  // Begun with two lives: a third agent opened in it adds one (three at most).
   H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: Date.now() + 99999, lives: 2 } });
+  st.visit(H.agents(), {}, null, Date.now(), cx);
+  assert.equal(H.store.get(KEY).run.lives, 3, "three on screen: three lives");
   st.towerFaint("t0", Date.now());
-  assert.ok(H.store.get(KEY).run, "one life left");
   st.towerFaint("t1", Date.now());
-  assert.equal(H.store.get(KEY).run, null, "two down of two lives: over, though a third is on screen");
+  assert.ok(H.store.get(KEY).run, "two down of three: on");
 });
 
 // A climb begun with a wild one walking by: it hurries off (not a whole walk across the strip),

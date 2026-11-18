@@ -99,8 +99,8 @@ const TOWER_KEY = `${MOD}-tower`; // the Battle Tower: the climb on now and the 
 const towerNow = () => loadTower(shared(TOWER_KEY));
 // A climb's lives: TOWER_LIVES, or as many of yours as are on screen if fewer (two of them: two
 // lives; it waited, three lives and nobody left to send, till its trainer gave up).
-// Set when the climb begins (`run.lives`): opening more agents in it brings more of yours to send,
-// not more lives.
+// Set when the climb begins (`run.lives`); more agents opened in it add theirs, three at most
+// (kept, once added, should one close).
 const towerLives = (run = null) => run?.lives ?? Math.min(TOWER_LIVES, Math.max(1, new Set(agents().map((a) => a.pane).filter(Boolean)).size));
 const saveTower = (t) => setShared(TOWER_KEY, t);
 const VISITOR_KEY = `${MOD}-visitor`; // the wild one or trainer here, as last settled: { at, v } (keepVisitor), back after a reload
@@ -1371,9 +1371,12 @@ export default class PokemonHerd extends View {
     // after a win); no other visitor meanwhile (Honey waits).
     const tower = towerNow().run;
     if (v?.trainer?.tower && !tower && !v.trainer.leaving) this.trainerLeave(v, now); // given up (the menu): it goes
-    // None of yours left to send (the rest closed, or out): the climb is over.
+    // None of yours left to send (the rest closed, or out): the climb is over. More opened: more
+    // lives, three at most.
     if (tower && this.leader) {
       const panes = new Set(agents().map((a) => a.pane).filter(Boolean));
+      const lives = Math.min(TOWER_LIVES, Math.max(tower.lives ?? 0, panes.size));
+      if (lives !== tower.lives) { const t = towerNow(); saveTower({ ...t, run: { ...t.run, lives } }); }
       if (![...panes].some((p) => !tower.out.includes(p))) { this.towerEnd(now, "no one left", tower); return true; }
     }
     // A climb just begun with a wild one here (not fought, no ball on it): it hurries off, out of
