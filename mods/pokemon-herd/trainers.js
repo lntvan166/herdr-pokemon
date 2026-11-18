@@ -29,25 +29,25 @@ export function starOdds(owned = {}) {
 // Each class: its title, names, the types its team is of, its colours, and its pay.
 // Colours: H hair, C cap (or hair again), T top, P trousers, B shoes, A arms' sleeves.
 export const CLASSES = [
-  { id: "ace", title: "Ace Trainer", names: ["Mia", "Leo", "Nora", "Kai"], types: null, pay: 600, item: ["ultra-ball", 3],
+  { id: "ace", title: "Ace Trainer", names: ["Mia", "Leo", "Nora", "Kai"], types: null, pay: 600, item: ["ultra-ball", 1],
     colors: { H: "#3a2a1a", C: "#3a2a1a", T: "#2a5bd7", A: "#2a5bd7", P: "#22262e", B: "#c8402a" } },
-  { id: "hiker", title: "Hiker", names: ["Ben", "Ruth", "Otis"], types: ["rock", "ground", "steel"], pay: 400, item: ["revive", 1],
+  { id: "hiker", title: "Hiker", names: ["Ben", "Ruth", "Otis"], types: ["rock", "ground", "steel"], pay: 400, item: ["great-ball", 2],
     colors: { H: "#5a3a1a", C: "#a86a2a", T: "#c87a3a", A: "#c87a3a", P: "#5a4a2a", B: "#3a2a1a" } },
-  { id: "swimmer", title: "Swimmer", names: ["Lia", "Finn", "Coral"], types: ["water", "ice"], pay: 350, item: ["dusk-ball", 2],
+  { id: "swimmer", title: "Swimmer", names: ["Lia", "Finn", "Coral"], types: ["water", "ice"], pay: 350, item: ["dusk-ball", 1],
     colors: { H: "#e8c060", C: "#2a8cff", T: "#2a8cff", A: "#f0c8a0", P: "#2a8cff", B: "#f0c8a0" } },
-  { id: "blackbelt", title: "Black Belt", names: ["Ken", "Mai", "Goro"], types: ["fighting"], pay: 450, item: ["revive", 1],
+  { id: "blackbelt", title: "Black Belt", names: ["Ken", "Mai", "Goro"], types: ["fighting"], pay: 450, item: ["sitrus-berry", 1],
     colors: { H: "#1a1a1a", C: "#1a1a1a", T: "#f4f4f4", A: "#f4f4f4", P: "#f4f4f4", B: "#f0c8a0" } },
-  { id: "psychic", title: "Psychic", names: ["Ivy", "Sol", "Luna"], types: ["psychic", "fairy", "ghost"], pay: 450, item: ["timer-ball", 2],
+  { id: "psychic", title: "Psychic", names: ["Ivy", "Sol", "Luna"], types: ["psychic", "fairy", "ghost"], pay: 450, item: ["timer-ball", 1],
     colors: { H: "#8a3ad8", C: "#8a3ad8", T: "#c060ff", A: "#c060ff", P: "#5a2a8a", B: "#2a1a3a" } },
-  { id: "bugcatcher", title: "Bug Catcher", names: ["Tom", "Sid", "Pip"], types: ["bug", "grass"], pay: 300, item: ["quick-ball", 2],
+  { id: "bugcatcher", title: "Bug Catcher", names: ["Tom", "Sid", "Pip"], types: ["bug", "grass"], pay: 300, item: ["quick-ball", 1],
     colors: { H: "#3a2a1a", C: "#f2c94c", T: "#7bd65a", A: "#7bd65a", P: "#a86a2a", B: "#5a3a1a" } },
-  { id: "kindler", title: "Kindler", names: ["Ash", "Ember", "Rex"], types: ["fire", "dragon"], pay: 450, item: ["ultra-ball", 2],
+  { id: "kindler", title: "Kindler", names: ["Ash", "Ember", "Rex"], types: ["fire", "dragon"], pay: 450, item: ["ultra-ball", 1],
     colors: { H: "#c8402a", C: "#c8402a", T: "#ff8a2a", A: "#f0c8a0", P: "#5a2a1a", B: "#2a1a1a" } },
-  { id: "punk", title: "Punk", names: ["Zed", "Roxy", "Vex"], types: ["dark", "poison"], pay: 400, item: ["max-revive", 1],
+  { id: "punk", title: "Punk", names: ["Zed", "Roxy", "Vex"], types: ["dark", "poison"], pay: 400, item: ["dusk-ball", 1],
     colors: { H: "#ff3a8a", C: "#ff3a8a", T: "#2a2a2a", A: "#2a2a2a", P: "#3a3a5a", B: "#1a1a1a" } },
-  { id: "engineer", title: "Engineer", names: ["Volt", "Iris", "Gus"], types: ["electric", "steel"], pay: 400, item: ["quick-ball", 2],
+  { id: "engineer", title: "Engineer", names: ["Volt", "Iris", "Gus"], types: ["electric", "steel"], pay: 400, item: ["quick-ball", 1],
     colors: { H: "#3a2a1a", C: "#f2c94c", T: "#f2a03a", A: "#f2a03a", P: "#2a3a5a", B: "#2a2a2a" } },
-  { id: "birdkeeper", title: "Bird Keeper", names: ["Sky", "Wren", "Hawk"], types: ["flying", "normal"], pay: 350, item: ["great-ball", 5],
+  { id: "birdkeeper", title: "Bird Keeper", names: ["Sky", "Wren", "Hawk"], types: ["flying", "normal"], pay: 350, item: ["great-ball", 2],
     colors: { H: "#5a3a1a", C: "#2aa8a8", T: "#e8f0f4", A: "#e8f0f4", P: "#2aa8a8", B: "#3a2a1a" } },
 ];
 
@@ -83,14 +83,29 @@ export function newTrainer(rnd = Math.random, now = 0, how = {}) {
   return { cls: c.id, title: c.title, name: c.names[Math.floor(rnd() * c.names.length)], team, at: now };
 }
 export const classOf = (id) => CLASSES.find((c) => c.id === id) ?? CLASSES[0];
-// Beating it: its class's pay (×1.3 for three, ×1.5 with a Mega, ×2.5 with a legendary, ×1.4
-// with an Alpha) and item; a Rare Candy too for a Mega, an Azure Flute for a legendary, a Max
-// Revive for an Alpha. { money, items: [[id, n]] }.
-export function trainerPay(tr) {
+// Beating it: a fifth of its class's pay (×1.2 for three, ×1.3 with a Mega, ×1.6 with a
+// legendary, ×1.3 with an Alpha) and its item (one ball or Berry); a little more for each star (an
+// Ultra Ball for a Mega, a Golden Razz for a legendary, 2 Razz for an Alpha). { money, items }.
+// Simulated over a day (9 h with the strip open; owned: 17 legendaries, 30 Megas, 16 Alphas):
+// visitors "often" bring ~8 trainers (~16 at "lots"); they paid ~₽5,600 + items worth ~₽6,300
+// a day (Azure Flutes and Max Revives among them), four times the day's work (~₽1,500 for 4.5 h
+// of agents' work, ~₽800 in tips and purses besides). Now: ~₽900 and ~₽1,500 in balls and
+// Berries a day ("often"), a fine gift every other day or so.
+// Now and then a fine gift besides (RARE_GIFT: 5%, and 5% more for each star in its team): a
+// Golden Razz most often, a Rare Candy, a Max Revive, now and then an Azure Flute.
+export const RARE_GIFT = 0.05;
+const RARE_GIFTS = [["golden-razz-berry", 40], ["rare-candy", 25], ["max-revive", 20], ["azure-flute", 15]];
+export function trainerPay(tr, rnd = Math.random) {
   const c = classOf(tr.cls);
   const mega = tr.team.some((m) => m.mega != null), legend = tr.team.some((m) => m.legend), alpha = tr.team.some((m) => m.alpha);
-  const money = Math.round(c.pay * (tr.team.length >= 3 ? 1.3 : 1) * (mega ? 1.5 : 1) * (legend ? 2.5 : 1) * (alpha ? 1.4 : 1));
-  return { money, items: [[c.item[0], c.item[1]], ...(mega ? [["rare-candy", 1]] : []), ...(legend ? [["azure-flute", 1]] : []), ...(alpha ? [["max-revive", 1]] : [])] };
+  const money = Math.round(c.pay * 0.2 * (tr.team.length >= 3 ? 1.2 : 1) * (mega ? 1.3 : 1) * (legend ? 1.6 : 1) * (alpha ? 1.3 : 1));
+  const stars = (mega ? 1 : 0) + (legend ? 1 : 0) + (alpha ? 1 : 0);
+  let fine = null;
+  if (rnd() < RARE_GIFT * (1 + stars)) {
+    let r = rnd() * RARE_GIFTS.reduce((a, [, w]) => a + w, 0);
+    fine = RARE_GIFTS.find(([, w]) => (r -= w) < 0)?.[0] ?? RARE_GIFTS[0][0];
+  }
+  return { money, items: [[c.item[0], c.item[1]], ...(mega ? [["great-ball", 1]] : []), ...(legend ? [["ultra-ball", 1]] : []), ...(alpha ? [["razz-berry", 1]] : []), ...(fine ? [[fine, 1]] : [])], ...(fine ? { fine } : {}) };
 }
 
 // How a trainer looks: 12 × 20 pixels, a letter a colour (CLASSES colors; S skin, E eyes, "."

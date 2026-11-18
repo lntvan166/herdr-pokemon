@@ -300,3 +300,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Pokémon shows then); a shiny walking in: two gold-white sparkles round it (`SHINY_IN`,
   `SHINY_STYLE`, the games'); one of yours fainting: greyed out for OWN_FAINT_MS (💫 as before);
   a wild or trainer's Pokémon fainted: its health bar goes as it sinks (it stayed, empty).
+- **What a trainer pays** (`trainers.js` `trainerPay`; simulated over a day, 9 h, "often": ~8
+  trainers): a fifth of its class's pay (×1.2 three, ×1.3 a Mega, ×1.6 a legendary, ×1.3 an
+  Alpha) and one ball or Berry of its class, a Great Ball for a Mega, an Ultra Ball for a
+  legendary, a Razz for an Alpha: ~₽900 a day and ~₽1,500 in balls and Berries (it was ~₽5,600 and
+  ~₽6,300 a day, Azure Flutes and Max Revives among them: four times the day's work). Now and then
+  a fine gift besides (`RARE_GIFT`, 5% and 5% more a star: a Golden Razz, a Rare Candy, a Max
+  Revive, an Azure Flute), marked ✨ in its line: one every other day or so.

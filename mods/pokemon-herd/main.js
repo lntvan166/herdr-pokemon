@@ -2389,7 +2389,7 @@ export default class PokemonHerd extends View {
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
       const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
       const tp = v.trainer?.paid;
-      const gifts = tp?.items.map(([id, n]) => (n > 1 ? `${n} ${ITEMS[id].name}s` : ITEMS[id].name)).join(", ");
+      const gifts = tp?.items.map(([id, n]) => `${id === tp.fine ? "✨ " : ""}${n > 1 ? `${n} ${ITEMS[id].name}s` : ITEMS[id].name}`).join(", "); // (a fine gift, marked)
       // (Beaten: who you beat while it speaks, then what it paid, as its pay rises.)
       const said = v.trainer?.beaten ? (now - v.trainer.beaten < WIN_SAY_MS || tp.again
         ? `${v.trainer.tower ? `🗼 Win ${v.trainer.tower}! ` : ""}You beat ${v.trainer.title} ${v.trainer.name}!${tp.again ? " (this floor paid already today)" : ""}`

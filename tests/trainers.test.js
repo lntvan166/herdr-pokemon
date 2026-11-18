@@ -23,15 +23,34 @@ test("a trainer: 2 or 3 fully evolved Pokémon of its class's types, no legendar
   assert.ok(TRAINER_ODDS >= 5 && WAIT_MS >= 60000);
 });
 
-test("beating one pays its class's money (more for three, a Mega, a legendary) and items that exist", () => {
+test("beating one pays its class's money (more for three, a Mega, a legendary) and items that exist; a fine gift now and then", () => {
+  const never = () => 0.99, always = () => 0;
   for (const c of CLASSES) {
     const m = (d) => ({ dex: d });
-    const two = trainerPay({ cls: c.id, team: [m(1), m(2)] }), three = trainerPay({ cls: c.id, team: [m(1), m(2), m(3)] });
-    const mega = trainerPay({ cls: c.id, team: [m(1), { dex: 6, mega: "X" }] }), legend = trainerPay({ cls: c.id, team: [m(1), { dex: 150, legend: true }] });
+    const two = trainerPay({ cls: c.id, team: [m(1), m(2)] }, never), three = trainerPay({ cls: c.id, team: [m(1), m(2), m(3)] }, never);
+    const mega = trainerPay({ cls: c.id, team: [m(1), { dex: 6, mega: "X" }] }, never), legend = trainerPay({ cls: c.id, team: [m(1), { dex: 150, legend: true }] }, never);
     assert.ok(two.money > 0 && three.money > two.money && mega.money > two.money && legend.money > mega.money, c.id);
     for (const p of [two, mega, legend]) assert.ok(p.items.every(([id, n]) => ITEMS[id] && n > 0), c.id);
-    assert.ok(mega.items.some(([id]) => id === "rare-candy") && legend.items.some(([id]) => id === "azure-flute"));
+    // Its item: one ball or Berry (two at most): no Azure Flute, Rare Candy or Max Revive by right.
+    for (const p of [two, mega, legend]) assert.ok(!p.items.some(([id]) => ["azure-flute", "rare-candy", "max-revive"].includes(id)) && !p.fine, c.id);
+    const lucky = trainerPay({ cls: c.id, team: [m(1), m(2)] }, always);
+    assert.ok(lucky.fine && lucky.items.some(([id]) => id === lucky.fine), "a fine gift");
   }
+  // How often: 5%, 5% more for each star.
+  let plain = 0, starry = 0;
+  for (let i = 0; i < 20000; i++) {
+    if (trainerPay({ cls: "ace", team: [{ dex: 1 }, { dex: 2 }] }).fine) plain++;
+    if (trainerPay({ cls: "ace", team: [{ dex: 1, alpha: true }, { dex: 6, mega: "X" }, { dex: 150, legend: true }] }).fine) starry++;
+  }
+  assert.ok(Math.abs(plain / 20000 - 0.05) < 0.01 && Math.abs(starry / 20000 - 0.2) < 0.02, `${plain} ${starry}`);
+});
+
+test("a day of trainers pays less than a day's work: ~₽1,000 and a few balls (simulated)", () => {
+  let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let money = 0, n = 0;
+  for (let i = 0; i < 2000; i++) { const tr = newTrainer(rnd, 0, { owned: { legends: 17, megas: 30, alphas: 16 }, megaOf: (d) => (d % 7 === 0 ? "" : null) }); money += trainerPay(tr, rnd).money; n++; }
+  const perDay = (money / n) * 8; // ~8 trainers a day at "often"
+  assert.ok(perDay > 500 && perDay < 1500, `₽${Math.round(perDay)} a day`);
 });
 
 test("now and then a star: a legendary last, or a Mega of one that has one", async () => {
@@ -54,7 +73,7 @@ test("now and then a star: a legendary last, or a Mega of one that has one", asy
   assert.ok(all > 0);
   const a = newTrainer(Math.random, 0, { force: "alpha" });
   assert.ok(a.team.some((m) => m.alpha));
-  assert.ok(trainerPay({ cls: "ace", team: [{ dex: 1 }, { dex: 2, alpha: true }] }).items.some(([id]) => id === "max-revive"));
+  assert.ok(trainerPay({ cls: "ace", team: [{ dex: 1 }, { dex: 2, alpha: true }] }, () => 0.99).items.some(([id]) => id === "razz-berry"));
 });
 
 test("its look: every frame 12 × 18, every letter a colour; its Pokémon faint at 0 (no sliver: not to be caught)", () => {
