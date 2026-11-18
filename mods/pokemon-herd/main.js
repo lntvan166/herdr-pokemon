@@ -5624,7 +5624,8 @@ export default class PokemonHerd extends View {
     const { fav, legend, ...rest } = this.only;
     const mine = settingsNow().trainer ? trainerKeys(pokedex()) : null;
     let keys = fav ? new Set(favs().filter((k) => !mine || mine.has(k))) : mine;
-    if (legend) keys = new Set([...LEGENDARY].map(String).filter((k) => !keys || keys.has(k)));
+    // (A legendary's forms are legendaries too: Black and White Kyurem, Origin Giratina…)
+    if (legend) keys = new Set([...LEGENDARY].flatMap((d) => [String(d), ...formsOf(d).map((f) => `${d}-${f.form}`)]).filter((k) => !keys || keys.has(k)));
     // A type picked: its types as it fights (its regional form's, Rotom's appliance's…).
     const typed = rest.types?.length ? { ...rest, typesOf: entryTypes } : rest;
     return keys ? { ...typed, keys } : typed;
@@ -5635,7 +5636,8 @@ export default class PokemonHerd extends View {
   // from (the grid shows only those, but its line in the card and the preview reach the others:
   // Replace took an evolution not caught yet). "legend" | "trainer" | false.
   locked(e) {
-    if (!e.form && isLocked(e.dex, pokedex(), settingsNow().legendsOpen)) return "legend";
+    // (Its forms too: Black and White Kyurem, Origin Giratina, Therian Landorus… with their species.)
+    if (isLocked(e.dex, pokedex(), settingsNow().legendsOpen)) return "legend";
     if (settingsNow().trainer && !trainerKeys(pokedex()).has(String(e.dex))) return "trainer";
     return false;
   }
@@ -6051,7 +6053,7 @@ export default class PokemonHerd extends View {
     // Read here, not in the list's renderer: shared state read in there (Herdr's layout pass)
     // left the whole grid blank.
     const legendsOpen = settingsNow().legendsOpen;
-    const lockedHere = (e) => !e.form && isLocked(e.dex, dexNow, legendsOpen);
+    const lockedHere = (e) => isLocked(e.dex, dexNow, legendsOpen); // (a legendary's forms with it)
     const activeFilters = [this.only.fav, this.only.mega, this.only.legend, this.only.region].filter(Boolean).length + (this.only.types?.length ?? 0);
     // A small toggle: the filter row's chips.
     const chip = (id, label, on, flip) => div()

@@ -97,6 +97,19 @@ test("Replace gives a new one, never one of its kind from the Box", () => {
   assert.ok(Object.values(picks()).some((p) => p.dex === 6 && p.jobs === 12), "Charizard went to the Box");
 });
 
+// A legendary's forms are legendaries: Black and White Kyurem locked till Kyurem's caught, and
+// listed under ✦ Legendary.
+test("the picker: a legendary's forms locked with it, and among the legendaries", () => {
+  seed();
+  const v = picker();
+  assert.equal(v.locked({ dex: 646, form: "0001" }), "legend", "Black Kyurem, Kyurem not caught");
+  assert.equal(v.locked({ dex: 646 }), "legend");
+  v.only = { legend: true };
+  assert.ok(v.searchOnly().keys.has("646-0001") && v.searchOnly().keys.has("646"), "listed");
+  H.store.set(`${ids.MOD}-dex`, { v: 1, seen: [646], caught: [646], shiny: [], alpha: [], male: [], female: [], sizes: {} });
+  assert.equal(v.locked({ dex: 646, form: "0002" }), false, "Kyurem caught: White Kyurem too");
+});
+
 test("the picker's Box row: favourites first, a click brings one out", () => {
   seed();
   const v = picker();
