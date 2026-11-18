@@ -1365,6 +1365,21 @@ export default class PokemonHerd extends View {
     // after a win); no other visitor meanwhile (Honey waits).
     const tower = towerNow().run;
     if (v?.trainer?.tower && !tower && !v.trainer.leaving) this.trainerLeave(v, now); // given up (the menu): it goes
+    // A climb just begun with a wild one here (not fought, no ball on it): it hurries off, out of
+    // the way of the Tower's trainer (it waited for it to walk the whole strip: a minute or more).
+    if (tower && v && !v.trainer && !v.raid && !v.fight && !v.throw && !v.fainted && !v.hurry && v.start && Number.isFinite(v.x)) {
+      v.hurry = true;
+      v.halt = null;
+      v.act = v.act ? { ...v.act, done: true } : v.act;
+      v.from = v.x;
+      v.to = v.dir === "r" ? this.width + OFF : -OFF;
+      v.speedK = 4;
+      v.start = now;
+      v.dur = (Math.abs(v.to - v.from) / paceOf(v)) * 1000;
+      v.walkFrom = undefined;
+      v.leg = (v.leg ?? 0) + 1;
+      return true;
+    }
     if (!v && tower && !raidOn && this.leader && now >= tower.nextAt) { // (a raid first: the climb waits)
       const megaOf = (d) => megaForm(d)?.kind ?? null;
       const tr = towerTrainer(Math.random, now, tower.wins + 1, { megaOf });
@@ -4472,7 +4487,12 @@ export default class PokemonHerd extends View {
     const climb = towerNow();
     const over = this.towerOver && now - this.towerOver.at < 10000 ? this.towerOver : null;
     if (climb.run || over) {
-      const text = climb.run ? `🗼 Battle Tower · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(TOWER_LIVES - climb.run.faints)}${"♡".repeat(climb.run.faints)} · ${climb.run.heals < TOWER_HEALS ? "1 heal this floor" : "heal used"}${climb.best ? ` · best ${climb.best}` : ""}`
+      // (No trainer of its own here yet: what it waits for.)
+      const tv = this.visitor;
+      const waitFor = climb.run && !tv?.trainer?.tower
+        ? (["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now)) ? " · next trainer after the raid"
+          : tv && !tv.trainer ? " · a wild one is leaving first" : " · trainer coming…") : "";
+      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(TOWER_LIVES - climb.run.faints)}${"♡".repeat(climb.run.faints)} · ${climb.run.heals < TOWER_HEALS ? "1 heal this floor" : "heal used"}${climb.best ? ` · best ${climb.best}` : ""}`
         : `🗼 Climb over (${over.why}): ${over.wins} win${over.wins === 1 ? "" : "s"}${over.best ? ", a new best!" : ""}`;
       // On the left, under the raid's and the outbreak's notes: the trainer stands in the right corner.
       root.child(div().id("pokemon-tower").absolute().left(6).top(this.leftNotes(now) * 18 + 4).h(16).px(6).rounded(8)

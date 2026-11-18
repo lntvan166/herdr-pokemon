@@ -366,6 +366,28 @@ test("the Battle Tower: switching in costs 10%", () => {
   assert.ok(Math.abs(hpOf("t1") - (t1Before - 0.1)) < 1e-9, `switched in: 10% less (${hpOf("t1")})`);
 });
 
+// A climb begun with a wild one walking by: it hurries off (not a whole walk across the strip),
+// and the Tower's trainer comes in right after.
+test("the Battle Tower: a wild one here hurries off for its trainer", () => {
+  seed();
+  const KEY = `${ids.MOD}-tower`;
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  const now = Date.now();
+  st.visitor = { id: "wild", pick: { dex: 25 }, dir: "r", row: 0, from: -40, to: 1240, start: now - 2000, dur: 60000, x: 0, purse: 0 };
+  H.store.set(KEY, { v: 1, best: 0, run: { at: now, wins: 0, faints: 0, out: [], nextAt: 0 } });
+  st.visit(H.agents(), {}, null, now, cx);
+  assert.ok(st.visitor.hurry && st.visitor.dur < 15000, `it hurries (${Math.round(st.visitor.dur)} ms)`);
+  st.render(cx);
+  st.visit(H.agents(), {}, null, now + st.visitor.dur + 10, cx);
+  assert.equal(st.visitor, null, "gone");
+  st.visit(H.agents(), {}, null, now + 20000, cx);
+  assert.equal(st.visitor?.trainer?.tower, 1, "the Tower's trainer, right after");
+});
+
 // A climb over: each one's health as it stood (no healing in it), healing again from now.
 test("the Battle Tower: health as it stood when the climb ends", () => {
   seed();
