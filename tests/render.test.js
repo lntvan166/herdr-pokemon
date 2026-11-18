@@ -445,6 +445,65 @@ test("a trainer beaten draws its win (balls, words, pay, walking off)", () => {
   }
 });
 
+// Who moves first in a battle: the faster. Snorlax (slow) on an Electrode (fast): it strikes first,
+// and Snorlax after it lands (if still up).
+test("the faster moves first against a wild one", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 143, jobs: 3 } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "fast", pick: { dex: 101, hp: 1 }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, purse: 0, halt: { kind: "curious", x: 600, at: now, until: now + 60000 } };
+  const m = st.mons.t0; m.x = 560; m.moving = false;
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx, "a fight");
+  assert.equal(fx.wildFirst, true, "Electrode is faster");
+  assert.ok(fx.backHit < fx.hitAt, "its blow lands first");
+  // The other way round: yours the Electrode, the wild one a Snorlax: yours first.
+  st.visitor = { id: "slow", pick: { dex: 143, hp: 1 }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, purse: 0, halt: { kind: "curious", x: 600, at: now, until: now + 60000 } };
+  setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 101, jobs: 3 } });
+  st.mons.t0.restUntil = 0; st.mons.t0.react = null; st.mons.t0.pauseUntil = 0;
+  st.tick(cx);
+  st.mons.t0.x = 560; st.mons.t0.moving = false;
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const fx2 = st.visitor.fight;
+  assert.ok(fx2 && !fx2.wildFirst && fx2.hitAt < fx2.backHit, "yours faster: yours first");
+});
+
+// Moments: a trainer's ball arcing out and opening, a shiny's sparkles walking in, one of yours
+// greying out as it faints: each drawn at each beat.
+test("send-out ball, shiny sparkles, a faint: drawn at every beat", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  const now = Date.now();
+  for (const t of [10, 300, 560, 900, 2000]) {
+    st.visitor = { id: `s${t}`, pick: { dex: 9, trainer: true }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, x: 1100, purse: 0, gift: "none",
+      sentOut: { at: now - t, dex: 9 }, halt: { kind: "trainer", x: 1100, at: now - t, until: now + 60000, icon: "❗", face: "L" },
+      trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 3 }, { dex: 9 }], idx: 1, waited: true } };
+    st.render(cx);
+  }
+  for (const t of [10, 400, 1500]) {
+    st.visitor = { id: `y${t}`, pick: { dex: 25, shiny: true }, dir: "r", row: 0, from: -40, to: 1240, start: now - t, dur: 60000, purse: 0 };
+    st.render(cx);
+  }
+  st.visitor = null;
+  st.tick(cx);
+  st.mons.t0.faintAt = now - 100;
+  st.render(cx);
+});
+
 test("the strip draws", () => {
   seed();
   const v = view({ rows: 1, scale: 0.75 });

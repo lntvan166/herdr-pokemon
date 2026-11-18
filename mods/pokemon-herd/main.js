@@ -43,6 +43,11 @@ const wonSay = (tr) => (WON_SAYS[tr.cls] ?? ["I win!"])[0];
 const beatenSay = (tr) => { const l = BEATEN_SAYS[tr.cls] ?? ["You win!"]; return l[[...tr.name].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length]; };
 // A beaten trainer, one thing at a time: its words (till WIN_SAY_MS), then its pay rising (till
 // WIN_PAY_END) while it turns and walks off (from WIN_WALK_AT, over WIN_WALK_MS). Gone at WIN_PAY_END.
+// A trainer's next Pokémon sent out: its ball arcs from the trainer (up till SEND_APEX, down till
+// SEND_OPEN), opens in a white flash, and it's there. A shiny walking in: two sparkles (the games').
+const OWN_FAINT_MS = 1400; // one of yours fainting: greyed out this long
+const SEND_APEX = 280, SEND_OPEN = 540, SHINY_IN = [0, 380];
+const SHINY_STYLE = { glow: "#fff4b0", core: "#ffe27a", mid: "#fffbe0", hot: "#ffffff", look: "star" };
 const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1800, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
@@ -54,7 +59,7 @@ import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf }
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { effortOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
 import { duel } from "./react.js";
@@ -1304,6 +1309,26 @@ export default class PokemonHerd extends View {
     this.visitAt = now + 60000;
   }
 
+  // A trainer sending out its next Pokémon (`v.sentOut`): a Poké Ball from its hand, up then down to
+  // where its Pokémon stands (two legs, each under one transition), then a white flash as it opens.
+  sendOutFx(v, mid, ground, headY, scale, now) {
+    const t = now - v.sentOut.at, key = `send-${v.id}-${v.sentOut.at}`;
+    const tx = mid + this.trainerGap(v, scale), size = this.trainerSize(v, scale);
+    const from = { x: tx - 6 * scale, y: ground - (size?.h ?? 40) * 0.55 };
+    const end = { x: mid, y: ground - 10 * scale }, apex = { x: (from.x + end.x) / 2, y: Math.min(from.y, end.y) - 26 * scale };
+    const ball = (id, a, b, ms, ease) => {
+      const first = this.fxFirst(id), p = first ? a : b;
+      return div().id(id).absolute().left(p.x - 7).top(p.y - 7).size(14)
+        .transition("left", { duration: ms, easing: "linear" }).transition("top", { duration: ms, easing: ease })
+        .child(this.itemMark("poke-ball", 14));
+    };
+    const out = div().absolute().left(0).top(0);
+    if (t < SEND_APEX) return out.child(ball(`${key}-a`, from, apex, SEND_APEX, "ease-out"));
+    if (t < SEND_OPEN) return out.child(ball(`${key}-b`, apex, end, SEND_OPEN - SEND_APEX, "ease-in"));
+    const id = `${key}-open`;
+    return out.child(fxBurst(id, MOVE.normal, 0.8, mid, Math.round((headY + ground) / 2), this.fxFirst(id), v.sentOut.at % 9973));
+  }
+
   // A trainer going (it won the climb, or waited long enough): it stops a moment (WIN_SAY_MS, its
   // words, if it just won), then walks off to the right, out of the strip, and is gone.
   trainerLeave(v, now) {
@@ -1841,14 +1866,17 @@ export default class PokemonHerd extends View {
     if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
     // Its act's moments (wildacts.js): an icon going (running off, a dash), a teleport's flash.
     if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
-    if (v?.fainted) { times.push(v.fainted + 40); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
+    if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
     for (const m of Object.values(this.mons ?? {})) {
       if (m.evolveFx) times.push(m.evolveFx.at + 40, m.evolveFx.at + EVOLVE_WHITE, ...EVOLVE_SWAPS.map((s) => m.evolveFx.at + s), m.evolveFx.at + EVOLVE_BURST - 60, m.evolveFx.at + EVOLVE_BURST, m.evolveFx.at + EVOLVE_BURST + 40, m.evolveFx.at + EVOLVE_MS - 300, m.evolveFx.at + EVOLVE_MS);
       if (m.megaFx) for (const t of m.megaFx.on ? [...megaTimes(m.megaFx.full), megaTiming(m.megaFx.full).total, megaTiming(m.megaFx.full).total - 300] : [40, 470]) times.push(m.megaFx.at + t);
     }
-    for (const [addr, m] of Object.entries(this.mons ?? {})) if (m.faintAt) sounds.push([`faint-${addr}-${m.faintAt}`, m.faintAt, "faint"]);
+    for (const [addr, m] of Object.entries(this.mons ?? {})) if (m.faintAt) { sounds.push([`faint-${addr}-${m.faintAt}`, m.faintAt, "faint"]); times.push(m.faintAt + 40, m.faintAt + OWN_FAINT_MS); }
+    // A trainer's ball in flight and opening; a shiny's sparkles walking in.
+    if (v?.sentOut) times.push(v.sentOut.at + 40, v.sentOut.at + SEND_APEX, v.sentOut.at + SEND_OPEN, v.sentOut.at + SEND_OPEN + 40, v.sentOut.at + SEND_OPEN + 500);
+    if (v?.pick?.shiny && v.start) for (const d of SHINY_IN) times.push(v.start + d, v.start + d + 40);
     if (v?.fight) {
       const f = v.fight;
       times.push(f.at, f.hitAt, f.backAt);
@@ -2322,7 +2350,8 @@ export default class PokemonHerd extends View {
         root.children(this.fxMove(`wildshot-${v.id}-${fx.at}`, fx.wildMove, x + dir * 14, fx.ownX - dir * 12,
           Math.round((headY + ground) / 2) - 2, fx.backLaunch, fx.backHit, now));
       }
-      root.child(hpBar(x));
+      // Its health bar, while it stands (fainted, it goes with it: it stayed, empty, as it sank).
+      if (!v.fainted || now - v.fainted < 600) root.child(hpBar(x));
       // A trainer's: it stands behind its Pokémon, watching.
       // Beaten: its words in a bubble, its pay rising off the field, then it turns and walks out
       // of the strip (WIN_WALK_AT after, over WIN_WALK_MS); the one of yours that won cheers (care).
@@ -2359,7 +2388,9 @@ export default class PokemonHerd extends View {
         ? `${v.trainer.tower ? `🗼 Win ${v.trainer.tower}! ` : ""}You beat ${v.trainer.title} ${v.trainer.name}!${tp.again ? " (this floor paid already today)" : ""}`
         : `+${money(tp.money)}${gifts ? `, ${gifts}` : ""}`)
         : v.fainted ? `${wildName} fainted…`
-        : now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
+        // (Faster, it moved first: that, then yours' blow once it lands.)
+        : fx.wildFirst && fx.back && now >= backAt && !(now >= hitAt && fx.text) ? `${wildName} moved first!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
+        : !fx.wildFirst && now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
         : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
       if (said) {
         const tagW = 330;
@@ -2456,7 +2487,13 @@ export default class PokemonHerd extends View {
       .child(div()
         .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
-        .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale))
+        .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale)
+          .opacity(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN ? 0 : 1)) // (in its ball still)
+        .when(!!(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN + 500), (el) => el.child(this.sendOutFx(v, mid, ground, headY, scale, now)))
+        .when(!!(v.pick.shiny && !v.trainer && v.start && now - v.start < 1300), (el) => el.children(SHINY_IN.filter((d) => now - v.start >= d).map((d, k) => {
+          const id = `shiny-in-${v.id}-${k}`;
+          return fxBurst(id, SHINY_STYLE, 0.75, mid + (k ? 8 : -6) * scale, Math.round((headY + ground) / 2) - (k ? 8 : 0), this.fxFirst(id), (v.start + k) % 9973);
+        })))
         // A trainer walks in behind its Pokémon; stopped, it stands there.
         .when(!!v.trainer, (el) => {
           const tx = mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale);
@@ -3240,12 +3277,19 @@ export default class PokemonHerd extends View {
         const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
-        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+        // Who moves first: the faster (Speed, its nature and how it's raised, as spars do; a tie,
+        // yours). The wild one (or a trainer's) faster: it strikes first, and yours, if it's still
+        // up, strikes after; else yours first and it hits back (it always did, slow or not).
+        const wildFirst = speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) });
+        let hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
         if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+        const back = hit.fainted && !wildFirst ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (back && wm.miss) back.text = "It missed!";
+        // It struck first and yours fainted: yours never got its move off.
+        const ownStrikes = !(wildFirst && back?.fainted);
+        if (!ownStrikes) hit = { hp: Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: false };
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.
         const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), fightGap(this.drawnWidth(pk, "working"), this.drawnWidth(v.pick, "idle")));
@@ -3273,20 +3317,28 @@ export default class PokemonHerd extends View {
         const ms = sp ? Math.max(600, msFor(dMeta)(sp)) : 700;
         const launch = at + CHARGE_MS + 20; // it gathers power, then fires
         const fly = Math.round(Math.min(320, Math.max(200, Math.abs(v.x - spot) * 3)));
-        const hitAt = launch + fly, backAt = hitAt + 650, backLaunch = backAt + CHARGE_MS, backHit = backLaunch + fly;
+        // (Its move first: it gathers and fires from the start, yours after it lands.)
+        const backAt0 = wildFirst ? at : null;
+        const backLaunch0 = wildFirst ? at + CHARGE_MS + 20 : null, backHit0 = wildFirst ? backLaunch0 + fly : null;
+        const ownLaunch = wildFirst ? backHit0 + 650 + CHARGE_MS : launch;
+        const hitAt = ownStrikes ? ownLaunch + fly : (backHit0 ?? at) + 60000; // (never, in this fight)
+        const backAt = wildFirst ? backAt0 : hitAt + 650, backLaunch = wildFirst ? backLaunch0 : backAt + CHARGE_MS, backHit = wildFirst ? backHit0 : backLaunch + fly;
         const ownMove = { ...om, eff: hit.eff, blue: ownKey === "6mX" };
         const wildMove = { ...wm, eff: back?.eff ?? 1 };
         const away = v.x > spot ? 1 : -1; // from yours toward the wild one
         if (v.trainer) v.trainer.fighter = drop.addr; // it fights on till one of them is down
         dm.awakeUntil = Math.max(dm.awakeUntil ?? 0, now + 20000); // awake through the fight, its agent idle or not (it slept between blows)
         v.fight = {
-          at, hitAt, backAt, backLaunch, backHit, until: back ? backHit + 900 : hitAt + 1100,
+          at, hitAt, backAt, backLaunch, backHit, wildFirst, until: wildFirst ? (ownStrikes ? hitAt + 1100 : backHit + 900) : back ? backHit + 900 : hitAt + 1100,
           x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
           blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || om.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, om.crit), miss: om.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type, name: om.name },
         };
-        const seq = [{ at, until: at + ms, anim: sp }];
+        if (!ownStrikes) v.fight.blow = null; // (fainted first: no move of its own)
+        const ownAt = ownLaunch - CHARGE_MS - 20; // it gathers power (after the wild one's blow, slower)
+        const seq = ownStrikes ? [{ at: ownAt, until: ownAt + ms, anim: sp }] : [];
         if (back) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
-        dm.react = { seq, until: back ? backHit + 700 : at + ms + 300, face: dm.dir, shot: { at: launch, until: hitAt, from: spot, to: v.x, move: ownMove } };
+        const reactEnd = Math.max(back ? backHit + 700 : 0, ownStrikes ? ownAt + ms + 300 : 0);
+        dm.react = { seq, until: reactEnd, face: dm.dir, ...(ownStrikes ? { shot: { at: ownLaunch, until: hitAt, from: spot, to: v.x, move: ownMove } } : {}) };
         if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
@@ -4197,7 +4249,9 @@ export default class PokemonHerd extends View {
         body = div()
           .child(div().absolute().left(SLOT_MID - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
           .when(!!pick.alpha, (el) => el.child(alphaGlow(SLOT_MID, ground, s.box, scale, !!pick.shadow))) // over its shadow, not darkened by it; breathing, motes rising (the user's choice: an Alpha shows it)
-          .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale))
+          .child(image(s.path).absolute().left(left).top(top).w(s.w * scale).h(s.h * scale)
+            // Fainted just now: it greys out a moment (💫 over it), then rests as before.
+            .opacity(m.faintAt && now - m.faintAt < OWN_FAINT_MS ? 0.35 : 1).transition("opacity", { duration: 260 }))
           // A blow landing: it flashes white (and the hurt pose's silhouette is made ahead).
           .when(true, (el) => {
             const lb = (m.blows ?? []).filter((b) => !b.miss && now >= b.at - 1500 && now < b.at + 200).at(-1);

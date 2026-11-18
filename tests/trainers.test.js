@@ -82,9 +82,10 @@ test("the Battle Tower: teams of three, stronger and starrier the higher; pay an
     const tr = T.towerTrainer(rnd, 0, n);
     assert.equal(tr.team.length, 3);
     assert.equal(tr.tower, n);
-    assert.ok(tr.effort >= T.TEAM_EFFORT && tr.effort <= 1.3);
+    assert.ok(tr.effort >= 0.95 && tr.effort <= 1.3);
   }
   assert.ok(T.towerOdds(20).legend > T.towerOdds(0).legend);
+  assert.ok(T.towerTrainer(rnd, 0, 20).effort > T.towerTrainer(rnd, 0, 1).effort, "stronger the higher");
   assert.ok(T.towerOdds(100).legend <= 0.5);
   assert.deepEqual(T.towerPay(1), { money: 50, items: [["poke-ball", 3]] });
   // Every floor a small gift (a ball or a Berry); every 7th a bigger one besides.

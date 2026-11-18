@@ -249,7 +249,7 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **The Battle Tower** (`trainers.js` `towerTrainer`, `towerPay`, `loadTower`; `pokemon-herd-tower`
   `{ best, run: { at, wins, faints, out, nextAt } }`): ☰ → Battle Tower starts a climb (again:
   give up). Its trainers come one by one to the corner as usual (no other visitor meanwhile, and
-  none during a raid): always three Pokémon, raised harder the higher (`towerEffort`, 1.1 → 1.3)
+  none during a raid): always three Pokémon, raised harder the higher (`towerEffort`, 0.95 → 1.3: the faster moving first made 1.1 too hard)
   and starrier (`towerOdds`, capped). The one of yours that won takes on the next one by itself.
   Each win pays ₽40 + ₽10 a floor (₽300 at most), each floor once a day (`towerWin`, `paid`:
   the day's highest floor paid; a climb again pays only above it: no farming the first floors);
@@ -290,3 +290,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
 - **A climb waiting** (the strip says what for): a wild one here when it begins hurries off
   (`hurry`, ×4 pace: it walked the whole strip first, a minute or more), "a wild one is leaving
   first"; a raid on, "next trainer after the raid"; else "trainer coming…" (its sprites building).
+- **Who moves first** against a wild one or a trainer's (main.js, the drop's fight; `trainer.js`
+  `speedOf`, as spars): the faster (Speed, its nature, how it's raised; a tie, yours). It faster:
+  it strikes first ("… moved first!"), and yours strikes after it lands, if still up; else yours
+  first and it hits back, as always before (it always went second, slow or not).
+- **Moments** (one-shot, no loops): a trainer's next Pokémon sent out (`sendOutFx`: a Poké Ball
+  arcs from its hand, up till SEND_APEX, down till SEND_OPEN, opens in a white flash; its
+  Pokémon shows then); a shiny walking in: two gold-white sparkles round it (`SHINY_IN`,
+  `SHINY_STYLE`, the games'); one of yours fainting: greyed out for OWN_FAINT_MS (💫 as before);
+  a wild or trainer's Pokémon fainted: its health bar goes as it sinks (it stayed, empty).

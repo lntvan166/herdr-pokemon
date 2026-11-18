@@ -145,7 +145,10 @@ export const TOWER_HEALS = 1; // a floor
 export const TOWER_SWITCH = 0.1;
 export const TOWER_HEAL_IDS = ["berry", "sitrus-berry", "revive", "max-revive"];
 export const TOWER_NEXT_MS = 6000; // the next one in, after a win
-export const towerEffort = (wins) => Math.min(1.3, TEAM_EFFORT + 0.01 * wins);
+// Its trainers' Pokémon, raised: 0.95 on the first floor, +0.01 a floor, 1.3 at most. (Since the
+// faster moves first, 1.1 from the start made a climb ~4.7 floors, 7-strong, ~3 for 3 of them;
+// 0.95: ~7.2 and ~5.4.)
+export const towerEffort = (wins) => Math.min(1.3, 0.95 + 0.01 * wins);
 export const towerOdds = (wins) => ({
   legend: Math.min(0.5, 0.05 + 0.025 * wins),
   mega: Math.min(0.6, 0.15 + 0.03 * wins),
