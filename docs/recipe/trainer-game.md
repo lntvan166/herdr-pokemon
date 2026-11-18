@@ -307,3 +307,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   ~₽6,300 a day, Azure Flutes and Max Revives among them: four times the day's work). Now and then
   a fine gift besides (`RARE_GIFT`, 5% and 5% more a star: a Golden Razz, a Rare Candy, a Max
   Revive, an Azure Flute), marked ✨ in its line: one every other day or so.
+- **Trainers' pictures** (`art/trainers/<class>.png` standing, `-walk1`/`-walk2` steps,
+  `-throw` throwing; all one size a class, facing left; drawn by ChatGPT from each class's first
+  picture as a 4-pose sheet on magenta, cut by the figures' columns, aligned by their backs,
+  box-downscaled to the game's grid (premultiplied, alpha at 50%) and ×2): `ensureTrainer` makes
+  its steps a GIF (walk1, stand, walk2, stand) and each facing right. It walks in and out on its
+  steps; throwing its ball (`sentOut`: its first Pokémon as it arrives, and each next one) it
+  shows its throwing picture till the ball opens.

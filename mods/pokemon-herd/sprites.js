@@ -460,16 +460,29 @@ async function ensureTrainerNow(cls) {
   const { classOf, framesOf, pixelsOf, TRAINER_W, TRAINER_H } = await import("./trainers.js");
   const dir = `${DATA}/trainers/${cls}`;
   const rel = `${DATA_REL}/trainers/${cls}`;
-  // A picture drawn for it, shipped with the mod (art/trainers/<class>.png: standing, facing left,
-  // see-through): that, and the same facing right (flipped once); its size as drawn.
-  const own = `mods/${MOD}/art/trainers/${cls}.png`;
-  if (await fs.exists(`${appHome()}/${own}`).catch(() => false)) {
+  // Pictures drawn for it, shipped with the mod (art/trainers/<class>.png standing, -walk1/-walk2
+  // its steps, -throw throwing a ball; facing left, see-through, all one size): those, its steps
+  // as a GIF, and each facing right (flipped once). Without steps, it slides on its standing one.
+  const art = `mods/${MOD}/art/trainers/${cls}`, own = `${art}.png`, at = (f) => `${appHome()}/${f}`;
+  if (await fs.exists(at(own)).catch(() => false)) {
     if (!(await imageMagick())) return null;
-    const size = (await im("identify", ["-format", "%w %h", `${appHome()}/${own}`])).split(" ").map(Number);
+    const size = (await im("identify", ["-format", "%w %h", at(own)])).split(" ").map(Number);
     await fs.mkdir(dir, { recursive: true });
-    const right = `${dir}/own-right.png`;
-    if (!(await fs.exists(right).catch(() => false))) { await im("convert", [`${appHome()}/${own}`, "-flop", `${right}.part.png`]); await moveFile(`${right}.part.png`, right); }
-    return { custom: true, standL: own, walkL: own, standR: `${rel}/own-right.png`, walkR: `${rel}/own-right.png`, w: size[0], h: size[1] };
+    const made = async (file, args) => { if (!(await fs.exists(file).catch(() => false))) { await im("convert", [...args, `${file}.part${file.slice(file.lastIndexOf("."))}`]); await moveFile(`${file}.part${file.slice(file.lastIndexOf("."))}`, file); } };
+    await made(`${dir}/own-right-v2.png`, [at(own), "-flop"]);
+    const out = { custom: true, standL: own, walkL: own, standR: `${rel}/own-right-v2.png`, walkR: `${rel}/own-right-v2.png`, throwL: own, throwR: `${rel}/own-right-v2.png`, w: size[0], h: size[1] };
+    if (await fs.exists(at(`${art}-walk1.png`)).catch(() => false)) {
+      await made(`${dir}/walkL-v2.gif`, ["-delay", "22", "-dispose", "Background", at(`${art}-walk1.png`), at(own), at(`${art}-walk2.png`), at(own), "-loop", "0"]);
+      await made(`${dir}/walkR-v2.gif`, [`${dir}/walkL-v2.gif`, "-coalesce", "-flop"]);
+      out.walkL = `${rel}/walkL-v2.gif`;
+      out.walkR = `${rel}/walkR-v2.gif`;
+    }
+    if (await fs.exists(at(`${art}-throw.png`)).catch(() => false)) {
+      await made(`${dir}/throwR-v2.png`, [at(`${art}-throw.png`), "-flop"]);
+      out.throwL = `${art}-throw.png`;
+      out.throwR = `${rel}/throwR-v2.png`;
+    }
+    return out;
   }
   const out = { walkR: `${rel}/walkR.gif`, walkL: `${rel}/walkL.gif`, standR: `${rel}/standR.gif`, standL: `${rel}/standL.gif`, w: TRAINER_W * TRAINER_SCALE, h: TRAINER_H * TRAINER_SCALE };
   if (await fs.exists(`${dir}/standL.gif`).catch(() => false)) return out;

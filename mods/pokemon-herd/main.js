@@ -1613,7 +1613,10 @@ export default class PokemonHerd extends View {
     }
     // (Its Pokémon placed so the trainer, beyond it, stays inside the strip, however wide it is.)
     const cornerX = () => Math.max(EDGE, this.width - EDGE - 20 * scaleOf() - this.trainerGap(v, scaleOf()));
-    if (v.trainer && !v.trainer.waited) { v.trainer.waited = true; if (v.act) v.act.done = true; v.from = v.x = cornerX(); v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" }; }
+    if (v.trainer && !v.trainer.waited) {
+      v.trainer.waited = true; if (v.act) v.act.done = true; v.from = v.x = cornerX(); v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" };
+      v.sentOut = { at: now, dex: v.pick.dex }; // its first Pokémon, out of its ball too
+    }
     // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
     if (v.halt) {
       v.x = v.halt.x;
@@ -1878,7 +1881,7 @@ export default class PokemonHerd extends View {
     }
     for (const [addr, m] of Object.entries(this.mons ?? {})) if (m.faintAt) { sounds.push([`faint-${addr}-${m.faintAt}`, m.faintAt, "faint"]); times.push(m.faintAt + 40, m.faintAt + OWN_FAINT_MS); }
     // A trainer's ball in flight and opening; a shiny's sparkles walking in.
-    if (v?.sentOut) times.push(v.sentOut.at + 40, v.sentOut.at + SEND_APEX, v.sentOut.at + SEND_OPEN, v.sentOut.at + SEND_OPEN + 40, v.sentOut.at + SEND_OPEN + 500);
+    if (v?.sentOut) times.push(v.sentOut.at + 40, v.sentOut.at + SEND_APEX, v.sentOut.at + SEND_OPEN, v.sentOut.at + SEND_OPEN + 40, v.sentOut.at + SEND_OPEN + 200, v.sentOut.at + SEND_OPEN + 500);
     if (v?.pick?.shiny && v.start) for (const d of SHINY_IN) times.push(v.start + d, v.start + d + 40);
     if (v?.fight) {
       const f = v.fight;
@@ -2269,11 +2272,13 @@ export default class PokemonHerd extends View {
     const k = art.custom ? (TRAINER_DRAW_H * scale) / art.h : scale * 1.4;
     return { w: art.w * k, h: art.h * k };
   }
-  trainerFigure(v, x, ground, face, walking, scale) {
+  // `throwing`: its ball thrown (sending out its next Pokémon): its throwing picture, if drawn.
+  trainerFigure(v, x, ground, face, walking, scale, throwing = false) {
     const art = v.trainer && this.trainerArt?.[v.trainer.cls];
     const size = this.trainerSize(v, scale);
     if (!art || !size) return null;
-    return image(art[`${walking ? "walk" : "stand"}${face}`]).absolute().left(x - size.w / 2).top(ground - size.h).w(size.w).h(size.h);
+    const pic = (throwing && art[`throw${face}`]) || art[`${walking ? "walk" : "stand"}${face}`];
+    return image(pic).absolute().left(x - size.w / 2).top(ground - size.h).w(size.w).h(size.h);
   }
   // Under a trainer, as the games show it: a ball for each of its Pokémon, grey once down.
   trainerBalls(v, x, ground, scale) {
@@ -2507,7 +2512,8 @@ export default class PokemonHerd extends View {
         // A trainer walks in behind its Pokémon; stopped, it stands there.
         .when(!!v.trainer, (el) => {
           const tx = mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale);
-          const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale);
+          const throwing = !!(v.sentOut && now - v.sentOut.at < SEND_OPEN + 200); // its ball just thrown
+          const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale, throwing);
           const b = halt && this.trainerBalls(v, tx, ground, scale); // its team, once it waits
           // It won that one: its words, a moment.
           const size = cheering && this.trainerSize(v, scale);
