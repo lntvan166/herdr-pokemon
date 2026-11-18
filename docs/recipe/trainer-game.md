@@ -255,10 +255,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   the day's highest floor paid; a climb again pays only above it: no farming the first floors);
   every floor a small gift too (`FLOOR_GIFTS`, in turn: 3 Poké Balls, 2 Oran, 2 Great Balls, 2
   Razz, 2 Pinap, an Ultra Ball; from floor 8 `HIGH_GIFTS`, better), and every 7th a bigger one
-  besides (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then Golden Razz). Two healing items a climb at most (`TOWER_HEALS`: Berries, Revives, `useOn`; the
-  menu offers none after). Simulated with the game's battles and the user's team (7 with
-  legendaries: ~7 floors, ~4 min a climb; 3: ~3–4; unlimited Berries: ~9–10, up to 22): a day's
-  climb ~₽560, two hours of agents' work. Three faints of yours (`TOWER_LIVES`; each one out of the climb)
+  besides (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then Golden Razz). One healing item a floor (`TOWER_HEALS`: a Berry or a Revive, `useOn`; a win gives it back;
+  the menu offers none after, and says so: "Tower: 1 heal (Berry or Revive) on this floor" / "heal
+  used on this floor, next on the next floor"; the strip: "1 heal this floor" / "heal used").
+  Simulated with the game's battles and the user's team (Sitrus; 7 with legendaries / 3 of them):
+  2 a climb ~8 / ~4.4 floors; 1 a floor ~9 / ~5.6; 2 a floor ~11 / ~9.3; unlimited ~13 / ~13, up
+  to 41. A day's climb ~₽600 and its small gifts. Three faints of yours (`TOWER_LIVES`; each one out of the climb)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
   (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.
   No healing by itself while a climb is on (`trainer.js` `healed`/`healthNow(rec, now, frozenFrom)`,

@@ -300,25 +300,28 @@ test("the Battle Tower: start, a trainer, three faints and it's over", () => {
 });
 
 // A trainer beaten: its balls, its words, its pay rising, then it walks off: all drawn.
-// In a climb, two healing items at most (Berries, Revives): the third does nothing, and the
-// menu offers none.
-test("the Battle Tower: two heals a climb", () => {
+// In a climb, one healing item a floor (a Berry or a Revive): the second does nothing, and the
+// menu offers none till the next floor.
+test("the Battle Tower: one heal a floor", () => {
   seed();
   const KEY = `${ids.MOD}-tower`, HP = `${ids.MOD}-hp`;
   H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now() - 1000, wins: 0, faints: 0, out: [], nextAt: 0 } });
   const hurt = () => H.store.set(HP, { p0: { hp: 0.2, at: Date.now() } });
   const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
-  for (const n of [1, 2]) {
-    hurt();
-    m.render(cx);
-    click("mon-use-berry:on_click");
-    assert.equal(H.store.get(KEY).run.heals, n);
-  }
+  hurt();
+  m.render(cx);
+  click("mon-use-berry:on_click");
+  assert.equal(H.store.get(KEY).run.heals, 1);
   hurt();
   for (const k of Object.keys(K.handlers)) delete K.handlers[k];
   m.render(cx);
-  assert.equal(K.handlers["mon-use-berry:on_click"], undefined, "no Berry offered");
-  assert.equal(H.store.get(ids.BAG_KEY).items.berry, 1, "two eaten, one left");
+  assert.equal(K.handlers["mon-use-berry:on_click"], undefined, "no Berry offered on this floor");
+  assert.equal(H.store.get(ids.BAG_KEY).items.berry, 2, "one eaten");
+  // The next floor: its heal back.
+  H.store.set(KEY, { ...H.store.get(KEY), run: { ...H.store.get(KEY).run, wins: 1, heals: 0 } });
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  m.render(cx);
+  assert.ok(K.handlers["mon-use-berry:on_click"], "a Berry again");
 });
 
 // A climb over: each one's health as it stood (no healing in it), healing again from now.

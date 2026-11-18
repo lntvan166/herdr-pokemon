@@ -133,11 +133,12 @@ export function pixelsOf(rows, colors) {
 // yours end the climb (each one out for the rest of it), as does leaving one waiting (WAIT_MS).
 // Each win pays (towerPay), each floor once a day (a climb again the same day pays only above
 // the day's highest: no farming the first floors); every 7th a gift. No healing by itself in a
-// climb, and TOWER_HEALS items at most (Berries, Revives). Simulated with the game's own battles
-// (a 7-strong team with legendaries: ~7 floors a climb, ~4 minutes; 3 of them: ~3–4; unlimited
-// Berries made it ~9–10, up to 22): a day's climb pays ~₽560, two hours of agents' work.
+// climb, and TOWER_HEALS items a floor (Berries, Revives; a new floor, again). Simulated with the
+// game's own battles (Sitrus; a 7-strong team with legendaries / 3 of them): 2 a climb ~8 / ~4.4
+// floors; 1 a floor ~9 / ~5.6; 2 a floor ~11 / ~9.3; unlimited ~13 / ~13, up to 41. A day's
+// climb pays ~₽600 and its small gifts, a couple of hours of agents' work.
 export const TOWER_LIVES = 3;
-export const TOWER_HEALS = 2;
+export const TOWER_HEALS = 1; // a floor
 export const TOWER_HEAL_IDS = ["berry", "sitrus-berry", "revive", "max-revive"];
 export const TOWER_NEXT_MS = 6000; // the next one in, after a win
 export const towerEffort = (wins) => Math.min(1.3, TEAM_EFFORT + 0.01 * wins);
