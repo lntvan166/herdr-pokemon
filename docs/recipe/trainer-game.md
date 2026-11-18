@@ -264,7 +264,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   that one still up; `trainer.lastOwn`) costs it `TOWER_SWITCH` (10%) of its health, "🔄 −10%"
   (simulated: switching every exchange to the best-typed made ~9.4 floors against ~6.7 played
   straight; with 10%, ~6.3: no gain in it; 20% ~4.5; a full free hit ~4.4, too harsh). Three faints of yours (`TOWER_LIVES`, or as many as there are
-  of yours on screen if fewer: `towerLives`; each one out of the climb; none of yours left to
+  of yours on screen if fewer: `towerLives`, set as it begins, `run.lives`: agents opened
+  in it bring more of yours to send, not more lives; each one out of the climb; none of yours left to
   send, the rest closed or out: over at once, "no one left"; with two it waited, three lives and
   nobody to send, till its trainer gave up)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb

@@ -186,6 +186,7 @@ export function loadTower(raw) {
     at: r.at, wins: Number.isInteger(r.wins) && r.wins > 0 ? r.wins : 0, faints: Number.isInteger(r.faints) && r.faints > 0 ? r.faints : 0,
     out: Array.isArray(r.out) ? r.out.filter((x) => typeof x === "string") : [], nextAt: Number.isFinite(r.nextAt) ? r.nextAt : 0,
     heals: Number.isInteger(r.heals) && r.heals > 0 ? r.heals : 0,
+    ...(Number.isInteger(r.lives) && r.lives > 0 ? { lives: Math.min(TOWER_LIVES, r.lives) } : {}),
   } : null;
   const paid = typeof raw?.paid?.day === "string" && Number.isInteger(raw.paid.floor) ? { day: raw.paid.day, floor: raw.paid.floor } : null;
   return { v: 1, best, run, ...(paid ? { paid } : {}) };

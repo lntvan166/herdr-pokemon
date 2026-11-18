@@ -99,7 +99,9 @@ const TOWER_KEY = `${MOD}-tower`; // the Battle Tower: the climb on now and the 
 const towerNow = () => loadTower(shared(TOWER_KEY));
 // A climb's lives: TOWER_LIVES, or as many of yours as are on screen if fewer (two of them: two
 // lives; it waited, three lives and nobody left to send, till its trainer gave up).
-const towerLives = () => Math.min(TOWER_LIVES, Math.max(1, new Set(agents().map((a) => a.pane).filter(Boolean)).size));
+// Set when the climb begins (`run.lives`): opening more agents in it brings more of yours to send,
+// not more lives.
+const towerLives = (run = null) => run?.lives ?? Math.min(TOWER_LIVES, Math.max(1, new Set(agents().map((a) => a.pane).filter(Boolean)).size));
 const saveTower = (t) => setShared(TOWER_KEY, t);
 const VISITOR_KEY = `${MOD}-visitor`; // the wild one or trainer here, as last settled: { at, v } (keepVisitor), back after a reload
 const VISITOR_KEEP_MS = 10 * 60000; // kept that long at most
@@ -1280,7 +1282,7 @@ export default class PokemonHerd extends View {
     const pane = agents().find((x) => x.address === addr)?.pane;
     const run = { ...t.run, faints: t.run.faints + 1, out: pane && !t.run.out.includes(pane) ? [...t.run.out, pane] : t.run.out };
     const left = new Set(agents().map((a) => a.pane).filter(Boolean)).size - run.out.length;
-    if (run.faints >= towerLives() || left <= 0) return this.towerEnd(now, run.faints >= TOWER_LIVES ? "three down" : "no one left", run);
+    if (run.faints >= towerLives(run) || left <= 0) return this.towerEnd(now, run.faints >= TOWER_LIVES ? "three down" : "no one left", run);
     saveTower({ ...t, run });
   }
   // The climb ends (lost, left, or given up in the menu): its wins kept as the best if they are,
@@ -3450,8 +3452,8 @@ export default class PokemonHerd extends View {
       .child((() => {
         const tw = towerNow();
         return tw.run
-          ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${Math.max(0, towerLives() - tw.run.faints)} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
-          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · 1 heal a floor · switching in −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0 } }));
+          ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${Math.max(0, towerLives(tw.run) - tw.run.faints)} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
+          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · 1 heal a floor · switching in −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
       })())
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
       .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", `Ball to throw · ${named(m.ball, true)}`, [[null, "Auto"], ...m.balls.map((id) => [id, String(b.items[id])])], m.ball,
@@ -4501,7 +4503,7 @@ export default class PokemonHerd extends View {
       const waitFor = climb.run && !tv?.trainer?.tower
         ? (["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now)) ? " · next trainer after the raid"
           : tv && !tv.trainer ? " · a wild one is leaving first" : " · trainer coming…") : "";
-      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(Math.max(0, towerLives() - climb.run.faints))}${"♡".repeat(Math.min(climb.run.faints, towerLives()))} · ${climb.run.heals < TOWER_HEALS ? "1 heal this floor" : "heal used"}${climb.best ? ` · best ${climb.best}` : ""}`
+      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(Math.max(0, towerLives(climb.run) - climb.run.faints))}${"♡".repeat(Math.min(climb.run.faints, towerLives(climb.run)))} · ${climb.run.heals < TOWER_HEALS ? "1 heal this floor" : "heal used"}${climb.best ? ` · best ${climb.best}` : ""}`
         : `🗼 Climb over (${over.why}): ${over.wins} win${over.wins === 1 ? "" : "s"}${over.best ? ", a new best!" : ""}`;
       // On the left, under the raid's and the outbreak's notes: the trainer stands in the right corner.
       root.child(div().id("pokemon-tower").absolute().left(6).top(this.leftNotes(now) * 18 + 4).h(16).px(6).rounded(8)
@@ -4850,7 +4852,7 @@ export default class PokemonHerd extends View {
     else out.push(["🌊", `Today's outbreak (${fullName(o.dex)}) is over`, "Another tomorrow", 1, false]);
     // The Battle Tower: the climb on now, or the best one yet.
     const tw = towerNow();
-    out.push(tw.run ? ["🗼", `Battle Tower: ${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} so far`, `${Math.max(0, towerLives() - tw.run.faints)} lives left${tw.best ? ` · best ${tw.best}` : ""}`, null, true]
+    out.push(tw.run ? ["🗼", `Battle Tower: ${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} so far`, `${Math.max(0, towerLives(tw.run) - tw.run.faints)} lives left${tw.best ? ` · best ${tw.best}` : ""}`, null, true]
       : ["🗼", tw.best ? `Battle Tower: best ${tw.best} in a row` : "Battle Tower: not climbed yet", "☰ menu → Battle Tower: trainers in a row, 3 lives", null, false]);
     return out;
   }
