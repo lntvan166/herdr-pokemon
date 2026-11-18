@@ -131,8 +131,14 @@ export function pixelsOf(rows, colors) {
 // The Battle Tower (the menu): trainers one after another, as long as you keep winning. Each a
 // team of three, stronger the higher you are (its effort, likelier stars); `lives` faints of
 // yours end the climb (each one out for the rest of it), as does leaving one waiting (WAIT_MS).
-// Each win pays (towerPay); every 7th a gift as well, a Master Ball from the 21st.
+// Each win pays (towerPay), each floor once a day (a climb again the same day pays only above
+// the day's highest: no farming the first floors); every 7th a gift. No healing by itself in a
+// climb, and TOWER_HEALS items at most (Berries, Revives). Simulated with the game's own battles
+// (a 7-strong team with legendaries: ~7 floors a climb, ~4 minutes; 3 of them: ~3–4; unlimited
+// Berries made it ~9–10, up to 22): a day's climb pays ~₽560, two hours of agents' work.
 export const TOWER_LIVES = 3;
+export const TOWER_HEALS = 2;
+export const TOWER_HEAL_IDS = ["berry", "sitrus-berry", "revive", "max-revive"];
 export const TOWER_NEXT_MS = 6000; // the next one in, after a win
 export const towerEffort = (wins) => Math.min(1.3, TEAM_EFFORT + 0.01 * wins);
 export const towerOdds = (wins) => ({
@@ -147,12 +153,19 @@ export function towerTrainer(rnd, now, n, how = {}) {
 }
 // The `n`th win: { money, items: [[id, count]] }.
 export function towerPay(n) {
-  const money = Math.min(2000, 300 + 60 * (n - 1));
+  const money = Math.min(300, 40 + 10 * n);
   const k = n % 7 === 0 ? n / 7 : 0;
-  const items = k === 1 ? [["rare-candy", 3], ["golden-razz-berry", 2]]
-    : k === 2 ? [["max-revive", 2], ["golden-razz-berry", 3]]
-    : k >= 3 ? [["master-ball", 1], ["golden-razz-berry", 3]] : [];
+  const items = k === 1 ? [["rare-candy", 1]]
+    : k === 2 ? [["max-revive", 1], ["golden-razz-berry", 1]]
+    : k === 3 ? [["master-ball", 1]]
+    : k > 3 ? [["golden-razz-berry", 2]] : [];
   return { money, items };
+}
+// The `n`th win today, with `paid` ({ day, floor }: the day's highest floor paid): its pay, or
+// none (paid already today), and `paid` after it.
+export function towerWin(n, paid, day) {
+  const upTo = paid?.day === day ? paid.floor : 0;
+  return n > upTo ? { pay: towerPay(n), paid: { day, floor: n } } : { pay: { money: 0, items: [], again: true }, paid: { day, floor: upTo } };
 }
 // The climb now: `run` (null: not climbing) { at, wins, faints, out: [panes], nextAt }, and the
 // best run yet. Kept in shared state (pokemon-herd-tower).
@@ -162,6 +175,8 @@ export function loadTower(raw) {
   const run = r && Number.isFinite(r.at) ? {
     at: r.at, wins: Number.isInteger(r.wins) && r.wins > 0 ? r.wins : 0, faints: Number.isInteger(r.faints) && r.faints > 0 ? r.faints : 0,
     out: Array.isArray(r.out) ? r.out.filter((x) => typeof x === "string") : [], nextAt: Number.isFinite(r.nextAt) ? r.nextAt : 0,
+    heals: Number.isInteger(r.heals) && r.heals > 0 ? r.heals : 0,
   } : null;
-  return { v: 1, best, run };
+  const paid = typeof raw?.paid?.day === "string" && Number.isInteger(raw.paid.floor) ? { day: raw.paid.day, floor: raw.paid.floor } : null;
+  return { v: 1, best, run, ...(paid ? { paid } : {}) };
 }

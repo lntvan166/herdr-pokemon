@@ -251,8 +251,13 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   give up). Its trainers come one by one to the corner as usual (no other visitor meanwhile, and
   none during a raid): always three Pokémon, raised harder the higher (`towerEffort`, 1.1 → 1.3)
   and starrier (`towerOdds`, capped). The one of yours that won takes on the next one by itself.
-  Each win pays ₽300 + ₽60 a floor (₽2000 at most); every 7th a gift (Rare Candies, Max Revives,
-  a Master Ball from the 21st). Three faints of yours (`TOWER_LIVES`; each one out of the climb)
+  Each win pays ₽40 + ₽10 a floor (₽300 at most), each floor once a day (`towerWin`, `paid`:
+  the day's highest floor paid; a climb again pays only above it: no farming the first floors);
+  every 7th a gift (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then
+  Golden Razz). Two healing items a climb at most (`TOWER_HEALS`: Berries, Revives, `useOn`; the
+  menu offers none after). Simulated with the game's battles and the user's team (7 with
+  legendaries: ~7 floors, ~4 min a climb; 3: ~3–4; unlimited Berries: ~9–10, up to 22): a day's
+  climb ~₽560, two hours of agents' work. Three faints of yours (`TOWER_LIVES`; each one out of the climb)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
   (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.
   No healing by itself while a climb is on (`trainer.js` `healed`/`healthNow(rec, now, frozenFrom)`,

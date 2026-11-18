@@ -86,13 +86,24 @@ test("the Battle Tower: teams of three, stronger and starrier the higher; pay an
   }
   assert.ok(T.towerOdds(20).legend > T.towerOdds(0).legend);
   assert.ok(T.towerOdds(100).legend <= 0.5);
-  assert.deepEqual(T.towerPay(1), { money: 300, items: [] });
-  assert.ok(T.towerPay(7).items.some(([id]) => id === "rare-candy"));
+  assert.deepEqual(T.towerPay(1), { money: 50, items: [] });
+  assert.deepEqual(T.towerPay(7).items, [["rare-candy", 1]]);
   assert.ok(T.towerPay(14).items.some(([id]) => id === "max-revive"));
-  assert.ok(T.towerPay(21).items.some(([id]) => id === "master-ball"));
-  assert.ok(T.towerPay(28).items.some(([id]) => id === "master-ball"));
-  assert.equal(T.towerPay(100).money, 2000);
+  assert.deepEqual(T.towerPay(21).items, [["master-ball", 1]]);
+  assert.ok(!T.towerPay(28).items.some(([id]) => id === "master-ball"), "one Master Ball, at 21");
+  assert.equal(T.towerPay(100).money, 300);
+  // A day's seven floors: about two hours of agents' work (₽300 an hour), not a fortune.
+  const day = Array.from({ length: 7 }, (_, i) => T.towerPay(i + 1).money).reduce((a, b) => a + b, 0);
+  assert.ok(day >= 400 && day <= 800, `${day}`);
+  // Each floor paid once a day: a climb again pays only above the day's highest.
+  let w = T.towerWin(1, null, "d1");
+  assert.equal(w.pay.money, 50);
+  w = T.towerWin(2, w.paid, "d1"); assert.equal(w.paid.floor, 2);
+  const again = T.towerWin(1, w.paid, "d1");
+  assert.equal(again.pay.money, 0); assert.ok(again.pay.again); assert.equal(again.paid.floor, 2);
+  assert.equal(T.towerWin(3, w.paid, "d1").pay.money, 70);
+  assert.equal(T.towerWin(1, w.paid, "d2").pay.money, 50, "a new day");
   assert.deepEqual(T.loadTower(null), { v: 1, best: 0, run: null });
   const t = T.loadTower({ best: 4, run: { at: 1, wins: 2, faints: 1, out: ["p1", 3], nextAt: 5 } });
-  assert.deepEqual(t.run, { at: 1, wins: 2, faints: 1, out: ["p1"], nextAt: 5 });
+  assert.deepEqual(t.run, { at: 1, wins: 2, faints: 1, out: ["p1"], nextAt: 5, heals: 0 });
 });
