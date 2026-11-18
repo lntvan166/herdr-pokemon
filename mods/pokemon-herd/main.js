@@ -719,6 +719,9 @@ function readyArt() {
   artAll ??= Promise.all([...Object.values(ITEMS).map((x) => x.art), EGG_ART].map((a) => ensureArt(a).then(() => { ART_READY.add(a); ART_ASKED.add(a); }).catch(() => null)));
   return artAll;
 }
+// Looked up as the mod loads (an update, a reinstall), not when a menu first opens: a menu opened
+// then drew emoji in place of the balls and Berries, and kept them if its redraw was cut short.
+readyArt();
 // What the right-click menu offers from the Bag: the balls and catching Berries there are (and
 // which are set), and Honey or the Azure Flute to call a visitor (only with visitors on).
 function menuParts(b = bag()) {
