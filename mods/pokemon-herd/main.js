@@ -102,7 +102,22 @@ const asFemale = (pick, mega = false) => !mega && !pick.form && pick.gender === 
 const spriteKey = (pick, mega = false) => `${pick.dex}${pick.form ? `f${pick.form}` : ""}${mega ? `m${megaForm(pick.dex, pick.megaKind)?.kind ?? ""}` : ""}${asFemale(pick, mega) ? "g" : ""}${pick.shiny ? "s" : ""}`;
 
 // Saved picks, live: the picker (another copy of this mod) writes them too.
-const savedPicks = () => loadPicks(shared(MOD), null).panes;
+// Every Pokémon saved, read and checked (loadPicks): a few ms with a full Box (300), and a
+// render asks many times (the picker's preview a dozen). Read once per render or tick and
+// kept till it ends (`readOnce`: nothing is saved while a view draws): a preview with ~250 in
+// the Box went past Herdr's time for a render ("This view could not be re-rendered:
+// interrupted", in loadPicks), and its buttons did nothing.
+let picksOnce = null, onceDepth = 0;
+const savedPicks = () => {
+  if (onceDepth && picksOnce) return picksOnce;
+  const panes = loadPicks(shared(MOD), null).panes;
+  if (onceDepth) picksOnce = panes;
+  return panes;
+};
+function readOnce(f) {
+  if (onceDepth++ === 0) picksOnce = null;
+  try { return f(); } finally { if (--onceDepth === 0) picksOnce = null; }
+}
 
 function savePicks(update) {
   // The newest 300 panes are kept; what a forgotten one's Pokémon held goes back into the Bag.
@@ -115,6 +130,7 @@ function savePicks(update) {
   try { onScreen = agents().map((a) => a.pane).filter(Boolean); } catch {}
   const { panes, returned } = trimPanes(next, 300, new Set([...onScreen, ...Object.keys(update)]));
   setShared(MOD, { v: 2, panes });
+  picksOnce = null; // (a render that saves reads them again)
   if (returned.length) {
     let b = bag();
     for (const id of returned) b = addItem(b, id);
@@ -169,6 +185,7 @@ function forgetPanes(keys) {
   const next = { ...savedPicks() };
   for (const k of keys) delete next[k];
   setShared(MOD, { v: 2, panes: next });
+  picksOnce = null;
 }
 
 const paneless = {}; // sub-agents' picks: not saved, only kept while the app runs
@@ -281,7 +298,7 @@ function takeFrom(slot) {
 // dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
 let dev = null;
 import("./dev.js").then((m) => { dev = m; }, () => {});
-const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag) => openMon(slot, pick, tag), openPick: (slot, pick, tag) => openPick(slot, pick, tag) };
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag) => openMon(slot, pick, tag), openPick: (slot, pick, tag, more) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag, ...more } }) };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => loadDex(shared(DEX_KEY));
@@ -700,7 +717,14 @@ function menuParts(b = bag()) {
 }
 // How many Pokémon wait in the Box (the right-click menu's count).
 const boxCount = () => { try { return boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean))).length; } catch { return 0; } };
-const waitingNow = () => boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean)));
+// Those waiting in the Box, as the picker's row and a Pokémon's menu show them: your favourite
+// kinds (★) first, then the locked ones (🔒, kept on purpose), each part latest first.
+const waitingNow = () => {
+  const all = boxList(savedPicks(), new Set(agents().map((a) => a.pane).filter(Boolean)));
+  const fav = favs();
+  const rank = (x) => (isFavorite(fav, x.pick.form ? { dex: x.pick.dex, form: x.pick.form } : { dex: x.pick.dex }) ? 0 : x.pick.locked ? 1 : 2);
+  return all.map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x);
+};
 const WAIT_ROW = 7;
 // One of yours, right-clicked: its menu (what it is; items to use on it now; one waiting in the
 // Box to bring out in its place; another kind; its card in the Box). Sized to what it shows.
@@ -3599,6 +3623,7 @@ export default class PokemonHerd extends View {
     const usable = monUsable(pick, slot, b);
     const items = usable.filter((id) => !HELD_IDS.includes(id)), holds = usable.filter((id) => HELD_IDS.includes(id));
     const waiting = waitingNow().filter((x) => x.slot !== slot);
+    const fav = favs();
     const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
     const label = (txt) => div().text_size(11).text_color(t.muted).child(txt);
     const chip = (id, art, txt, click) => div().id(id).h(26).px(8).gap(5).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
@@ -3632,7 +3657,7 @@ export default class PokemonHerd extends View {
           .children(holds.map((id) => chip(`mon-hold-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
       // One waiting in the Box, in its place (this one goes to the Box).
       .when(waiting.length > 0, (el) => el.child(v_flex().gap(4)
-        .child(label(`📤 Bring out from the Box (${waiting.length}): this one goes in`))
+        .child(label(`📤 Bring out from the Box (${waiting.length}), ★ first: this one goes in`))
         .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
           .children(waiting.slice(0, 5).map(({ slot: from, pick: w }) => v_flex().id(`mon-bring-${from}`).w(58).h(66).flex_none().items_center().justify_center().gap(1)
             .relative().rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
@@ -3640,7 +3665,8 @@ export default class PokemonHerd extends View {
             .child(icon(w, 34))
             .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${w.shiny ? "✨" : ""}${nameFor(w)}`)))
             .child(div().text_size(9).text_color(t.muted).child(`♥ ${heartsText(friendOf(w))}`))
-            .when(!!w.alpha, (e2) => e2.child(div().absolute().top(2).left(3).text_size(9).font_bold().text_color(ALPHA_RED).child("α")))))
+            .when(!!w.alpha, (e2) => e2.child(div().absolute().top(2).left(3).text_size(9).font_bold().text_color(ALPHA_RED).child("α")))
+            .when(isFavorite(fav, w.form ? { dex: w.dex, form: w.form } : { dex: w.dex }), (e2) => e2.child(div().absolute().top(2).right(4).text_size(10).text_color(SHINY_GOLD).child("★")))))
           .when(waiting.length > 5, (e2) => e2.child(div().id("mon-bring-more").h(66).px(8).flex().items_center().flex_none().rounded(8).border_1().border_color(t.border)
             .text_size(11).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click(() => { close(); openPick(slot, pick, p.tag); })
@@ -3651,9 +3677,14 @@ export default class PokemonHerd extends View {
   }
 
   render(cx) {
+    return readOnce(() => this.timedRender(cx));
+  }
+
+  timedRender(cx) {
     if (!dev?.slow) return this.renderView(cx);
     const t0 = Date.now();
-    const out = this.renderView(cx);
+    let out;
+    try { out = this.renderView(cx); } catch (e) { dev.mark?.(`render threw after ${Date.now() - t0}ms: ${e?.name} ${e?.message} ${String(e?.stack ?? "").split("\n").slice(0, 6).join(" | ")}`); throw e; }
     dev.slow(this.picker ? "picker" : this.bagView ? "bag" : this.monView ? "mon" : this.menu ? "menu" : this.settingsView ? "settings" : "strip", Date.now() - t0);
     return out;
   }
@@ -5130,6 +5161,7 @@ export default class PokemonHerd extends View {
   // ---- the picker (opened as a dialog with props { picker, slot, current, tag }) ----
 
   initPicker(cx) {
+    dev?.pickerInit?.(this, props() ?? {}, cx); // dev.js: "choose-try" chooses one by itself
     // The icons on disk already: ready from the first frame (no blank cell while each is checked).
     cx.spawn(async (cx) => {
       for (const key of await cachedIcons()) this.icons[key] ??= "ready";
@@ -5594,7 +5626,7 @@ export default class PokemonHerd extends View {
       .child(sparkled(label));
     const cur = this.livePick();
     const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
-    const waiting = boxList(savedPicks(), onScreen).filter((x) => x.slot !== p.slot);
+    const waiting = waitingNow().filter((x) => x.slot !== p.slot);
     return v_flex()
       .id("pokemon-picker")
       .size_full()
@@ -5629,7 +5661,7 @@ export default class PokemonHerd extends View {
       // Waiting in the Box (raised, their agents gone), latest first: one click brings one out
       // here, whatever its kind (else only found by its species' preview).
       .when(!this.preview && !this.boxing && !narrowed && !this.filtersOpen && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
-        .child(div().text_size(11.5).text_color(t.muted).child(`📤 Waiting in your Box (${waiting.length}): click one to bring it out`))
+        .child(div().text_size(11.5).text_color(t.muted).child(`📤 Waiting in your Box (${waiting.length}), ★ favourites first: click one to bring it out`))
         .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
           .children(waiting.slice(0, WAIT_ROW).map(({ slot, pick: b }) => v_flex().id(`pk-box-${slot}`).w(62).h(66).flex_none().items_center().justify_center().gap(1)
             .relative().rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
@@ -5637,7 +5669,8 @@ export default class PokemonHerd extends View {
             .child(this.icons[entryKey(b)] === "ready" ? image(iconPath(b.dex, b.form)).size(34).flex_none() : div().size(34).flex_none())
             .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${b.shiny ? "✨" : ""}${nameFor(b)}`)))
             .child(div().text_size(9).text_color(t.muted).child(`♥ ${heartsText(friendOf(b))}`))
-            .when(!!b.alpha, (e2) => e2.child(div().absolute().top(2).left(3).text_size(9).font_bold().text_color(ALPHA_RED).child("α")))))
+            .when(!!b.alpha, (e2) => e2.child(div().absolute().top(2).left(3).text_size(9).font_bold().text_color(ALPHA_RED).child("α")))
+            .when(isFavorite(favKeys, b.form ? { dex: b.dex, form: b.form } : { dex: b.dex }), (e2) => e2.child(div().absolute().top(2).right(4).text_size(10).text_color(SHINY_GOLD).child("★")))))
           .when(waiting.length > WAIT_ROW, (e2) => e2.child(div().id("pk-box-more").h(66).px(10).flex().items_center().flex_none().rounded(8).border_1().border_color(t.border)
             .text_size(11.5).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click(() => { closeOverlay(p.overlay); openBag("box"); })
