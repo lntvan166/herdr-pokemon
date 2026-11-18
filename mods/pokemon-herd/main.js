@@ -2307,6 +2307,7 @@ export default class PokemonHerd extends View {
 
   renderVisitor(root, grounds, scale) {
     const v = this.visitor;
+    const stripScale = scale; // (a trainer is drawn at the strip's scale, not its Pokémon's: an Alpha's made it bigger)
     if (v?.pick.alpha) scale *= ALPHA_SIZE; // an Alpha: bigger
     if (v) scale *= drawSize(v.pick.size); // its size (weather.js): an XXL bigger, an XXS smaller
     const meta = v?.start && this.spriteFor(v.pick, "idle");
@@ -2381,14 +2382,14 @@ export default class PokemonHerd extends View {
       const figX = x - ((fx.ownX ?? x) > x ? 1 : -1) * this.trainerGap(v, scale);
       const won = tr?.beaten ? now - tr.beaten : -1;
       const leaving = won >= WIN_WALK_AT;
-      const fig = tr && this.trainerFigure(v, figX, ground, leaving ? "R" : (fx.ownX ?? x) > x ? "R" : "L", leaving, scale);
+      const fig = tr && this.trainerFigure(v, figX, ground, leaving ? "R" : (fx.ownX ?? x) > x ? "R" : "L", leaving, stripScale);
       if (fig) root.child(div().id(`trainer-out-${v.id}`).absolute().top(0).left(leaving ? this.width + 80 - figX : 0)
         .transition("left", { duration: WIN_WALK_MS, easing: "linear" }).child(fig) // (walking: even steps; ease-in sat still, then it was gone)
-        .when(!leaving, (el) => { const b = this.trainerBalls(v, figX, ground, scale); return b ? el.child(b) : el; }));
+        .when(!leaving, (el) => { const b = this.trainerBalls(v, figX, ground, stripScale); return b ? el.child(b) : el; }));
       if (tr?.beaten && won < WIN_SAY_MS) {
         // Over its head, kept left of the corner buttons (by its head, it sat on yours, standing
         // there to fight it).
-        const size = this.trainerSize(v, scale);
+        const size = this.trainerSize(v, stripScale);
         const top = Math.max(2, ground - (size?.h ?? 40) - 30);
         root.child(div().absolute().left(Math.min(this.width - CORNER_W - 160, figX - 80)).top(top).w(160).flex().justify_center()
           .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${beatenSay(tr)}”`)));
@@ -2516,7 +2517,7 @@ export default class PokemonHerd extends View {
         .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
         .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale)
           .opacity(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN ? 0 : 1)) // (in its ball still)
-        .when(!!(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN + 500), (el) => el.child(this.sendOutFx(v, mid, ground, headY, scale, now)))
+        .when(!!(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN + 500), (el) => el.child(this.sendOutFx(v, mid, ground, headY, stripScale, now)))
         .when(!!(v.pick.shiny && !v.trainer && v.start && now - v.start < 1300), (el) => el.children(SHINY_IN.filter((d) => now - v.start >= d).map((d, k) => {
           const id = `shiny-in-${v.id}-${k}`;
           return fxBurst(id, SHINY_STYLE, 0.75, mid + (k ? 8 : -6) * scale, Math.round((headY + ground) / 2) - (k ? 8 : 0), this.fxFirst(id), (v.start + k) % 9973);
@@ -2525,10 +2526,10 @@ export default class PokemonHerd extends View {
         .when(!!v.trainer, (el) => {
           const tx = mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale);
           const throwing = !!(v.sentOut && now - v.sentOut.at < SEND_OPEN + 200); // its ball just thrown
-          const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale, throwing);
-          const b = halt && this.trainerBalls(v, tx, ground, scale); // its team, once it waits
+          const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, stripScale, throwing);
+          const b = halt && this.trainerBalls(v, tx, ground, stripScale); // its team, once it waits
           // It won that one: its words, a moment.
-          const size = cheering && this.trainerSize(v, scale);
+          const size = cheering && this.trainerSize(v, stripScale);
           // (Kept left of the corner buttons: this box sits at left - mid on the strip.)
           const said = size && div().absolute().left(Math.min(tx - 80, this.width - CORNER_W - 160 - (left - mid))).top(Math.max(2, ground - size.h - 30)).w(160).flex().justify_center()
             .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${wonSay(v.trainer)}”`));
