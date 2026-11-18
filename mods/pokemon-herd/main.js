@@ -308,6 +308,15 @@ function charmOdds() {
 // tab). The one there goes to the Box if raised (the same species too); its Everstone stays with
 // the pane, and what it holds too unless the boxed one holds something (then it goes back into
 // the Bag). `mega`: the Mega setting to give it (the picker's), else its own. False if it's gone.
+// A Battle Tower climb on: one of yours swapped for another (brought out of the Box, or a new
+// kind chosen) comes in with its agent's health as it stands, less TOWER_SWITCH (fresh ones from
+// a full Box made a climb as long as you liked). Down (fainted), it stays down.
+function towerSwap(pane) {
+  if (!pane || !towerNow().run) return;
+  const hp = hpOf(pane);
+  if (hp == null) return;
+  keepHp(pane, { hp: Math.max(0.01, hp - TOWER_SWITCH), at: Date.now() });
+}
 function bringOut(boxSlot, pane, mega) {
   const saved = savedPicks();
   const b = saved[boxSlot];
@@ -318,6 +327,7 @@ function bringOut(boxSlot, pane, mega) {
   const away = cur ? boxOnSwitch(cur, b, Date.now(), { same: true }) : null;
   savePicks({ ...(away ? { [away.key]: away.pick } : {}), [pane]: next });
   forgetPanes([boxSlot]);
+  towerSwap(pane);
   return true;
 }
 
@@ -3272,19 +3282,6 @@ export default class PokemonHerd extends View {
       } else if (v.trainer?.tower && towerNow().run?.out.includes(list[dj].pane)) {
         this.note(dm, "🗼 out of this climb", now, 2500); // fainted once in it: out till it ends
       } else {
-        // The Tower: switching in (another than the last of yours to fight it, that one still up)
-        // costs TOWER_SWITCH of its health (simulated: switching every exchange to the best-typed
-        // made a climb ~9 floors, playing it straight ~7; with this, ~6: no gain in it).
-        const trv0 = v.trainer;
-        if (trv0?.tower && trv0.lastOwn && trv0.lastOwn !== drop.addr && !(this.mons[trv0.lastOwn]?.restUntil > now)) {
-          const before = ownHp(dm, now);
-          dm.hpLost = { prev: before, at: now };
-          dm.hp = Math.max(0.01, before - TOWER_SWITCH);
-          dm.hpAt = now;
-          keepHp(list[dj].pane, { hp: dm.hp, at: now });
-          this.note(dm, `🔄 −${Math.round(TOWER_SWITCH * 100)}%`, now, 2000);
-        }
-        if (trv0?.tower) trv0.lastOwn = drop.addr;
         // It Mega Evolves for the fight: a Mega with its own stats and types (base-stats.js
         // FORM_BASE) fights as itself; one without, as its species ×1.2 (trainer.js MEGA_HIT).
         const mega = megaShown(pk, "working");
@@ -3532,7 +3529,7 @@ export default class PokemonHerd extends View {
         const tw = towerNow();
         return tw.run
           ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${Math.max(0, towerLives(tw.run) - tw.run.faints)} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
-          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · 1 heal a floor · switching in −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
+          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · 1 heal a floor · from the Box −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
       })())
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
       .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", `Ball to throw · ${named(m.ball, true)}`, [[null, "Auto"], ...m.balls.map((id) => [id, String(b.items[id])])], m.ball,
@@ -5718,6 +5715,7 @@ export default class PokemonHerd extends View {
     // The one it was, if raised (any, with Box it), waits in the Box (not overwritten).
     const away = boxOnSwitch(cur, entry, Date.now(), { same: !!how.fresh, all: !!how.fresh });
     savePicks({ ...(away ? { [away.key]: away.pick } : {}), [p.slot]: next });
+    towerSwap(p.slot); // (a climb on: not a fresh one)
     closeOverlay(p.overlay);
   }
 

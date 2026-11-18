@@ -260,10 +260,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   used on this floor, next on the next floor"; the strip: "1 heal this floor" / "heal used").
   Simulated with the game's battles and the user's team (Sitrus; 7 with legendaries / 3 of them):
   2 a climb ~8 / ~4.4 floors; 1 a floor ~9 / ~5.6; 2 a floor ~11 / ~9.3; unlimited ~13 / ~13, up
-  to 41. A day's climb ~₽600 and its small gifts. Switching in (another of yours than the last to fight it,
-  that one still up; `trainer.lastOwn`) costs it `TOWER_SWITCH` (10%) of its health, "🔄 −10%"
-  (simulated: switching every exchange to the best-typed made ~9.4 floors against ~6.7 played
-  straight; with 10%, ~6.3: no gain in it; 20% ~4.5; a full free hit ~4.4, too harsh). Three faints of yours (`TOWER_LIVES`, or as many as there are
+  to 41. A day's climb ~₽600 and its small gifts. One of yours swapped for another in a climb (brought out of the Box,
+  or a new kind chosen: `towerSwap`, in `bringOut` and `choose`) comes in with its agent's health
+  as it stands, less `TOWER_SWITCH` (10%): the Box held fresh ones by the hundred. Switching
+  between those on the strip is free (simulated: ~8 floors played straight, ~11 switching every
+  exchange to the best-typed). Three faints of yours (`TOWER_LIVES`, or as many as there are
   of yours on screen if fewer: `towerLives`, set as it begins, `run.lives`; agents opened
   in it add theirs, three at most, kept should one close again; each one out of the climb; none of yours left to
   send, the rest closed or out: over at once, "no one left"; with two it waited, three lives and

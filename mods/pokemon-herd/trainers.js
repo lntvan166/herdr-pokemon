@@ -154,9 +154,10 @@ export function pixelsOf(rows, colors) {
 // climb pays ~₽600 and its small gifts, a couple of hours of agents' work.
 export const TOWER_LIVES = 3;
 export const TOWER_HEALS = 1; // a floor
-// Switching in (another of yours than the last to fight, that one still up): it comes in with
-// this much less health. Simulated: switching each exchange to the best-typed made a climb ~9.4
-// floors (playing it straight ~6.7); with 10% ~6.3, 20% ~4.5, a full free hit ~4.4 (too harsh).
+// One of yours swapped for another in a climb (brought out of the Box, or a new kind chosen): it
+// comes in with its agent's health as it stands, less this (the Box held fresh ones by the
+// hundred). Switching between those on the strip is free: simulated (Speed first, its trainers
+// from 0.95), ~8 floors played straight, ~11 switching every exchange to the best-typed.
 export const TOWER_SWITCH = 0.1;
 export const TOWER_HEAL_IDS = ["berry", "sitrus-berry", "revive", "max-revive"];
 export const TOWER_NEXT_MS = 6000; // the next one in, after a win
