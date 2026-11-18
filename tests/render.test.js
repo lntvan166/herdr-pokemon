@@ -132,6 +132,14 @@ test("a Pokémon's menu: draws, uses an item, brings one out, opens the picker",
   assert.ok(H.log.opened.some((o) => o.props?.picker && o.props.slot === "p0"), "the picker opens for it");
 });
 
+// Right-clicked while Mega Evolved on the strip: its Mega's card (name, types, moves).
+test("a Pokémon's menu, Mega Evolved: drawn as its Mega", () => {
+  seed();
+  const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api", megaNow: "X" });
+  m.render(cx);
+  assert.ok(K.handlers["mon-pick:on_click"], "drawn");
+});
+
 test("the Bag's Box tab: a card's actions", () => {
   seed();
   const v = view({ bag: true, tab: "box", sel: "box-1-133" });

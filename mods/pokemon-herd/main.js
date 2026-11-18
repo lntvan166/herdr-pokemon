@@ -375,7 +375,7 @@ function takeFrom(slot) {
 // dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
 let dev = null;
 import("./dev.js").then((m) => { dev = m; }, () => {});
-const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag) => openMon(slot, pick, tag), openPick: (slot, pick, tag, more) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag, ...more } }) };
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag, mega) => openMon(slot, pick, tag, mega), openPick: (slot, pick, tag, more) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag, ...more } }) };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => keptRead(DEX_KEY, () => loadDex(shared(DEX_KEY)));
@@ -722,7 +722,8 @@ const hasItem = (id, n = 1) => (bag().items[id] ?? 0) >= n;
 // A picker entry's types ({ dex, form }), as it fights: its form's (Rotom's Heat: Electric/Fire).
 const entryTypes = (e) => typesOf(fighterKey(e.dex, e.form ? { form: e.form } : {}));
 // Its types as badges in their colours (`h` px high, text `size`): the picker's grid and the Box.
-const typeBadges = (e, h, size) => h_flex().gap(2).flex_none().children(entryTypes(e).map((ty) => div().h(h).px(h > 12 ? 5 : 3).rounded(h > 12 ? 4 : 3).flex().items_center()
+// (`e.megaNow`: its Mega's kind, "X", "Y" or "": the Mega's types.)
+const typeBadges = (e, h, size) => h_flex().gap(2).flex_none().children((e.megaNow != null ? typesOf(fighterKey(e.dex, { mega: e.megaNow })) : entryTypes(e)).map((ty) => div().h(h).px(h > 12 ? 5 : 3).rounded(h > 12 ? 4 : 3).flex().items_center()
   .bg(TYPE_COLOR[ty]).text_size(size).font_bold().text_color(typeText(ty)).child(typeLabel(ty))));
 // What a boxed one looks like for its animations: its own form, shine and gender, no Mega.
 const boxLook = (p) => ({ dex: p.dex, ...(p.form ? { form: p.form } : {}), shiny: !!p.shiny, ...(p.gender ? { gender: p.gender } : {}), mega: "off" });
@@ -835,14 +836,14 @@ const monUsable = (pick, slot, b = bag()) => {
   return MON_ITEMS.filter((id) => b.items[id] && !(spent && TOWER_HEAL_IDS.includes(id)) && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
 };
 const openPick = (slot, pick, tag) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag } });
-function openMon(slot, pick, tag) {
+function openMon(slot, pick, tag, megaNow = null) {
   const live = savedPicks()[slot] ?? pick;
   const usable = live?.dex ? monUsable(live, slot) : [];
   const uses = usable.filter((id) => !HELD_IDS.includes(id)).length, holds = usable.length - uses + (live?.held ? 1 : 0);
   const waiting = waitingNow().filter((x) => x.slot !== slot).length;
   const section = (n) => (n ? 26 + 30 * Math.ceil(n / 3) : 0);
   const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + 10 + 2 * 32;
-  openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag } });
+  openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}) } });
 } // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
 const openBag = (tab, sel = null) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}), ...(sel ? { sel } : {}) } });
@@ -3979,6 +3980,12 @@ export default class PokemonHerd extends View {
     this.icons = {};
     cx.spawn(async (cx) => {
       for (const key of await cachedIcons()) this.icons[key] = "ready";
+      // Its Mega's portrait (Mega Evolved now), if not in yet.
+      const p = props() ?? {}, pick = p.current;
+      const mf = p.megaNow != null && pick?.dex ? megaForm(pick.dex, p.megaNow || undefined) : null;
+      if (mf && !this.icons[entryKey({ dex: pick.dex, form: mf.form })]) {
+        await ensureIcon(pick.dex, mf.form).then(() => { this.icons[entryKey({ dex: pick.dex, form: mf.form })] = "ready"; }, () => {});
+      }
       await readyArt();
       cx.notify();
     });
@@ -3993,6 +4000,10 @@ export default class PokemonHerd extends View {
     if (!pick?.dex) return v_flex().id("pokemon-mon").size_full().p(12).bg(t.popover).text_size(12).text_color(t.muted).child("It isn't here any more.");
     const b = bag();
     const hp = hpOf(slot);
+    // Mega Evolved on the strip as it was right-clicked: its Mega's card (name, types, moves, face).
+    const megaNow = p.megaNow != null && megaForm(pick.dex) ? p.megaNow : null;
+    const mf = megaNow != null ? megaForm(pick.dex, megaNow || undefined) : null;
+    const megaLook = mf ? { dex: pick.dex, form: mf.form } : null;
     const usable = monUsable(pick, slot, b);
     const items = usable.filter((id) => !HELD_IDS.includes(id)), holds = usable.filter((id) => HELD_IDS.includes(id));
     const waiting = waitingNow().filter((x) => x.slot !== slot);
@@ -4011,15 +4022,15 @@ export default class PokemonHerd extends View {
     return v_flex().id("pokemon-mon").size_full().p(10).gap(8).bg(t.popover)
       // Who it is.
       .child(h_flex().h(56).gap(10).items_center()
-        .child(icon(pick, 48))
+        .child(megaLook && this.icons[entryKey(megaLook)] === "ready" ? icon(megaLook, 48) : icon(pick, 48))
         .child(v_flex().flex_1().min_w(0).gap(2)
-          .child(div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${nameFor(pick)}${p.tag ? ` · ${p.tag}` : ""}`)))
-          .child(typeBadges(pick, 14, 9))
+          .child(div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${megaNow != null ? `Mega ${pick.nick ?? nameOf(pick.dex)}${megaNow ? ` ${megaNow}` : ""}` : nameFor(pick)}${p.tag ? ` · ${p.tag}` : ""}`)))
+          .child(typeBadges(megaNow != null ? { ...pick, megaNow } : pick, 14, 9))
           .child(div().text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate()
             .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
         // Its four moves (as it is), two by two, in their types' colours.
         .child((() => {
-          const ms = movesFor(pick, fighterKey(pick.dex, pick.form ? { form: pick.form } : {}));
+          const ms = movesFor(pick, megaNow != null ? fighterKey(pick.dex, { mega: megaNow }) : fighterKey(pick.dex, pick.form ? { form: pick.form } : {})); // (Mega now: its Mega's four)
           const chip = (m) => div().h(17).px(5).rounded(4).flex().items_center().flex_none().bg(TYPE_COLOR[m.type])
             .when(!!m.exclusive, (el) => el.border_1().border_color("#ffffff"))
             .text_size(10).font_semibold().text_color(typeText(m.type)).child(m.name);
@@ -4366,7 +4377,7 @@ export default class PokemonHerd extends View {
         })
         .on_mouse_down("right", (_e, cx) => {
           cx.stop_propagation();
-          openMon(slotOf(a), pick, tag);
+          openMon(slotOf(a), pick, tag, this.mons[a.address]?.mega ? (megaForm(pick.dex, pick.megaKind)?.kind ?? "") : null); // (Mega Evolved now: its Mega's card)
         });
 
       root.child(
