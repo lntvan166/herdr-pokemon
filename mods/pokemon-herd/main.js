@@ -5086,7 +5086,7 @@ export default class PokemonHerd extends View {
       const c = cardOf(pick);
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
-      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", (pick.sparW || pick.sparL) ? `sparring ${pick.sparW ?? 0}–${pick.sparL ?? 0}` : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay ? "Everstone" : "",
+      const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", (pick.sparW || pick.sparL) ? `sparring ${pick.sparW ?? 0}–${pick.sparL ?? 0}` : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay && c.note !== "Everstone" ? "Everstone" : "",
         pick.caught ? `caught in ${an(ITEMS[pick.ball ?? "poke-ball"].name)}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
@@ -5498,7 +5498,7 @@ export default class PokemonHerd extends View {
       const own = mega === null ? e.moves : e.megaMoves?.[megaSlot(mega)];
       const chosen = !!chosenOf(k, own);
       const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => MOVES[m.type]?.[2]).filter((n) => n && !set.some((m) => m.name === n)))];
-      const editId = `${slot}|${mega ?? ""}`;
+      const editId = `${slot}|${mega === null ? "base" : `mega${mega}`}`; // (Gallade's one Mega is kind "": never the same as it as it is)
       const editing = !!slot && this.editingMoves === editId;
       const save = (moves) => {
         const live = savedPicks()[slot];

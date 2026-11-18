@@ -168,6 +168,22 @@ test("a Mega's moves: a Change of their own", () => {
   assert.equal(picks().p0.megaMoves, undefined, "back to Mega X's own four");
 });
 
+// One Mega only (Gallade, kind ""): Change on one row opens that row only.
+test("one Mega only: each row's Change opens its own", () => {
+  seed();
+  H.store.set(ids.MOD, { v: 2, panes: { ...H.store.get(ids.MOD).panes, p1: { dex: 475, jobs: 70 } } });
+  const v = view({ bag: true, tab: "box", sel: "p1" });
+  v.render(cx);
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  assert.ok(K.handlers["moves-edit-p1-:on_click"], "As Mega has its Change");
+  click("moves-edit-p1-base:on_click");
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  assert.ok(K.handlers["learn-p1-base-0:on_click"], "its own list open");
+  assert.equal(K.handlers["learn-p1--0:on_click"], undefined, "the Mega's list shut");
+});
+
 // Every Pokémon saved, read once per render: each read checks them all (loadPicks), and a
 // preview read them a dozen times; with ~250 in the Box that went past Herdr's time for a
 // render ("This view could not be re-rendered: interrupted", its buttons dead).
