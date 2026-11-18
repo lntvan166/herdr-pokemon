@@ -362,7 +362,8 @@ function useOn(slot, id) {
   if (climb?.run && climb.run.heals >= TOWER_HEALS) return null;
   const r = useItem(live, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
   if (!r) return null;
-  if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1 } });
+  // (Revived in a climb: back in it, to fight again; the life it cost stays lost.)
+  if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1, out: r.revive ? climb.run.out.filter((x) => x !== slot) : climb.run.out } });
   savePicks({ [slot]: r.pick });
   healBy(slot, r.heal);
   reviveBy(slot, r.revive);

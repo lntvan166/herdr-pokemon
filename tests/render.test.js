@@ -437,6 +437,21 @@ test("the Battle Tower: a wild one here hurries off for its trainer", () => {
   assert.equal(st.visitor?.trainer?.tower, 1, "the Tower's trainer, right after");
 });
 
+// A Revive in a climb: the one fainted is back in it (its heal for the floor; the life stays lost).
+test("the Battle Tower: a Revive brings one back into the climb", () => {
+  seed();
+  const KEY = `${ids.MOD}-tower`, HP = `${ids.MOD}-hp`;
+  H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now() - 1000, wins: 1, faints: 1, out: ["p0"], nextAt: 0, lives: 3 } });
+  H.store.set(HP, { p0: { hp: 0, at: Date.now() - 500, rest: Date.now() + 600000 } });
+  const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api", overlay: "ov" });
+  m.render(cx);
+  click("mon-use-revive:on_click");
+  const run = H.store.get(KEY).run;
+  assert.ok(!run.out.includes("p0"), "back in the climb");
+  assert.equal(run.faints, 1, "its life stays lost");
+  assert.equal(run.heals, 1, "the floor's heal");
+});
+
 // A climb over: each one's health as it stood (no healing in it), healing again from now.
 test("the Battle Tower: health as it stood when the climb ends", () => {
   seed();

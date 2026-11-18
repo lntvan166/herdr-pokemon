@@ -255,7 +255,8 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   the day's highest floor paid; a climb again pays only above it: no farming the first floors);
   every floor a small gift too (`FLOOR_GIFTS`, in turn: 3 Poké Balls, 2 Oran, 2 Great Balls, 2
   Razz, 2 Pinap, an Ultra Ball; from floor 8 `HIGH_GIFTS`, better), and every 7th a bigger one
-  besides (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then Golden Razz). One healing item a floor (`TOWER_HEALS`: a Berry or a Revive, `useOn`; a win gives it back;
+  besides (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then Golden Razz). One healing item a floor (`TOWER_HEALS`: a Berry or a Revive, `useOn`; a win gives it back; a
+  Revive brings a fainted one back into the climb, out of `run.out`, its life still lost;
   the menu offers none after, and says so: "Tower: 1 heal (Berry or Revive) on this floor" / "heal
   used on this floor, next on the next floor"; the strip: "1 heal this floor" / "heal used").
   Simulated with the game's battles and the user's team (Sitrus; 7 with legendaries / 3 of them):
