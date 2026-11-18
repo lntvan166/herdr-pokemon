@@ -274,3 +274,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   the line under it: what it paid, by name) while it turns and walks out of the strip on the
   right (from WIN_WALK_AT, 2.5 s, over WIN_WALK_MS); gone at WIN_PAY_END (4.8 s). The two at once
   were hard to read. One-shot transitions only: nothing loops.
+- **A trainer winning** (main.js `WON_SAYS`, `trainerLeave`): one of yours fainting to it, its
+  Pokémon cheers (Dance or Hop) and it says a line of its class ("Heh. Too easy.") for WIN_SAY_MS;
+  it waits on for another of yours as before. Going (the climb over, given up, or waited long
+  enough), it stops a moment (its words, if it just won), then turns and walks off to the right,
+  out of the strip, and is gone: never just vanishing. No battle with it meanwhile (`wildNear`),
+  not kept through a reload (`visitorSig`).

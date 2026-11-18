@@ -278,16 +278,28 @@ test("the Battle Tower: start, a trainer, three faints and it's over", () => {
   assert.ok(H.store.get(KEY)?.run, "a climb on");
   const st = view({ rows: 1, scale: 0.75 });
   st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: { Hop: cut("hop") } };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
   st.visit(H.agents(), {}, null, Date.now(), cx);
   assert.equal(st.visitor?.trainer?.tower, 1, "its first trainer");
+  st.visit(H.agents(), {}, null, Date.now() + 1000, cx); // its sprite in: it sets off, and waits in its corner
+  st.visit(H.agents(), {}, null, Date.now() + 1100, cx);
   assert.equal(st.visitor.trainer.team.length, 3);
   st.render(cx);
   H.store.set(KEY, { ...H.store.get(KEY), best: 2, run: { ...H.store.get(KEY).run, wins: 5 } });
+  st.visitor.trainer.gloat = Date.now(); // the last of yours just fainted to it
   for (let i = 0; i < 3; i++) st.towerFaint(`t${i}`, Date.now());
   assert.equal(H.store.get(KEY).run, null, "over");
   assert.equal(H.store.get(KEY).best, 5, "its 5 wins, the best now");
-  assert.equal(st.visitor, null, "the trainer gone");
+  // The trainer won: it says so a moment (its Pokémon cheering), then walks off and is gone.
+  assert.ok(st.visitor?.trainer?.leaving, "it goes, not vanishes");
   st.render(cx);
+  const later = Date.now() + 3000;
+  st.visit(H.agents(), {}, null, later, cx);
+  assert.equal(st.visitor?.dir, "r", "walking off to the right");
+  st.visit(H.agents(), {}, null, later + 60000, cx);
+  assert.equal(st.visitor, null, "out of the strip, gone");
   // Given up from the menu: its trainer goes.
   menu.render(cx);
   click("menu-tower:on_click");
@@ -296,7 +308,7 @@ test("the Battle Tower: start, a trainer, three faints and it's over", () => {
   menu.render(cx);
   click("menu-tower:on_click");
   st.visit(H.agents(), {}, null, Date.now(), cx);
-  assert.equal(st.visitor, null);
+  assert.ok(st.visitor?.trainer?.leaving, "given up: it goes");
 });
 
 // A trainer beaten: its balls, its words, its pay rising, then it walks off: all drawn.

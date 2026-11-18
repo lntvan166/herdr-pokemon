@@ -33,6 +33,13 @@ const BEATEN_SAYS = {
   kindler: ["I got burned!", "My fire's out…"], punk: ["Tch. Not bad.", "Whatever. You win."],
   engineer: ["Short-circuited!", "Back to the drawing board."], birdkeeper: ["My birds, grounded!", "Clipped my wings…"],
 };
+// What it says, winning (one of yours down to it).
+const WON_SAYS = {
+  ace: ["Better luck next time!"], hiker: ["Solid as a rock!"], swimmer: ["Smooth sailing!"], blackbelt: ["Train harder!"],
+  psychic: ["I saw this coming."], bugcatcher: ["My bugs win!"], kindler: ["Too hot for you!"], punk: ["Heh. Too easy."],
+  engineer: ["Works like a charm!"], birdkeeper: ["Flying high!"],
+};
+const wonSay = (tr) => (WON_SAYS[tr.cls] ?? ["I win!"])[0];
 const beatenSay = (tr) => { const l = BEATEN_SAYS[tr.cls] ?? ["You win!"]; return l[[...tr.name].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length]; };
 // A beaten trainer, one thing at a time: its words (till WIN_SAY_MS), then its pay rising (till
 // WIN_PAY_END) while it turns and walks off (from WIN_WALK_AT, over WIN_WALK_MS). Gone at WIN_PAY_END.
@@ -320,7 +327,7 @@ function chosenFor(pick, key) {
 }
 const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
 // What a visitor kept says (keepVisitor): "none" when there's none to keep.
-const visitorSig = (v) => (!v || v.raid || v.fainted || v.trainer?.beaten ? "none"
+const visitorSig = (v) => (!v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
   : JSON.stringify([v.id, v.pick?.hp, v.pick?.dex, v.throws, v.gift, v.paid, v.start, v.halt?.kind, v.halt?.until, v.trainer?.idx, v.trainer?.fighter]));
 // Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
 // now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
@@ -1281,7 +1288,19 @@ export default class PokemonHerd extends View {
     unfreezeHp(run.at, now); // healing again, from as they stood
     climbFrom = null;
     this.towerOver = { at: now, wins: run.wins, best: run.wins > t.best, why };
-    if (this.visitor?.trainer?.tower) { this.visitor = null; this.visitAt = now + 60000; }
+    if (this.visitor?.trainer?.tower) this.trainerLeave(this.visitor, now);
+    this.visitAt = now + 60000;
+  }
+
+  // A trainer going (it won the climb, or waited long enough): it stops a moment (WIN_SAY_MS, its
+  // words, if it just won), then walks off to the right, out of the strip, and is gone.
+  trainerLeave(v, now) {
+    if (!v?.trainer || v.trainer.leaving) return;
+    v.trainer.leaving = now;
+    v.trainer.fighter = null;
+    v.trainer.nextAt = null;
+    const said = v.trainer.gloat && now - v.trainer.gloat < WIN_SAY_MS ? WIN_SAY_MS - (now - v.trainer.gloat) : 300;
+    v.halt = { kind: "trainerLeave", x: Number.isFinite(v.x) ? v.x : v.from, at: now, until: now + said, face: "L" };
   }
 
   // The visitor kept (VISITOR_KEY) whenever it settles into something new: its health, balls
@@ -1345,7 +1364,7 @@ export default class PokemonHerd extends View {
     // The Battle Tower climbing: its trainers only, one after another (the next TOWER_NEXT_MS
     // after a win); no other visitor meanwhile (Honey waits).
     const tower = towerNow().run;
-    if (v?.trainer?.tower && !tower) { this.visitor = v = null; this.visitAt = now + 60000; } // given up (the menu): it goes
+    if (v?.trainer?.tower && !tower && !v.trainer.leaving) this.trainerLeave(v, now); // given up (the menu): it goes
     if (!v && tower && !raidOn && this.leader && now >= tower.nextAt) { // (a raid first: the climb waits)
       const megaOf = (d) => megaForm(d)?.kind ?? null;
       const tr = towerTrainer(Math.random, now, tower.wins + 1, { megaOf });
@@ -1456,8 +1475,9 @@ export default class PokemonHerd extends View {
         v.fight = null;
         v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
         // (Yours fainted: it stops, unless another was switched in meanwhile.)
+        if (fx.back?.fainted) v.trainer.gloat = now; // it won that one: its Pokémon cheers, it says so
         if (fx.back?.fainted && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
-        if (!this.visitor) return true; // (the climb is over: it's gone)
+        if (!this.visitor || v.trainer.leaving) return true; // (the climb is over: it's going)
         if (fx.back?.fainted && v.trainer.fighter === fx.own) v.trainer.fighter = null;
         else if (v.trainer.fighter) v.trainer.nextAt = now + 500;
         return true;
@@ -1522,7 +1542,7 @@ export default class PokemonHerd extends View {
     // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
     // there and up (as if dropped on it again).
     const trv = v.trainer;
-    if (trv?.fighter && trv.nextAt && now >= trv.nextAt && !v.fight && !v.throw && !trv.beaten) {
+    if (trv?.fighter && trv.nextAt && now >= trv.nextAt && !v.fight && !v.throw && !trv.beaten && !trv.leaving) {
       const fm = this.mons[trv.fighter];
       trv.nextAt = null;
       if (fm && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false };
@@ -1538,7 +1558,8 @@ export default class PokemonHerd extends View {
       const h = v.halt;
       v.halt = null;
       v.pick.asleep = false;
-      if (h.kind === "trainer") { if (v.trainer?.tower) this.towerEnd(now, "left waiting"); this.visitor = null; this.visitAt = next(); return true; } // waited long enough: gone
+      if (h.kind === "trainer") { if (v.trainer?.tower) this.towerEnd(now, "left waiting"); else this.trainerLeave(v, now); return true; } // waited long enough: it goes
+      if (h.kind === "trainerLeave") { v.dir = "r"; v.to = this.width + OFF; } // off to the right, out of the strip
       if (h.kind === "tease") { v.speedK = FLEE_SPEED; v.fleeUntil = now + 2500; } // off it runs, laughing
       if (h.kind === "challenge" && this.mons[h.target]) this.dropAt = { addr: h.target, dizzy: false }; // they fight, as if dropped on it
       v.from = h.x;
@@ -2115,7 +2136,7 @@ export default class PokemonHerd extends View {
   // a ball shakes, it's already being hit, or it has fainted.
   wildNear(m, row, now) {
     const v = this.visitor;
-    if (!v?.start || v.throw || v.fight || v.fainted || !Number.isFinite(v.x)) return false;
+    if (!v?.start || v.throw || v.fight || v.fainted || v.trainer?.leaving || !Number.isFinite(v.x)) return false; // (a trainer going: no more battles)
     const rows = this.grid(herdAgents().length)?.rows ?? 1;
     // (The one fighting a trainer's, going on: from where it fought, a battle's gap away.)
     const reach = v.trainer?.fighter && this.mons[v.trainer.fighter] === m ? MAX_GAP + 30 : 70;
@@ -2384,7 +2405,10 @@ export default class PokemonHerd extends View {
     const halt = v.halt;
     const left = halt ? halt.x : placed ? v.to : v.from;
     const leg = halt ? `${v.leg ?? 0}h` : v.leg ?? 0;
-    const pose = halt ? (halt.kind === "nap" ? meta.sleep ?? meta.idleD : meta[`idle${halt.face ?? (v.dir === "r" ? "R" : "L")}`]) ?? s : s;
+    // A trainer's Pokémon that just won (one of yours down to it): it cheers (Dance or Hop).
+    const cheering = !!v.trainer?.gloat && now - v.trainer.gloat < WIN_SAY_MS;
+    const pose = (cheering && halt ? meta.react?.Dance ?? meta.react?.Hop : null)
+      ?? (halt ? (halt.kind === "nap" ? meta.sleep ?? meta.idleD : meta[`idle${halt.face ?? (v.dir === "r" ? "R" : "L")}`]) ?? s : s);
     const actIcon = halt ? (halt.icon ?? ICON[halt.kind]) : v.fleeUntil > now ? ICON.tease : v.act?.kind === "dash" && now - v.start < 2500 ? ICON.dash : null;
     if (v.blink && now - v.blink.at < 600) {
       // Teleported: a pink flash where it was and where it is.
@@ -2403,7 +2427,11 @@ export default class PokemonHerd extends View {
           const tx = mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale);
           const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, scale);
           const b = halt && this.trainerBalls(v, tx, ground, scale); // its team, once it waits
-          return f ? el.child(f).when(!!b, (e2) => e2.child(b)) : el;
+          // It won that one: its words, a moment.
+          const size = cheering && this.trainerSize(v, scale);
+          const said = size && div().absolute().left(tx - 80).top(Math.max(2, ground - size.h - 30)).w(160).flex().justify_center()
+            .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${wonSay(v.trainer)}”`));
+          return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
         .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - 14)).text_size(13).font_bold()
           .text_color(actIcon === "zZ" ? "#ffffff" : t.foreground).child(actIcon)))
