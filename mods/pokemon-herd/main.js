@@ -5610,10 +5610,12 @@ export default class PokemonHerd extends View {
           ),
       )
       .when(!!this.preview, (el) => el.child(this.renderPreview(t, cx)))
-      .when(!this.preview && !!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
+      // (Both give their room to the list while the filters are open; the Box row while a search
+      // or a filter narrows it too: then you're looking for a kind.)
+      .when(!this.preview && !this.filtersOpen && !!cur?.dex, (el) => el.child(this.renderCurrent(cur, t)))
       // Waiting in the Box (raised, their agents gone), latest first: one click brings one out
       // here, whatever its kind (else only found by its species' preview).
-      .when(!this.preview && !this.boxing && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
+      .when(!this.preview && !this.boxing && !narrowed && !this.filtersOpen && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
         .child(div().text_size(11.5).text_color(t.muted).child(`📤 Waiting in your Box (${waiting.length}): click one to bring it out`))
         .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
           .children(waiting.slice(0, WAIT_ROW).map(({ slot, pick: b }) => v_flex().id(`pk-box-${slot}`).w(62).h(66).flex_none().items_center().justify_center().gap(1)
