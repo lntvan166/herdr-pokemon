@@ -193,6 +193,42 @@ test("a render reads the saved Pokémon once", () => {
   once(st, "strip");
 });
 
+// A reload (an update, a reinstall) mid-battle or mid-catch: the wild one or the trainer is
+// back as last settled (keepVisitor → VISITOR_KEY), not gone.
+test("a visitor is back after a reload; not one caught", () => {
+  seed();
+  const strip = () => { const v = view({ rows: 1, scale: 0.75 }); v.leader = true; v.sized = true; v.width = 1200; v.height = 112; return v; };
+  const KEY = `${ids.MOD}-visitor`;
+  const a = strip();
+  const now = Date.now();
+  a.visitor = { id: `${now}-25`, pick: { dex: 25, hp: 0.4 }, dir: "l", row: 0, from: 1100, to: -40, start: now - 1000, dur: 60000, throws: 2, gift: "berry", purse: 0 };
+  a.keepVisitor();
+  assert.equal(H.store.get(KEY)?.v.pick.hp, 0.4);
+  // Mid-hit: the last settled state stays.
+  a.visitor.fight = { at: now, until: now + 2000, hp: 0.1 };
+  a.visitor.pick.hp = 0.1;
+  a.keepVisitor();
+  assert.equal(H.store.get(KEY).v.pick.hp, 0.4);
+  // Reloaded: a new strip has it back, health and balls as they were.
+  const b = strip();
+  b.visit(H.agents(), {}, null, now, cx);
+  assert.equal(b.visitor?.id, `${now}-25`);
+  assert.equal(b.visitor.pick.hp, 0.4);
+  assert.equal(b.visitor.throws, 2);
+  // A trainer, its second Pokémon out: back the same.
+  a.visitor = { id: `${now}-9`, pick: { dex: 9, hp: 0.7 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 1000, dur: 1000, gift: "none", purse: 0,
+    trainer: { cls: "swimmer", title: "Swimmer", name: "Lia", team: [{ dex: 131, nature: "bold" }, { dex: 9, nature: "calm" }], idx: 1, at: now - 30000 },
+    halt: { kind: "trainer", x: 1100, at: now - 1000, until: now + 120000, icon: "❗", face: "L" } };
+  a.keepVisitor();
+  const c = strip();
+  c.visit(H.agents(), {}, null, now, cx);
+  assert.equal(c.visitor?.trainer?.idx, 1);
+  assert.equal(c.visitor.pick.hp, 0.7);
+  // Caught: none kept.
+  a.caught({ ...a.visitor, trainer: undefined, throw: { ball: "poke-ball" } });
+  assert.equal(H.store.get(KEY), null);
+});
+
 test("the strip draws", () => {
   seed();
   const v = view({ rows: 1, scale: 0.75 });

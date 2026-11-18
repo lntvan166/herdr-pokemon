@@ -240,3 +240,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a wild battle, but its Pokémon can't be caught (no ball, no gift) and faints at 0 (no sliver).
   Fainted: "… sent out …!" and its next; all beaten: "You beat Punk Zed! +₽520 and a Max Revive"
   (`trainerPay`: its class's pay, ×1.3 for three, ×1.5 with a Mega and a Rare Candy, ×2.5 with a legendary and an Azure Flute, ×1.4 with an Alpha and a Max Revive, and its item). Ignored, it walks on.
+- **Through a reload** (an update, Update now, a reinstall: the mod's views start over): the
+  wild one or the trainer here is kept (`keepVisitor` → `pokemon-herd-visitor`, `{ at, v }`)
+  whenever it settles into something new (its health, balls thrown, a gift, the trainer's next
+  Pokémon or fighter, a stop), never mid-hit or mid-throw, never a raid's boss; the new strip
+  (leader) takes it back if it's under 10 minutes old (`VISITOR_KEEP_MS`), the battle going on.
+  Caught, fled, fainted or beaten: none kept (caught clears it at once, even mid-shake).

@@ -76,6 +76,8 @@ const RAID_KEY = `${MOD}-raid`; // the raid on now (events.js), the same in ever
 const OUTBREAK_KEY = `${MOD}-outbreak`; // an outbreak called on top of the day's: { dex, from, until }
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
+const VISITOR_KEY = `${MOD}-visitor`; // the wild one or trainer here, as last settled: { at, v } (keepVisitor), back after a reload
+const VISITOR_KEEP_MS = 10 * 60000; // kept that long at most
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
 const VISIT_SPEED = 45; // px per second
 // A legendary takes its time (half as fast): longer to go after it with its 20 balls.
@@ -282,6 +284,9 @@ function chosenFor(pick, key) {
   return (kind !== undefined ? pick?.megaMoves?.[megaSlot(kind)] : pick?.moves) ?? null;
 }
 const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
+// What a visitor kept says (keepVisitor): "none" when there's none to keep.
+const visitorSig = (v) => (!v || v.raid || v.fainted || v.trainer?.beaten ? "none"
+  : JSON.stringify([v.id, v.pick?.hp, v.pick?.dex, v.throws, v.gift, v.paid, v.start, v.halt?.kind, v.halt?.until, v.trainer?.idx, v.trainer?.fighter]));
 // Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
 // now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
 function useOn(slot, id) {
@@ -852,6 +857,7 @@ export default class PokemonHerd extends View {
       try {
         const t0 = dev?.slow ? Date.now() : 0;
         readOnce(() => this.tick(cx)); // (each save reads them again)
+        if (this.leader) this.keepVisitor();
         if (t0) dev.slow("tick", Date.now() - t0);
       } catch (e) {
         logOnce(e, console.log, Date.now(), this.errSeen);
@@ -1195,6 +1201,19 @@ export default class PokemonHerd extends View {
     }
   }
 
+  // The visitor kept (VISITOR_KEY) whenever it settles into something new: its health, balls
+  // thrown, a gift taken, the trainer's next Pokémon or fighter, a stop. Not mid-hit or mid-throw
+  // (then the last settled state: a hit or ball lost to a reload is taken again), not a raid's
+  // boss (the raid keeps itself); gone (fled, fainted, beaten, caught): none.
+  keepVisitor() {
+    const v = this.visitor;
+    if (v && (v.fight || v.throw || !v.start)) return;
+    const sig = visitorSig(v);
+    if (sig === this.visitorSig) return;
+    this.visitorSig = sig;
+    setShared(VISITOR_KEY, sig === "none" ? null : { at: Date.now(), v: JSON.parse(JSON.stringify({ ...v, fight: null, throw: null, hpLost: undefined, blink: undefined, sentOut: undefined })) });
+  }
+
   // Visitors (Settings → Visitors): now and then a wild Pokémon nobody has walks across a row,
   // edge to edge, and is gone. Idle ones near it turn to watch it go by. Returns whether to redraw.
   visit(list, ids, g, now, cx) {
@@ -1208,6 +1227,23 @@ export default class PokemonHerd extends View {
     // The first within 5 minutes; a faster pace chosen since: the next one comes at that pace.
     if (this.visitAt === undefined || this.visitAt > now + every[1] * 60000) this.visitAt = Math.min(next(), now + rand(2, 5) * 60000);
     let v = this.visitor;
+    // Back after a reload (an update, Update now, a reinstall): the wild one or the trainer here
+    // before, as it was when last settled (keepVisitor: its health, balls thrown, the trainer's
+    // team and who fights it), not lost mid-battle or mid-catch.
+    if (!v && this.leader && !this.visitorBack) {
+      this.visitorBack = true;
+      const kept = shared(VISITOR_KEY);
+      if (kept?.v?.pick && now - (kept.at ?? 0) < VISITOR_KEEP_MS) {
+        v = this.visitor = kept.v;
+        this.visitorSig = visitorSig(v);
+        this.want(v.pick, cx);
+        const tr = v.trainer;
+        if (tr) {
+          for (const m of tr.team) if (m.mega != null) this.want(trainerMon(m), cx, true);
+          cx.spawn(async (cx) => { this.trainerArt ??= {}; this.trainerArt[tr.cls] = await ensureTrainer(tr.cls).catch(() => null); cx.notify(); });
+        }
+      }
+    }
     // Honey (from the Bag): a visitor right away, or right after the one walking by now.
     const honey = shared(HONEY_KEY) ?? 0;
     const called = this.honeySeen !== undefined && honey > this.honeySeen; // used since we last looked (not before start)
@@ -1980,6 +2016,8 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const pick = caughtPick(v.pick, now, Math.random, v.throw?.ball);
     v.nature = pick.nature;
+    setShared(VISITOR_KEY, null); // caught: never back after a reload, even mid-shake
+    this.visitorSig = "none";
     savePicks({ [`box-${now}-${pick.dex}`]: pick });
     if (v.raid) { const r = loadRaid(shared(RAID_KEY)); if (r?.id === v.raid) setShared(RAID_KEY, { ...r, caught: Date.now() }); }
     v.recordTag = recordSize(pokedex().sizes, pick); // an XXL/XXS beating its species' record
