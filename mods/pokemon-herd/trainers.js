@@ -152,14 +152,19 @@ export function towerTrainer(rnd, now, n, how = {}) {
   return { ...tr, tower: n, effort: towerEffort(n - 1) };
 }
 // The `n`th win: { money, items: [[id, count]] }.
+// Every floor a small gift too (balls, Berries, in turn; better ones from floor 8), and every 7th
+// a bigger one besides.
+const FLOOR_GIFTS = [["poke-ball", 3], ["berry", 2], ["great-ball", 2], ["razz-berry", 2], ["pinap-berry", 2], ["ultra-ball", 1]];
+const HIGH_GIFTS = [["great-ball", 3], ["sitrus-berry", 1], ["ultra-ball", 2], ["razz-berry", 3], ["silver-pinap-berry", 1], ["ultra-ball", 3]];
 export function towerPay(n) {
   const money = Math.min(300, 40 + 10 * n);
   const k = n % 7 === 0 ? n / 7 : 0;
-  const items = k === 1 ? [["rare-candy", 1]]
+  const big = k === 1 ? [["rare-candy", 1]]
     : k === 2 ? [["max-revive", 1], ["golden-razz-berry", 1]]
     : k === 3 ? [["master-ball", 1]]
     : k > 3 ? [["golden-razz-berry", 2]] : [];
-  return { money, items };
+  const small = (n >= 8 ? HIGH_GIFTS : FLOOR_GIFTS)[(n - 1) % 6];
+  return { money, items: [small, ...big] };
 }
 // The `n`th win today, with `paid` ({ day, floor }: the day's highest floor paid): its pay, or
 // none (paid already today), and `paid` after it.

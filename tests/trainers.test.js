@@ -86,10 +86,17 @@ test("the Battle Tower: teams of three, stronger and starrier the higher; pay an
   }
   assert.ok(T.towerOdds(20).legend > T.towerOdds(0).legend);
   assert.ok(T.towerOdds(100).legend <= 0.5);
-  assert.deepEqual(T.towerPay(1), { money: 50, items: [] });
-  assert.deepEqual(T.towerPay(7).items, [["rare-candy", 1]]);
+  assert.deepEqual(T.towerPay(1), { money: 50, items: [["poke-ball", 3]] });
+  // Every floor a small gift (a ball or a Berry); every 7th a bigger one besides.
+  const { ITEMS: IT } = await import("../mods/pokemon-herd/items.js");
+  for (let n = 1; n <= 40; n++) {
+    const items = T.towerPay(n).items;
+    assert.ok(items.length >= 1 && items.every(([id, c]) => IT[id] && c >= 1), `floor ${n}`);
+    assert.ok(["ball", "bait", "berry"].includes(IT[items[0][0]].kind) || /berry|ball/.test(items[0][0]), `floor ${n}: ${items[0][0]}`);
+  }
+  assert.ok(T.towerPay(7).items.some(([id]) => id === "rare-candy"));
   assert.ok(T.towerPay(14).items.some(([id]) => id === "max-revive"));
-  assert.deepEqual(T.towerPay(21).items, [["master-ball", 1]]);
+  assert.ok(T.towerPay(21).items.some(([id]) => id === "master-ball"));
   assert.ok(!T.towerPay(28).items.some(([id]) => id === "master-ball"), "one Master Ball, at 21");
   assert.equal(T.towerPay(100).money, 300);
   // A day's seven floors: about two hours of agents' work (₽300 an hour), not a fortune.

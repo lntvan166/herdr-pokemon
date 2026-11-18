@@ -253,8 +253,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   and starrier (`towerOdds`, capped). The one of yours that won takes on the next one by itself.
   Each win pays ₽40 + ₽10 a floor (₽300 at most), each floor once a day (`towerWin`, `paid`:
   the day's highest floor paid; a climb again pays only above it: no farming the first floors);
-  every 7th a gift (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then
-  Golden Razz). Two healing items a climb at most (`TOWER_HEALS`: Berries, Revives, `useOn`; the
+  every floor a small gift too (`FLOOR_GIFTS`, in turn: 3 Poké Balls, 2 Oran, 2 Great Balls, 2
+  Razz, 2 Pinap, an Ultra Ball; from floor 8 `HIGH_GIFTS`, better), and every 7th a bigger one
+  besides (a Rare Candy; a Max Revive and a Golden Razz; the Master Ball at 21; then Golden Razz). Two healing items a climb at most (`TOWER_HEALS`: Berries, Revives, `useOn`; the
   menu offers none after). Simulated with the game's battles and the user's team (7 with
   legendaries: ~7 floors, ~4 min a climb; 3: ~3–4; unlimited Berries: ~9–10, up to 22): a day's
   climb ~₽560, two hours of agents' work. Three faints of yours (`TOWER_LIVES`; each one out of the climb)
