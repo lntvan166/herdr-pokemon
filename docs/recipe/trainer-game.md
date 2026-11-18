@@ -274,8 +274,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   main.js `climbFrom`, `hpOf`): health stays as it stood from when the climb began (Berries and
   Revives still work); over, `unfreezeHp` writes each one's health as it stood, healing from then.
 - **A trainer's team and its defeat** (main.js `trainerBalls`, `BEATEN_SAYS`, `WIN_WALK_AT`):
-  over a waiting or fighting trainer's head, a ball for each of its Pokémon (red, grey once
-  down). Beaten, one thing at a time: the one of yours that won cheers (🎉, `onCelebrate`, once)
+  under a waiting or fighting trainer's feet (where a name would go: over its head it touched
+  ☰ and 🔊 in the corner), a ball for each of its Pokémon (red, grey once down). A trainer's
+  battle line ("Lia's Blastoise fainted…") sits toward the trainer, between it and its Pokémon. Beaten, one thing at a time: the one of yours that won cheers (🎉, `onCelebrate`, once)
   and the trainer says a line of its class in a white bubble (the line under it: "You beat …!")
   till WIN_SAY_MS (2.2 s); then its pay rises off the field (+₽ and the gifts' pictures, fading;
   the line under it: what it paid, by name) while it turns and walks out of the strip on the

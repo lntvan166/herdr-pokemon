@@ -2272,13 +2272,15 @@ export default class PokemonHerd extends View {
     if (!art || !size) return null;
     return image(art[`${walking ? "walk" : "stand"}${face}`]).absolute().left(x - size.w / 2).top(ground - size.h).w(size.w).h(size.h);
   }
-  // Over a trainer's head, as in the games: a ball for each of its Pokémon, grey once down.
+  // Under a trainer, as the games show it: a ball for each of its Pokémon, grey once down.
   trainerBalls(v, x, ground, scale) {
     const tr = v.trainer, size = this.trainerSize(v, scale);
     if (!tr || !size) return null;
     const n = tr.team.length, d = 7, gap = 3, w = n * d + (n - 1) * gap;
     const down = (i) => i < tr.idx || (i === tr.idx && !!v.fainted);
-    return h_flex().absolute().left(x - w / 2).top(Math.max(1, ground - size.h - d - 4)).gap(gap)
+    // Under its feet, where a name would go (it has none): over its head, in the strip's corner,
+    // it touched ☰ and 🔊; by its head, it sat on its Pokémon.
+    return h_flex().absolute().left(x - w / 2).top(ground + 5).gap(gap)
       .children(tr.team.map((_m, i) => div().size(d).rounded_full().border_1()
         .border_color(down(i) ? "#6b6b6b" : "#ffffff").bg(down(i) ? "#3a3a3a" : "#e5484d").opacity(down(i) ? 0.7 : 1)));
   }
@@ -2394,7 +2396,10 @@ export default class PokemonHerd extends View {
         : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
       if (said) {
         const tagW = 330;
-        root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+        // A trainer's battle: toward the trainer (between it and its Pokémon, nearer it), whose
+        // words these are; a wild one's: under it.
+        const tagX = tr ? x + (figX - x) * 0.6 : x;
+        root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 10, tagX - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
           .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground).child(said));
       }
       return;
