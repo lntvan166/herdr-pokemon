@@ -362,11 +362,11 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   stay). Badge gifts are checked when a job finishes and every 30 s. In the Bag, an item to
   hold shows "Held by" (agent open or "not on screen", with Take) before "On screen".
 - **The Box** (`fromBox`, `raised` in `picks.js`): saved panes not on screen whose Pokémon was
-  raised (hearts, jobs, an item, an Everstone, a shiny). Choosing a species in the picker, or a
-  new agent being given one (in the strip's tick, before its fresh picks are saved), takes the
-  latest raised one of that species and form, as it was (the picker's Mega setting kept; the
-  pane's own item kept if the boxed one holds none, else back into the Bag), and forgets its
-  old pane. Labels: the picker card says "All Charmeleon so far: 6 done · 1m" (all of that species). In the Bag's Box tab each
+  raised (hearts, jobs, an item, an Everstone, a shiny). A new agent being given a species (in
+  the strip's tick, before its fresh picks are saved) takes the latest raised one of that
+  species and form, as it was, and forgets its old pane. Choosing a species in the picker
+  (Replace) always gives a new one: one waiting in the Box comes out only by Bring out (it
+  came out by itself before, "why does my new Ninetales have 4 jobs?"). Labels: the picker card says "All Charmeleon so far: 6 done · 1m" (all of that species). In the Bag's Box tab each
   one shows its types as coloured badges (`typeBadges`, as the picker's grid); the one clicked
   walks in its card (`spriteStage`, its own form, shine and gender: `boxLook`), its types beside
   its name. `openBag("box", slot)` opens it on that one.

@@ -5262,19 +5262,11 @@ export default class PokemonHerd extends View {
     // Shiny on purpose: a species you caught shiny can be chosen shiny (the preview's ✨).
     if (this.locked(entry)) return;
     let next = switchedPick(cur, entry, this.megaMode, this.megaKind, (how.shiny && shinyUnlocked(pokedex(), entry.dex)) || rollShiny(entry, charmOdds()));
-    // The Box: that species raised before by an agent now gone comes back as it was (its hearts,
-    // jobs, item, shiny); if both hold something, this pane's item goes back into the Bag.
-    const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
-    const saved = savedPicks();
-    const boxed = how.fresh ? null : fromBox(entry, saved, onScreen, p.slot);
-    if (boxed) {
-      if (cur?.held && boxed.pick.held) saveBag(addItem(bag(), cur.held));
-      next = { ...boxed.pick, mega: this.megaMode, ...(boxed.pick.held || !cur?.held ? {} : { held: cur.held }), ...(cur?.stay ? { stay: true } : {}) };
-    }
+    // Always a new one: one of its kind waiting in the Box comes out only by Bring out (it used to
+    // come out by itself, 4 jobs and all, when you meant a new one).
     // The one it was, if raised (any, with Box it), waits in the Box (not overwritten).
     const away = boxOnSwitch(cur, entry, Date.now(), { same: !!how.fresh, all: !!how.fresh });
     savePicks({ ...(away ? { [away.key]: away.pick } : {}), [p.slot]: next });
-    if (boxed) forgetPanes([boxed.slot]);
     closeOverlay(p.overlay);
   }
 
