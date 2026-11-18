@@ -34,7 +34,9 @@ const BEATEN_SAYS = {
   engineer: ["Short-circuited!", "Back to the drawing board."], birdkeeper: ["My birds, grounded!", "Clipped my wings…"],
 };
 const beatenSay = (tr) => { const l = BEATEN_SAYS[tr.cls] ?? ["You win!"]; return l[[...tr.name].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length]; };
-const WIN_WALK_AT = 2800, WIN_WALK_MS = 1800; // a beaten trainer: says its words, then walks off
+// A beaten trainer, one thing at a time: its words (till WIN_SAY_MS), then its pay rising (till
+// WIN_PAY_END) while it turns and walks off (from WIN_WALK_AT, over WIN_WALK_MS). Gone at WIN_PAY_END.
+const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1800, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
@@ -1445,7 +1447,7 @@ export default class PokemonHerd extends View {
             if (tr.tower) this.towerFighter = tr.fighter ?? null; // it takes on the next one too
           }
         }
-        if (now >= (tr?.beaten ? tr.beaten + WIN_WALK_AT + WIN_WALK_MS : v.fainted + (tr ? 4500 : 2200))) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
+        if (now >= (tr?.beaten ? tr.beaten + WIN_PAY_END : v.fainted + (tr ? 4500 : 2200))) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
       }
       if (v.trainer) {
@@ -2276,17 +2278,17 @@ export default class PokemonHerd extends View {
       if (fig) root.child(div().id(`trainer-out-${v.id}`).absolute().top(0).left(leaving ? this.width + 80 - figX : 0)
         .transition("left", { duration: WIN_WALK_MS, easing: "ease-in" }).child(fig)
         .when(!leaving, (el) => { const b = this.trainerBalls(v, figX, ground, scale); return b ? el.child(b) : el; }));
-      if (tr?.beaten && won < WIN_WALK_AT) {
+      if (tr?.beaten && won < WIN_SAY_MS) {
         const size = this.trainerSize(v, scale);
         const top = Math.max(2, ground - (size?.h ?? 40) - 30);
         root.child(div().absolute().left(Math.min(this.width - 170, figX - 80)).top(top).w(160).flex().justify_center()
           .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${beatenSay(tr)}”`)));
       }
-      if (tr?.beaten && tr.paid?.money && won < 2600) {
+      if (tr?.beaten && tr.paid?.money && won >= WIN_SAY_MS && won < WIN_PAY_END) {
         // Its pay: ₽ and the gifts' pictures, rising from where its Pokémon fell and fading.
         const id = `win-pay-${v.id}`, first = this.fxFirst(id);
         root.child(div().id(id).absolute().left(x - 80).w(160).top(first ? headY : Math.max(0, headY - 34)).opacity(first ? 1 : 0)
-          .transition("top", { duration: 1800, easing: "ease-out" }).transition("opacity", { duration: 700, delay: 1700, easing: "ease-in" })
+          .transition("top", { duration: 1600, easing: "ease-out" }).transition("opacity", { duration: 600, delay: 1800, easing: "ease-in" })
           .flex().justify_center().gap(4).items_center()
           .child(div().px(6).h(18).rounded(9).bg("#000000b8").flex().items_center().gap(4).text_size(11.5).font_bold().text_color("#ffd23f")
             .child(`+${money(tr.paid.money)}`)
@@ -2296,7 +2298,10 @@ export default class PokemonHerd extends View {
       const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
       const tp = v.trainer?.paid;
       const gifts = tp?.items.map(([id, n]) => (n > 1 ? `${n} ${ITEMS[id].name}s` : ITEMS[id].name)).join(", ");
-      const said = v.trainer?.beaten ? `${v.trainer.tower ? `🗼 Win ${v.trainer.tower}! ` : ""}You beat ${v.trainer.title} ${v.trainer.name}!${tp.again ? " (this floor paid already today)" : ` +${money(tp.money)}${gifts ? `, ${gifts}` : ""}`}`
+      // (Beaten: who you beat while it speaks, then what it paid, as its pay rises.)
+      const said = v.trainer?.beaten ? (now - v.trainer.beaten < WIN_SAY_MS || tp.again
+        ? `${v.trainer.tower ? `🗼 Win ${v.trainer.tower}! ` : ""}You beat ${v.trainer.title} ${v.trainer.name}!${tp.again ? " (this floor paid already today)" : ""}`
+        : `+${money(tp.money)}${gifts ? `, ${gifts}` : ""}`)
         : v.fainted ? `${wildName} fainted…`
         : now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
         : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";

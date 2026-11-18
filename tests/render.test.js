@@ -345,7 +345,7 @@ test("a trainer beaten draws its win (balls, words, pay, walking off)", () => {
   st.sprites = new Proxy({}, { get: () => meta, set: () => true });
   st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
   const now = Date.now();
-  for (const won of [100, 3500]) {
+  for (const won of [100, 2600, 4000]) {
     st.visitor = { id: `w-${won}`, pick: { dex: 9, hp: 0 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, fainted: now - won - 2200,
       fight: { at: now - won - 3000, until: now - won - 2500, x: 1100, ownX: 1000, fainted: true, hp: 0, own: "t0" },
       trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 3 }, { dex: 6 }, { dex: 9 }], idx: 2, beaten: now - won, winner: "t0", paid: { money: 540, items: [["rare-candy", 3]] } } };
