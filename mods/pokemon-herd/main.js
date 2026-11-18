@@ -837,7 +837,9 @@ export default class PokemonHerd extends View {
     cx.timer.every(60000, (cx) => cx.notify()); // the sky follows the clock
     cx.timer.every(250, (cx) => {
       try {
-        this.tick(cx);
+        const t0 = dev?.slow ? Date.now() : 0;
+        readOnce(() => this.tick(cx)); // (each save reads them again)
+        if (t0) dev.slow("tick", Date.now() - t0);
       } catch (e) {
         logOnce(e, console.log, Date.now(), this.errSeen);
       }
