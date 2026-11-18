@@ -27,6 +27,7 @@ export const megaMode = (v) => (v === "off" || v === "on" || v === "auto" ? v : 
 
 // The saved picks, dropping anything malformed or no longer walkable. When this mod has none
 // yet, the upstream mod's { panes: { <pane>: <dex> } } is taken over (migrated: true).
+const moveNames = (l) => (Array.isArray(l) ? [...new Set(l.filter((n) => typeof n === "string" && n.length <= 30))].slice(0, 4) : []);
 export function loadPicks(current, legacy) {
   const panes = {};
   if (isObj(current) && isObj(current.panes)) {
@@ -50,6 +51,8 @@ export function loadPicks(current, legacy) {
         ...(Number.isInteger(p.sparW) && p.sparW > 0 ? { sparW: p.sparW } : {}), ...(Number.isInteger(p.sparL) && p.sparL > 0 ? { sparL: p.sparL } : {}),
         // The moves chosen for it (moves.js chosenOf checks them against what it learns): names, 4 at most.
         ...((m) => (m.length ? { moves: m } : {}))(Array.isArray(p.moves) ? [...new Set(p.moves.filter((n) => typeof n === "string" && n.length <= 30))].slice(0, 4) : []),
+        // Its Megas' own (by kind: "X", "Y", "M" for the one Mega), the same way.
+        ...((mm) => (Object.keys(mm).length ? { megaMoves: mm } : {}))(Object.fromEntries(["X", "Y", "M"].map((k) => [k, moveNames(p.megaMoves?.[k])]).filter(([, m]) => m.length))),
         // Its gender (gender.js): kept, or for one saved before genders came, one by its slot.
         ...((g) => (g ? { gender: g } : {}))(validGender(p.dex, p.gender) ? p.gender : genderFrom(p.dex, hash(`${pane}:gender`))), ...(caught && isWalkable(p.caughtAs) ? { caughtAs: p.caughtAs } : {}) };
     }

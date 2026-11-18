@@ -149,6 +149,25 @@ test("the Bag's Box tab: a card's actions", () => {
   assert.equal(picks()["box-1-133"].locked, true);
 });
 
+// A Mega's moves are its own to choose: Change on its row saves them apart (`megaMoves`), and
+// the one as it is keeps its own; none chosen for the Mega, it fights with its own four.
+test("a Mega's moves: a Change of their own", () => {
+  seed();
+  const v = view({ bag: true, tab: "box", sel: "p0" });
+  v.render(cx);
+  assert.ok(K.handlers["moves-edit-p0-base:on_click"], "Change for Charizard");
+  click("moves-edit-p0-X:on_click");
+  v.render(cx);
+  click("learn-p0-X-2:on_click"); // Flamethrower, one of Mega X's own four: dropped
+  const p0 = picks().p0;
+  assert.equal(p0.megaMoves?.X?.length, 3);
+  assert.ok(!p0.megaMoves.X.includes("Flamethrower"));
+  assert.equal(p0.moves, undefined, "Charizard's own four untouched");
+  v.render(cx);
+  click("moves-default-p0-X:on_click");
+  assert.equal(picks().p0.megaMoves, undefined, "back to Mega X's own four");
+});
+
 // Every Pokémon saved, read once per render: each read checks them all (loadPicks), and a
 // preview read them a dozen times; with ~250 in the Box that went past Herdr's time for a
 // render ("This view could not be re-rendered: interrupted", its buttons dead).

@@ -273,6 +273,15 @@ function updatePick(slot, f) {
   if ((next.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
   return next;
 }
+// The moves chosen for one of yours as `key` (fighterKey: it, or its Mega), names or null (its
+// own four): as it is, `moves`; as a Mega, that Mega's (`megaMoves`, by kind: "X", "Y", "M" for
+// the one Mega), never the others' (a Mega with none chosen fights with its own four).
+const megaSlot = (kind) => kind || "M";
+function chosenFor(pick, key) {
+  const kind = /^\d+m([XY]?)$/.exec(String(key))?.[1];
+  return (kind !== undefined ? pick?.megaMoves?.[megaSlot(kind)] : pick?.moves) ?? null;
+}
+const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
 // Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
 // now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
 function useOn(slot, id) {
@@ -1714,7 +1723,7 @@ export default class PokemonHerd extends View {
     if (sm) sm.awakeUntil = Math.max(sm.awakeUntil ?? 0, at + 20000); // awake for the strike and a while after
     const key = this.keyFor(pick);
     const live = savedPicks()[a.pane] ?? pick;
-    const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: live.moves, weather: this.boostNow().id }));
+    const move = this.boosted(pickMove(key, r.boss.dex, Math.random, { moves: chosenFor(live, key), weather: this.boostNow().id }));
     const { raid } = raidHit(r, key, a.pane, move.type, at, Math.random, { alpha: !!live.alpha, shadow: !!live.shadow, hearts: live.hearts ?? 0, working: a.status === "working", drop: true, move, effort: effortOf(live), nature: live.nature, weather: this.boostNow().id, agents: herdAgents().filter((x) => x.pane).length });
     setShared(RAID_KEY, raid);
     if (raid.beaten) this.raidWon(raid);
@@ -2723,7 +2732,7 @@ export default class PokemonHerd extends View {
       const [k1, k2] = [keyOf(a1), keyOf(a2)];
       const side = (a, k, o) => {
         const meta = this.spriteFor(ids[a.address], a.status);
-        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size, moves: ids[a.address]?.moves, weather: this.boostNow().id })), blue: k === "6mX" } : null; // its move (moves.js), named
+        const move = k && o ? { ...this.boosted(pickMove(k, o, Math.random, { targetSize: ids[(a === a1 ? a2 : a1).address]?.size, moves: chosenFor(ids[a.address], k), weather: this.boostNow().id })), blue: k === "6mX" } : null; // its move (moves.js), named
         return { has: hasOf(meta), msOf: msFor(meta), icon: TYPE_ICON[typeOf(ids[a.address]?.dex)] ?? "⭐", ...(move ? { move } : {}) };
       };
       // Too close: they hop apart first (a quick slide, facing each other), then battle, room
@@ -2947,7 +2956,7 @@ export default class PokemonHerd extends View {
         const wildKey = fighterKey(v.pick.dex, { form: v.pick.form, mega: v.pick.mega === "on" ? (megaForm(v.pick.dex, v.pick.megaKind)?.kind ?? "") : null }); // a trainer's Mega fights as one
         const bonus = mega && !isFormKey(ownKey);
         const wild = { ...v.pick, dex: wildKey };
-        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: pk.moves, weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it
+        const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
         const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: TEAM_EFFORT } : {}) });
@@ -5434,55 +5443,64 @@ export default class PokemonHerd extends View {
   // one, four at most; "Default" goes back to its own four. Saved on its pick (`moves`).
   moveRow(e, t, slot = null) {
     const key = fighterKey(e.dex, e.form ? { form: e.form } : {});
-    const set = movesetOf(key, e.moves);
-    const chosen = !!chosenOf(key, e.moves);
-    const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => MOVES[m.type]?.[2]).filter((n) => n && !set.some((m) => m.name === n)))];
     const chip = (m, on = true) => h_flex().h(18).px(6).gap(4).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type]).opacity(on ? 1 : 0.4)
       .when(!!m.sig || !!m.exclusive, (el) => el.border_1().border_color(m.exclusive ? "#ffffff" : "#ffd23f"))
       .child(div().text_size(10.5).font_semibold().text_color(typeText(m.type)).child(m.name))
       .child(div().text_size(9).text_color(typeText(m.type)).opacity(0.75).child(String(powerOf(m.name))));
     const pill = (id, label, click) => div().id(id).h(18).px(7).rounded(4).flex().items_center().flex_none().text_size(10.5).border_1()
       .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { click(); cx.notify(); }).child(label);
-    const save = (moves) => {
-      const live = savedPicks()[slot];
-      if (!live) return;
-      const { moves: _m, ...rest } = live;
-      savePicks({ [slot]: moves?.length ? { ...rest, moves } : rest });
+    // One form's row: its four (chosen or its own), Change → every move it can learn.
+    // `mega`: null (it as it is: `moves`), or its Mega's kind ("X", "Y", "": `megaMoves`).
+    const formRow = (mega) => {
+      const k = mega === null ? key : fighterKey(e.dex, { mega });
+      const set = movesFor(e, k);
+      const own = mega === null ? e.moves : e.megaMoves?.[megaSlot(mega)];
+      const chosen = !!chosenOf(k, own);
+      const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => MOVES[m.type]?.[2]).filter((n) => n && !set.some((m) => m.name === n)))];
+      const editId = `${slot}|${mega ?? ""}`;
+      const editing = !!slot && this.editingMoves === editId;
+      const save = (moves) => {
+        const live = savedPicks()[slot];
+        if (!live) return;
+        if (mega === null) {
+          const { moves: _m, ...rest } = live;
+          savePicks({ [slot]: moves?.length ? { ...rest, moves } : rest });
+          return;
+        }
+        const { [megaSlot(mega)]: _o, ...others } = live.megaMoves ?? {};
+        const next = moves?.length ? { ...others, [megaSlot(mega)]: moves } : others;
+        const { megaMoves: _mm, ...rest } = live;
+        savePicks({ [slot]: Object.keys(next).length ? { ...rest, megaMoves: next } : rest });
+      };
+      const label = mega === null ? (chosen ? "Moves (chosen)" : "Moves") : `As Mega${mega ? ` ${mega}` : ""}${chosen ? " (chosen)" : ""}`;
+      const row = h_flex().gap(4).flex_wrap().items_center()
+        .child(div().text_size(11).text_color(t.muted).mr(2).child(label))
+        .children(set.map((m) => chip(m)))
+        .when(sigs.length > 0 && !editing && mega === null, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
+        .when(mega !== null && !chosen && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child("its own four")))
+        .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}-${mega ?? "base"}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : editId; })));
+      if (!editing) return row;
+      const names = set.map((m) => m.name);
+      const all = learnableOf(k);
+      return v_flex().gap(6)
+        .child(row)
+        .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. Gold: a signature move (it fires, and misses 1 in 5); white: its own.`))
+        .child(h_flex().gap(4).flex_wrap()
+          .children(all.map((m, i) => {
+            const on = names.includes(m.name);
+            return div().id(`learn-${slot}-${mega ?? "base"}-${i}`).cursor_pointer().on_click((_e, cx) => {
+              const live = savedPicks()[slot];
+              const cur = live ? movesFor(live, k).map((x) => x.name) : names;
+              const next = on ? (cur.length > 1 ? cur.filter((n) => n !== m.name) : cur) : cur.length < MAX_MOVES ? [...cur, m.name] : cur;
+              save(next);
+              cx.notify();
+            }).child(chip(m, on));
+          })))
+        .when(chosen, (el) => el.child(h_flex().child(pill(`moves-default-${slot}-${mega ?? "base"}`, "Default: its own four", () => save(null)))));
     };
-    const editing = !!slot && this.editingMoves === slot;
-    const row = h_flex().gap(4).flex_wrap().items_center()
-      .child(div().text_size(11).text_color(t.muted).mr(2).child(chosen ? "Moves (chosen)" : "Moves"))
-      .children(set.map((m) => chip(m)))
-      .when(sigs.length > 0 && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
-      .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : slot; })));
-    // Its Mega's own four, when they differ and none are chosen (Mega Charizard X: Outrage…): a
-    // Mega fought with moves its card never showed. Chosen ones are the same four for both.
-    const megaSets = chosen || e.form ? [] : megaForms(e.dex).map(({ kind }) => {
-      const mk = fighterKey(e.dex, { mega: kind });
-      const ms = mk === key ? null : movesetOf(mk);
-      return ms && ms.map((m) => m.name).join() !== set.map((m) => m.name).join() ? [kind, ms] : null;
-    }).filter(Boolean);
-    const megaLines = megaSets.map(([kind, ms]) => h_flex().gap(4).flex_wrap().items_center()
-      .child(div().text_size(11).text_color(t.muted).mr(2).child(`As Mega${kind ? ` ${kind}` : ""}`))
-      .children(ms.map((m) => chip(m)))
-      .child(div().ml(4).text_size(10.5).text_color(t.dim).child("its own four, till you choose (then the same for both)")));
-    if (!editing) return megaLines.length ? v_flex().gap(4).child(row).children(megaLines) : row;
-    const names = set.map((m) => m.name);
-    const all = learnableOf(key);
-    return v_flex().gap(6)
-      .child(row)
-      .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. Gold: a signature move (it fires, and misses 1 in 5); white: its own.`))
-      .child(h_flex().gap(4).flex_wrap()
-        .children(all.map((m, i) => {
-          const on = names.includes(m.name);
-          return div().id(`learn-${slot}-${i}`).cursor_pointer().on_click((_e, cx) => {
-            const cur = movesetOf(key, savedPicks()[slot]?.moves).map((x) => x.name);
-            const next = on ? (cur.length > 1 ? cur.filter((n) => n !== m.name) : cur) : cur.length < MAX_MOVES ? [...cur, m.name] : cur;
-            save(next);
-            cx.notify();
-          }).child(chip(m, on));
-        })))
-      .when(chosen, (el) => el.child(h_flex().child(pill(`moves-default-${slot}`, "Default: its own four", () => save(null)))));
+    // Its Megas (Charizard: X and Y), each a row of its own: their moves are their own to choose.
+    const megas = e.form ? [] : megaForms(e.dex).map(({ kind }) => kind).filter((kind) => fighterKey(e.dex, { mega: kind }) !== key);
+    return megas.length ? v_flex().gap(4).child(formRow(null)).children(megas.map((kind) => formRow(kind))) : formRow(null);
   }
 
   // One of its animations (sprites.js meta: idleD, walkR, sleep) on a bit of ground, 150 × 104,

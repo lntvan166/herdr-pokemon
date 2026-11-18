@@ -536,3 +536,9 @@ test("leaderOf: the first copy still ticking leads, in memory; the next takes ov
   assert.equal(leaderOf(copies, "b", 5000), true); // a went quiet
   assert.equal(copies.has("a"), false);
 });
+
+test("loadPicks keeps a Mega's own moves (by kind), four at most, names only", () => {
+  const { panes } = loadPicks({ v: 2, panes: { p: { dex: 6, moves: ["Flamethrower"], megaMoves: { X: ["Outrage", "Outrage", 3, "Dragon Claw", "Earthquake", "Flamethrower", "Roar"], Z: ["Nope"], Y: [] } } } }, null);
+  assert.deepEqual(panes.p.megaMoves, { X: ["Outrage", "Dragon Claw", "Earthquake", "Flamethrower"] });
+  assert.deepEqual(panes.p.moves, ["Flamethrower"]);
+});

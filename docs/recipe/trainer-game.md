@@ -189,6 +189,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a click takes or drops one, `MAX_MOVES` 4 at most, at least one; "Default" goes back to its own
   four. Chosen moves are used in the wild, raids and spars; a signature move chosen is used as one
   (it fires, misses 1 in 5). No cost and no limit but what it learns.
+- **A Mega's moves** (main.js `movesFor`, `chosenFor`; a pick's `megaMoves`, by kind "X", "Y",
+  "M" for the one Mega): under its card's Moves, a row per Mega ("As Mega X") with a Change of
+  its own. A Mega with none chosen fights with its own four (Mega Charizard X: Outrage,
+  Flamethrower, Double-Edge, Earthquake), never the ones chosen for it as it is.
 - **Their own moves** (`moves.js` `EXCLUSIVE`, 44): a move only one Pokémon (or its line) knows,
   as in the games (Judgment Arceus, Psystrike Mewtwo, Roar of Time Dialga, Spacial Rend Palkia,
   Aeroblast Lugia, Sacred Fire Ho-Oh, Volt Tackle Pikachu, Pyro Ball Cinderace, Flower Trick
