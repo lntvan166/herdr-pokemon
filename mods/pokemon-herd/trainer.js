@@ -230,7 +230,9 @@ export const OWN_TAKE = 0.85;
 export const WILD_ALPHA_HIT = 1.5;
 // Its health now from what was kept ({ hp, at, rest? }: after a hit, back to full over OWN_REST),
 // or null while it rests after fainting.
-export const healthNow = (rec, now) => (!rec ? 1 : now < (rec.rest ?? 0) ? null : Math.min(1, (rec.hp ?? 1) + (now - (rec.at ?? now)) / OWN_REST));
+// `frozenFrom`: a Battle Tower climb on since then: no healing by itself from then on.
+export const healed = (at, now, frozenFrom = null) => Math.max(0, (frozenFrom != null ? Math.min(now, frozenFrom) : now) - at);
+export const healthNow = (rec, now, frozenFrom = null) => (!rec ? 1 : now < (rec.rest ?? 0) ? null : Math.min(1, (rec.hp ?? 1) + healed(rec.at ?? now, now, frozenFrom) / OWN_REST));
 export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null, move = null, ctx = undefined) {
   const hp = Number.isFinite(own.hp) ? own.hp : 1;
   const hit = damage(wild.dex, own.dex, rnd, { alphaTarget: !!own.alpha, shadowAttacker: !!wild.shadow, shadowTarget: !!own.shadow, mul, ...(type ? { type } : {}), ...moveHow(move), ctx });

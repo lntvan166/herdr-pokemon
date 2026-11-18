@@ -45,7 +45,7 @@ import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf }
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { effortOf, healthNow, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { effortOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
 import { duel } from "./react.js";
@@ -585,15 +585,29 @@ const manualUpdate = () => {
 const keepHp = (pane, rec) => {
   if (!pane) return;
   const now = Date.now();
-  const all = Object.fromEntries(Object.entries(shared(HP_KEY) ?? {}).filter(([, r]) => r && (now < (r.rest ?? 0) || healthNow(r, now) < 1)));
+  const all = Object.fromEntries(Object.entries(shared(HP_KEY) ?? {}).filter(([, r]) => r && (now < (r.rest ?? 0) || healthNow(r, now, towerNow().run?.at ?? null) < 1))); // (a climb on: as it stands)
   setShared(HP_KEY, { ...all, [pane]: rec });
 };
-const hpOf = (slot) => healthNow(shared(HP_KEY)?.[slot], Date.now());
+// A Battle Tower climb on: health stays as it is (no healing by itself) from when it began (`climbFrom`,
+// the strip's, set each tick; hpOf reads it itself: the Bag and the menus have no tick).
+let climbFrom = null;
+const hpOf = (slot) => healthNow(shared(HP_KEY)?.[slot], Date.now(), towerNow().run?.at ?? null);
 // A Berry eaten: `amount` more health (the strip it's on picks it up: care).
 const healBy = (slot, amount) => { const hp = hpOf(slot); if (amount && hp != null && hp < 1) keepHp(slot, { hp: Math.min(1, hp + amount), at: Date.now() }); };
 // A Revive: up from fainting at once, with `amount` of its health (its rest kept no more).
 const reviveBy = (slot, amount) => { if (amount && hpOf(slot) === null) keepHp(slot, { hp: amount, at: Date.now() }); };
-const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + (now - (m.hpAt ?? now)) / OWN_REST) : 1);
+const ownHp = (m, now) => (Number.isFinite(m?.hp) ? Math.min(1, m.hp + healed(m.hpAt ?? now, now, climbFrom) / OWN_REST) : 1);
+// A climb over: each one's health as it stood, from now on healing again.
+function unfreezeHp(from, now) {
+  const all = shared(HP_KEY) ?? {};
+  const next = {};
+  for (const [pane, r] of Object.entries(all)) {
+    if (!r) continue;
+    const hp = healthNow(r, now, from);
+    next[pane] = hp == null ? r : { ...r, hp, at: now };
+  }
+  setShared(HP_KEY, next);
+}
 // An Alpha: a red glow behind it (breathing), and a red α by its head.
 const ALPHA_RED = "#e5484d";
 // The ring's picture (sprites.js ensureRing), made once at start.
@@ -892,6 +906,7 @@ export default class PokemonHerd extends View {
     cx.timer.every(250, (cx) => {
       try {
         const t0 = dev?.slow ? Date.now() : 0;
+        climbFrom = towerNow().run?.at ?? null; // (health stays as it is while a climb is on)
         readOnce(() => this.tick(cx)); // (each save reads them again)
         if (this.leader) this.keepVisitor();
         if (t0) dev.slow("tick", Date.now() - t0);
@@ -1253,6 +1268,8 @@ export default class PokemonHerd extends View {
     const t = towerNow();
     if (!run) return;
     saveTower({ ...t, best: Math.max(t.best, run.wins), run: null });
+    unfreezeHp(run.at, now); // healing again, from as they stood
+    climbFrom = null;
     this.towerOver = { at: now, wins: run.wins, best: run.wins > t.best, why };
     if (this.visitor?.trainer?.tower) { this.visitor = null; this.visitAt = now + 60000; }
   }
@@ -3354,7 +3371,7 @@ export default class PokemonHerd extends View {
       .child((() => {
         const tw = towerNow();
         return tw.run
-          ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${TOWER_LIVES - tw.run.faints} lives left`, () => saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }))
+          ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${TOWER_LIVES - tw.run.faints} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
           : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}trainers in a row, 3 lives`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0 } }));
       })())
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))

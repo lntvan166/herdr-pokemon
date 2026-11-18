@@ -255,6 +255,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   a Master Ball from the 21st). Three faints of yours (`TOWER_LIVES`; each one out of the climb)
   or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
   (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.
+  No healing by itself while a climb is on (`trainer.js` `healed`/`healthNow(rec, now, frozenFrom)`,
+  main.js `climbFrom`, `hpOf`): health stays as it stood from when the climb began (Berries and
+  Revives still work); over, `unfreezeHp` writes each one's health as it stood, healing from then.
 - **A trainer's team and its defeat** (main.js `trainerBalls`, `BEATEN_SAYS`, `WIN_WALK_AT`):
   over a waiting or fighting trainer's head, a ball for each of its Pokémon (red, grey once
   down). Beaten: the one of yours that won cheers (🎉, `onCelebrate`, once); the trainer says a

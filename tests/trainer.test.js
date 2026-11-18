@@ -465,3 +465,13 @@ test("special balls, as in the games: Quick first, Dusk at night, Timer the long
   assert.equal(ballFor({ "quick-ball": 3 }, { dex: 3 }), null);
   assert.equal(ballFor({ "quick-ball": 3 }, { dex: 3 }, "quick-ball"), "quick-ball");
 });
+
+test("health heals by itself, but not while a Battle Tower climb is on (from when it began)", async () => {
+  const { healthNow, OWN_REST } = await import("../mods/pokemon-herd/trainer.js");
+  const rec = { hp: 0.2, at: 1000 };
+  const half = OWN_REST / 2;
+  assert.equal(healthNow(rec, 1000 + half), 0.7);
+  assert.equal(healthNow(rec, 1000 + half, 1000 + half / 2), 0.2 + 0.25); // healed till the climb, then not
+  assert.equal(healthNow({ hp: 0.3, at: 5000 }, 5000 + half, 1000), 0.3); // hurt in the climb: as it is
+  assert.equal(healthNow({ hp: 0, at: 1, rest: 9e15 }, 2, 1), null); // fainted: resting still
+});

@@ -300,6 +300,21 @@ test("the Battle Tower: start, a trainer, three faints and it's over", () => {
 });
 
 // A trainer beaten: its balls, its words, its pay rising, then it walks off: all drawn.
+// A climb over: each one's health as it stood (no healing in it), healing again from now.
+test("the Battle Tower: health as it stood when the climb ends", () => {
+  seed();
+  const KEY = `${ids.MOD}-tower`, HP = `${ids.MOD}-hp`;
+  const now = Date.now(), from = now - 5 * 60000;
+  H.store.set(KEY, { v: 1, best: 0, run: { at: from, wins: 1, faints: 0, out: [], nextAt: 0 } });
+  H.store.set(HP, { p0: { hp: 0.3, at: from + 60000 } }); // hurt in the climb, 4 minutes ago
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  st.towerEnd(now, "given up");
+  const r = H.store.get(HP).p0;
+  assert.equal(r.hp, 0.3, "not healed in the climb");
+  assert.ok(r.at >= now, "healing from now");
+});
+
 test("a trainer beaten draws its win (balls, words, pay, walking off)", () => {
   seed();
   const st = view({ rows: 1, scale: 0.75 });
