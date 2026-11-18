@@ -2510,13 +2510,16 @@ export default class PokemonHerd extends View {
     }
     const baitNow = baitFor(bag().items, v.pick, ball, shared(BAIT_KEY));
     const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow, { throws: v.throws ?? 0, night: isNight() }));
+    // A trainer's Pokémon in its ball still: not thrown yet (its trainer on its way to its corner),
+    // or thrown a moment ago. (It showed a moment as the trainer came, then went to be thrown.)
+    const inBall = !!v.trainer && (!v.trainer.waited || (!!v.sentOut && now - v.sentOut.at < SEND_OPEN));
     root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
       .when(!halt, (el) => el.transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" }))
       .child(div()
-        .child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030"))
-        .when(!!v.pick.alpha, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
+        .when(!inBall, (el) => el.child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030")))
+        .when(!!v.pick.alpha && !inBall, (el) => el.child(alphaGlow(mid, ground, pose.box, scale, !!v.pick.shadow)))
         .child(image(pose.path).absolute().left(mid - (pose.box.x + pose.box.w / 2) * scale).top(ground - (pose.box.y + pose.box.h) * scale).w(pose.w * scale).h(pose.h * scale)
-          .opacity(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN ? 0 : 1)) // (in its ball still)
+          .opacity(inBall ? 0 : 1))
         .when(!!(v.trainer && v.sentOut && now - v.sentOut.at < SEND_OPEN + 500), (el) => el.child(this.sendOutFx(v, mid, ground, headY, stripScale, now)))
         .when(!!(v.pick.shiny && !v.trainer && v.start && now - v.start < 1300), (el) => el.children(SHINY_IN.filter((d) => now - v.start >= d).map((d, k) => {
           const id = `shiny-in-${v.id}-${k}`;
@@ -4617,7 +4620,9 @@ export default class PokemonHerd extends View {
     // Called with Honey or the Azure Flute: on its way (the first time a species comes, its
     // sprite is fetched, which can take half a minute).
     if (this.coming) {
-      const txt = this.coming === "legend" ? "✦ A legendary Pokémon is on its way…" : "🍯 A wild Pokémon is on its way…";
+      // (A raid on, or a Battle Tower climb: it comes after; it said "on its way" for half an hour.)
+      const after = ["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now)) ? " after the raid" : towerNow().run ? " after the climb" : "";
+      const txt = this.coming === "legend" ? `✦ A legendary Pokémon comes${after || " now…"}` : `🍯 A wild Pokémon comes${after || " now…"}`;
       root.child(div().id("pokemon-coming").absolute().right(update ? 112 : 28).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).bg("#00000059").text_color(this.coming === "legend" ? "#f2c94c" : "#ffffff")
         .loop("opacity", { from: 0.5, to: 1, period: 900 })
