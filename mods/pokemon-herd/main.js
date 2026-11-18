@@ -4622,7 +4622,8 @@ export default class PokemonHerd extends View {
     if (this.coming) {
       // (A raid on, or a Battle Tower climb: it comes after; it said "on its way" for half an hour.)
       const after = ["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now)) ? " after the raid" : towerNow().run ? " after the climb" : "";
-      const txt = this.coming === "legend" ? `✦ A legendary Pokémon comes${after || " now…"}` : `🍯 A wild Pokémon comes${after || " now…"}`;
+      const devTrainer = !!dev && !!shared(`${MOD}-dev-wild`)?.trainer; // (dev.js "trainer": Honey, asking for a trainer)
+      const txt = this.coming === "legend" ? `✦ A legendary Pokémon comes${after || " now…"}` : `${devTrainer ? "❗ A trainer" : "🍯 A wild Pokémon"} comes${after || " now…"}`;
       root.child(div().id("pokemon-coming").absolute().right(update ? 112 : 28).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).bg("#00000059").text_color(this.coming === "legend" ? "#f2c94c" : "#ffffff")
         .loop("opacity", { from: 0.5, to: 1, period: 900 })
