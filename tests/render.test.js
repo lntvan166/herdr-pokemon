@@ -267,6 +267,38 @@ test("the saved Pokémon are read again only after a save", () => {
   assert.equal(H.store.get(ids.MOD).panes.p0.held, undefined);
 });
 
+// The Battle Tower: started from the menu, its trainers come one by one (no other visitor);
+// three faints of yours end the climb, its wins kept as the best.
+test("the Battle Tower: start, a trainer, three faints and it's over", () => {
+  seed();
+  const KEY = `${ids.MOD}-tower`;
+  const menu = view({ menu: true });
+  menu.render(cx);
+  click("menu-tower:on_click");
+  assert.ok(H.store.get(KEY)?.run, "a climb on");
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  st.visit(H.agents(), {}, null, Date.now(), cx);
+  assert.equal(st.visitor?.trainer?.tower, 1, "its first trainer");
+  assert.equal(st.visitor.trainer.team.length, 3);
+  st.render(cx);
+  H.store.set(KEY, { ...H.store.get(KEY), best: 2, run: { ...H.store.get(KEY).run, wins: 5 } });
+  for (let i = 0; i < 3; i++) st.towerFaint(`t${i}`, Date.now());
+  assert.equal(H.store.get(KEY).run, null, "over");
+  assert.equal(H.store.get(KEY).best, 5, "its 5 wins, the best now");
+  assert.equal(st.visitor, null, "the trainer gone");
+  st.render(cx);
+  // Given up from the menu: its trainer goes.
+  menu.render(cx);
+  click("menu-tower:on_click");
+  st.visit(H.agents(), {}, null, Date.now(), cx);
+  assert.ok(st.visitor?.trainer?.tower);
+  menu.render(cx);
+  click("menu-tower:on_click");
+  st.visit(H.agents(), {}, null, Date.now(), cx);
+  assert.equal(st.visitor, null);
+});
+
 test("the strip draws", () => {
   seed();
   const v = view({ rows: 1, scale: 0.75 });

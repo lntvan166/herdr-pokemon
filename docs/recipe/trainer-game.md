@@ -246,3 +246,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Pokémon or fighter, a stop), never mid-hit or mid-throw, never a raid's boss; the new strip
   (leader) takes it back if it's under 10 minutes old (`VISITOR_KEEP_MS`), the battle going on.
   Caught, fled, fainted or beaten: none kept (caught clears it at once, even mid-shake).
+- **The Battle Tower** (`trainers.js` `towerTrainer`, `towerPay`, `loadTower`; `pokemon-herd-tower`
+  `{ best, run: { at, wins, faints, out, nextAt } }`): ☰ → Battle Tower starts a climb (again:
+  give up). Its trainers come one by one to the corner as usual (no other visitor meanwhile, and
+  none during a raid): always three Pokémon, raised harder the higher (`towerEffort`, 1.1 → 1.3)
+  and starrier (`towerOdds`, capped). The one of yours that won takes on the next one by itself.
+  Each win pays ₽300 + ₽60 a floor (₽2000 at most); every 7th a gift (Rare Candies, Max Revives,
+  a Master Ball from the 21st). Three faints of yours (`TOWER_LIVES`; each one out of the climb)
+  or a trainer left waiting end it; its wins are the best if they are. The strip says the climb
+  (top left, under the raid's note): wins, ♥ lives, best; the Today tab, the best.

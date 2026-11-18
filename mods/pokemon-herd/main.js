@@ -23,7 +23,7 @@ import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
-import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT } from "./trainers.js";
+import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerPay, loadTower, TOWER_LIVES, TOWER_NEXT_MS } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
@@ -76,6 +76,9 @@ const RAID_KEY = `${MOD}-raid`; // the raid on now (events.js), the same in ever
 const OUTBREAK_KEY = `${MOD}-outbreak`; // an outbreak called on top of the day's: { dex, from, until }
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
+const TOWER_KEY = `${MOD}-tower`; // the Battle Tower: the climb on now and the best one (trainers.js loadTower)
+const towerNow = () => loadTower(shared(TOWER_KEY));
+const saveTower = (t) => setShared(TOWER_KEY, t);
 const VISITOR_KEY = `${MOD}-visitor`; // the wild one or trainer here, as last settled: { at, v } (keepVisitor), back after a reload
 const VISITOR_KEEP_MS = 10 * 60000; // kept that long at most
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
@@ -1224,6 +1227,26 @@ export default class PokemonHerd extends View {
     }
   }
 
+  // The Battle Tower: one of yours fainted in a climb (it's out of it); TOWER_LIVES of them and the
+  // climb is over.
+  towerFaint(addr, now) {
+    const t = towerNow();
+    if (!t.run) return;
+    const pane = agents().find((x) => x.address === addr)?.pane;
+    const run = { ...t.run, faints: t.run.faints + 1, out: pane && !t.run.out.includes(pane) ? [...t.run.out, pane] : t.run.out };
+    if (run.faints >= TOWER_LIVES) return this.towerEnd(now, "three down", run);
+    saveTower({ ...t, run });
+  }
+  // The climb ends (lost, left, or given up in the menu): its wins kept as the best if they are,
+  // the trainer gone, a note saying how far it got.
+  towerEnd(now, why, run = towerNow().run) {
+    const t = towerNow();
+    if (!run) return;
+    saveTower({ ...t, best: Math.max(t.best, run.wins), run: null });
+    this.towerOver = { at: now, wins: run.wins, best: run.wins > t.best, why };
+    if (this.visitor?.trainer?.tower) { this.visitor = null; this.visitAt = now + 60000; }
+  }
+
   // The visitor kept (VISITOR_KEY) whenever it settles into something new: its health, balls
   // thrown, a gift taken, the trainer's next Pokémon or fighter, a stop. Not mid-hit or mid-throw
   // (then the last settled state: a hit or ball lost to a reload is taken again), not a raid's
@@ -1282,7 +1305,25 @@ export default class PokemonHerd extends View {
     const raidOn = ["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now));
     // Only the leader's strip has wild ones: one per window, each catchable, made one Azure Flute
     // or Honey a catch per window.
-    if (!v && now >= this.visitAt && !raidOn && this.leader) {
+    // The Battle Tower climbing: its trainers only, one after another (the next TOWER_NEXT_MS
+    // after a win); no other visitor meanwhile (Honey waits).
+    const tower = towerNow().run;
+    if (v?.trainer?.tower && !tower) { this.visitor = v = null; this.visitAt = now + 60000; } // given up (the menu): it goes
+    if (!v && tower && !raidOn && this.leader && now >= tower.nextAt) { // (a raid first: the climb waits)
+      const megaOf = (d) => megaForm(d)?.kind ?? null;
+      const tr = towerTrainer(Math.random, now, tower.wins + 1, { megaOf });
+      const pick = trainerMon(tr.team[0]);
+      for (const m of tr.team) if (m.mega != null) this.want(trainerMon(m), cx, true);
+      cx.spawn(async (cx) => { this.trainerArt ??= {}; this.trainerArt[tr.cls] = await ensureTrainer(tr.cls).catch(() => null); cx.notify(); });
+      const from = this.width - EDGE - 60;
+      v = this.visitor = { id: `${now}-tower-${tr.tower}`, purse: 0, pick, dir: "l", row: 0, from, to: from - 1, start: 0, dur: 1000, asked: now,
+        act: { kind: "trainer", f: 0.4, ms: WAIT_MS, icon: "❗" }, gift: "none", giftAt: 0,
+        // The one of yours that won the last: it goes on against this one, once it's in.
+        trainer: { ...tr, idx: 0, ...(this.towerFighter ? { fighter: this.towerFighter, nextAt: now + 4000 } : {}) } };
+      this.towerFighter = null;
+      this.want(pick, cx);
+    }
+    if (!v && now >= this.visitAt && !raidOn && !tower && this.leader) {
       let pick = wildPick(new Set(Object.values(ids).map((p) => p.dex)), Math.random, { legend: !!this.legendNext, shinyOdds: charmOdds(), caught: new Set(pokedex().caught), boost: this.boostNow().types, share: WEATHER_SHARE });
       this.legendNext = false;
       if (outbreak) pick = outbreakPick(pick, outbreak);
@@ -1357,8 +1398,15 @@ export default class PokemonHerd extends View {
             return true;
           }
           tr.beaten = now;
-          tr.paid = trainerPay(tr);
-          if (this.leader) { payOut({ money: tr.paid.money }); for (const [id, n] of tr.paid.items) payOut({ item: id, count: n }); }
+          tr.paid = tr.tower ? towerPay(tr.tower) : trainerPay(tr);
+          if (this.leader) {
+            payOut({ money: tr.paid.money });
+            for (const [id, n] of tr.paid.items) payOut({ item: id, count: n });
+            // The Tower: one more win, and the next one up in a moment.
+            const t = towerNow();
+            if (tr.tower && t.run) saveTower({ ...t, best: Math.max(t.best, tr.tower), run: { ...t.run, wins: tr.tower, nextAt: now + TOWER_NEXT_MS } });
+            if (tr.tower) this.towerFighter = tr.fighter ?? null; // it takes on the next one too
+          }
         }
         if (now >= v.fainted + (tr ? 4500 : 2200)) { this.visitor = null; this.visitAt = this.honeyNext || this.legendNext ? now : now + rand(every[0], every[1]) * 60000; this.honeyNext = false; }
         return true;
@@ -1369,6 +1417,8 @@ export default class PokemonHerd extends View {
         v.fight = null;
         v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
         // (Yours fainted: it stops, unless another was switched in meanwhile.)
+        if (fx.back?.fainted && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
+        if (!this.visitor) return true; // (the climb is over: it's gone)
         if (fx.back?.fainted && v.trainer.fighter === fx.own) v.trainer.fighter = null;
         else if (v.trainer.fighter) v.trainer.nextAt = now + 500;
         return true;
@@ -1449,7 +1499,7 @@ export default class PokemonHerd extends View {
       const h = v.halt;
       v.halt = null;
       v.pick.asleep = false;
-      if (h.kind === "trainer") { this.visitor = null; this.visitAt = next(); return true; } // waited long enough: gone
+      if (h.kind === "trainer") { if (v.trainer?.tower) this.towerEnd(now, "left waiting"); this.visitor = null; this.visitAt = next(); return true; } // waited long enough: gone
       if (h.kind === "tease") { v.speedK = FLEE_SPEED; v.fleeUntil = now + 2500; } // off it runs, laughing
       if (h.kind === "challenge" && this.mons[h.target]) this.dropAt = { addr: h.target, dizzy: false }; // they fight, as if dropped on it
       v.from = h.x;
@@ -2167,7 +2217,8 @@ export default class PokemonHerd extends View {
       // What happened, as the games say it: its hit's effect, then the hit back and its effect.
       const wildName = v.trainer ? `${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : fullName(v.pick.dex, v.pick.form);
       const tp = v.trainer?.paid;
-      const said = v.trainer?.beaten ? `You beat ${v.trainer.title} ${v.trainer.name}! +${money(tp.money)}, ${tp.items.map(([id, n]) => (n > 1 ? `${n} ${ITEMS[id].name}s` : ITEMS[id].name)).join(", ")}`
+      const gifts = tp?.items.map(([id, n]) => (n > 1 ? `${n} ${ITEMS[id].name}s` : ITEMS[id].name)).join(", ");
+      const said = v.trainer?.beaten ? `${v.trainer.tower ? `🗼 Win ${v.trainer.tower}! ` : ""}You beat ${v.trainer.title} ${v.trainer.name}! +${money(tp.money)}${gifts ? `, ${gifts}` : ""}`
         : v.fainted ? `${wildName} fainted…`
         : now >= backAt && fx.back ? `${wildName} hit back!${fx.back.text ? ` ${fx.back.text}` : ""}${fx.back.fainted && now >= (fx.backHit ?? fx.at + 1500) ? ` ${fx.ownName} fainted!` : ""}`
         : now >= hitAt && fx.text ? fx.text.replace("it…", `${wildName}…`) : "";
@@ -3009,6 +3060,8 @@ export default class PokemonHerd extends View {
       const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
       if (now < (dm.restUntil ?? 0)) {
         this.note(dm, "💫", now, 2500);
+      } else if (v.trainer?.tower && towerNow().run?.out.includes(list[dj].pane)) {
+        this.note(dm, "🗼 out of this climb", now, 2500); // fainted once in it: out till it ends
       } else {
         // It Mega Evolves for the fight: a Mega with its own stats and types (base-stats.js
         // FORM_BASE) fights as itself; one without, as its species ×1.2 (trainer.js MEGA_HIT).
@@ -3020,11 +3073,11 @@ export default class PokemonHerd extends View {
         const om = this.boosted(pickMove(ownKey, wildKey, Math.random, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather: this.boostNow().id })), wm = this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather: this.boostNow().id })); // each one's move (moves.js), the weather's boost on it
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
-        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: TEAM_EFFORT } : {}) });
+        const hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
         if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
-        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: TEAM_EFFORT } : {}) });
+        const back = hit.fainted ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (back && wm.miss) back.text = "It missed!";
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.
@@ -3199,7 +3252,7 @@ export default class PokemonHerd extends View {
     const update = this.update();
     const m = menuParts();
     // Rows of 30, the chip sections 46 each, a divider, the update note.
-    const height = 16 + 30 * (3 + m.calls.length) + (m.balls.length ? 46 : 0) + (m.baits.length ? 46 : 0) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
+    const height = 16 + 30 * (4 + m.calls.length) + (m.balls.length ? 46 : 0) + (m.baits.length ? 46 : 0) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
     openOverlay({ mod: MOD, kind: "popup", width: 380, height, props: { menu: true, update } }); // room for every ball and Berry, with icons
   }
 
@@ -3236,6 +3289,14 @@ export default class PokemonHerd extends View {
       .id("pokemon-menu").size_full().p(8).gap(2).bg(t.popover)
       .child(row("open-bag", "Box", `${boxCount()} Pokémon · ${n} item${n === 1 ? "" : "s"} · ${got}/8`, () => openBag("box")))
       .child(row("open-today", "Today", `Research ${done}/${daily.tasks.length} · ${money(b.money)}`, () => openBag("today")))
+      // The Battle Tower: start a climb (its first trainer comes as soon as nothing else is here),
+      // or give one up.
+      .child((() => {
+        const tw = towerNow();
+        return tw.run
+          ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${TOWER_LIVES - tw.run.faints} lives left`, () => saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }))
+          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}trainers in a row, 3 lives`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0 } }));
+      })())
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
       .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", `Ball to throw · ${named(m.ball, true)}`, [[null, "Auto"], ...m.balls.map((id) => [id, String(b.items[id])])], m.ball,
         (v) => setShared(BALL_KEY, v))))
@@ -4267,10 +4328,21 @@ export default class PokemonHerd extends View {
     const av = this.visitor;
     if (av?.start && !av.leg && now - av.start < APPEAR_MS && !(rareOf(av.pick) && settingsNow().cryRare && av.dir === "l")) {
       const who = av.pick.legend ? "A legendary" : av.pick.alpha ? (av.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild";
-      const text = av.trainer ? `${av.trainer.title} ${av.trainer.name} wants to battle!` : `${who} ${av.pick.shiny ? "✨ " : ""}${fullName(av.pick.dex, av.pick.form)} appeared!`;
+      const text = av.trainer ? `${av.trainer.tower ? `🗼 Battle Tower, trainer ${av.trainer.tower}: ` : ""}${av.trainer.title} ${av.trainer.name} wants to battle!` : `${who} ${av.pick.shiny ? "✨ " : ""}${fullName(av.pick.dex, av.pick.form)} appeared!`;
       const note = div().id(`appear-${av.id}`).absolute().top(av.dir === "r" ? this.leftNotes(now) * 18 + 4 : 4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color(rareOf(av.pick)?.color ?? "#ffffff").child(sparkled(text));
       root.child(av.dir === "r" ? note.left(6) : note.right(update ? 134 : 50));
+    }
+    // The Battle Tower: how far up, the lives left (♥, ♡ lost) and the best; then, for a while,
+    // how the climb ended.
+    const climb = towerNow();
+    const over = this.towerOver && now - this.towerOver.at < 10000 ? this.towerOver : null;
+    if (climb.run || over) {
+      const text = climb.run ? `🗼 Battle Tower · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · ${"♥".repeat(TOWER_LIVES - climb.run.faints)}${"♡".repeat(climb.run.faints)}${climb.best ? ` · best ${climb.best}` : ""}`
+        : `🗼 Climb over (${over.why}): ${over.wins} win${over.wins === 1 ? "" : "s"}${over.best ? ", a new best!" : ""}`;
+      // On the left, under the raid's and the outbreak's notes: the trainer stands in the right corner.
+      root.child(div().id("pokemon-tower").absolute().left(6).top(this.leftNotes(now) * 18 + 4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).font_semibold().bg("#000000a0").text_color("#ffd23f").child(text));
     }
     // A rare one walking by (shiny, Alpha, legendary): a note in the corner while it's here.
     const rv = this.visitor;
@@ -4613,6 +4685,10 @@ export default class PokemonHerd extends View {
     else if (on) out.push(["🌊", `Outbreak now: ${fullName(on.dex)}`, `${left(on.until - now)} left · shinies 1 in 16`, (now - on.from) / (on.until - on.from), true]);
     else if (now < midnight + o.from) out.push(["🌊", `Today's outbreak: ${fullName(o.dex)} at ${clock}`, `In ${hm((midnight + o.from - now) / 60000)} · 20 minutes, shinies 1 in 16`, null, false]);
     else out.push(["🌊", `Today's outbreak (${fullName(o.dex)}) is over`, "Another tomorrow", 1, false]);
+    // The Battle Tower: the climb on now, or the best one yet.
+    const tw = towerNow();
+    out.push(tw.run ? ["🗼", `Battle Tower: ${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} so far`, `${TOWER_LIVES - tw.run.faints} lives left${tw.best ? ` · best ${tw.best}` : ""}`, null, true]
+      : ["🗼", tw.best ? `Battle Tower: best ${tw.best} in a row` : "Battle Tower: not climbed yet", "☰ menu → Battle Tower: trainers in a row, 3 lives", null, false]);
     return out;
   }
 

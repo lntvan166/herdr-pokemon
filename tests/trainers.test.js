@@ -73,3 +73,26 @@ test("its look: every frame 12 × 18, every letter a colour; its Pokémon faint 
   const t = hitWild({ dex: 1, hp: 0.05, trainer: true }, 150, big);
   assert.equal(t.fainted, true);
 });
+
+test("the Battle Tower: teams of three, stronger and starrier the higher; pay and gifts by win", async () => {
+  const T = await import("../mods/pokemon-herd/trainers.js");
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let n = 1; n <= 30; n++) {
+    const tr = T.towerTrainer(rnd, 0, n);
+    assert.equal(tr.team.length, 3);
+    assert.equal(tr.tower, n);
+    assert.ok(tr.effort >= T.TEAM_EFFORT && tr.effort <= 1.3);
+  }
+  assert.ok(T.towerOdds(20).legend > T.towerOdds(0).legend);
+  assert.ok(T.towerOdds(100).legend <= 0.5);
+  assert.deepEqual(T.towerPay(1), { money: 300, items: [] });
+  assert.ok(T.towerPay(7).items.some(([id]) => id === "rare-candy"));
+  assert.ok(T.towerPay(14).items.some(([id]) => id === "max-revive"));
+  assert.ok(T.towerPay(21).items.some(([id]) => id === "master-ball"));
+  assert.ok(T.towerPay(28).items.some(([id]) => id === "master-ball"));
+  assert.equal(T.towerPay(100).money, 2000);
+  assert.deepEqual(T.loadTower(null), { v: 1, best: 0, run: null });
+  const t = T.loadTower({ best: 4, run: { at: 1, wins: 2, faints: 1, out: ["p1", 3], nextAt: 5 } });
+  assert.deepEqual(t.run, { at: 1, wins: 2, faints: 1, out: ["p1"], nextAt: 5 });
+});
