@@ -115,9 +115,14 @@ const saveTower = (t) => setShared(TOWER_KEY, t);
 const VISITOR_KEY = `${MOD}-visitor`; // the wild one or trainer here, as last settled: { at, v } (keepVisitor), back after a reload
 const VISITOR_KEEP_MS = 10 * 60000; // kept that long at most
 const HONEY_KEY = `${MOD}-honey`; // when Honey was last used (the strip calls a visitor over)
-const VISIT_SPEED = 45; // px per second
+// A wild one crosses the strip in CROSS_S seconds, however wide it is (45 px/s on a 1750 px strip,
+// as it always walked there; a sidebar's 400 px took 9 s, gone before you could catch it), never
+// slower than MIN_WALK px/s (it'd look stuck). `stripWidth`: the strip's, as the visit sees it.
+const CROSS_S = 39, MIN_WALK = 15;
+let stripWidth = 1750;
+const VISIT_SPEED = 45; // px per second (a raid's boss walking off)
 // A legendary takes its time (half as fast): longer to go after it with its 20 balls.
-const walkSpeed = (pick) => (pick?.legend ? VISIT_SPEED / 2 : VISIT_SPEED);
+const walkSpeed = (pick) => Math.max(MIN_WALK, stripWidth / CROSS_S) * (pick?.legend ? 0.5 : 1);
 // A wild one's own pace: dashing (wildacts.js), or running off laughing after a tease.
 const paceOf = (v) => walkSpeed(v.pick) * (v.speedK ?? 1);
 const SPAR_CHANCE = 1 / 240;
@@ -1406,6 +1411,7 @@ export default class PokemonHerd extends View {
   visit(list, ids, g, now, cx) {
     const pace = VISIT_EVERY[settingsNow().visitors]; // [from, to] minutes; null: off
     if (!pace || !this.sized || this.width < 200) { this.visitor = null; return false; }
+    stripWidth = this.width; // (its walk: across in CROSS_S, whatever the width)
     // A Mass Outbreak (events.js): its species walks by every 2–3 minutes while it lasts.
     const outbreak = settingsNow().outbreaks ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
     const every = outbreak ? outbreakPace(pace) : pace;

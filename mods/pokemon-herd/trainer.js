@@ -3,6 +3,7 @@
 import { WALKABLE, REGIONS, regionOf, nameOf, isWalkable, hasShiny, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
 import { BASE, FORM_BASE, STATS } from "./base-stats.js";
+import { CAPTURE } from "./capture.js";
 import { typeOf, TYPES } from "./types.js";
 
 // ---- legendary and mythical Pokémon ------------------------------------------------
@@ -71,8 +72,15 @@ export const BAIT = {
 // middle stage 30%, a final stage 20%, a legendary 3%. Higher than GO's (30/20/15/10): there the
 // Pokémon waits on the screen, here it walks off the edge, sooner on a narrow window. A shiny is
 // as easy as any other (as in GO).
+// Its species, common or rare (capture.js: the games' capture rate, 45 for most starters and
+// dragons, 255 for Pidgey and Rattata): ×0.8 at 45 or under to ×1.2 at 255. A nudge, not the
+// games' spread (3 to 255): there the Pokémon stands in a battle; here it walks on while you throw.
+export const speciesCatch = (dex) => { const r = CAPTURE[parseInt(dex, 10)] ?? 45; return 0.8 + 0.4 * Math.max(0, Math.min(1, (r - 45) / 210)); };
 export function baseRate(dex) {
   if (isLegendary(dex)) return LEGEND_RATE;
+  return stageRate(dex) * speciesCatch(dex);
+}
+function stageRate(dex) {
   const pre = EVOLVES_FROM[dex] !== undefined, next = evolutionsOf(dex).length > 0;
   // (Halved for most since the strip's battles: a Poké Ball at one in the red caught a final
   // evolution 92% of the time, and nobody needed a Great Ball. Now ~65%, Great ~75%, Ultra ~81%.)

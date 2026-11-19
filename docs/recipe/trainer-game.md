@@ -14,7 +14,10 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   (a pat that gives a heart ₽10, a spar set up by a drop ₽15, one watched ₽5; up to ₽200 a day).
   Prices are set from a working day (~₽3,000); anything sells back for half.
 - **Catch rates** (`trainer.js` `baseRate`, `FLEE`): a first stage 0.3, alone 0.22, a middle
-  one 0.18, a final one 0.1 (× (2 − its health), ×½ an Alpha), the ball and Berry as a power;
+  one 0.18, a final one 0.1, times its kind's own catch rate from the games (`speciesCatch`,
+  `capture.js` from PokeAPI by `scripts/gen-capture.mjs`: ×0.8 at 45 or less up to ×1.2 at 255,
+  so a Pidgey 0.36, a Bulbasaur 0.24, a Venusaur or Snorlax 0.08), × (2 − its health), ×½ an
+  Alpha, the ball and Berry as a power;
   a miss, it may run, the likelier the more balls it has dodged (`fleeAfter`: 2% after the
   first, 4% after the second… 10% at most). A final one in the red: Poké Ball ~79% caught before
   it runs, Great ~87%, Ultra ~91%; a first stage in the red ~97% with a Poké Ball (it was

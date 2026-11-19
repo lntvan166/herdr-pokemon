@@ -212,16 +212,20 @@ test("a caught Pokémon remembers its ball", () => {
   assert.equal(loadPicks({ v: 2, panes: { b: { ...p, ball: "berry" } } }).panes.b.ball, undefined);
 });
 
-import { baseRate, fleeAfter } from "../mods/pokemon-herd/trainer.js";
+import { baseRate, fleeAfter, speciesCatch } from "../mods/pokemon-herd/trainer.js";
 test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a power", () => {
-  assert.equal(baseRate(1), 0.3); // Bulbasaur, a first stage
-  assert.equal(baseRate(2), 0.18); // Ivysaur
-  assert.equal(baseRate(3), 0.1); // Venusaur
-  assert.equal(baseRate(128), 0.22); // Tauros, on its own
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  // By stage, times its kind's own catch rate from the games (×0.8 at 45 or less, ×1.2 at 255).
+  near(speciesCatch(1), 0.8); near(speciesCatch(16), 1.2); near(speciesCatch(128), 0.8);
+  near(baseRate(1), 0.24); // Bulbasaur, a first stage (45: hard to catch)
+  near(baseRate(16), 0.36); // Pidgey (255: easy)
+  near(baseRate(2), 0.144); // Ivysaur
+  near(baseRate(3), 0.08); // Venusaur
+  near(baseRate(128), 0.176); // Tauros, on its own
   assert.equal(baseRate(150), 0.03);
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.3) < 1e-9);
-  assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - (1 - 0.7 ** 2)) < 1e-9);
-  assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.9 ** 2.25)) < 1e-9);
+  near(catchChance("poke-ball", { dex: 1 }), 0.24);
+  near(catchChance("ultra-ball", { dex: 1 }), 1 - 0.76 ** 2);
+  near(catchChance("great-ball", { dex: 3 }, "razz-berry"), 1 - 0.92 ** 2.25);
   // A final evolution in the red: a better ball is worth it now (it fled 1 time in 20 before, and
   // a Poké Ball caught it 92% of the time all the same).
   const before = (ball) => { const p = catchChance(ball, { dex: 3, hp: 0.15 }); let alive = 1, got = 0; for (let i = 0; i < 60; i++) { got += alive * p; alive *= (1 - p) * (1 - fleeAfter(i)); } return got; };
@@ -244,7 +248,7 @@ test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, 
   for (let i = 0; i < 4000; i++) if (wildPick(new Set(), Math.random).alpha) n++;
   assert.ok(n > 4000 / ALPHA_ODDS / 2 && n < 4000 / ALPHA_ODDS * 2, String(n));
   assert.ok(!wildPick(new Set(), () => 0, { legend: true }).alpha); // a legendary is never one
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1, alpha: true }) - 0.15) < 1e-9);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1, alpha: true }) - 0.12) < 1e-9);
   assert.equal(purse({ dex: 1, alpha: true }), ALPHA_PURSE);
   const p = caughtPick({ dex: 1, alpha: true }, 5, () => 0);
   assert.equal(p.alpha, true);
@@ -269,7 +273,7 @@ test("weakening: hits as the games reckon them; weakened, easier to catch; it ha
   const small = gameDamage(25, 1, 80, isPhysicalKey(25), 0.5, 1); // Pikachu's electric on grass: ½
   const sliver = hitWild({ dex: 1, hp: small * 0.9 }, 25, () => 1);
   assert.ok(!sliver.fainted && sliver.hp > 0 && sliver.hp <= 0.05);
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.1 * 1.9) < 1e-9);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.08 * 1.9) < 1e-9);
   assert.equal(catchChance("poke-ball", { dex: 3, hp: 1 }), catchChance("poke-ball", { dex: 3 }));
   assert.ok(catchChance("poke-ball", { dex: 1, hp: 0 }) <= 0.95);
 });
@@ -358,7 +362,7 @@ test("Auto Berry: the best for a rare one, a Razz only when the ball would likel
   assert.equal(baitFor(all, { dex: 16, alpha: true }, "ultra-ball", AUTO_BAIT), "golden-razz-berry");
   assert.equal(baitFor({ "razz-berry": 1 }, { dex: 150 }, "ultra-ball", AUTO_BAIT), "razz-berry");
   assert.equal(baitFor(all, { dex: 150 }, "master-ball", AUTO_BAIT), null); // a Master Ball needs none
-  assert.equal(baitFor(all, { dex: 1 }, "ultra-ball", AUTO_BAIT), null); // easy: Berries kept
+  assert.equal(baitFor(all, { dex: 16 }, "ultra-ball", AUTO_BAIT), null); // easy (Pidgey): Berries kept
   assert.equal(baitFor(all, { dex: 3 }, "poke-ball", AUTO_BAIT), "razz-berry"); // a final stage, a Poké Ball: likely a miss
   assert.equal(baitFor(all, { dex: 3 }, "poke-ball", null), null); // None
   assert.equal(baitFor(all, { dex: 3 }, "poke-ball", "pinap-berry"), "pinap-berry"); // the one chosen

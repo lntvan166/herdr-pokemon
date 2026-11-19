@@ -347,7 +347,8 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   within 2–5 min of start (sooner if the pace is), then at a random time in the pace's range; a
   faster pace chosen meanwhile reschedules the next. On a strip at
   least 200 px wide: a walking species no agent has (shiny 1 in 64, never Mega), on a random row,
-  from just past one edge to past the other at 45 px/s, starting once its sprite is in (given
+  from just past one edge to past the other in 39 s whatever the width (`CROSS_S`; 45 px/s on a
+  1750 px strip, never under 15 px/s; a legendary half as fast), starting once its sprite is in (given
   up after a minute). Drawn like the herd: a box 128 px wide spanning the strip (its own id per
   visitor), shadow and picture placed inside it, no tag; the box is drawn first at the start
   point, then sent to the far edge under one `transition("left")` lasting the rest of the walk
