@@ -564,12 +564,18 @@ test("a trainer: those not fighting it step out of its side of the strip", () =>
   st.visitor = { id: "tr", pick: { dex: 9, hp: 1 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, x: 1100, purse: 0,
     halt: { kind: "trainer", x: 1100, at: now, until: now + 60000, face: "L" },
     trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true, fighter: "t0" } };
-  for (const [k, x] of [["t0", 1000], ["t1", 1050], ["t2", 300]]) Object.assign(st.mons[k], { x, from: x, target: x, moving: false, pauseUntil: now + 60000, react: null });
+  for (const [k, x] of [["t0", 1000], ["t1", 1050], ["t2", 1080]]) Object.assign(st.mons[k], { x, from: x, target: x, moving: false, pauseUntil: now + 60000, react: null });
   st.tick(cx);
-  const [f, o, far] = ["t0", "t1", "t2"].map((k) => st.mons[k]);
+  const [f, o, o2] = ["t0", "t1", "t2"].map((k) => st.mons[k]);
   assert.ok(!f.moving || f.target > 900, "the fighter stays");
   assert.ok(o.moving && o.target < 1100 - 80 - 37, `t1 steps out (to ${o.target})`);
-  assert.ok(!far.moving, "one far off stays");
+  assert.ok(o2.moving && o2.target < 1100 - 80 - 37, `t2 steps out (to ${o2.target})`);
+  // Apart, with room for their names (they bunched up at the zone's edge, names cut short).
+  assert.ok(Math.abs(o.target - o2.target) >= 100, `${o.target} ${o2.target}`);
+  // One far off stays put.
+  Object.assign(st.mons.t1, { x: 300, from: 300, target: 300, moving: false, pauseUntil: now + 60000 });
+  st.tick(cx);
+  assert.ok(!st.mons.t1.moving, "one far off stays");
 });
 
 // The Day Care: two of the Box left there from their cards, its line drawn; an egg's minutes of

@@ -79,6 +79,7 @@ const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
 const AMBIENT_MS = 1000; // snow, leaves, a rainbow: redrawn once a second (each redraw is the whole window)
 const APPEAR_MS = 3500; // "A wild … appeared!" in the corner it walks in from, this long
 const REST_GAP = 60; // a resting Pokémon keeps this far from the others on its row: room for a name
+const NAME_GAP = 100; // one stepping out of a trainer's or a raid boss's way: room for a whole name
 const WRAP_CHANCE = 0.3; // with rows: how often a walk goes off the edge onto the next row
 const OFF = 40; // how far past the edge it walks before it turns up on the next row
 const EDGE = 28; // how close to the strip's edges a Pokémon walks (its tag has its own layer)
@@ -2943,6 +2944,15 @@ export default class PokemonHerd extends View {
       return x;
     };
     const inZone = (m, row, addr) => zones.some((z) => z.row === row && m.x > z.lo && m.x < z.hi && z.fighter !== addr);
+    // Out of a zone with room for its name: the nearest spot on the zone's outer side at least
+    // NAME_GAP from every other on its row (working ones too: they stop as well), as restSpot finds.
+    // (A step out just past its edge, 0–50 px apart, bunched them there and cut their names short.)
+    const roomOut = (x, row, i, lo, hi) => {
+      const out = clearOf(x, row);
+      if (out === x) return x;
+      const others = list.filter((b, j) => j !== i && this.mons[b.address] && rowAt(b, j) === row).map((b) => { const o = this.mons[b.address]; return o.moving ? o.target : o.x; });
+      return out < x ? restSpot(out, others, lo, Math.min(hi, out), NAME_GAP) : restSpot(out, others, Math.max(lo, out), hi, NAME_GAP);
+    };
     // One agent throwing must not stop the others.
     forEachSafe(list, (a, i) => {
       live.add(a.address);
@@ -3049,8 +3059,7 @@ export default class PokemonHerd extends View {
       // (Or near a trainer: out of its side, a little apart from the others stepping out.)
       if (zones.length && !m.moving && inZone(m, rowAt(a, i), a.address) && !reacting && !(m.battleUntil > now) && !m.raidPush) {
         m.shuffle = true; // asleep too: it shuffles aside (a sleeper's walk would stop at once)
-        const out = clearOf(m.x, rowAt(a, i));
-        walk(m, clamp(out + (out < m.x ? -1 : 1) * rand(0, 50), lo, hi), SPEED.idle);
+        walk(m, clamp(roomOut(m.x, rowAt(a, i), i, lo, hi), lo, hi), SPEED.idle);
         changed = true;
       }
       if (m.moving) {
@@ -3104,7 +3113,7 @@ export default class PokemonHerd extends View {
         // Stop somewhere with room for a name, clear of those resting (working ones too, so
         // they don't make a sleeper shuffle aside).
         target = restSpot(target, othersOnRow(i), lo, hi, REST_GAP);
-        if (fightZone?.fighter !== a.address) target = clamp(clearOf(target, rowAt(a, i)), lo, hi); // not where a raid boss or a trainer is
+        if (fightZone?.fighter !== a.address) target = clamp(roomOut(target, rowAt(a, i), i, lo, hi), lo, hi); // not where a raid boss or a trainer is
         // A sub-agent's Pokémon keeps close to its agent's: just behind it, whichever side it is on.
         const lead = family[a.address] && this.mons[family[a.address]];
         if (lead) target = clamp(clearOf((lead.moving ? lead.target : lead.x) + (m.x < lead.x ? -1 : 1) * rand(36, 56), rowAt(a, i)), lo, hi);
