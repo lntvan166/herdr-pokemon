@@ -822,3 +822,27 @@ test("a spar keeps both awake", () => {
   assert.ok(a.awakeUntil > a.react.until && b.awakeUntil > b.react.until, `${a.awakeUntil - now} ${b.awakeUntil - now}`);
   st.render(cx);
 });
+
+// A trainer's ❗: as it spots you, till its first battle (not over every pause between blows).
+test("a trainer's ! only till its first battle", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "tr", pick: { dex: 9, hp: 1 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true } };
+  Object.assign(st.mons.t0, { x: 760, moving: false, react: null });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  assert.equal(st.visitor.trainer.fought, true);
+  // Between blows, waiting again: no ❗.
+  st.visitor.fight = null;
+  st.visitor.halt = { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" };
+  st.render(cx);
+});

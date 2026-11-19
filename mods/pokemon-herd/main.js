@@ -2632,7 +2632,8 @@ export default class PokemonHerd extends View {
     const cheering = !!v.trainer?.gloat && now - v.trainer.gloat < WIN_SAY_MS;
     const pose = (cheering && halt ? meta.react?.Dance ?? meta.react?.Hop : null)
       ?? (halt ? (halt.kind === "nap" ? meta.sleep ?? meta.idleD : meta[`idle${halt.face ?? (v.dir === "r" ? "R" : "L")}`]) ?? s : s);
-    const actIcon = halt ? (halt.icon ?? ICON[halt.kind]) : v.fleeUntil > now ? ICON.tease : v.act?.kind === "dash" && now - v.start < 2500 ? ICON.dash : null;
+    // (A trainer's ❗: as it spots you, till its first battle; not over every pause between blows.)
+    const actIcon = halt ? (halt.kind === "trainer" && v.trainer?.fought ? null : halt.icon ?? ICON[halt.kind]) : v.fleeUntil > now ? ICON.tease : v.act?.kind === "dash" && now - v.start < 2500 ? ICON.dash : null;
     if (v.blink && now - v.blink.at < 600) {
       // Teleported: a pink flash where it was and where it is.
       for (const [k, x] of [["a", v.blink.from], ["b", v.blink.to]]) root.child(fxBurst(`blink-${v.id}-${v.blink.at}-${k}`, MOVE.psychic, 0.6, x, Math.round((headY + ground) / 2), this.fxFirst(`blink-${v.id}-${v.blink.at}-${k}`), v.blink.at % 9973));
@@ -3580,7 +3581,7 @@ export default class PokemonHerd extends View {
         const ownMove = { ...om, eff: hit.eff, blue: ownKey === "6mX" };
         const wildMove = { ...wm, eff: back?.eff ?? 1 };
         const away = v.x > spot ? 1 : -1; // from yours toward the wild one
-        if (v.trainer) v.trainer.fighter = drop.addr; // it fights on till one of them is down
+        if (v.trainer) { v.trainer.fighter = drop.addr; v.trainer.fought = true; } // it fights on till one of them is down
         dm.awakeUntil = Math.max(dm.awakeUntil ?? 0, now + 20000); // awake through the fight, its agent idle or not (it slept between blows)
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, wildFirst, until: wildFirst ? (ownStrikes ? hitAt + 1100 : backHit + 900) : back ? backHit + 900 : hitAt + 1100,
