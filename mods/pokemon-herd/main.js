@@ -623,7 +623,8 @@ const ENTRY_MS = 900; // an ability as two meet (Intimidate): over its owner's h
 const ABIL_COLOR = "#ffe08a";
 // The games' emote balloons (art/emotes, drawn for the mod): "!" needs you, "✓" done, and the acts'
 // icons; the egg (art/egg) for the Day Care. Anything else stays its emoji or text.
-const EMOTE_OF = { "!": "bang", "✓": "check", zZ: "zz", "❓": "question", "💗": "heart", "💢": "anger", "❗": "trainer", "…": "dots" };
+const EMOTE_OF = { "!": "bang", "✓": "check", zZ: "zz", "❓": "question", "💗": "heart", "💢": "anger", "❗": "trainer", "…": "dots",
+  "💫": "dizzy", "🎉": "party", "😜": "note", "🤪": "note", "💨": "dash", "🌸": "blossom", "☀️": "sun", "🍂": "leaf", "❄️": "snow" };
 const emote = (name, h = 20) => image(`mods/${MOD}/art/emotes/${name}.png`).w(Math.round((h * 19) / 20)).h(h).flex_none();
 const iconOrEmote = (icon, h, size) => (EMOTE_OF[icon] ? emote(EMOTE_OF[icon], h) : div().text_size(size).child(icon));
 // The egg: still; near hatching (80%) wobbling, by the second; nearly out (95%), cracked.
@@ -4592,7 +4593,7 @@ export default class PokemonHerd extends View {
       const bubble =
         mood === "blocked" ? emote("bang").loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
         : mood === "done" ? emote("check")
-        : mood === "sleep" ? div().text_color(t.muted).frames(["z", "zZ", "zZz", "zZ"], 700)
+        : mood === "sleep" ? emote("zz", 16).opacity(0.5) // (trying: the balloon, dimmed and smaller than ! and ✓)
         : null;
       const x0 = isAt(a) - sw / 2 + hit.left;
       (heads[g ? rowOf(a) : 0] ??= []).push({ x0, x1: x0 + hit.w, top: bubble ? headY - 24 : headY - 4 });
@@ -4680,7 +4681,7 @@ export default class PokemonHerd extends View {
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
               
-              .child(m.note?.item ? this.itemMark(m.note.item, 18) : (m.note?.icon ?? "🥺"))))
+              .child(m.note?.item ? this.itemMark(m.note.item, 18) : iconOrEmote(m.note?.icon ?? "🥺", 18, 13))))
           // Tired (the 5-hour limit is near): working ones sweat.
           .when(!!this.tired && mood === "working", (el) =>
             el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
@@ -5683,7 +5684,7 @@ export default class PokemonHerd extends View {
     return v_flex().id("bag-care").flex_none().h(h).gap(10)
       .child(h_flex().gap(10).flex_none().child(parent(there[0], 0)).child(div().text_size(20).child("❤")).child(parent(there[1], 1)))
       .child(h_flex().gap(10).items_center().flex_none().px(10).py(8).rounded(8).bg(t.raised)
-        .child(egg ? eggArt(28, egg.done / egg.need) : div().text_size(18).child("🏡"))
+        .child(egg ? eggArt(28, egg.done / egg.need) : image(`mods/${MOD}/art/daycare.png`).w(31).h(28).flex_none()) // (the Day Care, drawn)
         .child(v_flex().flex_1().min_w(0).gap(4)
           .child(div().text_size(12).text_color(t.foreground).child(state))
           .when(!!egg, (el) => el.child(div().w_full().h(6).rounded_full().bg(t.border).overflow_hidden()
