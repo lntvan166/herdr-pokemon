@@ -186,7 +186,8 @@ export function towerPay(n) {
   const big = k === 1 ? [["rare-candy", 1]]
     : k === 2 ? [["max-revive", 1], ["golden-razz-berry", 1]]
     : k === 3 ? [["master-ball", 1]]
-    : k > 3 ? [["golden-razz-berry", 2]] : [];
+    : k === 4 ? [["ability-patch", 1]]
+    : k > 4 ? [["golden-razz-berry", 2]] : [];
   const small = (n >= 8 ? HIGH_GIFTS : FLOOR_GIFTS)[(n - 1) % 6];
   return { money, items: [small, ...big] };
 }

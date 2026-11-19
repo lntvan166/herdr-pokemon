@@ -12,6 +12,7 @@ import { EGG_GROUPS, EGG_CYCLES } from "./breed-data.js";
 import { EVOLVES_FROM } from "./species.js";
 import { isWalkable } from "./dex.js";
 import { rateOf } from "./gender.js";
+import { abilSlot, eggAbil } from "./abilities.js";
 
 const NO_EGGS = 1 << 15, DITTO = 1 << 13;
 export const DITTO_DEX = 132;
@@ -69,16 +70,17 @@ export function firstStage(dex) {
 }
 export const hatchMinutes = (dex) => Math.max(HATCH_MIN, Math.min(HATCH_MAX, (EGG_CYCLES[parseInt(dex, 10)] ?? 20) * HATCH_PER_CYCLE));
 
-// The egg two lay: { dex, moves?, need, done: 0, at }.
+// The egg two lay: { dex, moves?, abil, need, done: 0, at }.
 // `learnable(dex)`: the move names it can learn (moves.js learnableOf), for the moves passed on.
-export function layEgg(a, b, now, rnd = Math.random, learnable = null) {
-  const mom = motherOf(a, b);
+// `keys`: a's and b's save slots (their abilities, abilities.js abilSlot): its mother's slot.
+export function layEgg(a, b, now, rnd = Math.random, learnable = null, keys = ["", ""]) {
+  const mom = motherOf(a, b), momKey = mom === a ? keys[0] : keys[1];
   let dex = firstStage(mom.dex);
   const both = BOTH[dex];
   if (both) dex = both[Math.floor(rnd() * both.length)];
   const can = learnable ? new Set(learnable(dex)) : null;
   const moves = can ? [...new Set([...(a.moves ?? []), ...(b.moves ?? [])])].filter((n) => can.has(n)).slice(0, 4) : [];
-  return { dex, ...(moves.length ? { moves } : {}), need: hatchMinutes(dex), done: 0, at: now };
+  return { dex, ...(moves.length ? { moves } : {}), abil: eggAbil(dex, abilSlot(mom, momKey), rnd), need: hatchMinutes(dex), done: 0, at: now };
 }
 
 // The Day Care's state, shared: { v: 1, pair: [Box key, Box key] | [], left: minutes toward the
@@ -87,7 +89,7 @@ export function loadCare(raw) {
   const ok = raw?.v === 1;
   const pair = ok && Array.isArray(raw.pair) ? raw.pair.filter((k) => typeof k === "string").slice(0, 2) : [];
   const e = ok ? raw.egg : null;
-  const egg = e && Number.isInteger(e.dex) && Number.isFinite(e.need) ? { dex: e.dex, ...(Array.isArray(e.moves) && e.moves.length ? { moves: e.moves.filter((n) => typeof n === "string").slice(0, 4) } : {}), need: e.need, done: Math.max(0, Number(e.done) || 0), at: Number(e.at) || 0 } : null;
+  const egg = e && Number.isInteger(e.dex) && Number.isFinite(e.need) ? { dex: e.dex, ...([0, 1, 2].includes(e.abil) ? { abil: e.abil } : {}), ...(Array.isArray(e.moves) && e.moves.length ? { moves: e.moves.filter((n) => typeof n === "string").slice(0, 4) } : {}), need: e.need, done: Math.max(0, Number(e.done) || 0), at: Number(e.at) || 0 } : null;
   const l = ok ? raw.last : null; // the last one hatched: { dex, shiny, at } (the strip says so a while)
   const last = l && Number.isInteger(l.dex) && Number.isFinite(l.at) ? { dex: l.dex, shiny: l.shiny === true, at: l.at } : null;
   return { v: 1, pair, left: ok && Number.isFinite(raw.left) ? Math.max(0, raw.left) : 0, egg, hatched: ok && Number.isInteger(raw.hatched) ? raw.hatched : 0, ...(last ? { last } : {}) };
@@ -95,11 +97,12 @@ export function loadCare(raw) {
 
 // `minutes` more of your agents' work: the egg nearer hatching, or, with none, tries to lay.
 // `picks`: the saved picks (the pair's are looked up there, in the Box). Returns { care, laid?,
-// hatched? } (hatched: the egg, done; the caller makes the Pokémon, hatchPick).
-export function careWork(care, picks, minutes, now, rnd = Math.random, learnable = null) {
+// hatched? } (hatched: the egg, done; the caller makes the Pokémon, hatchPick). `hatchMul`: one
+// with Flame Body or Magma Armor on the strip (the games' party): its egg hatches twice as fast.
+export function careWork(care, picks, minutes, now, rnd = Math.random, learnable = null, hatchMul = 1) {
   if (!(minutes > 0)) return { care };
   if (care.egg) {
-    const done = care.egg.done + minutes;
+    const done = care.egg.done + minutes * hatchMul;
     if (done < care.egg.need) return { care: { ...care, egg: { ...care.egg, done } } };
     // Hatched: the minutes over it go toward the next egg.
     return { care: { ...care, egg: null, left: Math.min(LAY_MIN, done - care.egg.need), hatched: care.hatched + 1 }, hatched: care.egg };
@@ -111,7 +114,7 @@ export function careWork(care, picks, minutes, now, rnd = Math.random, learnable
   while (left >= LAY_MIN) {
     left -= LAY_MIN;
     if (rnd() < LAY[how]) {
-      const egg = layEgg(a, b, now, rnd, learnable);
+      const egg = layEgg(a, b, now, rnd, learnable, care.pair);
       return { care: { ...care, left: 0, egg: { ...egg, done: Math.min(egg.need - 1, left) } }, laid: egg };
     }
   }
@@ -130,6 +133,7 @@ export function hatchPick(egg, now, extra = {}) {
     ...(Number.isFinite(extra.size) ? { size: extra.size } : {}),
     ...(extra.gender === "m" || extra.gender === "f" ? { gender: extra.gender } : {}),
     ...(egg.moves?.length ? { moves: egg.moves } : {}),
+    ...([0, 1, 2].includes(egg.abil) ? { abil: egg.abil } : {}), // its mother's slot, mostly (abilities.js eggAbil)
     caught: now,
     caughtAs: egg.dex,
     hatched: true,

@@ -13,6 +13,22 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   ₽400, one called ₽100; up to ₽600 a day; fewer purses the more often visitors come) and tips
   (a pat that gives a heart ₽10, a spar set up by a drop ₽15, one watched ₽5; up to ₽200 a day).
   Prices are set from a working day (~₽3,000); anything sells back for half.
+- **Abilities** (`abilities.js`; `ability-data.js` from PokeAPI by `scripts/gen-abilities.mjs`: each
+  species' [first, second, hidden], names, in-game texts, and the moves' flags: contact, punch,
+  bite, pulse, sound, a side effect, recoil). A pick's `abil` is its slot (0, 1, 2 hidden), kept as
+  it evolves; none saved: one by its save slot. Wild: one of the two (`rollAbil`); a raid boss's
+  hidden, an Alpha's half the time (`wildAbil`); an egg its mother's slot 4 in 5, hidden 3 in 5
+  (`eggAbil`). In a wild or trainer exchange (main.js), `v.abil` keeps each side
+  (`newSide`: ability, health, stages) while the two face each other: `meet` (Intimidate…),
+  `speedMul` (Swift Swim…, stages), `immuneTo` (the move picked again, twice at most), `onHit` (the
+  games' multipliers, accuracy and crit abilities, immunities and what they give), `afterHit`
+  (Moxie, Justified…), `endTurn` (Speed Boost), `sturdyHolds`; a trainer's next one out keeps
+  yours' stages. Shown over their heads (`fight.words`). Out of battle: the first agent's Pokémon
+  leads (`lead`: Static/Magnet Pull/Flash Fire/Storm Drain/Lightning Rod/Harvest draw half the
+  walkers of their type, `lure`; Synchronize its nature on a catch half the time); Pickup and Honey
+  Gather find a third sooner (Honey half the time); Flame Body, Magma Armor or Steam Engine on the
+  strip hatch eggs twice as fast. Ability Capsule ₽1,500, Ability Patch ₽10,000 (and the Tower's
+  28th floor). Simulated with the user's team: the Tower 9.25 → 9.46 floors, trainers unchanged.
 - **Day Care** (`breed.js`, `breed-data.js` from PokeAPI by `scripts/gen-breed.mjs`): a pair of
   Box keys in `pokemon-herd-daycare` (loadCare), set from a Box card. `creditWork`/`count` hand it
   the minutes of all agents' work (`dayCare`, the leader only): every `LAY_MIN` 15, an egg 50% the

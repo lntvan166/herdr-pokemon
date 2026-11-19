@@ -22,6 +22,8 @@ export const ITEMS = {
   "pinap-berry": { name: "Pinap Berry", icon: "🍍", art: "items/pinap-berry", kind: "bait" },
   "silver-pinap-berry": { name: "Silver Pinap Berry", icon: "🥈", art: "items/silver-pinap-berry", kind: "bait" },
   "rare-candy": { name: "Rare Candy", icon: "🍬", art: "items/rare-candy" },
+  "ability-capsule": { name: "Ability Capsule", icon: "💊", art: "items/ability-capsule" },
+  "ability-patch": { name: "Ability Patch", icon: "🩹", art: "items/ability-patch" },
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, { name: `${k[0].toUpperCase()}${k.slice(1)} Stone`, icon: STONE_ICON[k], art: `items/${k}-stone` }])),
   "lucky-egg": { name: "Lucky Egg", icon: "🥚", art: "items/lucky-egg", kind: "held" },
   "soothe-bell": { name: "Soothe Bell", icon: "🔔", art: "items/soothe-bell", kind: "held" },
@@ -53,7 +55,7 @@ export const PRICE = {
   // enough to throw 15 at a legendary; a Master Ball about eight days.
   berry: 20, "sitrus-berry": 80, "razz-berry": 40, "pinap-berry": 40, "golden-razz-berry": 300, "silver-pinap-berry": 200,
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "quick-ball": 200, "dusk-ball": 120, "timer-ball": 120, "master-ball": 25000,
-  honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800,
+  honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800, "ability-capsule": 1500, "ability-patch": 10000, // (a Patch also the Battle Tower's 28th floor)
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])),
   ...Object.fromEntries(HELD_IDS.map((id) => [id, 2000])),
   "x-speed": 150, "poke-flute": 100, "x-attack": 200, "soda-pop": 100, "festival-ticket": 250,
@@ -97,6 +99,7 @@ export const GROUPS = [
   ["Berries", (id) => id === "berry" || id.endsWith("-berry")],
   ["Medicine", (id) => id === "revive" || id === "max-revive"],
   ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone")],
+  ["Abilities", (id) => id.startsWith("ability-")],
   ["To hold", (id) => ITEMS[id].kind === "held"],
   ["For the herd", (id) => ITEMS[id].kind === "boost" || id === "festival-ticket"],
   ["Calls", (id) => id === "honey" || id === "azure-flute"],
@@ -155,6 +158,8 @@ export function itemAbout(id) {
   if (id === "dusk-ball") return "Three times as likely as a Poké Ball at night; a Poké Ball by day.";
   if (id === "timer-ball") return "Better the more balls you've thrown at it: a Poké Ball at first, up to four times as likely. For a legendary's long chase.";
   if (id === "master-ball") return "Never fails. Kept for legendary Pokémon: only one of those gets it.";
+  if (id === "ability-capsule") return "Swaps its ability for its species' other one (not the hidden one). Use it on a Pokémon in the Box or from its menu.";
+  if (id === "ability-patch") return "Gives it its species' hidden ability. The Battle Tower's 28th floor gives one too.";
   if (id === "rare-candy") return "A level's worth: 5 jobs towards evolving (15 for a first evolution, 30 for a second); evolves it if that's enough.";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");

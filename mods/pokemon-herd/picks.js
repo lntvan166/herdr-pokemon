@@ -5,6 +5,7 @@
 // evolvedAt: when it last evolved (each view flashes it);
 // held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin…); nick: the name you gave it.
 // locked: never released (the Box's Lock).
+import { slotsOf, abilSlot } from "./abilities.js";
 import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf, fullName } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
 import { NATURES, BALLS } from "./trainer.js";
@@ -46,7 +47,7 @@ export function loadPicks(current, legacy) {
       const nature = typeof p.nature === "string" && Object.hasOwn(NATURES, p.nature) ? p.nature : undefined; // not "constructor"…
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
       const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(p.hatched === true && caught ? { hatched: true } : {}), ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(p.hatched === true && caught ? { hatched: true } : {}), ...(p.abil === 0 || p.abil === 1 || p.abil === 2 ? { abil: p.abil } : {}), ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
         // Sparring won and lost (spar.js), kept.
         ...(Number.isInteger(p.sparW) && p.sparW > 0 ? { sparW: p.sparW } : {}), ...(Number.isInteger(p.sparL) && p.sparL > 0 ? { sparL: p.sparL } : {}),
         // The moves chosen for it (moves.js chosenOf checks them against what it learns): names, 4 at most.
@@ -203,6 +204,10 @@ const hurtOf = (slot, how) => { const hp = how.hpOf?.(slot); return hp != null &
 const candied = (pick) => ({ ...pick, jobs: (pick.jobs ?? 0) + CANDY_JOBS });
 export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
+  // An Ability Capsule: its other ability (one with two, not on its hidden one); an Ability
+  // Patch: its hidden one (abilities.js).
+  if (id === "ability-capsule") return slotsOf(pick.dex)[1] && abilSlot(pick, slot) !== 2 ? "ability" : null;
+  if (id === "ability-patch") return slotsOf(pick.dex)[2] && abilSlot(pick, slot) !== 2 ? "ability" : null;
   if (REVIVE[id]) return how.hpOf && how.hpOf(slot) === null ? "revive" : null;
   if (id === "berry" || id === "sitrus-berry") {
     if (friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX) return "hearts";
@@ -224,6 +229,7 @@ export function itemUse(pick, slot, id, how = {}) {
 // item to hold hands back what it held (`back`, for the Bag).
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
+  if (use === "ability") return { pick: { ...pick, abil: id === "ability-patch" ? 2 : 1 - abilSlot(pick, slot) }, evolved: false };
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
   if (use === "revive") return { pick, evolved: false, revive: REVIVE[id] };
   if (use === "hearts" || use === "heal") {

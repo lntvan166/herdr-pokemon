@@ -652,3 +652,26 @@ test("a trainer's balls always show: walking in, and no tag over them", () => {
   const trainerX = 1100 + st.trainerGap(st.visitor, 0.75), half = st.trainerSize(st.visitor, 0.75).w / 2;
   assert.ok(K.lefts["visitor-tag-corner"] + 300 <= trainerX - half, `tag ends at ${K.lefts["visitor-tag-corner"] + 300}, trainer from ${trainerX - half}`);
 });
+
+// Abilities in a battle: yours a Gyarados (Intimidate), the wild one a Snorlax with Thick Fat:
+// said over their heads as they meet and as the blow lands.
+test("abilities in a fight: Intimidate as they meet, said over its head", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 130, jobs: 3, abil: 0 } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "fat", pick: { dex: 143, hp: 1, abil: 1 }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, purse: 0, halt: { kind: "curious", x: 600, at: now, until: now + 60000 } };
+  Object.assign(st.mons.t0, { x: 560, moving: false });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx, "a fight");
+  assert.ok(fx.words.own.includes("Intimidate"), JSON.stringify(fx.words));
+  assert.equal(st.visitor.abil.w.st.atk, -1, "Snorlax's Attack a stage down");
+  st.render(cx);
+});

@@ -347,6 +347,7 @@ export function caughtPick(wild, now, rnd = Math.random, ball = "poke-ball") {
     ...(wild.alpha && wild.shadow ? { shadow: true } : {}),
     ...(Number.isFinite(wild.size) ? { size: wild.size } : {}), // its size (weather.js rollSize)
     ...(wild.gender === "m" || wild.gender === "f" ? { gender: wild.gender } : {}), // gender.js
+    ...(wild.abil === 0 || wild.abil === 1 || wild.abil === 2 ? { abil: wild.abil } : {}), // its ability's slot (abilities.js)
     caught: now,
     caughtAs: wild.dex, // the species it was caught as (withEvolved)
     ...(BALLS.includes(ball) ? { ball } : {}),
