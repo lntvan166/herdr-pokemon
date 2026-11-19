@@ -624,7 +624,8 @@ const ABIL_COLOR = "#ffe08a";
 // The games' emote balloons (art/emotes, drawn for the mod): "!" needs you, "✓" done, and the acts'
 // icons; the egg (art/egg) for the Day Care. Anything else stays its emoji or text.
 const EMOTE_OF = { "!": "bang", "✓": "check", zZ: "zz", "❓": "question", "💗": "heart", "💢": "anger", "❗": "trainer", "…": "dots",
-  "💫": "dizzy", "🎉": "party", "😜": "note", "🤪": "note", "💨": "dash", "🌸": "blossom", "☀️": "sun", "🍂": "leaf", "❄️": "snow" };
+  // (💫 stays an emoji till a clearer dizzy balloon is drawn)
+  "🎉": "party", "😜": "note", "🤪": "note", "💨": "dash", "🌸": "blossom", "☀️": "sun", "🍂": "leaf", "❄️": "snow" };
 const emote = (name, h = 20) => image(`mods/${MOD}/art/emotes/${name}.png`).w(Math.round((h * 19) / 20)).h(h).flex_none();
 const iconOrEmote = (icon, h, size) => (EMOTE_OF[icon] ? emote(EMOTE_OF[icon], h) : div().text_size(size).child(icon));
 // The egg: still; near hatching (80%) wobbling, by the second; nearly out (95%), cracked.
