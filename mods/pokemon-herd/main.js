@@ -621,6 +621,14 @@ const FX_GAP = 84; // how far apart yours and a wild one battle
 const WALK_REDRAW = 2000, LOST_FRAMES = 3500; // a walking visitor: a frame asked this often; none this long, the window was hidden
 const ENTRY_MS = 900; // an ability as two meet (Intimidate): over its owner's head this long, before the moves
 const ABIL_COLOR = "#ffe08a";
+// The games' emote balloons (art/emotes, drawn for the mod): "!" needs you, "✓" done, and the acts'
+// icons; the egg (art/egg) for the Day Care. Anything else stays its emoji or text.
+const EMOTE_OF = { "!": "bang", "✓": "check", zZ: "zz", "❓": "question", "💗": "heart", "💢": "anger", "❗": "trainer", "…": "dots" };
+const emote = (name, h = 20) => image(`mods/${MOD}/art/emotes/${name}.png`).w(Math.round((h * 19) / 20)).h(h).flex_none();
+const iconOrEmote = (icon, h, size) => (EMOTE_OF[icon] ? emote(EMOTE_OF[icon], h) : div().text_size(size).child(icon));
+// The egg: still; near hatching (80%) wobbling, by the second; nearly out (95%), cracked.
+const eggArt = (h, frac = 0, now = Date.now()) => image(`mods/${MOD}/art/egg/${frac >= 0.95 ? "egg-crack" : frac >= 0.8 && Math.floor(now / 1000) % 2 ? "egg-wobble" : "egg"}.png`)
+  .w(Math.round((h * 21) / 24)).h(h).flex_none();
 // A hit's words with the abilities that touched it: "Super effective! · Levitate" (alone: theirs).
 const withAbil = (word, names = []) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), ABIL_COLOR]);
 const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
@@ -2656,8 +2664,8 @@ export default class PokemonHerd extends View {
             .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${wonSay(v.trainer)}”`));
           return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
-        .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - 14)).text_size(13).font_bold()
-          .text_color(actIcon === "zZ" ? "#ffffff" : t.foreground).child(actIcon)))
+        .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - (EMOTE_OF[actIcon] ? 20 : 14))).text_size(13).font_bold()
+          .text_color(t.foreground).child(iconOrEmote(actIcon, 18, 13))))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
@@ -4582,9 +4590,8 @@ export default class PokemonHerd extends View {
       }
 
       const bubble =
-        mood === "blocked" ? div().px(6).rounded(7).bg(t.blocked).text_color("#ffffff").font_bold().child("!")
-            .loop("opacity", { from: 0.7, to: 1, period: 900 })
-        : mood === "done" ? div().px(6).rounded(7).bg(t.done).text_color("#ffffff").font_bold().child("✓")
+        mood === "blocked" ? emote("bang").loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
+        : mood === "done" ? emote("check")
         : mood === "sleep" ? div().text_color(t.muted).frames(["z", "zZ", "zZz", "zZ"], 700)
         : null;
       const x0 = isAt(a) - sw / 2 + hit.left;
@@ -4640,11 +4647,11 @@ export default class PokemonHerd extends View {
             ((sh) => sh && travelOf(sh.move?.type, sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
-            el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 22)).justify_center().text_size(12.5).child(bubble)))
+            el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 24)).justify_center().text_size(12.5).child(bubble)))
           // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
           .when(!!reactIcon(m, now), (el) =>
-            el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - 12)).text_size(12)
-              .child(reactIcon(m, now)))) // still: GPUI drew a looping emoji without its colours
+            el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - (EMOTE_OF[reactIcon(m, now)] ? 16 : 12)))
+              .child(iconOrEmote(reactIcon(m, now), 16, 12)))) // still: GPUI drew a looping emoji without its colours
           // A battle's special move: its type's icon flies across to the other (one transition,
           // set once: from where it starts on the first frame, to the other on the next ones).
           // (fx.js: its type's colours and look, a glow, a tail), landing as the other is hit.
@@ -4769,8 +4776,8 @@ export default class PokemonHerd extends View {
       // A click: the Box, with it picked.
       root.child(div().id("pokemon-hatched").absolute().right(50).top(done?.to === VERSION && now - done.at < 120000 ? 22 : 4).h(16).px(6).rounded(8)
         .cursor_pointer().hover((st) => st.bg("#000000a0")).on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); openBag("box", born.slot ?? null); })
-        .flex().items_center().text_size(10).bg("#00000059").text_color(born.shiny ? SHINY_GOLD : "#ffffff")
-        .child(`🥚 ${born.shiny ? "✨ " : ""}${nameOf(born.dex)} hatched · in the Box`));
+        .flex().items_center().gap(4).text_size(10).bg("#00000059").text_color(born.shiny ? SHINY_GOLD : "#ffffff")
+        .child(eggArt(12, 1)).child(`${born.shiny ? "✨ " : ""}${nameOf(born.dex)} hatched · in the Box`));
     }
     // Battle sounds, on or off at a click (Settings → Sound too).
     const loud = !!settingsNow().battleSounds;
@@ -5379,12 +5386,13 @@ export default class PokemonHerd extends View {
       .child(h_flex().items_start().justify_between().gap(12).flex_none()
         .child(v_flex().min_w(0).gap(3)
           // Items | Box: what's in the Bag, or the Pokémon raised whose agents are gone.
-          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"], ["today", `Today ${daily.tasks.filter((x) => x.n >= x.goal).length}/${daily.tasks.length}`], ["dex", "Pokédex"], ["care", loadCare(shared(CARE_KEY)).egg ? "Day Care 🥚" : "Day Care"]].map(([k, txt]) => div()
+          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"], ["today", `Today ${daily.tasks.filter((x) => x.n >= x.goal).length}/${daily.tasks.length}`], ["dex", "Pokédex"], ["care", "Day Care"]].map(([k, txt]) => div()
             .id(`bag-tab-${k}`).text_size(15).cursor_pointer()
             .when(tab === k, (el) => el.font_semibold().text_color(t.foreground))
             .when(tab !== k, (el) => el.text_color(t.dim).hover((st) => st.text_color(t.muted)))
             .on_click((_e, cx) => { this.bagTab = k; this.releasing = null; cx.notify(); })
-            .child(txt))))
+            .flex().items_center().gap(4).child(txt)
+            .when(k === "care" && !!loadCare(shared(CARE_KEY)).egg, (el) => el.child(eggArt(15))))))
           .when(tab === "items" && !!first, (el) => el.child(div().text_size(12).text_color(t.foreground).truncate().child(finding))))
         .child(v_flex().gap(3).items_end().flex_none()
           .child(h_flex().gap(12).items_center()
@@ -5622,7 +5630,7 @@ export default class PokemonHerd extends View {
       : `no eggs: ${whyNot(there[0].pick, there[1].pick)}`;
     return h_flex().id("box-care-line").gap(8).items_center().flex_none().px(8).h(28).rounded(6).bg(t.raised)
       .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { this.bagTab = "care"; cx.notify(); }) // the Day Care tab
-      .child(div().text_size(12).child("🥚"))
+      .child(eggArt(16, care.egg ? care.egg.done / care.egg.need : 0))
       .when(!!egg, (el) => el.child(div().w(70).h(6).flex_none().rounded_full().bg(t.border).overflow_hidden()
         .child(div().h_full().w(70 * Math.min(1, egg.done / egg.need)).bg(t.accent))))
       .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted)
@@ -5675,7 +5683,7 @@ export default class PokemonHerd extends View {
     return v_flex().id("bag-care").flex_none().h(h).gap(10)
       .child(h_flex().gap(10).flex_none().child(parent(there[0], 0)).child(div().text_size(20).child("❤")).child(parent(there[1], 1)))
       .child(h_flex().gap(10).items_center().flex_none().px(10).py(8).rounded(8).bg(t.raised)
-        .child(div().text_size(18).child(egg ? "🥚" : "🏡"))
+        .child(egg ? eggArt(28, egg.done / egg.need) : div().text_size(18).child("🏡"))
         .child(v_flex().flex_1().min_w(0).gap(4)
           .child(div().text_size(12).text_color(t.foreground).child(state))
           .when(!!egg, (el) => el.child(div().w_full().h(6).rounded_full().bg(t.border).overflow_hidden()
@@ -5766,7 +5774,7 @@ export default class PokemonHerd extends View {
         .when(picked, (el) => el.child(div().absolute().bottom(4).right(4).size(16).rounded_full().bg(t.accent).flex().items_center().justify_center()
           .text_size(10).font_bold().text_color("#ffffff").child("✓")))
         .when(!!x.pick.locked, (el) => el.child(div().absolute().top(22).left(5).text_size(10).child("🔒")))
-        .when(inCare.has(x.slot), (el) => el.child(div().absolute().bottom(4).left(5).text_size(10).child("🥚")))
+        .when(inCare.has(x.slot), (el) => el.child(div().absolute().bottom(4).left(5).child(eggArt(12))))
         .child(icon(x.pick, 48))
         .child(div().mt(2).child(typeBadges(x.pick, 11, 7.5)))
         .child(div().w_full().px(3).text_center().truncate().text_size(11).text_color(t.foreground).child(x.pick.nick ?? nameOf(x.pick.dex)))
