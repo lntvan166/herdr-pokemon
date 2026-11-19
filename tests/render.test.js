@@ -871,3 +871,37 @@ test("the Rival comes: its team, its visit counted, its entrance", () => {
   st.render(cx);
   assert.ok("rival-in-rv-bar0" in K.lefts && "rival-in-rv-say" in K.lefts, "its bars and challenge");
 });
+
+// The Rival's rules: swapping in one of yours while the one before is still up costs a free hit
+// (it strikes, yours doesn't); its Potion on one in the red (its turn: no strike).
+test("the Rival: a switch costs a free hit; its Potion", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { rival: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  const rival = (hp) => ({ id: `rv${hp}`, pick: { dex: 9, hp, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "rival", title: "Rival", name: "Blaze", rival: true, team: [{ dex: 9 }, { dex: 3 }, { dex: 6 }], idx: 0, waited: true, lives: 3, potions: 2, effort: 1.55 } });
+  // Its Potion: in the red, it drinks (+50%), and doesn't strike back.
+  st.visitor = rival(0.2);
+  Object.assign(st.mons.t0, { x: 760, moving: false, react: null });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  assert.equal(st.visitor.trainer.potions, 1);
+  assert.equal(st.visitor.fight.back, null, "its turn the Potion");
+  assert.match(st.visitor.fight.entry?.text ?? "", /Potion/);
+  // A switch: t0 still up, t1 dropped in: it strikes, t1 doesn't.
+  st.visitor = rival(1);
+  st.visitor.abil = { own: "t0", idx: 0, o: { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } }, w: { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0 });
+  st.dropAt = { addr: "t1", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx.back && fx.blow === null, "it struck, yours didn't");
+  assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Switched/.test(n.text)));
+});

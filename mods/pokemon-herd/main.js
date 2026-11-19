@@ -23,7 +23,7 @@ import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
-import { rivalTrainer, rivalPay, loadRival, rivalNext, rivalStarter, rivalGreet, RIVAL_BEATEN, RIVAL_WON, RIVAL_LIVES, RIVAL_RETRY_MS } from "./trainers.js";
+import { rivalTrainer, rivalPay, loadRival, rivalNext, rivalStarter, rivalGreet, RIVAL_BEATEN, RIVAL_WON, RIVAL_LIVES, RIVAL_RETRY_MS, RIVAL_POTIONS, RIVAL_POTION_AT, RIVAL_POTION } from "./trainers.js";
 import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
 // What a trainer says, beaten (its class's words; one of them by its name, the same each time).
@@ -1429,7 +1429,8 @@ export default class PokemonHerd extends View {
       const top = Object.entries(stats().species ?? {}).sort((a, b) => (b[1].jobs ?? 0) - (a[1].jobs ?? 0))[0]?.[0];
       r.starter = rivalStarter(top ? Number(top) : null);
     }
-    const tr = rivalTrainer(Math.random, now, r, { megaOf });
+    const yours = herdAgents().map((a) => savedPicks()[a.pane || a.address]?.dex).filter(Boolean); // (its two others against these)
+    const tr = rivalTrainer(Math.random, now, r, { megaOf, yours });
     if (this.leader) setShared(RIVAL_KEY, { ...r, meets: r.meets + 1, nextAt: now + RIVAL_RETRY_MS });
     return tr;
   }
@@ -1581,7 +1582,7 @@ export default class PokemonHerd extends View {
       v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: 0, asked: now, act, ...(act?.kind === "dash" ? { speedK: DASH_SPEED } : {}) };
       if (act?.kind === "tease" && v.purse) v.purse = Math.round(v.purse * TEASE_PURSE);
       // A trainer doesn't walk by: it waits in the strip's right corner, its Pokémon before it.
-      if (tr) { v.trainer = { ...tr, idx: 0, ...(tr.rival ? { lives: RIVAL_LIVES } : {}) }; if (tr.rival) v.speedK = 2; v.purse = 0; v.gift = "none"; v.giftAt = 0; v.dir = "l"; v.row = 0; v.from = this.width - EDGE - 60; v.to = v.from - 1; v.dur = 1000; }
+      if (tr) { v.trainer = { ...tr, idx: 0, ...(tr.rival ? { lives: RIVAL_LIVES, potions: RIVAL_POTIONS } : {}) }; if (tr.rival) v.speedK = 2; v.purse = 0; v.gift = "none"; v.giftAt = 0; v.dir = "l"; v.row = 0; v.from = this.width - EDGE - 60; v.to = v.from - 1; v.dur = 1000; }
       v.dur = (Math.abs(to - from) / paceOf(v)) * 1000;
       this.want(pick, cx);
     }
@@ -2811,7 +2812,7 @@ export default class PokemonHerd extends View {
       const tagW = Math.min(420, this.width - 12); // never past a narrow strip's edges
       const what = v.trainer ? `${v.trainer.title} ${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
       const rec = v.trainer?.rival ? loadRival(shared(RIVAL_KEY)) : null;
-      const tail = rec ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length} · you ${rec.wins}–${rec.losses} · ${v.trainer.lives} of yours to go down before it wins`
+      const tail = rec ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length} · you ${rec.wins}–${rec.losses} · ${v.trainer.lives} of yours to go down before it wins · a switch costs a free hit · ${v.trainer.potions ?? 0} Potion${v.trainer.potions === 1 ? "" : "s"}`
         : v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle`
         : broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
@@ -3521,7 +3522,7 @@ export default class PokemonHerd extends View {
       // or more knocks it out, half again in the red (trainer.js OVERKILL_GREEN, OVERKILL).
       const v = this.visitor;
       const pk = ids[drop.addr];
-      const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
+      let hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
       if (now < (dm.restUntil ?? 0)) {
         this.note(dm, "💫", now, 2500);
       } else if (v.trainer?.tower && towerNow().run?.out.includes(list[dj].pane)) {
@@ -3545,6 +3546,10 @@ export default class PokemonHerd extends View {
         // first hit's), each once while these two face each other (Sharpness said every blow
         // was noise over the fight).
         const words = { meetOwn: [], meetWild: [], hit: [], back: [] };
+        // The Rival: one of yours swapped in while the one before is still up costs a free hit
+        // (the games': switching takes your turn): it strikes, yours doesn't.
+        const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
+        const switched = !!v.trainer?.rival && !!before && (ownHp(before, now) ?? 0) > 0.001;
         if (!v.abil || v.abil.own !== drop.addr) {
           v.abil = { own: drop.addr, idx: v.trainer?.idx ?? -1, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);
@@ -3566,9 +3571,15 @@ export default class PokemonHerd extends View {
         // the games' banner), the fight held back that long.
         const shown = (v.abil.shown ??= []);
         const said = (keys) => { const out = [...new Set(keys)].filter((k) => k && !shown.includes(k)); shown.push(...out); return out.map(abilityName).filter(Boolean); };
-        const entry = { own: said(words.meetOwn), wild: said(words.meetWild) };
-        const entryMs = entry.own.length || entry.wild.length ? ENTRY_MS : 0;
         so.hp = ownHp(dm, now); sw.hp = hp;
+        // The Rival's Potion: its one in the red, once each (RIVAL_POTIONS a battle): its turn.
+        const potion = !!v.trainer?.rival && (v.trainer.potions ?? 0) > 0 && hp < RIVAL_POTION_AT && v.trainer.potionIdx !== v.trainer.idx && !switched;
+        if (potion) {
+          v.trainer.potions--; v.trainer.potionIdx = v.trainer.idx;
+          hp = Math.min(1, hp + RIVAL_POTION); v.pick.hp = hp; wild.hp = hp; sw.hp = hp;
+        }
+        const entry = { own: [...(switched ? ["Switched in!"] : []), ...said(words.meetOwn)], wild: [...(potion ? ["Potion! +50%"] : []), ...said(words.meetWild)] };
+        const entryMs = entry.own.length || entry.wild.length ? ENTRY_MS : 0;
         // Each one's move (moves.js), the weather's boost on it; one its target's ability makes
         // nothing of (Levitate, Water Absorb…) picked again, as the games' AI would (twice at most).
         const moveAt = (k, t, side, how) => { let m = this.boosted(pickMove(k, t, Math.random, how)); for (let n = 0; n < 2 && immuneTo(side, m); n++) m = this.boosted(pickMove(k, t, Math.random, how)); return m; };
@@ -3580,22 +3591,22 @@ export default class PokemonHerd extends View {
         // trainer's) faster: it strikes first, and yours, if it's still up, strikes after; else
         // yours first and it hits back (it always did, slow or not).
         const P = perkNow(); // the badges' perks (Boulder, Volcano: its moves; Thunder: it takes less; Soul: Speed)
-        const wildFirst = speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * P.speed }) * speedMul(so, weather);
-        const r1 = onHit(so, sw, om, { weather, missRate: missOf(om.name) });
+        const wildFirst = !potion && (switched || speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * P.speed }) * speedMul(so, weather));
+        const r1 = switched ? { mul: 0, type: om.type, miss: true, crit: false, heal: 0, said: { att: [], def: [] } } : onHit(so, sw, om, { weather, missRate: missOf(om.name) });
         const omHit = { ...om, miss: r1.miss, crit: r1.crit };
-        let hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+        let hit = switched ? { hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false } : hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (hit.fainted && sturdyHolds(sw, hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("sturdy"); }
         if (r1.heal) hit = { ...hit, hp: Math.min(1, hp + r1.heal) };
         words.hit.push(...r1.said.att, ...r1.said.def);
-        const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
+        const a1 = switched ? { att: [], def: [] } : afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
         words.hit.push(...a1.att, ...a1.def);
         sw.hp = hit.hp;
-        if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
+        if (r1.miss && !switched) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
         if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
         const ownBefore = so.hp;
         let back = null;
-        if (!(hit.fainted && !wildFirst)) {
+        if (!(hit.fainted && !wildFirst) && !potion) {
           const r2 = onHit(sw, so, wm, { weather, missRate: missOf(wm.name) });
           back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
           if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.back.push("sturdy"); }
@@ -3608,7 +3619,7 @@ export default class PokemonHerd extends View {
         }
         words.back.push(...endTurn(so), ...endTurn(sw));
         // It struck first and yours fainted: yours never got its move off.
-        const ownStrikes = !(wildFirst && back?.fainted);
+        const ownStrikes = !switched && !(wildFirst && back?.fainted);
         if (!ownStrikes) hit = { hp: Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: false };
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.

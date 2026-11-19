@@ -8,7 +8,7 @@
 // its pay. Ignored, it leaves after WAIT_MS.
 import { WALKABLE, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
-import { isLegendary, typesOf, NATURES } from "./trainer.js";
+import { isLegendary, typesOf, NATURES, effectOn } from "./trainer.js";
 
 export const TRAINER_ODDS = 10; // 1 visitor in 10 is a trainer (not in an outbreak or a raid)
 export const WAIT_MS = 3 * 60000; // how long it waits for a battle, then walks on
@@ -216,17 +216,24 @@ export function loadTower(raw) {
 // One trainer of your own, as the games' rival: it comes back about once a week (RIVAL_EVERY days),
 // its team growing each time (`meets`: times it came): its starter's line (the one strong against
 // your most-worked Pokémon, as the games' rival picks the starter that beats yours) at its middle
-// stage the first time, fully evolved after, Mega Evolved from the 4th; two fully evolved others,
-// an Alpha among them from the 5th; raised a little more each time (rivalEffort). Three of yours
-// down and it wins (RIVAL_LIVES). Its record against you is kept; it pays more than a trainer, an
-// Ability Patch the first time you beat it.
+// stage the first time, fully evolved after, Mega Evolved from the 4th; two fully evolved others
+// picked against the Pokémon on your strip, anew each visit (rivalPicks); raised far more than a
+// trainer, a little more each time (rivalEffort). Three of yours down and it wins (RIVAL_LIVES);
+// swapping one of yours in while the one before is still up costs a free hit (the games': it
+// takes your turn), and it has RIVAL_POTIONS Potions (+½, one in the red, once each, its turn).
+// Simulated against an 8-strong strip played well (the best-typed in, switched out below ⅓, so
+// few faint): you win ~90% the first time, ~75% the third, ~52% the seventh. (Without the switch's
+// cost, the Potions and this effort, ~100% every time; an Alpha from the 5th made it drop from
+// ~50% to ~13%: none.) Its record against you is kept; it pays more than a trainer, an Ability
+// Patch the first time you beat it.
 export const RIVAL = { id: "rival", title: "Rival", names: ["Blaze"], types: null, pay: 0, item: ["rare-candy", 1],
   colors: { H: "#c8402a", C: "#c8402a", T: "#2a2a2a", A: "#2a2a2a", P: "#3a3a5a", B: "#c8402a" } };
 export const RIVAL_EVERY = [4, 7]; // days between visits
 export const RIVAL_FIRST_MS = 2 * 3600000; // the first, two hours after the mod first sees it
 export const RIVAL_RETRY_MS = 6 * 3600000; // ignored (it waited and left): again a few hours on
 export const RIVAL_LIVES = 3;
-export const rivalEffort = (meets) => Math.min(1.25, 1.05 + 0.03 * meets);
+export const rivalEffort = (meets) => Math.min(1.75, 1.55 + 0.03 * meets);
+export const RIVAL_POTIONS = 2, RIVAL_POTION_AT = 0.3, RIVAL_POTION = 0.5;
 // The starters, by type, a line each region (their first stage).
 export const STARTERS = {
   grass: [1, 152, 252, 387, 495, 650, 722, 810, 906],
@@ -242,15 +249,26 @@ export function rivalStarter(yourDex, rnd = Math.random) {
   return list[Math.floor(rnd() * list.length)];
 }
 const stageOf = (first, n) => { let d = first; for (let i = 0; i < n; i++) { const next = evolutionsOf(d)[0]; if (!next) break; d = next; } return d; };
-// Its team now: { cls: "rival", title, name, team, at, effort, rival: true, meets }.
+// Its two others, against yours (`yours`: the dex numbers on your strip): each fully evolved kind
+// scored by how hard its types hit yours (their best effect on each) less half how hard yours hit
+// it; two of the best RIVAL_POOL, picked anew each visit. None given: any two.
+export const RIVAL_POOL = 12;
+export function rivalPicks(yours, rnd = Math.random, not = []) {
+  if (!yours?.length) { const out = []; while (out.length < 2) { const d = FINALS[Math.floor(rnd() * FINALS.length)]; if (!not.includes(d) && !out.includes(d)) out.push(d); } return out; }
+  const hits = (from, to) => Math.max(...typesOf(from).map((t) => effectOn(t, to)));
+  const scored = FINALS.filter((d) => !not.includes(d)).map((d) => [d, yours.reduce((a, y) => a + hits(d, y) - 0.5 * hits(y, d), 0)]).sort((a, b) => b[1] - a[1]).slice(0, RIVAL_POOL);
+  const out = [];
+  while (out.length < 2 && scored.length) out.push(scored.splice(Math.floor(rnd() * scored.length), 1)[0][0]);
+  return out;
+}
+// Its team now: { cls: "rival", title, name, team, at, effort, rival: true, meets }. `how.yours`:
+// the dex numbers on your strip (its two others picked against them).
 export function rivalTrainer(rnd, now, r, how = {}) {
   const nature = () => NATURE_IDS[Math.floor(rnd() * NATURE_IDS.length)];
   const lead = stageOf(r.starter, r.meets === 0 ? 1 : 2);
-  const others = [];
-  while (others.length < 2) { const d = FINALS[Math.floor(rnd() * FINALS.length)]; if (d !== lead && !others.includes(d)) others.push(d); }
+  const others = rivalPicks(how.yours, rnd, [lead]);
   const team = [...others.map((dex) => ({ dex, nature: nature() })), { dex: lead, nature: nature() }]; // its starter last, as the games'
   if (r.meets >= 3 && how.megaOf?.(lead) != null) team[2] = { ...team[2], mega: how.megaOf(lead) };
-  if (r.meets >= 4) team[0] = { ...team[0], alpha: true };
   return { cls: "rival", title: RIVAL.title, name: r.name, team, at: now, effort: rivalEffort(r.meets), rival: true, meets: r.meets };
 }
 // Beating it: ₽600, ₽100 more each time it came (₽1,500 at most), a Rare Candy; the first win an

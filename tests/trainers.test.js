@@ -149,7 +149,14 @@ test("the Rival: a starter against yours, a team growing each visit, its pay, it
   const later = T.rivalTrainer(rnd, 0, { ...r0, meets: 4 }, { megaOf: (d) => (d === 9 ? "" : null) });
   assert.equal(later.team[2].dex, 9);
   assert.equal(later.team[2].mega, "", "Mega Blastoise from the 4th");
-  assert.ok(later.team[0].alpha && later.effort > first.effort);
+  assert.ok(!later.team.some((m) => m.alpha) && later.effort > first.effort);
+  // Its two others against yours: an 8 of mostly Flying, Ground and Grass types, hit by Ice and the like.
+  const yours = [475, 645, 479, 901, 94, 900, 908, 6];
+  const picks = T.rivalPicks(yours, rnd);
+  const { effectOn } = await import("../mods/pokemon-herd/trainer.js");
+  const { typesOf } = await import("../mods/pokemon-herd/trainer.js");
+  const hits = picks.map((d) => yours.filter((y) => Math.max(...typesOf(d).map((t) => effectOn(t, y))) > 1).length);
+  assert.ok(hits.every((n) => n >= 3), `${picks} hit ${hits}`);
   assert.equal(T.classOf("rival").id, "rival");
   // Pay: an Ability Patch the first win; more money the more it came (₽1,500 at most).
   assert.ok(T.rivalPay({ ...r0, wins: 0 }).items.some(([id]) => id === "ability-patch"));

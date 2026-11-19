@@ -29,6 +29,14 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Gather find a third sooner (Honey half the time); Flame Body, Magma Armor or Steam Engine on the
   strip hatch eggs twice as fast. Ability Capsule ₽1,500, Ability Patch ₽10,000 (and the Tower's
   28th floor). Simulated with the user's team: the Tower 9.25 → 9.46 floors, trainers unchanged.
+- **The Rival** (trainers.js `rivalTrainer`, `pokemon-herd-rival`): every 4–7 days in place of a
+  wild one (`rivalComes`): its starter's line chosen the first time against your most-worked
+  Pokémon, two others picked against your strip each visit (`rivalPicks`), effort 1.55 + 0.03 a
+  visit; 3 lives for you, a switch with the one before still up costs a free hit, its 2 Potions.
+  Simulated (scratch `rivalsim.mjs`, an 8-strong strip switching below ⅓): ~90% your win the first
+  time, ~52% the seventh. Its entrance: bars across the strip, its challenge, its words
+  (`RIVAL_INTRO_MS`). Record in the Today tab; `rivalPay`: ₽600 + ₽100 a visit, a Rare Candy, an
+  Ability Patch the first win.
 - **Day Care** (`breed.js`, `breed-data.js` from PokeAPI by `scripts/gen-breed.mjs`): a pair of
   Box keys in `pokemon-herd-daycare` (loadCare), set from a Box card. `creditWork`/`count` hand it
   the minutes of all agents' work (`dayCare`, the leader only): every `LAY_MIN` 15, an egg 50% the
