@@ -621,6 +621,8 @@ const FX_GAP = 84; // how far apart yours and a wild one battle
 const WALK_REDRAW = 2000, LOST_FRAMES = 3500; // a walking visitor: a frame asked this often; none this long, the window was hidden
 const ENTRY_MS = 900; // an ability as two meet (Intimidate): over its owner's head this long, before the moves
 const ABIL_COLOR = "#ffe08a";
+// A hit's words with the abilities that touched it: "Super effective! · Levitate" (alone: theirs).
+const withAbil = (word, names = []) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), ABIL_COLOR]);
 const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
 const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
   .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
@@ -3250,22 +3252,28 @@ export default class PokemonHerd extends View {
       }
       // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
       if (k1 && k2) {
-        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves }; };
+        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves, ab: abilityOf(p, a.pane || a.address) }; };
         const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv), this.boostNow().id);
-        for (const tn of result.turns) if (tn.move) tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; // Mega Charizard X's blue fire (a turn it lost has no move)
-        duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait, result, back ? { ...spots, back: BACK } : spots);
+        for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) tn.move.abil = tn.abil.map(abilityName).filter(Boolean); } // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
+        // Their abilities as they meet (Intimidate…): over each one's head first, on their own,
+        // the battle held back that long (as with a wild one).
+        const entryNames = { a: result.entry.a.map(abilityName).filter(Boolean), b: result.entry.b.map(abilityName).filter(Boolean) };
+        const entryMs = entryNames.a.length || entryNames.b.length ? ENTRY_MS : 0;
+        duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait + entryMs, result, back ? { ...spots, back: BACK } : spots);
         for (const [m, a, o] of [[m1, a1, a2], [m2, a2, a1]]) {
           const [mine, theirs] = [ids[a.address], ids[o.address]];
           const steps = m.react.seq.filter((st) => st.blow && st.move);
           for (const st of steps) {
             const mv = st.move, eff = st.eff ?? 1;
             (m.blows ??= []).push({ at: st.at, dir: m.react.face === "r" ? -1 : 1, p: mv.ultimate || mv.crit ? Math.max(0.85, power(eff)) : power(eff), kb: knockMul(theirs?.size, mine?.size),
-              style: moveStyle(mv.type, mv.blue), word: blowWord(eff, mv.crit), num: damageText(st.dmg, eff), type: mv.type, name: mv.name, miss: mv.miss, physical: mv.physical });
+              style: moveStyle(mv.type, mv.blue), word: withAbil(blowWord(eff, mv.crit), mv.abil), num: damageText(st.dmg, eff), type: mv.type, name: mv.name, miss: mv.miss, physical: mv.physical });
           }
           // Its health through the battle: full, then what each blow (or its burn) leaves it.
           m.sparHp = { until: m.react.until, steps: m.react.seq.filter((st) => st.hp !== undefined).map((st) => ({ at: st.at, hp: st.hp })) };
           // The game's words over it: "It's paralyzed!", "It flinched!", "Hurt by its burn!".
           m.sparNotes = m.react.seq.filter((st) => st.note).map((st) => ({ at: st.at, until: st.until, text: NOTE_TEXT[st.note[0]][st.note[1]], color: STATUS_COLOR[st.note[1]] ?? "#ffffff" }));
+          const en = entryNames[m === m1 ? "a" : "b"];
+          if (en.length) m.sparNotes.push({ at: now + wait + 300, until: now + wait + 300 + ENTRY_MS, text: en.join(" · "), color: ABIL_COLOR });
         }
         // The winner: a little more friendship, the pair's record, its "won!" (with the record).
         const [wa, la] = result.winner === "a" ? [a1, a2] : [a2, a1];
@@ -3571,7 +3579,6 @@ export default class PokemonHerd extends View {
         const shownAt = now + 300, shownTo = shownAt + ENTRY_MS;
         if (entry.wild.length) v.fight.entry = { text: entry.wild.join(" · "), at: shownAt, until: shownTo };
         if (entry.own.length) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: shownAt, until: shownTo, text: entry.own.join(" · "), color: ABIL_COLOR }];
-        const withAbil = (word, names) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), ABIL_COLOR]);
         if (v.fight.blow) v.fight.blow.word = withAbil(v.fight.blow.word, named.hit);
         else if (named.hit.length) named.back.unshift(...named.hit);
         const ownAt = ownLaunch - CHARGE_MS - 20; // it gathers power (after the wild one's blow, slower)

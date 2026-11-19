@@ -5,7 +5,8 @@
 // full health, the faster moving first; the first down loses, or after SPAR_TURNS each, the one with more left wins.
 // Nobody is hurt for real.
 import { damage, moveHow, DAMAGE_SCALE, speedOf } from "./trainer.js";
-import { pickMove, PRIORITY, DRAIN } from "./moves.js";
+import { pickMove, PRIORITY, DRAIN, missOf } from "./moves.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -39,23 +40,32 @@ export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
 export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
 
-// `A`, `B`: { key (fighter key), alpha?, shadow?, size?, nature?, effort? (effortOf), moves? (chosen) }; `boost(move)`: the
+// `A`, `B`: { key (fighter key), alpha?, shadow?, size?, nature?, effort? (effortOf), moves? (chosen), ab? (its ability,
+// abilities.js: working as in a battle with a wild one) }; `boost(move)`: the
 // weather's (main.js boosted). Round by round, the faster first (Speed: its nature and effort, halved
 // paralysed); each round each moves once. Returns { turns, winner: "a"|"b", hp: { a, b } }, a turn
 // being { by, move, dmg, hp (its target's after), effect?, drain? { hp: its own after } } when it
 // moves, { by, skip } when it can't (paralysis, freezing, flinching), with { tick: { kind, dmg, hp } }
 // when its burn or poison hurts it after. Each picks its move as the round starts; Ice Shard
-// (PRIORITY) goes first whatever the Speed.
+// (PRIORITY) goes first whatever the Speed. Their abilities: `entry` { a, b } (ids) shown as they
+// meet (Intimidate…); a turn's `abil` (ids) the ones that touched its hit, each once a spar.
 export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = null) {
   const side = { a: A, b: B }, hp = { a: 1, b: 1 };
   const st = { a: { stage: {} }, b: { stage: {} } }; // status, stat stages (multipliers)
   const turns = [];
-  const speed = (k) => speedOf(side[k].key, side[k]) * (st[k].status === "par" ? 0.5 : 1) * (st[k].stage.spe ?? 1);
+  // Their abilities: each one's side (stages of its own, as abilities.js keeps them).
+  const ab = { a: newSide(A.ab), b: newSide(B.ab) };
+  const met = meet(ab.a, ab.b);
+  const shown = new Set([...met.a, ...met.b]);
+  const once = (keys) => [...new Set(keys)].filter((k) => k && !shown.has(k) && shown.add(k));
+  const speed = (k) => speedOf(side[k].key, side[k]) * (st[k].status === "par" ? 0.5 : 1) * (st[k].stage.spe ?? 1) * speedMul(ab[k], weather);
   const other = (k) => (k === "a" ? "b" : "a");
   const over = () => hp.a <= 0 || hp.b <= 0;
   for (let round = 0; round < SPAR_TURNS && !over(); round++) {
     // Each picks its move, then the one with the quicker move (Ice Shard) or the faster goes first.
-    const moves = { a: boost(pickMove(A.key, B.key, rnd, { targetSize: B.size, moves: A.moves, weather })), b: boost(pickMove(B.key, A.key, rnd, { targetSize: A.size, moves: B.moves, weather })) };
+    // (One its target's ability makes nothing of, Levitate…, picked again: twice at most.)
+    const pick = (X, Y, to) => { let m = boost(pickMove(X.key, Y.key, rnd, { targetSize: Y.size, moves: X.moves, weather })); for (let n = 0; n < 2 && immuneTo(ab[to], m); n++) m = boost(pickMove(X.key, Y.key, rnd, { targetSize: Y.size, moves: X.moves, weather })); return m; };
+    const moves = { a: pick(A, B, "b"), b: pick(B, A, "a") };
     const pa = PRIORITY[moves.a.name] ?? 0, pb = PRIORITY[moves.b.name] ?? 0, sa = speed("a"), sb = speed("b");
     const first = pa !== pb ? (pa > pb ? "a" : "b") : sa > sb ? "a" : sb > sa ? "b" : rnd() < 0.5 ? "a" : "b";
     let flinched = false;
@@ -67,15 +77,27 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       if (me.status === "par" && rnd() < 0.25) { turns.push({ by, skip: "par" }); continue; }
       const att = side[by], def = side[to];
       // Hex: twice as strong on one with a status.
-      const move = moves[by].name === "Hex" && st[to].status ? { ...moves[by], power: moves[by].power * 2 } : moves[by];
-      const d = damage(att.key, def.key, rnd, { mul: move.mul, type: move.type, alphaAttacker: !!att.alpha, alphaTarget: !!def.alpha, shadowAttacker: !!att.shadow, shadowTarget: !!def.shadow,
+      const move0 = moves[by].name === "Hex" && st[to].status ? { ...moves[by], power: moves[by].power * 2 } : moves[by];
+      // Their abilities on this hit (abilities.js onHit): its type, a miss or not, ×, or nothing.
+      ab[by].hp = hp[by]; ab[to].hp = hp[to];
+      const r = onHit(ab[by], ab[to], move0, { weather, missRate: missOf(move0.name) }, rnd);
+      const move = { ...move0, type: r.type, miss: r.miss, crit: r.crit };
+      const d = damage(att.key, def.key, rnd, { mul: r.mul, type: move.type, alphaAttacker: !!att.alpha, alphaTarget: !!def.alpha, shadowAttacker: !!att.shadow, shadowTarget: !!def.shadow,
         ...moveHow(move), ctx: { na: att.nature, nb: def.nature, ea: att.effort, eb: def.effort } });
       // Stat stages: its attacking stat's, the other's defending stat's; a burn halves its physical moves.
       const stage = (move.physical ? me.stage.atk ?? 1 : me.stage.spa ?? 1) / (move.physical ? st[to].stage.def ?? 1 : st[to].stage.spd ?? 1);
       const dmg = move.miss ? 0 : d.dmg * SPAR_HIT * stage * (me.status === "brn" && move.physical ? 0.5 : 1);
       const dealt = Math.min(hp[to], dmg);
+      const before = hp[to];
       hp[to] = Math.max(0, hp[to] - dmg);
+      const said = [...r.said.att, ...r.said.def];
+      if (hp[to] <= 0 && sturdyHolds(ab[to], before)) { hp[to] = 0.01; said.push("sturdy"); } // Sturdy: it hangs on
+      if (r.heal) hp[to] = Math.min(1, hp[to] + r.heal); // Water Absorb…: a quarter back
+      const after = afterHit(ab[by], ab[to], move, { ...r, fainted: hp[to] <= 0 }, r.type);
+      said.push(...after.att, ...after.def);
       const turn = { by, move: { ...move, eff: d.eff }, dmg, hp: hp[to] };
+      const named = once(said);
+      if (named.length) turn.abil = named;
       // Giga Drain, Drain Punch, Draining Kiss: it heals by part of what it took.
       if (DRAIN[move.name] && dealt > 0 && hp[by] < 1) { hp[by] = Math.min(1, hp[by] + dealt * DRAIN[move.name]); turn.drain = { hp: hp[by] }; }
       // Its side effect (not on one already down, nor a status on one that has one).
@@ -93,10 +115,14 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       }
       turns.push(turn);
     }
+    // The round over: Speed Boost (said with the round's last turn).
+    const boosted = once([...endTurn(ab.a), ...endTurn(ab.b)]);
+    const last = turns.at(-1);
+    if (boosted.length && last) last.abil = [...(last.abil ?? []), ...boosted];
   }
   const first = speedOf(A.key, A) >= speedOf(B.key, B) ? "a" : "b";
   const winner = hp.a === hp.b ? first : hp.a > hp.b ? "a" : "b";
-  return { turns, winner, hp };
+  return { turns, winner, hp, entry: { a: met.a, b: met.b } };
 }
 
 // The record between two, today's only: { day, pairs: { "<who>|<who>": [wins of the first, of the

@@ -102,3 +102,20 @@ test("an Ability Capsule swaps its two, an Ability Patch gives the hidden one; k
   assert.equal(egg.abil, 2);
   assert.ok(towerPay(28).items.some(([id]) => id === "ability-patch"));
 });
+
+import { sparTurns } from "../mods/pokemon-herd/spar.js";
+test("in a spar too: Intimidate as they meet, Sturdy hangs on, each said once", () => {
+  let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const r = sparTurns({ key: "130", ab: "intimidate" }, { key: "68", ab: "guts" }, rnd);
+  assert.deepEqual(r.entry.a, ["intimidate"]);
+  // Mewtwo at a Magikarp with Sturdy: its first blow leaves a sliver.
+  for (let i = 0; i < 20; i++) {
+    const s = sparTurns({ key: "150", ab: "pressure" }, { key: "129", ab: "sturdy" }, rnd);
+    const first = s.turns.find((t) => t.by === "a" && t.move && !t.move.miss);
+    if (!first) continue;
+    assert.ok(first.hp >= 0.01, `left ${first.hp}`);
+    assert.ok(first.abil?.includes("sturdy"));
+    const again = s.turns.filter((t) => t.abil?.includes("sturdy"));
+    assert.equal(again.length, 1, "said once");
+  }
+});
