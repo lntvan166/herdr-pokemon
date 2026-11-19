@@ -2900,7 +2900,24 @@ export default class PokemonHerd extends View {
     // on it to strike, one still goes in, and is thrown back out).
     const raidPh = settingsNow().raids ? raidPhase(loadRaid(shared(RAID_KEY)), now) : null;
     const bossZone = raidPh && raidPh !== "gone" ? { lo: this.width / 2 - BOSS_CLEAR * scaleOf(), hi: this.width / 2 + BOSS_CLEAR * scaleOf() } : null;
-    const clearOf = (x) => (bossZone && x > bossZone.lo && x < bossZone.hi ? (x < this.width / 2 ? bossZone.lo - 6 : bossZone.hi + 6) : x);
+    // A trainer in its corner (waiting or battling, till it's beaten): its side of the strip, from a
+    // battle's gap left of its Pokémon to the edge, kept clear on its row too, so the fight reads
+    // on its own: only the one fighting it stays (and one you drop there to fight it).
+    const tz = this.visitor;
+    const fightZone = tz?.trainer?.waited && !tz.trainer.beaten && !tz.trainer.leaving && Number.isFinite(tz.x)
+      ? { row: Math.min(tz.row ?? 0, (g ? g.rows : 1) - 1), lo: tz.x - MAX_GAP - 50 * scaleOf(), hi: this.width + OFF, fighter: tz.trainer.fighter } : null;
+    const zones = [bossZone && { ...bossZone, row: 0 }, fightZone].filter(Boolean);
+    // Where `x` (on `row`) steps to, out of any zone there: to the nearer side that's in the strip.
+    const clearOf = (x, row = 0) => {
+      for (const z of zones) {
+        if (z.row !== row || x <= z.lo || x >= z.hi) continue;
+        const left = z.lo - 6, right = z.hi + 6;
+        const goLeft = right > this.width - EDGE || (left >= EDGE && x - z.lo < z.hi - x);
+        return goLeft ? left : right;
+      }
+      return x;
+    };
+    const inZone = (m, row, addr) => zones.some((z) => z.row === row && m.x > z.lo && m.x < z.hi && z.fighter !== addr);
     // One agent throwing must not stop the others.
     forEachSafe(list, (a, i) => {
       live.add(a.address);
@@ -3004,9 +3021,11 @@ export default class PokemonHerd extends View {
         else { m.dir = this.width / 2 > m.x ? "r" : "l"; m.pauseUntil = now + 60000; }
       }
       // Standing where a raid boss is: it steps aside (not while it strikes or is thrown back).
-      if (bossZone && !m.moving && rowAt(a, i) === 0 && clearOf(m.x) !== m.x && !reacting && !(m.battleUntil > now) && !m.raidPush) {
+      // (Or near a trainer: out of its side, a little apart from the others stepping out.)
+      if (zones.length && !m.moving && inZone(m, rowAt(a, i), a.address) && !reacting && !(m.battleUntil > now) && !m.raidPush) {
         m.shuffle = true; // asleep too: it shuffles aside (a sleeper's walk would stop at once)
-        walk(m, clamp(clearOf(m.x), lo, hi), SPEED.idle);
+        const out = clearOf(m.x, rowAt(a, i));
+        walk(m, clamp(out + (out < m.x ? -1 : 1) * rand(0, 50), lo, hi), SPEED.idle);
         changed = true;
       }
       if (m.moving) {
@@ -3060,10 +3079,10 @@ export default class PokemonHerd extends View {
         // Stop somewhere with room for a name, clear of those resting (working ones too, so
         // they don't make a sleeper shuffle aside).
         target = restSpot(target, othersOnRow(i), lo, hi, REST_GAP);
-        if (rowAt(a, i) === 0) target = clamp(clearOf(target), lo, hi); // not where a raid boss stands
+        if (fightZone?.fighter !== a.address) target = clamp(clearOf(target, rowAt(a, i)), lo, hi); // not where a raid boss or a trainer is
         // A sub-agent's Pokémon keeps close to its agent's: just behind it, whichever side it is on.
         const lead = family[a.address] && this.mons[family[a.address]];
-        if (lead) target = clamp((lead.moving ? lead.target : lead.x) + (m.x < lead.x ? -1 : 1) * rand(36, 56), lo, hi);
+        if (lead) target = clamp(clearOf((lead.moving ? lead.target : lead.x) + (m.x < lead.x ? -1 : 1) * rand(36, 56), rowAt(a, i)), lo, hi);
         // With rows, now and then it walks off the edge and carries on along the next row.
         const way = Math.random() < 0.5 ? "l" : "r";
         const wrap = !!g && g.rows > 1 && !m.entering && Math.random() < WRAP_CHANCE

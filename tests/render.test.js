@@ -549,3 +549,25 @@ test("the strip draws", () => {
   v.sized = true; v.width = 1200; v.height = 112;
   v.render(cx);
 });
+
+// A trainer in its corner: the others on its row walk out of its side, so the fight reads on its
+// own; the one fighting it stays.
+test("a trainer: those not fighting it step out of its side of the strip", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "tr", pick: { dex: 9, hp: 1 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, x: 1100, purse: 0,
+    halt: { kind: "trainer", x: 1100, at: now, until: now + 60000, face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true, fighter: "t0" } };
+  for (const [k, x] of [["t0", 1000], ["t1", 1050], ["t2", 300]]) Object.assign(st.mons[k], { x, from: x, target: x, moving: false, pauseUntil: now + 60000, react: null });
+  st.tick(cx);
+  const [f, o, far] = ["t0", "t1", "t2"].map((k) => st.mons[k]);
+  assert.ok(!f.moving || f.target > 900, "the fighter stays");
+  assert.ok(o.moving && o.target < 1100 - 80 - 37, `t1 steps out (to ${o.target})`);
+  assert.ok(!far.moving, "one far off stays");
+});
