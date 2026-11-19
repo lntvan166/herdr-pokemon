@@ -2813,7 +2813,7 @@ export default class PokemonHerd extends View {
       const what = v.trainer ? `${v.trainer.title} ${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
       const rec = v.trainer?.rival ? loadRival(shared(RIVAL_KEY)) : null;
       const tail = rec ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length} · you ${rec.wins}–${rec.losses} · ${v.trainer.lives} of yours to go down before it wins · a switch costs a free hit · ${v.trainer.potions ?? 0} Potion${v.trainer.potions === 1 ? "" : "s"}`
-        : v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle`
+        : v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle${v.trainer.tower ? "" : " · a switch costs a free hit"}`
         : broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -3546,10 +3546,11 @@ export default class PokemonHerd extends View {
         // first hit's), each once while these two face each other (Sharpness said every blow
         // was noise over the fight).
         const words = { meetOwn: [], meetWild: [], hit: [], back: [] };
-        // The Rival: one of yours swapped in while the one before is still up costs a free hit
-        // (the games': switching takes your turn): it strikes, yours doesn't.
+        // A trainer (not the Tower's: swapping on the strip is free there, from the Box costs 10%):
+        // one of yours swapped in while the one before is still up costs a free hit (the games':
+        // switching takes your turn): it strikes, yours doesn't.
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
-        const switched = !!v.trainer?.rival && !!before && (ownHp(before, now) ?? 0) > 0.001;
+        const switched = !!v.trainer && !v.trainer.tower && !!before && (ownHp(before, now) ?? 0) > 0.001;
         if (!v.abil || v.abil.own !== drop.addr) {
           v.abil = { own: drop.addr, idx: v.trainer?.idx ?? -1, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);

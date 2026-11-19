@@ -905,3 +905,30 @@ test("the Rival: a switch costs a free hit; its Potion", () => {
   assert.ok(fx.back && fx.blow === null, "it struck, yours didn't");
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Switched/.test(n.text)));
 });
+
+// An ordinary trainer too: a switch with the one before still up costs a free hit; not in the Tower.
+test("a trainer: a switch costs a free hit (not in the Tower)", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  const side = { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } };
+  for (const tower of [undefined, 3]) {
+    st.visitor = { id: `tr${tower}`, pick: { dex: 9, hp: 1, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+      halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+      trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true, ...(tower ? { tower } : {}) },
+      abil: { own: "t0", idx: 0, o: { ...side }, w: { ...side } } };
+    Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+    st.dropAt = { addr: "t1", dizzy: false };
+    st.tick(cx);
+    const fx = st.visitor.fight;
+    const switchedNote = (st.mons.t1.sparNotes ?? []).some((n) => /Switched/.test(n.text));
+    if (tower) assert.ok(fx && !switchedNote, "in the Tower: free");
+    else assert.ok(fx.back && fx.blow === null && switchedNote, "a trainer: it struck, yours didn't");
+  }
+});
