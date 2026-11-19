@@ -82,7 +82,7 @@ export function newTrainer(rnd = Math.random, now = 0, how = {}) {
   }
   return { cls: c.id, title: c.title, name: c.names[Math.floor(rnd() * c.names.length)], team, at: now };
 }
-export const classOf = (id) => CLASSES.find((c) => c.id === id) ?? CLASSES[0];
+export const classOf = (id) => (id === "rival" ? RIVAL : CLASSES.find((c) => c.id === id) ?? CLASSES[0]);
 // Beating it: a fifth of its class's pay (×1.2 for three, ×1.3 with a Mega, ×1.6 with a
 // legendary, ×1.3 with an Alpha) and its item (one ball or Berry); a little more for each star (an
 // Ultra Ball for a Mega, a Golden Razz for a legendary, 2 Razz for an Alpha). { money, items }.
@@ -211,3 +211,70 @@ export function loadTower(raw) {
   const paid = typeof raw?.paid?.day === "string" && Number.isInteger(raw.paid.floor) ? { day: raw.paid.day, floor: raw.paid.floor } : null;
   return { v: 1, best, run, ...(paid ? { paid } : {}) };
 }
+
+// ---- the Rival ---------------------------------------------------------------------------------
+// One trainer of your own, as the games' rival: it comes back about once a week (RIVAL_EVERY days),
+// its team growing each time (`meets`: times it came): its starter's line (the one strong against
+// your most-worked Pokémon, as the games' rival picks the starter that beats yours) at its middle
+// stage the first time, fully evolved after, Mega Evolved from the 4th; two fully evolved others,
+// an Alpha among them from the 5th; raised a little more each time (rivalEffort). Three of yours
+// down and it wins (RIVAL_LIVES). Its record against you is kept; it pays more than a trainer, an
+// Ability Patch the first time you beat it.
+export const RIVAL = { id: "rival", title: "Rival", names: ["Blaze"], types: null, pay: 0, item: ["rare-candy", 1],
+  colors: { H: "#c8402a", C: "#c8402a", T: "#2a2a2a", A: "#2a2a2a", P: "#3a3a5a", B: "#c8402a" } };
+export const RIVAL_EVERY = [4, 7]; // days between visits
+export const RIVAL_FIRST_MS = 2 * 3600000; // the first, two hours after the mod first sees it
+export const RIVAL_RETRY_MS = 6 * 3600000; // ignored (it waited and left): again a few hours on
+export const RIVAL_LIVES = 3;
+export const rivalEffort = (meets) => Math.min(1.25, 1.05 + 0.03 * meets);
+// The starters, by type, a line each region (their first stage).
+export const STARTERS = {
+  grass: [1, 152, 252, 387, 495, 650, 722, 810, 906],
+  fire: [4, 155, 255, 390, 498, 653, 725, 813, 909],
+  water: [7, 158, 258, 393, 501, 656, 728, 816, 912],
+};
+const BEATS = { grass: ["water", "ground", "rock"], fire: ["grass", "ice", "bug", "steel"], water: ["fire", "ground", "rock"] };
+// Its starter (a first stage), against your most-worked Pokémon (`yourDex`): the type that beats its.
+export function rivalStarter(yourDex, rnd = Math.random) {
+  const yours = yourDex ? typesOf(yourDex) : [];
+  const kind = Object.keys(BEATS).find((k) => yours.some((t) => BEATS[k].includes(t))) ?? Object.keys(STARTERS)[Math.floor(rnd() * 3)];
+  const list = STARTERS[kind].filter((d) => WALKABLE.includes(d));
+  return list[Math.floor(rnd() * list.length)];
+}
+const stageOf = (first, n) => { let d = first; for (let i = 0; i < n; i++) { const next = evolutionsOf(d)[0]; if (!next) break; d = next; } return d; };
+// Its team now: { cls: "rival", title, name, team, at, effort, rival: true, meets }.
+export function rivalTrainer(rnd, now, r, how = {}) {
+  const nature = () => NATURE_IDS[Math.floor(rnd() * NATURE_IDS.length)];
+  const lead = stageOf(r.starter, r.meets === 0 ? 1 : 2);
+  const others = [];
+  while (others.length < 2) { const d = FINALS[Math.floor(rnd() * FINALS.length)]; if (d !== lead && !others.includes(d)) others.push(d); }
+  const team = [...others.map((dex) => ({ dex, nature: nature() })), { dex: lead, nature: nature() }]; // its starter last, as the games'
+  if (r.meets >= 3 && how.megaOf?.(lead) != null) team[2] = { ...team[2], mega: how.megaOf(lead) };
+  if (r.meets >= 4) team[0] = { ...team[0], alpha: true };
+  return { cls: "rival", title: RIVAL.title, name: r.name, team, at: now, effort: rivalEffort(r.meets), rival: true, meets: r.meets };
+}
+// Beating it: ₽600, ₽100 more each time it came (₽1,500 at most), a Rare Candy; the first win an
+// Ability Patch, after that an Ability Capsule one time in three.
+export function rivalPay(r, rnd = Math.random) {
+  const money = Math.min(1500, 600 + 100 * r.meets);
+  const extra = r.wins === 0 ? [["ability-patch", 1]] : rnd() < 1 / 3 ? [["ability-capsule", 1]] : [];
+  return { money, items: [["rare-candy", 1], ...extra], ...(extra.length ? { fine: extra[0][0] } : {}) };
+}
+// Its state, shared: { v: 1, name, starter (its first stage) | null, meets, wins (yours), losses, nextAt }.
+export function loadRival(raw, now = 0) {
+  const ok = raw?.v === 1;
+  const n = (k) => (ok && Number.isInteger(raw[k]) && raw[k] >= 0 ? raw[k] : 0);
+  return { v: 1, name: ok && typeof raw.name === "string" && raw.name ? raw.name : RIVAL.names[0], starter: ok && Number.isInteger(raw.starter) ? raw.starter : null,
+    meets: n("meets"), wins: n("wins"), losses: n("losses"), nextAt: ok && Number.isFinite(raw.nextAt) ? raw.nextAt : now + RIVAL_FIRST_MS };
+}
+export const rivalNext = (now, rnd = Math.random) => now + (RIVAL_EVERY[0] + rnd() * (RIVAL_EVERY[1] - RIVAL_EVERY[0])) * 86400000;
+// What it says: as it arrives (by your record), beaten, and winning.
+export function rivalGreet(r, rnd = Math.random) {
+  if (r.meets === 0) return "Hey! You're the one with the Pokémon herd? Let's see what they've got!";
+  const lines = r.losses > r.wins ? ["Back for another beating?", "You haven't gotten any better, have you?"]
+    : r.wins > r.losses ? ["I've been training. This time it's different!", "I won't lose again. Not today!"]
+    : ["We're even. Let's settle it!", "Ready? I've been waiting for this!"];
+  return lines[Math.floor(rnd() * lines.length)];
+}
+export const RIVAL_BEATEN = ["Tch… I'll get stronger. Just watch!", "Not bad… but next time is mine!", "You got lucky. That's all!"];
+export const RIVAL_WON = ["Ha! Told you I'd win!", "Too easy. Train harder!", "Come back when you're ready!"];

@@ -23,6 +23,7 @@ import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
+import { rivalTrainer, rivalPay, loadRival, rivalNext, rivalStarter, rivalGreet, RIVAL_BEATEN, RIVAL_WON, RIVAL_LIVES, RIVAL_RETRY_MS } from "./trainers.js";
 import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
 // What a trainer says, beaten (its class's words; one of them by its name, the same each time).
@@ -32,14 +33,15 @@ const BEATEN_SAYS = {
   psychic: ["I foresaw this… it still stings.", "My mind went blank!"], bugcatcher: ["My bugs! Aww…", "Bugged out!"],
   kindler: ["I got burned!", "My fire's out…"], punk: ["Tch. Not bad.", "Whatever. You win."],
   engineer: ["Short-circuited!", "Back to the drawing board."], birdkeeper: ["My birds, grounded!", "Clipped my wings…"],
+  rival: RIVAL_BEATEN,
 };
 // What it says, winning (one of yours down to it).
 const WON_SAYS = {
   ace: ["Better luck next time!"], hiker: ["Solid as a rock!"], swimmer: ["Smooth sailing!"], blackbelt: ["Train harder!"],
   psychic: ["I saw this coming."], bugcatcher: ["My bugs win!"], kindler: ["Too hot for you!"], punk: ["Heh. Too easy."],
-  engineer: ["Works like a charm!"], birdkeeper: ["Flying high!"],
+  engineer: ["Works like a charm!"], birdkeeper: ["Flying high!"], rival: RIVAL_WON,
 };
-const wonSay = (tr) => (WON_SAYS[tr.cls] ?? ["I win!"])[0];
+const wonSay = (tr) => { const l = WON_SAYS[tr.cls] ?? ["I win!"]; return l[(tr.meets ?? 0) % l.length]; };
 const beatenSay = (tr) => { const l = BEATEN_SAYS[tr.cls] ?? ["You win!"]; return l[[...tr.name].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length]; };
 // A beaten trainer, one thing at a time: its words (till WIN_SAY_MS), then its pay rising (till
 // WIN_PAY_END) while it turns and walks off (from WIN_WALK_AT, over WIN_WALK_MS). Gone at WIN_PAY_END.
@@ -107,6 +109,7 @@ const RAID_KEY = `${MOD}-raid`; // the raid on now (events.js), the same in ever
 const OUTBREAK_KEY = `${MOD}-outbreak`; // an outbreak called on top of the day's: { dex, from, until }
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
+const RIVAL_KEY = `${MOD}-rival`; // the Rival: its record, its starter, when it comes next (trainers.js loadRival)
 const CARE_KEY = `${MOD}-daycare`; // the Day Care: two of the Box left together, their egg (breed.js loadCare)
 const TOWER_KEY = `${MOD}-tower`; // the Battle Tower: the climb on now and the best one (trainers.js loadTower)
 const towerNow = () => loadTower(shared(TOWER_KEY));
@@ -619,6 +622,7 @@ const FX_GAP = 84; // how far apart yours and a wild one battle
 // health bar (healthBar at headY − 6) when the strip has room, else just under the bar. (Pinned to
 // the strip's top, a big one's move name and ability sat on its bar and hid it.)
 const WALK_REDRAW = 2000, LOST_FRAMES = 3500; // a walking visitor: a frame asked this often; none this long, the window was hidden
+const RIVAL_INTRO_MS = 2600; // the Rival's entrance: its bars and challenge, then its words
 const ENTRY_MS = 900; // an ability as two meet (Intimidate): over its owner's head this long, before the moves
 const ABIL_COLOR = "#ffe08a";
 // The games' emote balloons (art/emotes, drawn for the mod): "!" needs you, "✓" done, and the acts'
@@ -1416,6 +1420,20 @@ export default class PokemonHerd extends View {
 
   // A trainer going (it won the climb, or waited long enough): it stops a moment (WIN_SAY_MS, its
   // words, if it just won), then walks off to the right, out of the strip, and is gone.
+  // The Rival comes (trainers.js): its starter chosen the first time (against your most-worked
+  // Pokémon), its team as it is after the times it came; till it's fought, again in a few hours
+  // if ignored.
+  rivalComes(now, megaOf) {
+    const r = loadRival(shared(RIVAL_KEY), now);
+    if (r.starter == null) {
+      const top = Object.entries(stats().species ?? {}).sort((a, b) => (b[1].jobs ?? 0) - (a[1].jobs ?? 0))[0]?.[0];
+      r.starter = rivalStarter(top ? Number(top) : null);
+    }
+    const tr = rivalTrainer(Math.random, now, r, { megaOf });
+    if (this.leader) setShared(RIVAL_KEY, { ...r, meets: r.meets + 1, nextAt: now + RIVAL_RETRY_MS });
+    return tr;
+  }
+
   trainerLeave(v, now) {
     if (!v?.trainer || v.trainer.leaving) return;
     v.trainer.leaving = now;
@@ -1444,6 +1462,7 @@ export default class PokemonHerd extends View {
     const pace = VISIT_EVERY[settingsNow().visitors]; // [from, to] minutes; null: off
     if (!pace || !this.sized || this.width < 200) { this.visitor = null; return false; }
     stripWidth = this.width; // (its walk: across in CROSS_S, whatever the width)
+    if (this.leader && !shared(RIVAL_KEY)) setShared(RIVAL_KEY, loadRival(null, now)); // (its first visit two hours on, kept)
     // A Mass Outbreak (events.js): its species walks by every 2–3 minutes while it lasts.
     const outbreak = settingsNow().outbreaks ? outbreakAt(now, shared(OUTBREAK_KEY)) : null;
     const every = outbreak ? outbreakPace(pace) : pace;
@@ -1544,7 +1563,10 @@ export default class PokemonHerd extends View {
       const megaOf = (d) => megaForm(d)?.kind ?? null; // the Mega it can take (dex.js), or null
       // What you have (its stars the likelier for it: trainers.js starOdds).
       const owned = { legends: pokedex().caught.filter((d) => isLegendary(d)).length, megas: new Set(Object.entries(savedPicks()).filter(([, p]) => p && megaForm(p.dex)).map(([k]) => k)).size, alphas: Object.values(savedPicks()).filter((p) => p?.alpha).length };
-      const tr = (!outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1) || pick.devTrainer ? newTrainer(Math.random, now, { megaOf, owned, ...(typeof pick.devTrainer === "string" ? { force: pick.devTrainer } : {}) }) : null;
+      // The Rival, when its time has come (about once a week: trainers.js), in place of a wild one.
+      const rivalDue = (!outbreak && !pick.legend && !pick.devAct && !called && now >= loadRival(shared(RIVAL_KEY), now).nextAt) || pick.devTrainer === "rival";
+      const tr = rivalDue ? this.rivalComes(now, megaOf)
+        : (!outbreak && !pick.legend && !pick.devAct && !called && Math.random() * TRAINER_ODDS < 1) || pick.devTrainer ? newTrainer(Math.random, now, { megaOf, owned, ...(typeof pick.devTrainer === "string" ? { force: pick.devTrainer } : {}) }) : null;
       delete pick.devTrainer;
       if (tr) {
         pick = trainerMon(tr.team[0]);
@@ -1559,7 +1581,7 @@ export default class PokemonHerd extends View {
       v = this.visitor = { id: `${now}-${pick.dex}`, purse: allowance(dailyNow(now), "purse", purse(pick, Math.random, PURSE_CHANCE[settingsNow().visitors] ?? 1)), pick, dir, row: g ? Math.floor(Math.random() * g.rows) : 0, from, to, start: 0, dur: 0, asked: now, act, ...(act?.kind === "dash" ? { speedK: DASH_SPEED } : {}) };
       if (act?.kind === "tease" && v.purse) v.purse = Math.round(v.purse * TEASE_PURSE);
       // A trainer doesn't walk by: it waits in the strip's right corner, its Pokémon before it.
-      if (tr) { v.trainer = { ...tr, idx: 0 }; v.purse = 0; v.gift = "none"; v.giftAt = 0; v.dir = "l"; v.row = 0; v.from = this.width - EDGE - 60; v.to = v.from - 1; v.dur = 1000; }
+      if (tr) { v.trainer = { ...tr, idx: 0, ...(tr.rival ? { lives: RIVAL_LIVES } : {}) }; if (tr.rival) v.speedK = 2; v.purse = 0; v.gift = "none"; v.giftAt = 0; v.dir = "l"; v.row = 0; v.from = this.width - EDGE - 60; v.to = v.from - 1; v.dur = 1000; }
       v.dur = (Math.abs(to - from) / paceOf(v)) * 1000;
       this.want(pick, cx);
     }
@@ -1604,7 +1626,8 @@ export default class PokemonHerd extends View {
           // The Tower: each floor paid once a day (towerWin); one more win, the next one up soon.
           const t = tr.tower ? towerNow() : null;
           const tw = tr.tower ? towerWin(tr.tower, t.paid, dayOf(now)) : null;
-          tr.paid = tw ? tw.pay : trainerPay(tr);
+          tr.paid = tw ? tw.pay : tr.rival ? rivalPay(loadRival(shared(RIVAL_KEY), now)) : trainerPay(tr);
+          if (tr.rival && this.leader) { const r = loadRival(shared(RIVAL_KEY), now); setShared(RIVAL_KEY, { ...r, wins: r.wins + 1, nextAt: rivalNext(now) }); } // you won: its record, and a week or so till the next
           // (The Marsh Badge: trainers pay 10% more.)
           if (tr.paid.money) tr.paid = { ...tr.paid, money: Math.round(tr.paid.money * perkNow().trainerPay) };
           if (this.leader) {
@@ -1626,6 +1649,13 @@ export default class PokemonHerd extends View {
         // (Yours fainted: it stops, unless another was switched in meanwhile.)
         if (fx.back?.fainted) v.trainer.gloat = now; // it won that one: its Pokémon cheers, it says so
         if (fx.back?.fainted && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
+        // The Rival: three of yours down and it wins (its record), and goes, gloating.
+        if (fx.back?.fainted && v.trainer.rival && !v.trainer.leaving && --v.trainer.lives <= 0) {
+          if (this.leader) { const r = loadRival(shared(RIVAL_KEY), now); setShared(RIVAL_KEY, { ...r, losses: r.losses + 1, nextAt: rivalNext(now) }); }
+          v.trainer.won = now;
+          this.trainerLeave(v, now);
+          return true;
+        }
         if (!this.visitor || v.trainer.leaving) return true; // (the climb is over: it's going)
         if (fx.back?.fainted && v.trainer.fighter === fx.own) v.trainer.fighter = null;
         else if (v.trainer.fighter) v.trainer.nextAt = now + 500;
@@ -1701,6 +1731,8 @@ export default class PokemonHerd extends View {
     const cornerX = () => Math.max(EDGE, this.width - EDGE - 20 * scaleOf() - this.trainerGap(v, scaleOf()));
     if (v.trainer && !v.trainer.waited) {
       v.trainer.waited = true; if (v.act) v.act.done = true; v.from = v.x = cornerX(); v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" };
+      // The Rival: its entrance (a sweep across the strip, its challenge, its words: renderVisitor).
+      if (v.trainer.rival) { v.trainer.introAt = now; v.speedK = 1; const r = loadRival(shared(RIVAL_KEY), now); v.trainer.greet = rivalGreet(r); v.trainer.record = [r.wins, r.losses]; }
       v.sentOut = { at: now, dex: v.pick.dex }; // its first Pokémon, out of its ball too
     }
     // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
@@ -1960,6 +1992,7 @@ export default class PokemonHerd extends View {
     if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
     // Its act's moments (wildacts.js): an icon going (running off, a dash), a teleport's flash.
     if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
+    if (v?.trainer?.introAt) { const a = v.trainer.introAt; times.push(a, a + 40, a + 250, a + 900, a + RIVAL_INTRO_MS - 300, a + RIVAL_INTRO_MS, a + RIVAL_INTRO_MS + 4500); }
     if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
@@ -2738,6 +2771,29 @@ export default class PokemonHerd extends View {
       const tx = v.x + (v.dir === "r" ? -1 : 1) * this.trainerGap(v, scale), half = (this.trainerSize(v, stripScale)?.w ?? 30) / 2 + 6;
       return tx > v.x ? Math.max(4, Math.min(centred, tx - half - tagW)) : Math.min(this.width - tagW - 6, Math.max(centred, tx + half));
     };
+    // The Rival's entrance (once a visit, RIVAL_INTRO_MS): two bars sweep across the strip (its
+    // colours, red and black), its challenge in the middle, then its words by it.
+    const intro = v.trainer?.rival && v.trainer.introAt ? now - v.trainer.introAt : -1;
+    if (intro >= 0 && intro < RIVAL_INTRO_MS) {
+      const key = `rival-in-${v.id}`, f = this.fxFirst(key), mid = Math.round(ground / 2);
+      for (const [k, color, y, hh] of [[0, "#c8402a", mid - 14, 10], [1, "#1a1a1a", mid - 4, 14], [2, "#c8402a", mid + 10, 6]]) {
+        root.child(fxOnce(`${key}-bar${k}`, f, { x: this.width + 60, y, w: 120, h: hh, o: 0.9 }, { x: this.width / 2, y, w: this.width + 40, h: hh, o: intro < 900 ? 0.85 : 0 }, 450 + k * 90, (el) => el.rounded(2).bg(color)));
+      }
+      if (intro >= 250 && intro < RIVAL_INTRO_MS - 300) {
+        const [w, l] = v.trainer.record ?? [0, 0];
+        root.child(h_flex().id(`${key}-say`).absolute().left(0).w(this.width).top(Math.max(2, mid - 12)).justify_center()
+          .child(div().px(10).h(24).rounded(6).bg("#1a1a1ae6").border_1().border_color("#c8402a").flex().items_center().gap(6)
+            .child(div().text_size(12).font_bold().text_color("#ff6a4a").child("RIVAL"))
+            .child(div().text_size(12).font_semibold().text_color("#ffffff").child(`${v.trainer.name} wants to battle!`))
+            .when(w + l > 0, (el) => el.child(div().text_size(11).text_color("#c8ccd4").child(`you ${w}–${l}`)))));
+      }
+    }
+    // Its words as it arrives, by it, after the challenge (kept left of the corner's buttons).
+    if (v.trainer?.rival && v.trainer.greet && intro >= RIVAL_INTRO_MS - 300 && intro < RIVAL_INTRO_MS + 4500 && !v.fight) {
+      const tx = (v.x ?? v.from) + this.trainerGap(v, scale), size = this.trainerSize(v, stripScale);
+      root.child(div().absolute().left(Math.max(4, Math.min(this.width - CORNER_W - 260, tx - 130))).top(Math.max(2, ground - (size?.h ?? 40) - 26)).w(260).flex().justify_center()
+        .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${v.trainer.greet}”`)));
+    }
     // A trainer's next Pokémon out: "Hiker Ben sent out Golem!" under it a moment.
     if (v.sentOut && now - v.sentOut.at < 2500 && v.trainer) {
       const tagW = 300;
@@ -2753,7 +2809,9 @@ export default class PokemonHerd extends View {
     if (onStrip && (hovered || broke || now - (this.ballSwitched ?? 0) < 1500)) {
       const tagW = Math.min(420, this.width - 12); // never past a narrow strip's edges
       const what = v.trainer ? `${v.trainer.title} ${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
-      const tail = v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle`
+      const rec = v.trainer?.rival ? loadRival(shared(RIVAL_KEY)) : null;
+      const tail = rec ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length} · you ${rec.wins}–${rec.losses} · ${v.trainer.lives} of yours to go down before it wins`
+        : v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle`
         : broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -5132,6 +5190,7 @@ export default class PokemonHerd extends View {
   // The Bag's Today tab: the day's Research (three tasks, each paying when done; all three call a
   // legendary Pokémon over) and yesterday in one line.
   renderToday(daily, h, t, art) {
+    const rival = loadRival(shared(RIVAL_KEY));
     const bar = (frac, w) => div().w(w).h(6).rounded_full().bg(t.border).overflow_hidden()
       .child(div().h_full().w(Math.round(w * Math.min(1, frac))).bg(t.accent));
     const reward = (p) => h_flex().gap(6).items_center().flex_none()
@@ -5184,6 +5243,9 @@ export default class PokemonHerd extends View {
         div().h(18).px(7).rounded_full().flex().items_center().text_size(11).bg(doneN === 3 ? t.accent : t.border).text_color(doneN === 3 ? t.accent_foreground : t.foreground).child(`${doneN}/3`)))
       .child(card([...tasks, bonus]))
       .when(!!daily.yesterday, (el) => el.child(div().px(2).text_size(11).text_color(t.muted).truncate().child(recapText(daily.yesterday))))
+      // The Rival: your record, and when it comes by next (once it has come).
+      .when(rival.meets > 0, (el) => el.child(div().px(2).text_size(11).text_color(t.muted).truncate()
+        .child(`Rival ${rival.name}: you ${rival.wins}–${rival.losses}${rival.nextAt > Date.now() ? ` · back in ${((ms) => (ms >= 86400000 ? `${Math.round(ms / 86400000)} day${Math.round(ms / 86400000) === 1 ? "" : "s"}` : duration(ms)))(rival.nextAt - Date.now())}` : " · on its way"}`)))
       .child(div().h(6))
       .child(heading("On today", "Weather, the raid egg, the outbreak"))
       .child(card(events));

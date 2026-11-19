@@ -134,3 +134,29 @@ test("the Battle Tower: teams of three, stronger and starrier the higher; pay an
   const t = T.loadTower({ best: 4, run: { at: 1, wins: 2, faints: 1, out: ["p1", 3], nextAt: 5 } });
   assert.deepEqual(t.run, { at: 1, wins: 2, faints: 1, out: ["p1"], nextAt: 5, heals: 0 });
 });
+
+test("the Rival: a starter against yours, a team growing each visit, its pay, its state", async () => {
+  const T = await import("../mods/pokemon-herd/trainers.js");
+  let seed = 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // Your most-worked a Charizard (fire): its starter a water one; a Venusaur: a fire one.
+  assert.ok(T.STARTERS.water.includes(T.rivalStarter(6, rnd)));
+  assert.ok(T.STARTERS.fire.includes(T.rivalStarter(3, rnd)));
+  const r0 = { ...T.loadRival(null, 1000), starter: 7 };
+  assert.equal(r0.nextAt, 1000 + T.RIVAL_FIRST_MS);
+  const first = T.rivalTrainer(rnd, 0, r0);
+  assert.equal(first.team.length, 3);
+  assert.equal(first.team[2].dex, 8, "Wartortle the first time");
+  const later = T.rivalTrainer(rnd, 0, { ...r0, meets: 4 }, { megaOf: (d) => (d === 9 ? "" : null) });
+  assert.equal(later.team[2].dex, 9);
+  assert.equal(later.team[2].mega, "", "Mega Blastoise from the 4th");
+  assert.ok(later.team[0].alpha && later.effort > first.effort);
+  assert.equal(T.classOf("rival").id, "rival");
+  // Pay: an Ability Patch the first win; more money the more it came (₽1,500 at most).
+  assert.ok(T.rivalPay({ ...r0, wins: 0 }).items.some(([id]) => id === "ability-patch"));
+  assert.ok(!T.rivalPay({ ...r0, wins: 1 }, () => 0.9).items.some(([id]) => id.startsWith("ability")));
+  assert.equal(T.rivalPay({ ...r0, meets: 50 }).money, 1500);
+  const next = T.rivalNext(0, () => 0.5);
+  assert.ok(next >= 4 * 86400000 && next <= 7 * 86400000);
+  assert.match(T.rivalGreet(r0), /herd/);
+  assert.deepEqual(T.loadRival({ v: 1, name: "Blaze", starter: 4, meets: 2, wins: 1, losses: 1, nextAt: 5 }), { v: 1, name: "Blaze", starter: 4, meets: 2, wins: 1, losses: 1, nextAt: 5 });
+});

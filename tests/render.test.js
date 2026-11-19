@@ -846,3 +846,28 @@ test("a trainer's ! only till its first battle", () => {
   st.visitor.halt = { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" };
   st.render(cx);
 });
+
+// The Rival: it comes with its starter's line (chosen the first time), counted; its entrance drawn.
+test("the Rival comes: its team, its visit counted, its entrance", () => {
+  seed();
+  const RIVAL = `${ids.MOD}-rival`;
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { rival: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  const now = Date.now();
+  const tr = st.rivalComes(now, () => null);
+  assert.equal(tr.cls, "rival");
+  assert.equal(tr.team.length, 3);
+  const r = H.store.get(RIVAL);
+  assert.equal(r.meets, 1);
+  assert.ok(r.starter > 0 && r.nextAt > now);
+  // In its corner, its entrance under way.
+  st.visitor = { id: "rv", pick: { dex: tr.team[0].dex, hp: 1 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, x: 1100, purse: 0,
+    halt: { kind: "trainer", x: 1100, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { ...tr, idx: 0, lives: 3, waited: true, introAt: now - 1000, greet: "Hey!", record: [1, 2] } };
+  st.render(cx);
+  assert.ok("rival-in-rv-bar0" in K.lefts && "rival-in-rv-say" in K.lefts, "its bars and challenge");
+});
