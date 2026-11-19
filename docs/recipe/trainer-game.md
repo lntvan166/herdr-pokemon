@@ -13,6 +13,11 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   ₽400, one called ₽100; up to ₽600 a day; fewer purses the more often visitors come) and tips
   (a pat that gives a heart ₽10, a spar set up by a drop ₽15, one watched ₽5; up to ₽200 a day).
   Prices are set from a working day (~₽3,000); anything sells back for half.
+- **Catch rates** (`trainer.js` `baseRate`, `FLEE`): a first stage 0.3, alone 0.22, a middle
+  one 0.18, a final one 0.1 (× (2 − its health), ×½ an Alpha), the ball and Berry as a power;
+  a miss, 12% it runs. A final one in the red: Poké Ball ~65% caught before it runs, Great ~75%,
+  Ultra ~81% (it was 0.45/0.35/0.3/0.2 and 5%: a Poké Ball caught that one 92% of the time, and
+  no other ball was worth it).
 - **Catching:** a visitor's first click takes its gift and purse; then, with a ball over its
   head, a click throws one: the chosen ball (Bag, menu, or right-click the visitor) or Auto
   (cheapest; an Ultra Ball for a shiny, an Alpha or a legendary; never a Master Ball: that one only when chosen, and once thrown the choice goes back to Auto). A Berry goes

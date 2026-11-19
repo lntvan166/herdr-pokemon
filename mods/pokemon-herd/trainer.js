@@ -74,7 +74,9 @@ export const BAIT = {
 export function baseRate(dex) {
   if (isLegendary(dex)) return LEGEND_RATE;
   const pre = EVOLVES_FROM[dex] !== undefined, next = evolutionsOf(dex).length > 0;
-  return !pre ? (next ? 0.45 : 0.35) : next ? 0.3 : 0.2;
+  // (Halved for most since the strip's battles: a Poké Ball at one in the red caught a final
+  // evolution 92% of the time, and nobody needed a Great Ball. Now ~65%, Great ~75%, Ultra ~81%.)
+  return !pre ? (next ? 0.3 : 0.22) : next ? 0.18 : 0.1;
 }
 // How likely `ball` catches `pick` ({ dex, hp? }), with `bait` fed first. Weakened (hp, 0..1, by
 // one of yours attacking it), the base rate rises: × (2 − hp), twice at a sliver of health.
@@ -248,9 +250,9 @@ export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null, move
 // The rest of the time it gets away.
 export const LEGEND_RATE = 0.03;
 export const LEGEND_THROWS = 20; // GO gives up to 20 Premier Balls for a raid boss
-// Any other breaks free and flees 1 time in 20 (half GO's: it walks off soon enough), else walks
+// Any other breaks free and flees about 1 time in 8 (more than the 1 in 20 of before: with only that, a better ball was never worth it), else walks
 // on for another ball.
-export const FLEE = 0.05;
+export const FLEE = 0.12;
 // One throw: { caught, shakes, fled } (the ball shakes three times before it clicks; fewer when it breaks out).
 export function throwBall(ball, pick, rnd = Math.random, bait = null, how = {}) {
   const caught = rnd() < catchChance(ball, pick, bait, how);

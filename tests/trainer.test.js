@@ -214,20 +214,24 @@ test("a caught Pokémon remembers its ball", () => {
 
 import { baseRate, FLEE } from "../mods/pokemon-herd/trainer.js";
 test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a power", () => {
-  assert.equal(baseRate(1), 0.45); // Bulbasaur, a first stage
-  assert.equal(baseRate(2), 0.3); // Ivysaur
-  assert.equal(baseRate(3), 0.2); // Venusaur
-  assert.equal(baseRate(128), 0.35); // Tauros, on its own
+  assert.equal(baseRate(1), 0.3); // Bulbasaur, a first stage
+  assert.equal(baseRate(2), 0.18); // Ivysaur
+  assert.equal(baseRate(3), 0.1); // Venusaur
+  assert.equal(baseRate(128), 0.22); // Tauros, on its own
   assert.equal(baseRate(150), 0.03);
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.45) < 1e-9);
-  assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - (1 - 0.55 ** 2)) < 1e-9);
-  assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.8 ** 2.25)) < 1e-9);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1 }) - 0.3) < 1e-9);
+  assert.ok(Math.abs(catchChance("ultra-ball", { dex: 1 }) - (1 - 0.7 ** 2)) < 1e-9);
+  assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.9 ** 2.25)) < 1e-9);
+  // A final evolution in the red: a better ball is worth it now (it fled 1 time in 20 before, and
+  // a Poké Ball caught it 92% of the time all the same).
+  const before = (ball) => { const p = catchChance(ball, { dex: 3, hp: 0.15 }); return p / (p + (1 - p) * FLEE); };
+  assert.ok(before("poke-ball") < 0.7 && before("ultra-ball") - before("poke-ball") > 0.1, `${before("poke-ball")} ${before("ultra-ball")}`);
   // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 20 balls).
   const seq = (...xs) => () => xs.shift();
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.02)).fled, true); // missed, then fled
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.5)).fled, false);
   assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.02)).fled, false);
-  assert.equal(FLEE, 0.05);
+  assert.equal(FLEE, 0.12);
 });
 
 import { ALPHA_ODDS, ALPHA_PURSE } from "../mods/pokemon-herd/trainer.js";
@@ -236,7 +240,7 @@ test("Alphas: now and then a wild one, harder to catch, a fatter purse; caught, 
   for (let i = 0; i < 4000; i++) if (wildPick(new Set(), Math.random).alpha) n++;
   assert.ok(n > 4000 / ALPHA_ODDS / 2 && n < 4000 / ALPHA_ODDS * 2, String(n));
   assert.ok(!wildPick(new Set(), () => 0, { legend: true }).alpha); // a legendary is never one
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1, alpha: true }) - 0.225) < 1e-9);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 1, alpha: true }) - 0.15) < 1e-9);
   assert.equal(purse({ dex: 1, alpha: true }), ALPHA_PURSE);
   const p = caughtPick({ dex: 1, alpha: true }, 5, () => 0);
   assert.equal(p.alpha, true);
@@ -261,7 +265,7 @@ test("weakening: hits as the games reckon them; weakened, easier to catch; it ha
   const small = gameDamage(25, 1, 80, isPhysicalKey(25), 0.5, 1); // Pikachu's electric on grass: ½
   const sliver = hitWild({ dex: 1, hp: small * 0.9 }, 25, () => 1);
   assert.ok(!sliver.fainted && sliver.hp > 0 && sliver.hp <= 0.05);
-  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.2 * 1.9) < 1e-9);
+  assert.ok(Math.abs(catchChance("poke-ball", { dex: 3, hp: 0.1 }) - 0.1 * 1.9) < 1e-9);
   assert.equal(catchChance("poke-ball", { dex: 3, hp: 1 }), catchChance("poke-ball", { dex: 3 }));
   assert.ok(catchChance("poke-ball", { dex: 1, hp: 0 }) <= 0.95);
 });
