@@ -2706,8 +2706,9 @@ export default class PokemonHerd extends View {
           return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
         // Its act's icon: a balloon centred over its head (as yours'), an emoji beside it.
+        // (A balloon kept below the corner's line, "… appeared!", which sits at the strip's top.)
         .when(!!actIcon, (el) => el.child(EMOTE_OF[actIcon]
-          ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 24))).child(emote(EMOTE_OF[actIcon]))
+          ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(Math.round(Math.max(22, ground - pose.box.h * scale - 24))).child(emote(EMOTE_OF[actIcon]))
           : div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 14))).text_size(13).font_bold().text_color(t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
@@ -4910,7 +4911,7 @@ export default class PokemonHerd extends View {
     // One just come in: "A wild Pikachu appeared!" on the side it walks in from, for APPEAR_MS (a
     // rare one has its own note on the right, below).
     const av = this.visitor;
-    if (av?.start && !av.leg && now - av.start < APPEAR_MS && !(rareOf(av.pick) && settingsNow().cryRare && av.dir === "l")) {
+    if (av?.start && !av.leg && now - av.start < APPEAR_MS && !av.trainer?.rival && !(rareOf(av.pick) && settingsNow().cryRare && av.dir === "l")) { // (the Rival: its own banner)
       const who = av.pick.legend ? "A legendary" : av.pick.alpha ? (av.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild";
       const text = av.trainer ? `${av.trainer.tower ? `🗼 Battle Tower, trainer ${av.trainer.tower}: ` : ""}${av.trainer.title} ${av.trainer.name} wants to battle!` : `${who} ${av.pick.shiny ? "✨ " : ""}${fullName(av.pick.dex, av.pick.form)} appeared!`;
       const note = div().id(`appear-${av.id}`).absolute().top(av.dir === "r" ? this.leftNotes(now) * 18 + 4 : 4).h(16).px(6).rounded(8)
