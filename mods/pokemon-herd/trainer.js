@@ -253,8 +253,8 @@ export const LEGEND_THROWS = 20; // GO gives up to 20 Premier Balls for a raid b
 // Any other breaks free and may flee, the likelier the more balls it has dodged: FLEE_STEP after
 // the first miss, twice after the second… FLEE_MAX at most (`how.throws`: thrown at it before this
 // one); else it walks on for another ball. (A flat 1 in 20 before: no ball but the Poké Ball was
-// worth it.) A final evolution in the red: Poké Ball ~65% caught before it runs, Great ~77%, Ultra ~84%.
-export const FLEE_STEP = 0.04, FLEE_MAX = 0.4;
+// worth it.) A final evolution in the red: Poké Ball ~79% caught before it runs, Great ~87%, Ultra ~91%.
+export const FLEE_STEP = 0.02, FLEE_MAX = 0.1;
 export const fleeAfter = (throws = 0) => Math.min(FLEE_MAX, FLEE_STEP * (throws + 1));
 // One throw: { caught, shakes, fled } (the ball shakes three times before it clicks; fewer when it breaks out).
 export function throwBall(ball, pick, rnd = Math.random, bait = null, how = {}) {

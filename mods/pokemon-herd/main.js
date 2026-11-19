@@ -5303,7 +5303,7 @@ export default class PokemonHerd extends View {
               .child(div().flex_1().min_w(0).text_size(11.5).text_color(t.dim).child(on ? "Thrown at every wild Pokémon, till you run out (then Auto)." : "Auto: the cheapest; an Ultra Ball for a shiny, an Alpha or a legendary; never the Master Ball (choose it yourself). Right-click a wild one to switch.")));
           })
           .when(ITEMS[sel].kind === "ball", (el) => el
-            .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: it may run, the likelier the more balls it has dodged (4% more each).`))
+            .child(div().text_size(12).text_color(t.muted).child(`Odds a throw: ${Math.round(100 * catchChance(sel, { dex: 1 }))}% for a first stage (Bulbasaur), ${Math.round(100 * catchChance(sel, { dex: 3 }))}% for a final one (Venusaur), ${Math.round(100 * catchChance(sel, { dex: 150 }))}% for a legendary. A miss: it may run, the likelier the more balls it has dodged (2% more each, 10% at most).`))
             .child(div().text_size(11.5).text_color(t.dim).child(b.items[sel] ? "Click a wild Pokémon on the strip once you have its gift: a ball over its head means one is ready." : "None in the Bag: the Shop has them, and the day's Research gives some.")))
           // A Berry for catching: set it to be fed before each ball (one each time, while there are some).
           .when(ITEMS[sel].kind === "bait", (el) => {

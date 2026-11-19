@@ -15,9 +15,9 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   Prices are set from a working day (~₽3,000); anything sells back for half.
 - **Catch rates** (`trainer.js` `baseRate`, `FLEE`): a first stage 0.3, alone 0.22, a middle
   one 0.18, a final one 0.1 (× (2 − its health), ×½ an Alpha), the ball and Berry as a power;
-  a miss, it may run, the likelier the more balls it has dodged (`fleeAfter`: 4% after the
-  first, 8% after the second… 40% at most). A final one in the red: Poké Ball ~65% caught before
-  it runs, Great ~77%, Ultra ~84%; a first stage in the red ~95% with a Poké Ball (it was
+  a miss, it may run, the likelier the more balls it has dodged (`fleeAfter`: 2% after the
+  first, 4% after the second… 10% at most). A final one in the red: Poké Ball ~79% caught before
+  it runs, Great ~87%, Ultra ~91%; a first stage in the red ~97% with a Poké Ball (it was
   0.45/0.35/0.3/0.2 and a flat 5%: a Poké Ball caught that final one 92% of the time, and no
   other ball was worth it).
 - **Catching:** a visitor's first click takes its gift and purse; then, with a ball over its

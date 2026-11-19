@@ -225,15 +225,15 @@ test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a powe
   // A final evolution in the red: a better ball is worth it now (it fled 1 time in 20 before, and
   // a Poké Ball caught it 92% of the time all the same).
   const before = (ball) => { const p = catchChance(ball, { dex: 3, hp: 0.15 }); let alive = 1, got = 0; for (let i = 0; i < 60; i++) { got += alive * p; alive *= (1 - p) * (1 - fleeAfter(i)); } return got; };
-  assert.ok(before("poke-ball") < 0.7 && before("ultra-ball") - before("poke-ball") > 0.1, `${before("poke-ball")} ${before("ultra-ball")}`);
+  assert.ok(before("poke-ball") < 0.85 && before("ultra-ball") - before("poke-ball") > 0.1, `${before("poke-ball")} ${before("ultra-ball")}`);
   // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 20 balls).
   const seq = (...xs) => () => xs.shift();
-  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.02)).fled, true); // missed, then fled
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.01)).fled, true); // missed, then fled
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.5)).fled, false);
-  // The likelier the more it has dodged: 4% after the first miss, 8% after the second… 40% at most.
-  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.06), null, { throws: 0 }).fled, false);
-  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.06), null, { throws: 1 }).fled, true);
-  assert.equal(fleeAfter(0), 0.04); assert.equal(fleeAfter(30), 0.4);
+  // The likelier the more it has dodged: 2% after the first miss, 4% after the second… 10% at most.
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.03), null, { throws: 0 }).fled, false);
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.03), null, { throws: 1 }).fled, true);
+  assert.equal(fleeAfter(0), 0.02); assert.equal(fleeAfter(30), 0.1);
   assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.02)).fled, false);
 
 });
