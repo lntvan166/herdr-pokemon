@@ -497,7 +497,7 @@ function fxBurst(id, style, p, x, y, first, seed) {
       .transition("opacity", { duration: 420, easing: "ease-in" })));
 }
 // The word the games say ("Super effective!"), popping up over (x, top) and fading.
-const fxWord = (id, [text, color], x, top, phase) => div().id(id).absolute().left(x - 70).w(140).top(phase === 0 ? top + 8 : top)
+const fxWord = (id, [text, color], x, top, phase) => div().id(id).absolute().left(x - 110).w(220).top(phase === 0 ? top + 8 : top) // (wide enough for an ability with it)
   .opacity(phase === 1 ? 1 : 0)
   .transition("top", { duration: 160, easing: "ease-out" }).transition("opacity", { duration: phase === 2 ? 260 : 120 })
   .flex().justify_center()
@@ -2476,14 +2476,6 @@ export default class PokemonHerd extends View {
       }
       // Its health bar, while it stands (fainted, it goes with it: it stayed, empty, as it sank).
       if (!v.fainted || now - v.fainted < 600) root.child(hpBar(x));
-      // The abilities that showed this exchange, over each one's head (as the games' banner).
-      const words = fx.words;
-      if (words && now < fx.until) {
-        const tag = (id, cx, list) => list.length && root.child(div().id(id).absolute().left(Math.max(2, Math.min(this.width - 132, cx - 65))).top(wordTop(headY, 14, 18)).w(130)
-          .flex().justify_center().child(div().px(5).h(14).rounded(7).bg("#000000c0").flex().items_center().text_size(9.5).font_semibold().text_color("#ffe08a").child(list.join(" · "))));
-        tag(`abil-wild-${v.id}-${fx.at}`, x, words.wild);
-        tag(`abil-own-${v.id}-${fx.at}`, fx.ownX ?? x, words.own);
-      }
       // A trainer's: it stands behind its Pokémon, watching.
       // Beaten: its words in a bubble, its pay rising off the field, then it turns and walks out
       // of the strip (WIN_WALK_AT after, over WIN_WALK_MS); the one of yours that won cheers (care).
@@ -3451,11 +3443,14 @@ export default class PokemonHerd extends View {
         const slotOf = list[dj].pane || list[dj].address;
         this.wildAbil(v);
         const ownAb = abilityOf(pk, slotOf), wildAb = abilityOf(v.pick, v.id);
-        const words = { own: [], wild: [] }; // the abilities that showed, said over their heads
+        // The abilities that showed: put in the words of the hit they touched (as they meet: the
+        // first hit's), each once while these two face each other (Sharpness said every blow
+        // was noise over the fight).
+        const words = { meet: [], hit: [], back: [] };
         if (!v.abil || v.abil.own !== drop.addr) {
           v.abil = { own: drop.addr, idx: v.trainer?.idx ?? -1, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);
-          words.own.push(...m0.a); words.wild.push(...m0.b);
+          words.meet.push(...m0.a, ...m0.b);
         } else if (v.abil.idx !== (v.trainer?.idx ?? -1)) {
           // The trainer's next one out, yours still in: yours keeps its stages (Moxie's); only the
           // newcomer's Intimidate and the like show (yours showed as it came in).
@@ -3465,7 +3460,7 @@ export default class PokemonHerd extends View {
           if (mine === "intimidate") v.abil.o.ab = "";
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.o.ab = mine;
-          words.own.push(...m0.a); words.wild.push(...m0.b);
+          words.meet.push(...m0.a, ...m0.b);
         }
         const so = v.abil.o, sw = v.abil.w;
         so.hp = ownHp(dm, now); sw.hp = hp;
@@ -3484,11 +3479,11 @@ export default class PokemonHerd extends View {
         const r1 = onHit(so, sw, om, { weather, missRate: missOf(om.name) });
         const omHit = { ...om, miss: r1.miss, crit: r1.crit };
         let hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
-        if (hit.fainted && sturdyHolds(sw, hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.wild.push("sturdy"); }
+        if (hit.fainted && sturdyHolds(sw, hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("sturdy"); }
         if (r1.heal) hit = { ...hit, hp: Math.min(1, hp + r1.heal) };
-        words.own.push(...r1.said.att); words.wild.push(...r1.said.def);
+        words.hit.push(...r1.said.att, ...r1.said.def);
         const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
-        words.own.push(...a1.att); words.wild.push(...a1.def);
+        words.hit.push(...a1.att, ...a1.def);
         sw.hp = hit.hp;
         if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
@@ -3498,15 +3493,15 @@ export default class PokemonHerd extends View {
         if (!(hit.fainted && !wildFirst)) {
           const r2 = onHit(sw, so, wm, { weather, missRate: missOf(wm.name) });
           back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
-          if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.own.push("sturdy"); }
+          if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.back.push("sturdy"); }
           if (r2.heal) back = { ...back, hp: Math.min(1, ownBefore + r2.heal) };
           if (r2.miss) back.text = "It missed!";
-          words.wild.push(...r2.said.att); words.own.push(...r2.said.def);
+          words.back.push(...r2.said.att, ...r2.said.def);
           const a2 = afterHit(sw, so, wm, { ...r2, fainted: back.fainted }, r2.type);
-          words.wild.push(...a2.att); words.own.push(...a2.def);
+          words.back.push(...a2.att, ...a2.def);
           so.hp = back.hp;
         }
-        words.own.push(...endTurn(so)); words.wild.push(...endTurn(sw));
+        words.back.push(...endTurn(so), ...endTurn(sw));
         // It struck first and yours fainted: yours never got its move off.
         const ownStrikes = !(wildFirst && back?.fainted);
         if (!ownStrikes) hit = { hp: Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: false };
@@ -3554,16 +3549,21 @@ export default class PokemonHerd extends View {
           blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || omHit.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, omHit.crit), miss: omHit.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type, name: om.name },
         };
         if (!ownStrikes) v.fight.blow = null; // (fainted first: no move of its own)
-        // Its ability and the other's, said over their heads as they show (the games' ability
-        // banner): as they meet, and as the blow lands.
-        const said = (keys) => [...new Set(keys)].filter(Boolean).map((k) => abilityName(k)).filter(Boolean);
-        v.fight.words = { own: said(words.own), wild: said(words.wild), at: Math.min(hitAt, backHit ?? hitAt) };
+        // The abilities, in the words of the hit they touched ("Super effective! · Levitate"), each
+        // once while these two face each other (v.abil.shown); as they meet: the first hit's.
+        const shown = (v.abil.shown ??= []);
+        const said = (keys) => { const out = [...new Set(keys)].filter((k) => k && !shown.includes(k)); shown.push(...out); return out.map(abilityName).filter(Boolean); };
+        const first = wildFirst ? "back" : "hit";
+        const named = { hit: said([...(first === "hit" ? words.meet : []), ...words.hit]), back: said([...(first === "back" ? words.meet : []), ...words.back]) };
+        const withAbil = (word, names) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), "#ffe08a"]);
+        if (v.fight.blow) v.fight.blow.word = withAbil(v.fight.blow.word, named.hit);
+        else if (named.hit.length) named.back.unshift(...named.hit);
         const ownAt = ownLaunch - CHARGE_MS - 20; // it gathers power (after the wild one's blow, slower)
         const seq = ownStrikes ? [{ at: ownAt, until: ownAt + ms, anim: sp }] : [];
         if (back) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
         const reactEnd = Math.max(back ? backHit + 700 : 0, ownStrikes ? ownAt + ms + 300 : 0);
         dm.react = { seq, until: reactEnd, face: dm.dir, ...(ownStrikes ? { shot: { at: ownLaunch, until: hitAt, from: spot, to: v.x, move: ownMove } } : {}) };
-        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: blowWord(back.eff, wm.crit), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
+        if (back) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: withAbil(blowWord(back.eff, wm.crit), named.back), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
       }

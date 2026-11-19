@@ -654,8 +654,8 @@ test("a trainer's balls always show: walking in, and no tag over them", () => {
 });
 
 // Abilities in a battle: yours a Gyarados (Intimidate), the wild one a Snorlax with Thick Fat:
-// said over their heads as they meet and as the blow lands.
-test("abilities in a fight: Intimidate as they meet, said over its head", () => {
+// said in the first hit's words (no tag of their own over the fight), once each.
+test("abilities in a fight: Intimidate as they meet, in the first hit's words, once", () => {
   seed();
   setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 130, jobs: 3, abil: 0 } });
   const st = view({ rows: 1, scale: 0.75 });
@@ -671,9 +671,18 @@ test("abilities in a fight: Intimidate as they meet, said over its head", () => 
   st.tick(cx);
   const fx = st.visitor.fight;
   assert.ok(fx, "a fight");
-  assert.ok(fx.words.own.includes("Intimidate"), JSON.stringify(fx.words));
+  const said = [fx.blow?.word?.[0], st.mons.t0.blows?.at(-1)?.word?.[0]].join(" | ");
+  assert.match(said, /Intimidate/);
   assert.equal(st.visitor.abil.w.st.atk, -1, "Snorlax's Attack a stage down");
   st.render(cx);
+  assert.ok(!Object.keys(K.tops).some((k) => k.startsWith("abil-")), "no ability tag over the fight");
+  // The next exchange: Intimidate isn't said again.
+  st.visitor.fight = null; st.mons.t0.restUntil = 0; st.mons.t0.battleUntil = 0; st.mons.t0.blows = [];
+  Object.assign(st.mons.t0, { x: 560, moving: false });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const again = [st.visitor.fight?.blow?.word?.[0], st.mons.t0.blows?.at(-1)?.word?.[0]].join(" | ");
+  assert.doesNotMatch(again, /Intimidate/);
 });
 
 // A big one whose head nears the strip's top: its move's name and its ability over its head go
@@ -688,11 +697,11 @@ test("a big one's words keep off its health bar", () => {
   const now = Date.now();
   st.visitor = { id: "big", pick: { dex: 143, hp: 0.6 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
     fight: { at: now - 500, hitAt: now - 300, backAt: now - 100, backLaunch: now + 100, backHit: now + 400, until: now + 2000, x: 800, ownX: 700, own: "t0", hp: 0.6,
-      back: { hp: 0.5 }, wildMove: { type: "normal", name: "Body Slam", physical: true }, ownMove: { type: "fire", name: "Ember" }, words: { own: ["Intimidate"], wild: ["Thick Fat"], at: now } } };
+      back: { hp: 0.5 }, wildMove: { type: "normal", name: "Body Slam", physical: true }, ownMove: { type: "fire", name: "Ember" } } };
   st.render(cx);
   st.render(cx); // (the move's name: in place from the second draw)
-  const [abil, move] = ["abil-wild-big-" + st.visitor.fight.at, "mvw-big-" + st.visitor.fight.at].map((k) => K.tops[k]);
-  // No room above (its head near the top): the move's name just under its bar (bar + 7), the
-  // ability under that (+18), never pinned to the top on the bar (2, before).
-  assert.ok(move > 2 && abil - move === 18, `move at ${move}, ability at ${abil}`);
+  const move = K.tops["mvw-big-" + st.visitor.fight.at];
+  // No room above (its head near the top): the move's name just under its bar (bar + 7), never
+  // pinned to the top on the bar (2, before).
+  assert.ok(move > 2, `move at ${move}`);
 });
