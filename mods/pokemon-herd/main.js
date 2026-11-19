@@ -3109,7 +3109,7 @@ export default class PokemonHerd extends View {
       if (festNew) { onCelebrate(m, now, has, msOf); m.pauseUntil = m.react.until + rand(500, 2000); changed = true; }
       // Asleep, it stirs now and then: up a little while, then back to sleep.
       if (onStir(m, effectiveMood(raw, m, now), now, nightness(date.getHours() + date.getMinutes() / 60) >= 0.5, has, msOf)) changed = true;
-      const mood = effectiveMood(raw, m, now);
+      const mood = dev?.moodFor?.(i, now) ?? effectiveMood(raw, m, now); // (dev.js "moods": a demo of the balloons)
       if (mood !== m.mood) { m.mood = mood; changed = true; }
       const reacting = !!m.react && now < m.react.until;
       if (reacting) changed = true; // its sprite goes from the animation to facing you
