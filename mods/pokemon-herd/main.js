@@ -5385,11 +5385,11 @@ export default class PokemonHerd extends View {
         .child(v_flex().gap(3).items_end().flex_none()
           .child(h_flex().gap(12).items_center()
             .child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(money(b.money)))
-            .child(div().text_size(11.5).text_color(t.muted).child(`${s.jobs} jobs · ${duration(s.ms)} worked`))
             .child(div().text_size(11).text_color(t.dim).child("Esc")))
-          // Who did the most: the three species with the most jobs.
-          .when(s.top.length > 0, (el) => el.child(div().text_size(11.5).text_color(t.muted)
-            .child(`Most jobs: ${s.top.map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(" · ")}`)))))
+          // The work done, and who did the most (the two species with the most jobs). (Its own line:
+          // beside the money, it ran into the tabs once Day Care made them longer.)
+          .child(div().text_size(11.5).text_color(t.muted)
+            .child(`${s.jobs} jobs · ${duration(s.ms)} worked${s.top.length ? ` · most: ${s.top.slice(0, 2).map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(", ")}` : ""}`))))
       // Just released or sold: Undo, for 10 s (not once the money's been spent).
       .when(!!this.undo && Date.now() - this.undo.at < UNDO_MS, (el) => {
         const u = this.undo, can = (b.money ?? 0) >= u.money;
@@ -5639,12 +5639,13 @@ export default class PokemonHerd extends View {
     const pill = (id, text, click) => div().id(id).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
       .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { click(); cx.notify(); }).child(text);
     // One of the two: who, its ability; Take back.
-    const parent = (x, i) => v_flex().flex_1().min_w(0).h(112).p(10).gap(4).rounded(10).bg(t.raised).items_center().justify_center()
+    // (Each line flex_none: in a box too short they were squeezed to nothing, names and all.)
+    const parent = (x, i) => v_flex().flex_1().min_w(0).h(144).p(10).gap(3).rounded(10).bg(t.raised).items_center().justify_center()
       .when(!x, (el) => el.child(div().text_size(12).text_color(t.dim).child(i === 0 ? "Empty: pick one below" : "Empty: pick its partner below")))
       .when(!!x, (el) => el.child(icon(x.pick, 48))
-        .child(div().text_size(12.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(label(x.pick))))
-        .child(div().text_size(10.5).text_color(t.muted).truncate().child(abilityName(abilityOf(x.pick, x.slot))))
-        .child(pill(`care-out-${x.slot}`, "Take back", () => set(care.pair.filter((k) => k !== x.slot)))));
+        .child(div().flex_none().max_w_full().text_size(12.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(label(x.pick))))
+        .child(div().flex_none().max_w_full().text_size(10.5).text_color(t.muted).truncate().child(abilityName(abilityOf(x.pick, x.slot))))
+        .child(div().flex_none().mt(2).child(pill(`care-out-${x.slot}`, "Take back", () => set(care.pair.filter((k) => k !== x.slot))))));
     const egg = care.egg;
     const left = egg ? Math.max(0, Math.ceil((egg.need - egg.done) / (warm ? 2 : 1))) : 0;
     const state = egg ? `An egg! ${Math.floor(egg.done)} of ${egg.need} min of your agents' work: about ${left} more${warm ? " (Flame Body on the strip: twice as fast)" : ""}.`
