@@ -603,3 +603,19 @@ test("the Day Care: a pair from the Box, an egg hatching into it", () => {
   st.render(cx); // "🥚 Riolu hatched · in the Box"
   view({ bag: true, tab: "box", sel: born[0] }).render(cx);
 });
+
+// A wild one first drawn late (its picture came in after it set off): drawn where it has got to,
+// not at the edge (from there it crossed the whole strip in what was left of its walk, flying).
+test("a wild one drawn late starts where it has walked to by now", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  const now = Date.now();
+  st.visitor = { id: "late", pick: { dex: 132, hp: 1 }, dir: "l", row: 0, from: 1000, to: 0, start: now - 20000, dur: 40000, purse: 0 };
+  st.render(cx);
+  const mid = 128 / 2, x = K.lefts["visitor-late-0"] + mid;
+  assert.ok(Math.abs(x - 500) < 20, `drawn at ${x}, where it is by now: ~500`);
+});

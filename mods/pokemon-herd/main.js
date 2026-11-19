@@ -2564,7 +2564,10 @@ export default class PokemonHerd extends View {
     // Stopped for its act (wildacts.js): standing (asleep, for a nap) where it stopped, facing
     // whom it stopped by; an icon over its head (😜 💢 ❗ 💗 ❓ ☀️ zZ). Dashing or running off: 💨 😜.
     const halt = v.halt;
-    const left = halt ? halt.x : placed ? v.to : v.from;
+    // First drawn late (its picture came in after it set off: a strip that had to fetch it), it
+    // starts where it has got to by now, not at the edge: from the edge it crossed the whole strip
+    // in what was left of its walk, flying.
+    const left = halt ? halt.x : placed ? v.to : v.from + (v.to - v.from) * clamp((now - v.start) / v.dur, 0, 1);
     const leg = halt ? `${v.leg ?? 0}h` : v.leg ?? 0;
     // A trainer's Pokémon that just won (one of yours down to it): it cheers (Dance or Hop).
     const cheering = !!v.trainer?.gloat && now - v.trainer.gloat < WIN_SAY_MS;

@@ -3,6 +3,7 @@
 // `handlers` ("<id>:<event>"), so a test can click it.
 export const handlers = {};
 export const stats = { els: 0 };
+export const lefts = {}; // "<id>": the last left(x) set on it, for where a test finds it drawn
 function mk() {
   stats.els++;
   let id = null;
@@ -11,6 +12,7 @@ function mk() {
       if (k === "then") return undefined;
       if (k === "when") return (c, f) => (c ? f(p) : p);
       if (k === "id") return (x) => { id = x; return p; };
+      if (k === "left") return (x) => { if (id != null) lefts[id] = x; return p; };
       if (k === "children") return (arr) => { for (const c of arr ?? []) void c; return p; };
       if (k === "on_click" || k === "on_item_click" || k === "on_mouse_down" || k === "on_hover") {
         return (...a) => { const f = a[a.length - 1]; if (id != null) handlers[`${id}:${k}${a.length > 1 ? `:${a[0]}` : ""}`] = f; return p; };
