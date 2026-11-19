@@ -84,7 +84,7 @@ test("what hatches: a Box Pokémon with two hearts, its moves, marked hatched", 
   const p = hatchPick({ dex: 4, moves: ["Ember"], need: 60, done: 60, at: 0 }, 5, { shiny: true, gender: "f", size: 1.1, nature: "calm" });
   assert.deepEqual([p.dex, p.shiny, p.hearts, p.gender, p.size, p.nature, p.hatched, p.caught], [4, true, 2, "f", 1.1, "calm", true, 5]);
   assert.deepEqual(p.moves, ["Ember"]);
-  assert.deepEqual(loadCare(null), { v: 1, pair: [], left: 0, egg: null, hatched: 0 });
+  assert.deepEqual(loadCare(null), { v: 1, pair: [], left: 0, egg: null, hatched: 0, born: [] });
   const kept = loadPicks({ v: 2, panes: { "box-5-4": p } }).panes["box-5-4"];
   assert.deepEqual([kept.hatched, kept.moves, kept.gender, kept.nature], [true, ["Ember"], "f", "calm"]);
 });

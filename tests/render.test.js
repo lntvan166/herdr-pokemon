@@ -755,3 +755,29 @@ test("a walking wild one keeps its leg through ordinary redraws", () => {
   st.render(cx);
   assert.equal(st.visitor.leg, 1, "set off again from where it is");
 });
+
+// The Bag's Day Care tab: empty, its candidates; one left there from it, its partners; Take back;
+// a hatched one a click away from its card in the Box.
+test("the Day Care tab: leave two, take one back, the hatched ones", () => {
+  seed();
+  const CARE = `${ids.MOD}-daycare`;
+  setPanes({ ...H.store.get(ids.MOD).panes, "box-1-133": { dex: 133, gender: "m", hearts: 2 }, "box-3-448": { dex: 448, gender: "f", hearts: 1 }, "box-9-132": { dex: 132, caught: 5 } });
+  const v = view({ bag: true, tab: "care" });
+  v.render(cx);
+  assert.ok(K.handlers["care-in-box-9-132:on_click"], "Ditto offered");
+  click("care-in-box-1-133:on_click");
+  assert.deepEqual(H.store.get(CARE).pair, ["box-1-133"]);
+  v.render(cx);
+  assert.ok(K.handlers["care-in-box-3-448:on_click"], "Lucario ♀ offered for Eevee ♂");
+  click("care-in-box-3-448:on_click");
+  assert.deepEqual(H.store.get(CARE).pair, ["box-1-133", "box-3-448"]);
+  v.render(cx);
+  click("care-out-box-1-133:on_click");
+  assert.deepEqual(H.store.get(CARE).pair, ["box-3-448"]);
+  // An egg, and one hatched before.
+  H.store.set(CARE, { v: 1, pair: ["box-1-133", "box-3-448"], egg: { dex: 133, need: 60, done: 20, at: 1 }, hatched: 1, born: [{ dex: 448, slot: "box-3-448", at: 1 }] });
+  v.render(cx);
+  click("care-born-box-3-448:on_click");
+  assert.equal(v.bagTab, "box");
+  assert.equal(v.boxSel, "box-3-448");
+});

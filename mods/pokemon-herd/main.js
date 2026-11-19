@@ -70,7 +70,7 @@ import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
-import { loadCare, careWork, hatchPick, canBreed, whyNot, LAY_MIN } from "./breed.js";
+import { loadCare, careWork, hatchPick, canBreed, whyNot, LAY_MIN, LAY, hatchMinutes, groupsOf, BORN_KEPT } from "./breed.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL, ensureTrainer } from "./sprites.js";
 import { ensureScene } from "./sprites.js";
@@ -2027,7 +2027,7 @@ export default class PokemonHerd extends View {
       savePicks({ [slot]: pick });
       saveDex(withCaught(pokedex(), pick));
       payDexGoals();
-      next = { ...next, last: { dex, shiny: pick.shiny, at: now, slot } };
+      next = { ...next, last: { dex, shiny: pick.shiny, at: now, slot }, born: [...next.born, { dex, slot, at: now, ...(pick.shiny ? { shiny: true } : {}) }].slice(-BORN_KEPT) };
     }
     setShared(CARE_KEY, next);
   }
@@ -5058,7 +5058,7 @@ export default class PokemonHerd extends View {
   // lightness step up (raised), no borders; the one primary control is ink on paper (solid).
 
   initBag(cx) {
-    this.bagTab = ["box", "shop", "today", "dex"].includes(props()?.tab) ? props().tab : "items";
+    this.bagTab = ["box", "shop", "today", "dex", "care"].includes(props()?.tab) ? props().tab : "items";
     const sel = props()?.sel && savedPicks()[props().sel];
     if (sel) { this.boxSel = props().sel; this.sprites ??= {}; this.want(boxLook(sel), cx); }
     // Renaming one in the Box: its slot, and the field (Enter saves; empty clears the name).
@@ -5375,7 +5375,7 @@ export default class PokemonHerd extends View {
       .child(h_flex().items_start().justify_between().gap(12).flex_none()
         .child(v_flex().min_w(0).gap(3)
           // Items | Box: what's in the Bag, or the Pokémon raised whose agents are gone.
-          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"], ["today", `Today ${daily.tasks.filter((x) => x.n >= x.goal).length}/${daily.tasks.length}`], ["dex", "Pokédex"]].map(([k, txt]) => div()
+          .child(h_flex().gap(14).items_center().children([["items", "Bag"], ["box", `Box ${boxed.length}`], ["shop", "Shop"], ["today", `Today ${daily.tasks.filter((x) => x.n >= x.goal).length}/${daily.tasks.length}`], ["dex", "Pokédex"], ["care", loadCare(shared(CARE_KEY)).egg ? "Day Care 🥚" : "Day Care"]].map(([k, txt]) => div()
             .id(`bag-tab-${k}`).text_size(15).cursor_pointer()
             .when(tab === k, (el) => el.font_semibold().text_color(t.foreground))
             .when(tab !== k, (el) => el.text_color(t.dim).hover((st) => st.text_color(t.muted)))
@@ -5405,6 +5405,7 @@ export default class PokemonHerd extends View {
       .when(tab === "shop", (el) => el.child(this.renderShop(b, LIST_H, t, art)))
       .when(tab === "today", (el) => el.child(this.renderToday(daily, LIST_H, t, art)))
       .when(tab === "dex", (el) => el.child(this.renderDex(LIST_H, t, art)))
+      .when(tab === "care", (el) => el.child(this.renderCare(boxed, LIST_H, t, icon)))
       .when(tab === "items", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
         .child(v_flex().id("bag-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
@@ -5615,12 +5616,69 @@ export default class PokemonHerd extends View {
       : there.length < 2 ? (there.length ? "leave one more to have an egg" : "")
       : how ? `${how === "same" ? "they get along very well" : "they get along"}: a chance at an egg every ${LAY_MIN} min of work`
       : `no eggs: ${whyNot(there[0].pick, there[1].pick)}`;
-    return h_flex().gap(8).items_center().flex_none().px(8).h(28).rounded(6).bg(t.raised)
+    return h_flex().id("box-care-line").gap(8).items_center().flex_none().px(8).h(28).rounded(6).bg(t.raised)
+      .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { this.bagTab = "care"; cx.notify(); }) // the Day Care tab
       .child(div().text_size(12).child("🥚"))
       .when(!!egg, (el) => el.child(div().w(70).h(6).flex_none().rounded_full().bg(t.border).overflow_hidden()
         .child(div().h_full().w(70 * Math.min(1, egg.done / egg.need)).bg(t.accent))))
       .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted)
         .child([who ? `Day Care: ${who}` : "Day Care", state].filter(Boolean).join(" · ")));
+  }
+
+  // The Bag's Day Care tab: the two left there (from the Box), whether they can have an egg, the
+  // egg's way to hatching (in minutes of your agents' work), those in the Box that would do (a click
+  // leaves one there), and the last few hatched (a click: its card in the Box).
+  renderCare(boxed, h, t, icon) {
+    const care = loadCare(shared(CARE_KEY));
+    const there = care.pair.map((k) => boxed.find((x) => x.slot === k)).filter(Boolean);
+    const set = (pair) => { const c = loadCare(shared(CARE_KEY)); setShared(CARE_KEY, { ...c, pair, left: 0 }); };
+    const how = there.length === 2 ? canBreed(there[0].pick, there[1].pick) : null;
+    const all = savedPicks();
+    const warm = herdAgents().some((a) => a.pane && all[a.pane] && ["flame-body", "magma-armor", "steam-engine"].includes(abilityOf(all[a.pane], a.pane)));
+    const label = (p) => `${p.shiny ? "✨ " : ""}${nameFor(p)}${p.gender ? ` ${genderMark(p.gender)}` : ""}`;
+    const pill = (id, text, click) => div().id(id).h(24).px(10).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+      .border_color(t.border).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { click(); cx.notify(); }).child(text);
+    // One of the two: who, its ability; Take back.
+    const parent = (x, i) => v_flex().flex_1().min_w(0).h(112).p(10).gap(4).rounded(10).bg(t.raised).items_center().justify_center()
+      .when(!x, (el) => el.child(div().text_size(12).text_color(t.dim).child(i === 0 ? "Empty: pick one below" : "Empty: pick its partner below")))
+      .when(!!x, (el) => el.child(icon(x.pick, 48))
+        .child(div().text_size(12.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(label(x.pick))))
+        .child(div().text_size(10.5).text_color(t.muted).truncate().child(abilityName(abilityOf(x.pick, x.slot))))
+        .child(pill(`care-out-${x.slot}`, "Take back", () => set(care.pair.filter((k) => k !== x.slot)))));
+    const egg = care.egg;
+    const left = egg ? Math.max(0, Math.ceil((egg.need - egg.done) / (warm ? 2 : 1))) : 0;
+    const state = egg ? `An egg! ${Math.floor(egg.done)} of ${egg.need} min of your agents' work: about ${left} more${warm ? " (Flame Body on the strip: twice as fast)" : ""}.`
+      : there.length < 2 ? "Leave two here: a ♂ and a ♀ of the same egg group, or any one with a Ditto."
+      : how ? `${how === "same" ? "They get along very well" : "They get along"}: every ${LAY_MIN} min of your agents' work, a ${Math.round(LAY[how] * 100)}% chance of an egg.`
+      : `No eggs: ${whyNot(there[0].pick, there[1].pick)}.`;
+    // Those in the Box that would do: with one there, its partners (the same species first); with
+    // none, any that can have eggs (Ditto first). A click leaves it there.
+    const one = there.length === 1 ? there[0] : null;
+    const DITTO = { dex: 132 };
+    const fit = there.length >= 2 ? [] : boxed.filter((x) => !care.pair.includes(x.slot) && (one ? canBreed(one.pick, x.pick) : x.pick.dex === 132 || canBreed(x.pick, DITTO)))
+      .sort((a, b) => (one ? (b.pick.dex === one.pick.dex) - (a.pick.dex === one.pick.dex) : (b.pick.dex === 132) - (a.pick.dex === 132)) || (b.pick.caught ?? 0) - (a.pick.caught ?? 0))
+      .slice(0, 24);
+    const cand = (x) => div().id(`care-in-${x.slot}`).w(84).h(80).flex_none().rounded(8).flex().flex_col().items_center().justify_center().gap(2)
+      .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { set([...care.pair.filter((k) => all[k]), x.slot].slice(-2)); cx.notify(); })
+      .child(icon(x.pick, 40))
+      .child(div().w_full().px(3).text_center().truncate().text_size(10.5).text_color(t.foreground).child(sparkled(label(x.pick))));
+    const born = [...care.born].reverse().filter((b) => all[b.slot]);
+    return v_flex().id("bag-care").flex_none().h(h).gap(10)
+      .child(h_flex().gap(10).flex_none().child(parent(there[0], 0)).child(div().text_size(20).child("❤")).child(parent(there[1], 1)))
+      .child(h_flex().gap(10).items_center().flex_none().px(10).py(8).rounded(8).bg(t.raised)
+        .child(div().text_size(18).child(egg ? "🥚" : "🏡"))
+        .child(v_flex().flex_1().min_w(0).gap(4)
+          .child(div().text_size(12).text_color(t.foreground).child(state))
+          .when(!!egg, (el) => el.child(div().w_full().h(6).rounded_full().bg(t.border).overflow_hidden()
+            .child(div().h_full().w(Math.round(Math.min(1, egg.done / egg.need) * 460)).bg(t.accent))))))
+      .when(there.length < 2, (el) => el.child(div().text_size(11.5).text_color(t.muted).flex_none()
+        .child(fit.length ? (one ? `In the Box, partners for ${nameFor(one.pick)}:` : "In the Box, ones that can have eggs:") : one ? `None in the Box can have an egg with ${nameFor(one.pick)}.` : "None in the Box can have eggs yet.")))
+      .when(fit.length > 0, (el) => el.child(div().id("care-fit").flex_1().min_h(0).overflow_y_scrollbar().child(h_flex().flex_wrap().gap(4).children(fit.map(cand)))))
+      .when(born.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
+        .child(div().text_size(11.5).text_color(t.muted).child(`Hatched here: ${care.hatched}`))
+        .child(h_flex().gap(6).flex_wrap().children(born.map((b) => div().id(`care-born-${b.slot}`).h(26).px(8).gap(6).rounded(6).flex().items_center().border_1().border_color(t.border)
+          .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { this.bagTab = "box"; this.boxSel = b.slot; cx.notify(); })
+          .child(icon(all[b.slot], 20)).child(div().text_size(11.5).text_color(t.foreground).child(sparkled(`${b.shiny ? "✨ " : ""}${nameFor(all[b.slot])}`))))))));
   }
 
   renderBox(boxed, h, t, icon, herd = []) {

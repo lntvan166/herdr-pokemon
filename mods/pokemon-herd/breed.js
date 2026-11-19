@@ -20,6 +20,7 @@ export const LAY_MIN = 15; // minutes of work between tries
 export const LAY = { same: 0.5, other: 0.2 }; // the chance each try: the same species, or not
 export const HATCH_PER_CYCLE = 3; // minutes of work per egg cycle
 export const HATCH_MIN = 15, HATCH_MAX = 240;
+export const BORN_KEPT = 6;
 // Where a line's babies hatch as both kinds: Nidoran ♀ (♂ too), Illumise (Volbeat too), Manaphy
 // (Phione).
 const BOTH = { 29: [29, 32], 314: [314, 313], 490: [489] };
@@ -92,7 +93,9 @@ export function loadCare(raw) {
   const egg = e && Number.isInteger(e.dex) && Number.isFinite(e.need) ? { dex: e.dex, ...([0, 1, 2].includes(e.abil) ? { abil: e.abil } : {}), ...(Array.isArray(e.moves) && e.moves.length ? { moves: e.moves.filter((n) => typeof n === "string").slice(0, 4) } : {}), need: e.need, done: Math.max(0, Number(e.done) || 0), at: Number(e.at) || 0 } : null;
   const l = ok ? raw.last : null; // the last one hatched: { dex, shiny, at } (the strip says so a while)
   const last = l && Number.isInteger(l.dex) && Number.isFinite(l.at) ? { dex: l.dex, shiny: l.shiny === true, at: l.at, ...(typeof l.slot === "string" ? { slot: l.slot } : {}) } : null;
-  return { v: 1, pair, left: ok && Number.isFinite(raw.left) ? Math.max(0, raw.left) : 0, egg, hatched: ok && Number.isInteger(raw.hatched) ? raw.hatched : 0, ...(last ? { last } : {}) };
+  // The last ones hatched (BORN_KEPT at most): { dex, slot, at, shiny }, for the Day Care tab.
+  const born = ok && Array.isArray(raw.born) ? raw.born.filter((x) => Number.isInteger(x?.dex) && typeof x.slot === "string").slice(-BORN_KEPT).map((x) => ({ dex: x.dex, slot: x.slot, at: Number(x.at) || 0, ...(x.shiny === true ? { shiny: true } : {}) })) : [];
+  return { v: 1, pair, left: ok && Number.isFinite(raw.left) ? Math.max(0, raw.left) : 0, egg, hatched: ok && Number.isInteger(raw.hatched) ? raw.hatched : 0, ...(last ? { last } : {}), born };
 }
 
 // `minutes` more of your agents' work: the egg nearer hatching, or, with none, tries to lay.
