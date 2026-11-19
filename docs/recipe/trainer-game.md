@@ -316,3 +316,12 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   its steps a GIF (walk1, stand, walk2, stand) and each facing right. It walks in and out on its
   steps; throwing its ball (`sentOut`: its first Pokémon as it arrives, and each next one) it
   shows its throwing picture till the ball opens.
+- **Badges** (`items.js` `BADGES`, `badges`, `perks`; main.js `perkNow`, `liveForBadges`): eight,
+  for the game's own goals (10 jobs; 10 kinds caught; a Pokémon evolved; 100 jobs; one with 5
+  hearts; 10 trainers beaten, `marks.trainers`; the Battle Tower's 7th floor; 150 kinds caught):
+  the old 24 h of work, a job over an hour and one between midnight and 5 asked for long and late
+  work. Once earned (its gift came: `marks.seen`), kept whatever its goal is now. Each a perk for
+  good, small (as the games' stat boosts): Boulder physical moves +3%, Volcano special +3%,
+  Thunder takes 3% less, Soul Speed +3%, Cascade catching ×1.05, Rainbow the Shop 5% off
+  (`shopPrice`), Marsh trainers pay +10%, Earth shinies ×1.25 likelier. The Bag's badge line,
+  hovered: its goal, what's left, its perk.

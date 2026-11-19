@@ -84,13 +84,14 @@ export function sell(bag, id, n = 1) {
 export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });
 
 // The bag after buying one `id`, or null: not enough money, or already MAX_ITEM.
-export function buy(bag, id, n = 1) {
-  const price = PRICE[id];
+// `price`: what one costs now (a perk's discount: shopPrice), else its list price.
+export const shopPrice = (id, discount = 1) => (PRICE[id] ? Math.max(1, Math.round(PRICE[id] * discount)) : 0);
+export function buy(bag, id, n = 1, price = PRICE[id]) {
   if (!price || n < 1 || (bag.money ?? 0) < price * n || (bag.items[id] ?? 0) + n > MAX_ITEM) return null;
   return addItem(addMoney(bag, -price * n), id, n);
 }
 // The most of `id` the Bag can take and the money buy (0: none).
-export const maxBuy = (bag, id) => (PRICE[id] ? Math.max(0, Math.min(MAX_ITEM - (bag.items[id] ?? 0), Math.floor((bag.money ?? 0) / PRICE[id]))) : 0);
+export const maxBuy = (bag, id, price = PRICE[id]) => (price ? Math.max(0, Math.min(MAX_ITEM - (bag.items[id] ?? 0), Math.floor((bag.money ?? 0) / price))) : 0);
 
 // The Bag's and the Shop's groups, in order: each item in one.
 export const GROUPS = [
@@ -218,7 +219,7 @@ export function loadBag(raw) {
   const m = raw?.v === 1 && raw.marks && typeof raw.marks === "object" ? raw.marks : {};
   const seen = Array.isArray(m.seen) ? m.seen.filter((id) => BADGES.some((b) => b.id === id)) : [];
   const cash = Number.isInteger(raw?.money) && raw.money > 0 ? Math.min(raw.money, MAX_MONEY) : 0;
-  return { v: 1, items, money: cash, marks: { evolutions: Number.isInteger(m.evolutions) && m.evolutions > 0 ? m.evolutions : 0, nightJob: m.nightJob === true, fullHearts: m.fullHearts === true, seen } };
+  return { v: 1, items, money: cash, marks: { evolutions: Number.isInteger(m.evolutions) && m.evolutions > 0 ? m.evolutions : 0, nightJob: m.nightJob === true, fullHearts: m.fullHearts === true, seen, ...(Number.isInteger(m.trainers) && m.trainers > 0 ? { trainers: m.trainers } : {}) } };
 }
 
 // The bag with `n` more (or fewer) of an item, kept within 0..MAX_ITEM.
@@ -245,30 +246,49 @@ const jobsTo = (goal) => ({
   got: (s) => s.jobs >= goal,
   progress: (s) => ({ fraction: s.jobs / goal, left: `${goal - s.jobs} job${goal - s.jobs === 1 ? "" : "s"} to go` }),
 });
+// What each takes (`live`: { best hearts on screen, evolve progress, caught: species in the Pokédex,
+// towerBest: the Battle Tower's best }; `m.trainers`: trainers beaten) and what it gives for good
+// (`perk`, as the games' badges did: a stat a little higher, and the like; small: +3% here, 5%
+// there, never what wins a battle). The jobs-only ones of before (24 h of work, a job over an hour,
+// one between midnight and 5) asked for long and late work: now the game's own goals.
 export const BADGES = [ // art: PokeAPI's badges/1..8, the Kanto badges in this order
-  { id: "boulder", name: "Boulder Badge", icon: "🪨", how: "10 jobs done", ...jobsTo(10) },
-  { id: "cascade", name: "Cascade Badge", icon: "💧", how: "100 jobs done", ...jobsTo(100) },
-  { id: "thunder", name: "Thunder Badge", icon: "⚡", how: "a Pokémon evolved", got: (_s, m) => m.evolutions >= 1,
+  { id: "boulder", name: "Boulder Badge", icon: "🪨", how: "10 jobs done", perk: "yours' physical moves +3%", ...jobsTo(10) },
+  { id: "cascade", name: "Cascade Badge", icon: "💧", how: "10 kinds caught", perk: "catching a little easier (+5%)",
+    got: (_s, _m, live = {}) => (live.caught ?? 0) >= 10,
+    progress: (_s, _m, live = {}) => ({ fraction: (live.caught ?? 0) / 10, left: `${10 - (live.caught ?? 0)} more kinds to catch` }) },
+  { id: "thunder", name: "Thunder Badge", icon: "⚡", how: "a Pokémon evolved", perk: "yours take 3% less", got: (_s, m) => m.evolutions >= 1,
     progress: (_s, _m, live) => ({ fraction: live.evolve ?? 0, left: "evolve a Pokémon" }) },
-  { id: "rainbow", name: "Rainbow Badge", icon: "🌈", how: "24 hours of work", got: (s) => s.ms >= 24 * HOUR,
-    progress: (s) => ({ fraction: s.ms / (24 * HOUR), left: `${toGo(24 * HOUR - s.ms)} of work to go` }) },
-  { id: "soul", name: "Soul Badge", icon: "💗", how: `a Pokémon with ${MAX_HEARTS} hearts`,
+  { id: "rainbow", name: "Rainbow Badge", icon: "🌈", how: "100 jobs done", perk: "the Shop 5% cheaper", ...jobsTo(100) },
+  { id: "soul", name: "Soul Badge", icon: "💗", how: `a Pokémon with ${MAX_HEARTS} hearts`, perk: "yours a touch faster (+3% Speed)",
     got: (_s, m, live = {}) => m.fullHearts || (live.best ?? 0) >= MAX_HEARTS,
     progress: (_s, _m, live) => ({ fraction: (live.best ?? 0) / MAX_HEARTS, left: `best now is ♥${live.best ?? 0}: ${MAX_HEARTS - (live.best ?? 0)} to go` }) },
-  { id: "marsh", name: "Marsh Badge", icon: "🌙", how: "a job finished between midnight and 5", got: (_s, m) => m.nightJob,
-    progress: () => ({ fraction: 0, left: "finish a job between midnight and 5" }) },
-  { id: "volcano", name: "Volcano Badge", icon: "🌋", how: "one job over an hour", got: (s) => s.longest >= HOUR,
-    progress: (s) => ({ fraction: s.longest / HOUR, left: s.longest ? `longest job ${duration(s.longest)}: ${toGo(HOUR - s.longest)} to go` : "one job over an hour" }) },
-  { id: "earth", name: "Earth Badge", icon: "🌍", how: "1000 jobs done", ...jobsTo(1000) },
+  { id: "marsh", name: "Marsh Badge", icon: "🌙", how: "10 trainers beaten", perk: "trainers pay 10% more",
+    got: (_s, m) => (m.trainers ?? 0) >= 10,
+    progress: (_s, m) => ({ fraction: (m.trainers ?? 0) / 10, left: `${10 - (m.trainers ?? 0)} more trainers to beat` }) },
+  { id: "volcano", name: "Volcano Badge", icon: "🌋", how: "the Battle Tower's 7th floor", perk: "yours' special moves +3%",
+    got: (_s, _m, live = {}) => (live.towerBest ?? 0) >= 7,
+    progress: (_s, _m, live = {}) => ({ fraction: (live.towerBest ?? 0) / 7, left: `best climb ${live.towerBest ?? 0} floors: ${7 - (live.towerBest ?? 0)} to go` }) },
+  { id: "earth", name: "Earth Badge", icon: "🌍", how: "150 kinds caught", perk: "shinies a little likelier (×1.25)",
+    got: (_s, _m, live = {}) => (live.caught ?? 0) >= 150,
+    progress: (_s, _m, live = {}) => ({ fraction: (live.caught ?? 0) / 150, left: `${150 - (live.caught ?? 0)} more kinds to catch` }) },
 ];
-export const badges = (summary, marks, live = {}) => BADGES.map((b) => ({ ...b, earned: !!b.got(summary, marks, live) }));
+// Once earned, kept (marks.seen: the badges whose gift came), however its goal changed since.
+export const badges = (summary, marks, live = {}) => BADGES.map((b) => ({ ...b, earned: (marks.seen ?? []).includes(b.id) || !!b.got(summary, marks, live) }));
+// The badges held, by id (a Set): what their perks ask.
+export const badgeSet = (summary, marks, live = {}) => new Set(badges(summary, marks, live).filter((b) => b.earned).map((b) => b.id));
+// The perks, as numbers (BADGES' perk): `has` a Set of badge ids.
+export const perks = (has) => ({
+  physical: has.has("boulder") ? 1.03 : 1, special: has.has("volcano") ? 1.03 : 1, take: has.has("thunder") ? 0.97 : 1,
+  speed: has.has("soul") ? 1.03 : 1, catchMul: has.has("cascade") ? 1.05 : 1, shop: has.has("rainbow") ? 0.95 : 1,
+  trainerPay: has.has("marsh") ? 1.1 : 1, shiny: has.has("earth") ? 1.25 : 1,
+});
 
 // Each badge, the first time it is earned, comes with an item to hold (in turn: Lucky Egg,
 // Soothe Bell, Amulet Coin…). Returns the gifts and the badges now seen (for marks.seen).
-export function badgeGifts(summary, marks) {
+export function badgeGifts(summary, marks, live = {}) {
   const seen = [...(marks.seen ?? [])];
   const gifts = [];
-  for (const b of badges(summary, marks)) {
+  for (const b of badges(summary, marks, live)) {
     if (!b.earned || seen.includes(b.id)) continue;
     gifts.push(HELD_IDS[BADGES.indexOf(BADGES.find((x) => x.id === b.id)) % HELD_IDS.length]);
     seen.push(b.id);

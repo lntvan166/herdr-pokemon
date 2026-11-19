@@ -54,7 +54,7 @@ const CORNER_W = 56;
 const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1300, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, badgeSet, perks, shopPrice, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
@@ -225,7 +225,15 @@ function liveForBadges(saved = savedPicks()) {
   return {
     best: Math.max(0, ...picks.map((p) => p.hearts ?? 0)),
     evolve: Math.max(0, ...picks.map((p) => cardOf(p).progress ?? 0)),
+    caught: pokedex().caught.length, // kinds in the Pokédex (Cascade, Earth)
+    towerBest: towerNow().best, // (Volcano)
   };
+}
+// The badges' perks now (items.js perks), looked up every few seconds.
+let perkCache = { at: 0, v: null };
+function perkNow() {
+  if (!perkCache.v || Date.now() - perkCache.at > 5000) perkCache = { at: Date.now(), v: perks(badgeSet(summary(stats(), 0), bag().marks, liveForBadges())) };
+  return perkCache.v;
 }
 
 // The favourite Pokémon (the picker's ★), shared by every pane.
@@ -302,7 +310,7 @@ const seasonNow = () => { const s = seasonAt(new Date()); return s.t < 0.5 ? s.a
 // Shiny Charm: the odds for new agents' Pokémon, from all jobs done (looked up once a minute).
 let odds = { v: 64, at: 0 };
 function charmOdds() {
-  if (Date.now() - odds.at > 60000) odds = { v: shinyOdds(summary(stats(), 0).jobs), at: Date.now() };
+  if (Date.now() - odds.at > 60000) odds = { v: Math.max(8, Math.round(shinyOdds(summary(stats(), 0).jobs) / perkNow().shiny)), at: Date.now() }; // (the Earth Badge: ×1.25)
   return odds.v;
 }
 // Bring out: the boxed Pokémon `boxSlot` goes to `pane` (the picker's In the Box, the Bag's Box
@@ -1280,7 +1288,7 @@ export default class PokemonHerd extends View {
   // A badge earned for the first time: an item to hold, in the Bag. Checked when a job finishes
   // and every half minute (a badge may come from the Bag: a stone, a Berry). True when one came.
   giveBadgeGifts() {
-    const g = badgeGifts(summary(stats(), 0), bag().marks);
+    const g = badgeGifts(summary(stats(), 0), bag().marks, liveForBadges());
     if (!g.gifts.length) return false;
     let b = mark(bag(), { seen: g.seen });
     for (const id of g.gifts) b = addItem(b, id);
@@ -1559,7 +1567,10 @@ export default class PokemonHerd extends View {
           const t = tr.tower ? towerNow() : null;
           const tw = tr.tower ? towerWin(tr.tower, t.paid, dayOf(now)) : null;
           tr.paid = tw ? tw.pay : trainerPay(tr);
+          // (The Marsh Badge: trainers pay 10% more.)
+          if (tr.paid.money) tr.paid = { ...tr.paid, money: Math.round(tr.paid.money * perkNow().trainerPay) };
           if (this.leader) {
+            saveBag(mark(bag(), { trainers: (bag().marks.trainers ?? 0) + 1 })); // (the Marsh Badge counts them)
             if (tr.paid.money) payOut({ money: tr.paid.money });
             for (const [id, n] of tr.paid.items) payOut({ item: id, count: n });
             if (tr.tower && t.run) saveTower({ ...t, paid: tw.paid, best: Math.max(t.best, tr.tower), run: { ...t.run, wins: tr.tower, heals: 0, nextAt: now + TOWER_NEXT_MS } }); // (a new floor: its heal back)
@@ -2289,7 +2300,7 @@ export default class PokemonHerd extends View {
     const now = Date.now();
     const f = clamp((now - v.start) / v.dur, 0, 1);
     // Stopped for its act (asleep: the ball's likelier), where it stopped; the ball ends the act.
-    v.throw = { ball, bait, at: now, x: v.halt ? v.halt.x : v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait, { throws: (v.throws ?? 1) - 1, night: isNight() }) };
+    v.throw = { ball, bait, at: now, x: v.halt ? v.halt.x : v.from + (v.to - v.from) * f, ...throwBall(ball, v.pick, Math.random, bait, { throws: (v.throws ?? 1) - 1, night: isNight(), catchMul: perkNow().catchMul }) };
     if (v.halt) { v.halt = null; v.pick.asleep = false; }
     // Caught: into the Box now, as the ball decides it; the shakes are only for show (the strip
     // could drop the visitor meanwhile: an update reloading it, the window narrowed, Visitors off).
@@ -2537,7 +2548,7 @@ export default class PokemonHerd extends View {
       for (const [k, x] of [["a", v.blink.from], ["b", v.blink.to]]) root.child(fxBurst(`blink-${v.id}-${v.blink.at}-${k}`, MOVE.psychic, 0.6, x, Math.round((headY + ground) / 2), this.fxFirst(`blink-${v.id}-${v.blink.at}-${k}`), v.blink.at % 9973));
     }
     const baitNow = baitFor(bag().items, v.pick, ball, shared(BAIT_KEY));
-    const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow, { throws: v.throws ?? 0, night: isNight() }));
+    const rate = Math.round(100 * catchChance(ball ?? "poke-ball", v.pick, baitNow, { throws: v.throws ?? 0, night: isNight(), catchMul: perkNow().catchMul }));
     // A trainer's Pokémon in its ball still: not thrown yet (its trainer on its way to its corner),
     // or thrown a moment ago. (It showed a moment as the trainer came, then went to be thrown.)
     const inBall = !!v.trainer && (!v.trainer.waited || (!!v.sentOut && now - v.sentOut.at < SEND_OPEN));
@@ -3328,12 +3339,13 @@ export default class PokemonHerd extends View {
         // Who moves first: the faster (Speed, its nature and how it's raised, as spars do; a tie,
         // yours). The wild one (or a trainer's) faster: it strikes first, and yours, if it's still
         // up, strikes after; else yours first and it hits back (it always did, slow or not).
-        const wildFirst = speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) });
-        let hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+        const P = perkNow(); // the badges' perks (Boulder, Volcano: its moves; Thunder: it takes less; Soul: Speed)
+        const wildFirst = speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * P.speed });
+        let hit = hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, om.mul, om.type, om, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (om.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
         if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
-        const back = hit.fainted && !wildFirst ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1), wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+        const back = hit.fainted && !wildFirst ? null : hitBack({ dex: ownKey, hp: ownHp(dm, now), alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, wm.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, wm.type, wm, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
         if (back && wm.miss) back.text = "It missed!";
         // It struck first and yours fainted: yours never got its move off.
         const ownStrikes = !(wildFirst && back?.fainted);
@@ -5036,9 +5048,9 @@ export default class PokemonHerd extends View {
     const cat = GROUPS.some(([g]) => g === this.shopCat) ? this.shopCat : null;
     const ids = cat ? every.filter((id) => groupOf(id) === cat) : every;
     const sel = ids.includes(this.shopSel) ? this.shopSel : ids[0] ?? "poke-ball";
-    const price = PRICE[sel];
+    const price = shopPrice(sel, perkNow().shop); // (the Rainbow Badge: 5% off)
     const have = b.items[sel] ?? 0;
-    const most = maxBuy(b, sel);
+    const most = maxBuy(b, sel, price);
     // How many: the stepper's count, kept within what can be bought (at least 1 to show).
     const qty = Math.max(1, Math.min(this.shopQty ?? 1, Math.max(1, most)));
     const can = most >= qty;
@@ -5062,7 +5074,7 @@ export default class PokemonHerd extends View {
       .child(v_flex().id("shop-items").w(230).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
         .children(ids.flatMap((id) => {
           const on = id === sel;
-          const afford = (b.money ?? 0) >= PRICE[id];
+          const afford = (b.money ?? 0) >= shopPrice(id, perkNow().shop);
           const g = groupOf(id);
           const head = g !== last ? [div().px(8).pt(last ? 8 : 2).pb(2).text_size(10.5).text_color(t.dim).child(g)] : [];
           last = g;
@@ -5072,7 +5084,7 @@ export default class PokemonHerd extends View {
             .child(art(ITEMS[id].art, 22))
             .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(ITEMS[id].name))
             .when(!!b.items[id], (el) => el.child(div().text_size(10.5).text_color(t.dim).child(`×${b.items[id]}`)))
-            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(PRICE[id])))];
+            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(shopPrice(id, perkNow().shop))))];
         })))
       .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()
         .child(h_flex().gap(12).items_center()
@@ -5094,7 +5106,7 @@ export default class PokemonHerd extends View {
           .child(div().id("shop-buy").h(28).px(16).rounded_full().flex().items_center().flex_none()
             .text_size(12.5).font_semibold().bg(can ? t.solid : t.border).text_color(can ? t.solid_foreground : t.dim)
             .when(can, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
-              const next = buy(bag(), sel, qty);
+              const next = buy(bag(), sel, qty, price);
               if (next) { saveBag(next); this.bought = { id: sel, n: qty, at: Date.now() }; }
               cx.notify();
             }))
@@ -5370,7 +5382,8 @@ export default class PokemonHerd extends View {
           .child(div().text_size(11.5).text_color(t.muted).child(`Badges ${got} of 8`))
           .child(div().text_size(11.5).text_color(t.muted).truncate()
             // Hovered: what it takes and what's left; else the badge nearest to earning.
-            .child(shown ? `${shown.name}: ${shown.how}${shown.earned ? ", earned" : ` · ${shown.left}`}`
+            // (Its perk: what it gives, earned; what it would.)
+            .child(shown ? `${shown.name}: ${shown.how}${shown.earned ? ` · earned: ${shown.perk}` : ` · ${shown.left} · then ${shown.perk}`}`
               : next ? `Next: ${next.name} · ${next.left}` : "All eight earned")))
         .child(h_flex().h(64).px(12).gap(4).items_center().rounded(10).bg(t.raised)
           .children(all.map((x, i) => v_flex().id(`badge-${x.id}`).w(40).flex_none().items_center().gap(4)

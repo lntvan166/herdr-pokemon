@@ -33,8 +33,12 @@ test("badges", () => {
   const none = badges({ jobs: 0, ms: 0, longest: 0 }, loadBag(null).marks);
   assert.equal(none.length, 8);
   assert.ok(none.every((b) => !b.earned));
-  const some = badges({ jobs: 120, ms: 0, longest: 2 * 3600000 }, { evolutions: 1, nightJob: false, fullHearts: false });
-  assert.deepEqual(some.filter((b) => b.earned).map((b) => b.id), ["boulder", "cascade", "thunder", "volcano"]);
+  const some = badges({ jobs: 120, ms: 0, longest: 0 }, { evolutions: 1, nightJob: false, fullHearts: false, trainers: 10 }, { caught: 12, towerBest: 7 });
+  assert.deepEqual(some.filter((b) => b.earned).map((b) => b.id), ["boulder", "cascade", "thunder", "rainbow", "marsh", "volcano"]);
+  // The game's own goals now: kinds caught, trainers beaten, the Tower; long or late work no more.
+  for (const b of BADGES) assert.ok(!/hour|midnight|over an hour/.test(b.how), b.how);
+  // Once earned, kept: a badge seen (its gift came) stays, whatever its goal is now.
+  assert.ok(badges({ jobs: 0, ms: 0, longest: 0 }, { evolutions: 0, seen: ["earth"] }).find((b) => b.id === "earth").earned);
   assert.equal(new Set(BADGES.map((b) => b.id)).size, 8);
 });
 
@@ -75,11 +79,11 @@ import { badgeGifts, HELD } from "../mods/pokemon-herd/items.js";
 test("a held item for each badge newly earned, once", () => {
   const marks = loadBag(null).marks;
   const s = { jobs: 120, ms: 0, longest: 0 };
-  const g = badgeGifts(s, marks);
-  assert.deepEqual(g.seen, ["boulder", "cascade"]);
-  assert.equal(g.gifts.length, 2);
+  const g = badgeGifts(s, marks, { caught: 10 });
+  assert.deepEqual(g.seen, ["boulder", "cascade", "rainbow"]);
+  assert.equal(g.gifts.length, 3);
   assert.ok(g.gifts.every((id) => HELD.includes(id)));
-  assert.deepEqual(badgeGifts(s, { ...marks, seen: g.seen }).gifts, []);
+  assert.deepEqual(badgeGifts(s, { ...marks, seen: g.seen }, { caught: 10 }).gifts, []);
   assert.deepEqual(loadBag({ v: 1, items: {}, marks: { seen: ["boulder", "junk"] } }).marks.seen, ["boulder"]);
   assert.ok(ITEMS["lucky-egg"] && ITEMS["lucky-egg"].kind === "held");
 });
@@ -87,26 +91,33 @@ test("a held item for each badge newly earned, once", () => {
 import { badgeProgress, nextBadge } from "../mods/pokemon-herd/items.js";
 test("badgeProgress: how much is left for each, and the nearest", () => {
   const marks = { evolutions: 0, nightJob: false, fullHearts: false, seen: [] };
-  const p = badgeProgress({ jobs: 73, ms: 5 * 3600000, longest: 32 * 60000 }, marks, { best: 3, evolve: 0.2 });
+  const p = badgeProgress({ jobs: 73, ms: 5 * 3600000, longest: 32 * 60000 }, { ...marks, trainers: 4 }, { best: 3, evolve: 0.2, caught: 6, towerBest: 3 });
   const by = Object.fromEntries(p.map((b) => [b.id, b]));
   assert.equal(by.boulder.earned, true);
   assert.equal(by.boulder.left, "");
-  assert.equal(by.cascade.left, "27 jobs to go");
-  assert.ok(Math.abs(by.cascade.fraction - 0.73) < 1e-9);
-  assert.equal(by.rainbow.left, "19h of work to go");
+  assert.equal(by.cascade.left, "4 more kinds to catch");
+  assert.equal(by.rainbow.left, "27 jobs to go");
+  assert.ok(Math.abs(by.rainbow.fraction - 0.73) < 1e-9);
   assert.equal(by.soul.left, "best now is ♥3: 2 to go");
-  assert.equal(by.volcano.left, "longest job 32m: 28m to go");
+  assert.equal(by.marsh.left, "6 more trainers to beat");
+  assert.equal(by.volcano.left, "best climb 3 floors: 4 to go");
   assert.equal(by.thunder.fraction, 0.2); // the Pokémon on screen closest to evolving
-  assert.equal(by.earth.left, "927 jobs to go");
-  assert.equal(nextBadge(p).id, "cascade");
+  assert.equal(by.earth.left, "144 more kinds to catch");
+  assert.equal(nextBadge(p).id, "rainbow");
   assert.equal(nextBadge(p.map((b) => ({ ...b, earned: true }))), null);
 });
 
-test("badgeProgress: a Pokémon at full hearts earns the Soul Badge even before its mark; times round the right way", () => {
+test("badgeProgress: a Pokémon at full hearts earns the Soul Badge even before its mark; each badge's perk small", async () => {
   const marks = { evolutions: 0, nightJob: false, fullHearts: false, seen: [] };
-  const p = Object.fromEntries(badgeProgress({ jobs: 0, ms: 0, longest: 59.5 * 60000 }, marks, { best: 5 }).map((b) => [b.id, b]));
+  const p = Object.fromEntries(badgeProgress({ jobs: 0, ms: 0, longest: 0 }, marks, { best: 5 }).map((b) => [b.id, b]));
   assert.equal(p.soul.earned, true);
-  assert.equal(p.volcano.left, "longest job 59m: 1m to go"); // not "1h: 1m to go"
+  // Perks: none without badges; with all eight, each a few percent (never what wins a battle).
+  const { perks } = await import("../mods/pokemon-herd/items.js");
+  const none = perks(new Set()), all = perks(new Set(BADGES.map((b) => b.id)));
+  for (const k of Object.keys(none)) assert.equal(none[k], 1, k);
+  for (const [k, v] of Object.entries(all)) assert.ok(Math.abs(v - 1) <= 0.25 && v !== 1, `${k} ${v}`);
+  assert.ok(all.physical <= 1.03 && all.special <= 1.03 && all.take >= 0.97 && all.speed <= 1.03, "battle perks 3% at most");
+  for (const b of BADGES) assert.ok(b.perk, b.id);
   // Every badge has both what earns it and its progress: the Bag never meets a missing one.
   for (const b of BADGES) {
     assert.equal(typeof b.got, "function", b.id);

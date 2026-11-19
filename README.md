@@ -88,6 +88,11 @@ A wild Pokémon at full health is hard to catch. **Drag one of yours onto it** a
   team as balls under its feet. Beat them one after another for a few Pokédollars and a ball or a
   Berry (now and then a fine gift: a Rare Candy, an Azure Flute…); it says a word and walks off.
   Win, and it cheers instead.
+- **Eight badges**, as the games' Kanto ones, each for a goal of the game (10 jobs, 10 kinds
+  caught, a Pokémon evolved, 100 jobs, one with 5 hearts, 10 trainers beaten, the Battle Tower's
+  7th floor, 150 kinds caught), each with an item to hold the first time, and a small perk for
+  good, as the games' badges raised a stat: yours' moves or Speed +3%, catching +5%, the Shop
+  5% off, trainers paying 10% more, shinies a little likelier. The Bag shows each one's.
 - **The Battle Tower** (☰ menu): trainers one after another, as long as you keep winning, each a
   little stronger. Three lives (as many as your Pokémon, if fewer), one heal a floor, no healing
   by itself in it, and one swapped in from the Box comes in hurt. Each floor pays once a day, with
