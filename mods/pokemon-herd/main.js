@@ -54,7 +54,7 @@ const CORNER_W = 56;
 const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1300, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, badgeSet, perks, shopPrice, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, badgeSet, perks, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
@@ -2722,7 +2722,7 @@ export default class PokemonHerd extends View {
       m.hungry = false;
     }
     // An Amulet Coin: finds come twice as often.
-    const every = () => pickupDelay() / (a.pane && savedPicks()[a.pane]?.held === "amulet-coin" ? 2 : 1);
+    const every = () => (pickupDelay() * perkNow().pickup) / (a.pane && savedPicks()[a.pane]?.held === "amulet-coin" ? 2 : 1); // (the Rainbow Badge: a fifth sooner)
     m.pickupAt ??= now + every();
     if (now >= m.pickupAt) {
       m.pickupAt = now + every();
@@ -5048,9 +5048,9 @@ export default class PokemonHerd extends View {
     const cat = GROUPS.some(([g]) => g === this.shopCat) ? this.shopCat : null;
     const ids = cat ? every.filter((id) => groupOf(id) === cat) : every;
     const sel = ids.includes(this.shopSel) ? this.shopSel : ids[0] ?? "poke-ball";
-    const price = shopPrice(sel, perkNow().shop); // (the Rainbow Badge: 5% off)
+    const price = PRICE[sel];
     const have = b.items[sel] ?? 0;
-    const most = maxBuy(b, sel, price);
+    const most = maxBuy(b, sel);
     // How many: the stepper's count, kept within what can be bought (at least 1 to show).
     const qty = Math.max(1, Math.min(this.shopQty ?? 1, Math.max(1, most)));
     const can = most >= qty;
@@ -5074,7 +5074,7 @@ export default class PokemonHerd extends View {
       .child(v_flex().id("shop-items").w(230).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
         .children(ids.flatMap((id) => {
           const on = id === sel;
-          const afford = (b.money ?? 0) >= shopPrice(id, perkNow().shop);
+          const afford = (b.money ?? 0) >= PRICE[id];
           const g = groupOf(id);
           const head = g !== last ? [div().px(8).pt(last ? 8 : 2).pb(2).text_size(10.5).text_color(t.dim).child(g)] : [];
           last = g;
@@ -5084,7 +5084,7 @@ export default class PokemonHerd extends View {
             .child(art(ITEMS[id].art, 22))
             .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(ITEMS[id].name))
             .when(!!b.items[id], (el) => el.child(div().text_size(10.5).text_color(t.dim).child(`×${b.items[id]}`)))
-            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(shopPrice(id, perkNow().shop))))];
+            .child(div().text_size(12).text_color(afford ? t.foreground : t.dim).child(money(PRICE[id])))];
         })))
       .child(v_flex().flex_1().min_w(0).p(14).gap(10).rounded(10).bg(t.raised).overflow_hidden()
         .child(h_flex().gap(12).items_center()
@@ -5106,7 +5106,7 @@ export default class PokemonHerd extends View {
           .child(div().id("shop-buy").h(28).px(16).rounded_full().flex().items_center().flex_none()
             .text_size(12.5).font_semibold().bg(can ? t.solid : t.border).text_color(can ? t.solid_foreground : t.dim)
             .when(can, (e2) => e2.cursor_pointer().on_click((_e, cx) => {
-              const next = buy(bag(), sel, qty, price);
+              const next = buy(bag(), sel, qty);
               if (next) { saveBag(next); this.bought = { id: sel, n: qty, at: Date.now() }; }
               cx.notify();
             }))

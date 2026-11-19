@@ -84,8 +84,6 @@ export function sell(bag, id, n = 1) {
 export const addMoney = (bag, n) => ({ ...bag, money: Math.max(0, Math.min(MAX_MONEY, (bag.money ?? 0) + n)) });
 
 // The bag after buying one `id`, or null: not enough money, or already MAX_ITEM.
-// `price`: what one costs now (a perk's discount: shopPrice), else its list price.
-export const shopPrice = (id, discount = 1) => (PRICE[id] ? Math.max(1, Math.round(PRICE[id] * discount)) : 0);
 export function buy(bag, id, n = 1, price = PRICE[id]) {
   if (!price || n < 1 || (bag.money ?? 0) < price * n || (bag.items[id] ?? 0) + n > MAX_ITEM) return null;
   return addItem(addMoney(bag, -price * n), id, n);
@@ -258,7 +256,7 @@ export const BADGES = [ // art: PokeAPI's badges/1..8, the Kanto badges in this 
     progress: (_s, _m, live = {}) => ({ fraction: (live.caught ?? 0) / 10, left: `${10 - (live.caught ?? 0)} more kinds to catch` }) },
   { id: "thunder", name: "Thunder Badge", icon: "⚡", how: "a Pokémon evolved", perk: "yours take 3% less", got: (_s, m) => m.evolutions >= 1,
     progress: (_s, _m, live) => ({ fraction: live.evolve ?? 0, left: "evolve a Pokémon" }) },
-  { id: "rainbow", name: "Rainbow Badge", icon: "🌈", how: "100 jobs done", perk: "the Shop 5% cheaper", ...jobsTo(100) },
+  { id: "rainbow", name: "Rainbow Badge", icon: "🌈", how: "100 jobs done", perk: "yours find things a fifth sooner (Pickup)", ...jobsTo(100) },
   { id: "soul", name: "Soul Badge", icon: "💗", how: `a Pokémon with ${MAX_HEARTS} hearts`, perk: "yours a touch faster (+3% Speed)",
     got: (_s, m, live = {}) => m.fullHearts || (live.best ?? 0) >= MAX_HEARTS,
     progress: (_s, _m, live) => ({ fraction: (live.best ?? 0) / MAX_HEARTS, left: `best now is ♥${live.best ?? 0}: ${MAX_HEARTS - (live.best ?? 0)} to go` }) },
@@ -279,7 +277,7 @@ export const badgeSet = (summary, marks, live = {}) => new Set(badges(summary, m
 // The perks, as numbers (BADGES' perk): `has` a Set of badge ids.
 export const perks = (has) => ({
   physical: has.has("boulder") ? 1.03 : 1, special: has.has("volcano") ? 1.03 : 1, take: has.has("thunder") ? 0.97 : 1,
-  speed: has.has("soul") ? 1.03 : 1, catchMul: has.has("cascade") ? 1.05 : 1, shop: has.has("rainbow") ? 0.95 : 1,
+  speed: has.has("soul") ? 1.03 : 1, catchMul: has.has("cascade") ? 1.05 : 1, pickup: has.has("rainbow") ? 0.8 : 1,
   trainerPay: has.has("marsh") ? 1.1 : 1, shiny: has.has("earth") ? 1.25 : 1,
 });
 
