@@ -618,6 +618,7 @@ const FX_GAP = 84; // how far apart yours and a wild one battle
 // Where a word over one's head goes (`h` tall, `below` px further down when under it): above its
 // health bar (healthBar at headY − 6) when the strip has room, else just under the bar. (Pinned to
 // the strip's top, a big one's move name and ability sat on its bar and hid it.)
+const WALK_REDRAW = 2000, LOST_FRAMES = 3500; // a walking visitor: a frame asked this often; none this long, the window was hidden
 const ENTRY_MS = 900; // an ability as two meet (Intimidate): over its owner's head this long, before the moves
 const ABIL_COLOR = "#ffe08a";
 const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
@@ -1741,8 +1742,10 @@ export default class PokemonHerd extends View {
     // It walks on one transition, set as it sets off: a redraw only when something shows a change
     // (one turning to watch it, its first steps, its tag following it while hovered), not every
     // tick of its walk (that was the whole window four times a second, for a minute).
+    // (And one now and then, WALK_REDRAW: a strip that's shown draws it, so one not drawn for
+    // longer than LOST_FRAMES really was hidden: render sets it off again from where it is.)
     const hovered = this.visitorHover?.id === v.id && now < this.visitorHover.until;
-    return turned || now - v.start < 600 || hovered;
+    return turned || now - v.start < 600 || hovered || now - (this.drawnAt ?? 0) > WALK_REDRAW;
   }
 
   // A Pokémon's body (its box SLOT wide, `body` inside) with the blows landing on it (`blows`:
@@ -4338,8 +4341,11 @@ export default class PokemonHerd extends View {
     // so its picture lagged behind where it is (its tag and the spot to click). It sets off again
     // from where it is now, as a new leg.
     const wv = this.visitor;
-    // (A walking visitor redraws every tick, so a second without frames already means a pause.)
-    if (lastDrawn !== undefined && now - lastDrawn > 1000 && wv?.start && !wv.throw && !wv.fight) {
+    // (A walking visitor asks for a frame every WALK_REDRAW, so LOST_FRAMES without one means the
+    // window was hidden. It was "a second": but it doesn't redraw every tick any more, so any
+    // other redraw set it off on a new leg, its walking picture started over every second or two,
+    // and it seemed to glide.)
+    if (lastDrawn !== undefined && now - lastDrawn > LOST_FRAMES && wv?.start && !wv.throw && !wv.fight) {
       const f = clamp((now - wv.start) / wv.dur, 0, 1);
       wv.from = wv.from + (wv.to - wv.from) * f;
       wv.start = now;

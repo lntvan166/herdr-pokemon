@@ -729,3 +729,24 @@ test("a wild one's Intimidate: said over its head first", () => {
   assert.ok(fx.at >= fx.entry.until - 400, "the moves after it");
   st.render(cx);
 });
+
+// A wild one walking: a redraw a second or two after the last (something else on the strip) keeps
+// its walk as it is (it went on a new leg, its walking picture starting over: it seemed to glide);
+// only a long gap (the window hidden) sets it off again from where it is.
+test("a walking wild one keeps its leg through ordinary redraws", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  const now = Date.now();
+  st.visitor = { id: "walk", pick: { dex: 143, hp: 1 }, dir: "l", row: 0, from: 1000, to: -40, start: now - 3000, dur: 23000, purse: 0, leg: 0 };
+  st.render(cx);
+  st.drawnAt = Date.now() - 1600; // the last frame 1.6 s ago: an ordinary gap
+  st.render(cx);
+  assert.equal(st.visitor.leg, 0, "the same leg");
+  st.drawnAt = Date.now() - 5000; // 5 s without a frame: the window was hidden
+  st.render(cx);
+  assert.equal(st.visitor.leg, 1, "set off again from where it is");
+});
