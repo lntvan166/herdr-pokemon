@@ -675,3 +675,24 @@ test("abilities in a fight: Intimidate as they meet, said over its head", () => 
   assert.equal(st.visitor.abil.w.st.atk, -1, "Snorlax's Attack a stage down");
   st.render(cx);
 });
+
+// A big one whose head nears the strip's top: its move's name and its ability over its head go
+// under its health bar, not on it (pinned to the top, they hid a trainer's Pokémon's bar).
+test("a big one's words keep off its health bar", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const big = { x: 4, y: 4, w: 60, h: 90 }, cut = (n) => ({ path: `x/${n}.gif`, w: 96, h: 96, box: big });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  const now = Date.now();
+  st.visitor = { id: "big", pick: { dex: 143, hp: 0.6 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    fight: { at: now - 500, hitAt: now - 300, backAt: now - 100, backLaunch: now + 100, backHit: now + 400, until: now + 2000, x: 800, ownX: 700, own: "t0", hp: 0.6,
+      back: { hp: 0.5 }, wildMove: { type: "normal", name: "Body Slam", physical: true }, ownMove: { type: "fire", name: "Ember" }, words: { own: ["Intimidate"], wild: ["Thick Fat"], at: now } } };
+  st.render(cx);
+  st.render(cx); // (the move's name: in place from the second draw)
+  const [abil, move] = ["abil-wild-big-" + st.visitor.fight.at, "mvw-big-" + st.visitor.fight.at].map((k) => K.tops[k]);
+  // No room above (its head near the top): the move's name just under its bar (bar + 7), the
+  // ability under that (+18), never pinned to the top on the bar (2, before).
+  assert.ok(move > 2 && abil - move === 18, `move at ${move}, ability at ${abil}`);
+});

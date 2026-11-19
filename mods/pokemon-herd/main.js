@@ -615,6 +615,10 @@ const GOLD = { glow: "#ffe9a8", core: "#ffd75e", mid: "#fff2c0", hot: "#ffffff",
 const FX_GAP = 84; // how far apart yours and a wild one battle
 
 // `lost`: { id, prev, first } just after a hit: what it lost shows white, draining away.
+// Where a word over one's head goes (`h` tall, `below` px further down when under it): above its
+// health bar (healthBar at headY − 6) when the strip has room, else just under the bar. (Pinned to
+// the strip's top, a big one's move name and ability sat on its bar and hid it.)
+const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
 const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
   .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
   .when(!!lost, (el) => el.child(div().id(lost.id).absolute().left(0).top(0).h_full().w(Math.round(36 * (lost.first ? lost.prev : hp))).bg("#ffffff").opacity(0.85)
@@ -2252,7 +2256,7 @@ export default class PokemonHerd extends View {
       if (!m || now < from - CHARGE_MS || now >= until + 280) continue;
       const tx = m.moving ? m.from : m.x;
       const dir = tx > bx ? 1 : -1;
-      const lb = this.moveLabel(`mvb-${r.id}-${h.at}`, h.back, bx, Math.max(2, headY - 26), from, now);
+      const lb = this.moveLabel(`mvb-${r.id}-${h.at}`, h.back, bx, wordTop(headY, 16), from, now);
       if (lb) root.child(lb);
       root.children(this.fxMove(`bossshot-${r.id}-${h.at}`, { type: h.back.type, eff: h.back.eff, ultimate: h.back.ultimate, name: h.back.physical ? null : h.back.name }, bx + dir * 22, tx - dir * 12, Math.round((headY + ground) / 2), from, until, now, true));
     }
@@ -2465,7 +2469,7 @@ export default class PokemonHerd extends View {
       // Its move, flying back at yours (fx.js: its type's look).
       if (fx.back && fx.wildMove && now >= fx.backLaunch - CHARGE_MS && now < fx.backHit + 280) {
         const dir = fx.ownX > x ? 1 : -1;
-        const lb = this.moveLabel(`mvw-${v.id}-${fx.at}`, fx.wildMove, x, Math.max(2, headY - 30), fx.backLaunch, now);
+        const lb = this.moveLabel(`mvw-${v.id}-${fx.at}`, fx.wildMove, x, wordTop(headY, 16), fx.backLaunch, now);
         if (lb) root.child(lb);
         root.children(this.fxMove(`wildshot-${v.id}-${fx.at}`, fx.wildMove, x + dir * 14, fx.ownX - dir * 12,
           Math.round((headY + ground) / 2) - 2, fx.backLaunch, fx.backHit, now));
@@ -2475,7 +2479,7 @@ export default class PokemonHerd extends View {
       // The abilities that showed this exchange, over each one's head (as the games' banner).
       const words = fx.words;
       if (words && now < fx.until) {
-        const tag = (id, cx, list) => list.length && root.child(div().id(id).absolute().left(Math.max(2, Math.min(this.width - 132, cx - 65))).top(Math.max(2, headY - 22)).w(130)
+        const tag = (id, cx, list) => list.length && root.child(div().id(id).absolute().left(Math.max(2, Math.min(this.width - 132, cx - 65))).top(wordTop(headY, 14, 18)).w(130)
           .flex().justify_center().child(div().px(5).h(14).rounded(7).bg("#000000c0").flex().items_center().text_size(9.5).font_semibold().text_color("#ffe08a").child(list.join(" · "))));
         tag(`abil-wild-${v.id}-${fx.at}`, x, words.wild);
         tag(`abil-own-${v.id}-${fx.at}`, fx.ownX ?? x, words.own);
@@ -4630,7 +4634,7 @@ export default class PokemonHerd extends View {
           // Its move's name over its head as it gathers and lets fly ("Flamethrower!").
           .when(!!shotAt(m, now, 700)?.move?.name, (el) => {
             const sh = shotAt(m, now, 700);
-            const lb = this.moveLabel(`mv-${a.address}-${sh.at}`, sh.move, SLOT_MID, Math.max(2, headY - 30), sh.at, now);
+            const lb = this.moveLabel(`mv-${a.address}-${sh.at}`, sh.move, SLOT_MID, wordTop(headY, 16), sh.at, now);
             return lb ? el.child(lb) : el;
           })
           // A raid on: whether it can hit the boss yet (⏳ 35s) or rests after fainting (💫 1m).
