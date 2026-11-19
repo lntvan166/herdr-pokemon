@@ -250,14 +250,17 @@ export function hitBack(own, wild, rnd = Math.random, mul = 1, type = null, move
 // The rest of the time it gets away.
 export const LEGEND_RATE = 0.03;
 export const LEGEND_THROWS = 20; // GO gives up to 20 Premier Balls for a raid boss
-// Any other breaks free and flees about 1 time in 8 (more than the 1 in 20 of before: with only that, a better ball was never worth it), else walks
-// on for another ball.
-export const FLEE = 0.12;
+// Any other breaks free and may flee, the likelier the more balls it has dodged: FLEE_STEP after
+// the first miss, twice after the second… FLEE_MAX at most (`how.throws`: thrown at it before this
+// one); else it walks on for another ball. (A flat 1 in 20 before: no ball but the Poké Ball was
+// worth it.) A final evolution in the red: Poké Ball ~65% caught before it runs, Great ~77%, Ultra ~84%.
+export const FLEE_STEP = 0.04, FLEE_MAX = 0.4;
+export const fleeAfter = (throws = 0) => Math.min(FLEE_MAX, FLEE_STEP * (throws + 1));
 // One throw: { caught, shakes, fled } (the ball shakes three times before it clicks; fewer when it breaks out).
 export function throwBall(ball, pick, rnd = Math.random, bait = null, how = {}) {
   const caught = rnd() < catchChance(ball, pick, bait, how);
   const shakes = caught ? 3 : Math.floor(rnd() * 3);
-  return { caught, shakes, fled: !caught && !isLegendary(pick.dex) && rnd() < FLEE };
+  return { caught, shakes, fled: !caught && !isLegendary(pick.dex) && rnd() < fleeAfter(how.throws ?? 0) };
 }
 // Which ball a click throws (`items`: the Bag's counts), or null: the one chosen in the Bag
 // (`chosen`, any, the Master Ball too) while there are some; else (Auto) the cheapest first, an

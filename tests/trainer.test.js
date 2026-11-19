@@ -212,7 +212,7 @@ test("a caught Pokémon remembers its ball", () => {
   assert.equal(loadPicks({ v: 2, panes: { b: { ...p, ball: "berry" } } }).panes.b.ball, undefined);
 });
 
-import { baseRate, FLEE } from "../mods/pokemon-herd/trainer.js";
+import { baseRate, fleeAfter } from "../mods/pokemon-herd/trainer.js";
 test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a power", () => {
   assert.equal(baseRate(1), 0.3); // Bulbasaur, a first stage
   assert.equal(baseRate(2), 0.18); // Ivysaur
@@ -224,14 +224,18 @@ test("catch rates as in Pokémon GO: base by stage, the ball and Berry as a powe
   assert.ok(Math.abs(catchChance("great-ball", { dex: 3 }, "razz-berry") - (1 - 0.9 ** 2.25)) < 1e-9);
   // A final evolution in the red: a better ball is worth it now (it fled 1 time in 20 before, and
   // a Poké Ball caught it 92% of the time all the same).
-  const before = (ball) => { const p = catchChance(ball, { dex: 3, hp: 0.15 }); return p / (p + (1 - p) * FLEE); };
+  const before = (ball) => { const p = catchChance(ball, { dex: 3, hp: 0.15 }); let alive = 1, got = 0; for (let i = 0; i < 60; i++) { got += alive * p; alive *= (1 - p) * (1 - fleeAfter(i)); } return got; };
   assert.ok(before("poke-ball") < 0.7 && before("ultra-ball") - before("poke-ball") > 0.1, `${before("poke-ball")} ${before("ultra-ball")}`);
   // A wild one that isn't legendary sometimes flees after a miss; a legendary doesn't (it has 20 balls).
   const seq = (...xs) => () => xs.shift();
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.02)).fled, true); // missed, then fled
   assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.5)).fled, false);
+  // The likelier the more it has dodged: 4% after the first miss, 8% after the second… 40% at most.
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.06), null, { throws: 0 }).fled, false);
+  assert.equal(throwBall("poke-ball", { dex: 3 }, seq(0.9, 0.5, 0.06), null, { throws: 1 }).fled, true);
+  assert.equal(fleeAfter(0), 0.04); assert.equal(fleeAfter(30), 0.4);
   assert.equal(throwBall("poke-ball", { dex: 150 }, seq(0.9, 0.5, 0.02)).fled, false);
-  assert.equal(FLEE, 0.12);
+
 });
 
 import { ALPHA_ODDS, ALPHA_PURSE } from "../mods/pokemon-herd/trainer.js";
