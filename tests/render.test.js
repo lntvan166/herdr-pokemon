@@ -608,6 +608,11 @@ test("the Day Care: a pair from the Box, an egg hatching into it", () => {
   assert.equal(care.egg, null);
   assert.equal(care.last.dex, 447);
   st.render(cx); // "🥚 Riolu hatched · in the Box"
+  // A click on it: the Box, with the Riolu picked.
+  H.log.opened.length = 0;
+  click("pokemon-hatched:on_mouse_down:left");
+  assert.equal(care.last.slot, born[0]);
+  assert.equal(H.log.opened.at(-1)?.props?.sel, born[0], JSON.stringify(H.log.opened.at(-1)));
   view({ bag: true, tab: "box", sel: born[0] }).render(cx);
 });
 

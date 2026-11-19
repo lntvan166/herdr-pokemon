@@ -91,7 +91,7 @@ export function loadCare(raw) {
   const e = ok ? raw.egg : null;
   const egg = e && Number.isInteger(e.dex) && Number.isFinite(e.need) ? { dex: e.dex, ...([0, 1, 2].includes(e.abil) ? { abil: e.abil } : {}), ...(Array.isArray(e.moves) && e.moves.length ? { moves: e.moves.filter((n) => typeof n === "string").slice(0, 4) } : {}), need: e.need, done: Math.max(0, Number(e.done) || 0), at: Number(e.at) || 0 } : null;
   const l = ok ? raw.last : null; // the last one hatched: { dex, shiny, at } (the strip says so a while)
-  const last = l && Number.isInteger(l.dex) && Number.isFinite(l.at) ? { dex: l.dex, shiny: l.shiny === true, at: l.at } : null;
+  const last = l && Number.isInteger(l.dex) && Number.isFinite(l.at) ? { dex: l.dex, shiny: l.shiny === true, at: l.at, ...(typeof l.slot === "string" ? { slot: l.slot } : {}) } : null;
   return { v: 1, pair, left: ok && Number.isFinite(raw.left) ? Math.max(0, raw.left) : 0, egg, hatched: ok && Number.isInteger(raw.hatched) ? raw.hatched : 0, ...(last ? { last } : {}) };
 }
 

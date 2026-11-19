@@ -2023,10 +2023,11 @@ export default class PokemonHerd extends View {
     if (r.hatched) {
       const dex = r.hatched.dex, keys = Object.keys(NATURES);
       const pick = hatchPick(r.hatched, now, { shiny: Math.random() * charmOdds() < 1 && hasShiny(dex), size: rollSize(), gender: rollGender(dex), nature: keys[Math.floor(Math.random() * keys.length)] });
-      savePicks({ [`box-${now}-${dex}`]: pick });
+      const slot = `box-${now}-${dex}`;
+      savePicks({ [slot]: pick });
       saveDex(withCaught(pokedex(), pick));
       payDexGoals();
-      next = { ...next, last: { dex, shiny: pick.shiny, at: now } };
+      next = { ...next, last: { dex, shiny: pick.shiny, at: now, slot } };
     }
     setShared(CARE_KEY, next);
   }
@@ -4763,7 +4764,9 @@ export default class PokemonHerd extends View {
     // An egg just hatched at the Day Care: "🥚 Charmander hatched · in the Box", two minutes.
     const born = loadCare(shared(CARE_KEY)).last;
     if (born && now - born.at < 120000) {
+      // A click: the Box, with it picked.
       root.child(div().id("pokemon-hatched").absolute().right(50).top(done?.to === VERSION && now - done.at < 120000 ? 22 : 4).h(16).px(6).rounded(8)
+        .cursor_pointer().hover((st) => st.bg("#000000a0")).on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); openBag("box", born.slot ?? null); })
         .flex().items_center().text_size(10).bg("#00000059").text_color(born.shiny ? SHINY_GOLD : "#ffffff")
         .child(`🥚 ${born.shiny ? "✨ " : ""}${nameOf(born.dex)} hatched · in the Box`));
     }
