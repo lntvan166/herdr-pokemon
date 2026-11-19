@@ -3272,6 +3272,7 @@ export default class PokemonHerd extends View {
         const entryNames = { a: result.entry.a.map(abilityName).filter(Boolean), b: result.entry.b.map(abilityName).filter(Boolean) };
         const entryMs = entryNames.a.length || entryNames.b.length ? ENTRY_MS : 0;
         duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait + entryMs, result, back ? { ...spots, back: BACK } : spots);
+        for (const m of [m1, m2]) m.awakeUntil = Math.max(m.awakeUntil ?? 0, (m.react?.until ?? now) + 5000); // awake through the spar (as with a wild one)
         for (const [m, a, o] of [[m1, a1, a2], [m2, a2, a1]]) {
           const [mine, theirs] = [ids[a.address], ids[o.address]];
           const steps = m.react.seq.filter((st) => st.blow && st.move);
@@ -4593,7 +4594,9 @@ export default class PokemonHerd extends View {
       const bubble =
         mood === "blocked" ? emote("bang").loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
         : mood === "done" ? emote("check")
-        : mood === "sleep" ? emote("zz", 16).opacity(0.5) // (trying: the balloon, dimmed and smaller than ! and ✓)
+        // Asleep: a dimmed balloon (smaller than ! and ✓); never while it fights (a spar, a wild
+        // one, a raid: it showed over one throwing Earthquake).
+        : mood === "sleep" && !(m.react && now < m.react.until) && !(m.battleUntil > now) && !shotAt(m, now) ? emote("zz", 16).opacity(0.5)
         : null;
       const x0 = isAt(a) - sw / 2 + hit.left;
       (heads[g ? rowOf(a) : 0] ??= []).push({ x0, x1: x0 + hit.w, top: bubble ? headY - 24 : headY - 4 });

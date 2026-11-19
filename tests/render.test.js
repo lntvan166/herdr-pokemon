@@ -802,3 +802,23 @@ test("the picker's Box filter: the kinds waiting in the Box", () => {
   assert.ok(!keys.has("6") && !keys.has("37"), "not those with agents");
   v.render(cx);
 });
+
+// A spar: both awake through it (asleep, its zZ showed over one throwing Earthquake).
+test("a spar keeps both awake", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  Object.assign(st.mons.t0, { x: 500, moving: false, react: null, awakeUntil: 0 });
+  Object.assign(st.mons.t1, { x: 520, moving: false, react: null, awakeUntil: 0 });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const [a, b] = [st.mons.t0, st.mons.t1];
+  assert.ok(a.react?.seq, "a spar");
+  assert.ok(a.awakeUntil > a.react.until && b.awakeUntil > b.react.until, `${a.awakeUntil - now} ${b.awakeUntil - now}`);
+  st.render(cx);
+});
