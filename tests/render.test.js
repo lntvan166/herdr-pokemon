@@ -787,3 +787,18 @@ test("the Day Care tab: leave two, take one back, the hatched ones", () => {
   assert.equal(v.bagTab, "box");
   assert.equal(v.boxSel, "box-3-448");
 });
+
+// The picker's 📦 Box filter: only the kinds waiting in the Box (a click: its preview, those of it
+// there to bring out).
+test("the picker's Box filter: the kinds waiting in the Box", () => {
+  seed();
+  const v = picker();
+  v.filtersOpen = true; // (the chips show with the filters open)
+  v.render(cx);
+  click("only-box:on_click");
+  assert.equal(v.only.box, true);
+  const keys = v.searchOnly().keys;
+  assert.ok(keys.has("133") && keys.has("448"), [...keys].join(","));
+  assert.ok(!keys.has("6") && !keys.has("37"), "not those with agents");
+  v.render(cx);
+});

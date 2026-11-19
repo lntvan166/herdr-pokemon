@@ -869,6 +869,8 @@ const waitingNow = () => {
   return all.map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x);
 };
 const WAIT_ROW = 7;
+// The kinds waiting in the Box ("6", "6-0001"…, as the picker's entries go), for its 📦 Box filter.
+const boxKinds = () => [...new Set(waitingNow().map((x) => (x.pick.form ? `${x.pick.dex}-${x.pick.form}` : String(x.pick.dex))))];
 // One of yours, right-clicked: its menu (what it is; items to use on it now; one waiting in the
 // Box to bring out in its place; another kind; its card in the Box). Sized to what it shows.
 const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", "ability-capsule", "ability-patch", ...STONES.map((k) => `${k}-stone`), ...HELD_IDS];
@@ -5982,9 +5984,11 @@ export default class PokemonHerd extends View {
   // Trainer mode (Settings): only what you caught, and the starters.
   // The Legendary chip: legendary and mythical species only (caught or not).
   searchOnly() {
-    const { fav, legend, ...rest } = this.only;
+    const { fav, legend, box, ...rest } = this.only;
     const mine = settingsNow().trainer ? trainerKeys(pokedex()) : null;
     let keys = fav ? new Set(favs().filter((k) => !mine || mine.has(k))) : mine;
+    // 📦 Box: the kinds you have waiting in the Box (a click: its preview, those of it there to bring out).
+    if (box) keys = new Set(boxKinds().filter((k) => !keys || keys.has(k)));
     // (A legendary's forms are legendaries too: Black and White Kyurem, Origin Giratina…)
     if (legend) keys = new Set([...LEGENDARY].flatMap((d) => [String(d), ...formsOf(d).map((f) => `${d}-${f.form}`)]).filter((k) => !keys || keys.has(k)));
     // A type picked: its types as it fights (its regional form's, Rotom's appliance's…).
@@ -6409,14 +6413,14 @@ export default class PokemonHerd extends View {
     const t = theme();
     const p = props() ?? {};
     const all = searchEntries(this.filter, Infinity, this.searchOnly()).entries; // every match: scroll to browse them all
-    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav || this.only.legend || this.only.types);
+    const narrowed = !!(this.filter.trim() || this.only.region || this.only.mega || this.only.fav || this.only.legend || this.only.box || this.only.types);
     const favKeys = favs();
     const dexNow = pokedex();
     // Read here, not in the list's renderer: shared state read in there (Herdr's layout pass)
     // left the whole grid blank.
     const legendsOpen = settingsNow().legendsOpen;
     const lockedHere = (e) => isLocked(e.dex, dexNow, legendsOpen); // (a legendary's forms with it)
-    const activeFilters = [this.only.fav, this.only.mega, this.only.legend, this.only.region].filter(Boolean).length + (this.only.types?.length ?? 0);
+    const activeFilters = [this.only.fav, this.only.box, this.only.mega, this.only.legend, this.only.region].filter(Boolean).length + (this.only.types?.length ?? 0);
     // A small toggle: the filter row's chips.
     const chip = (id, label, on, flip) => div()
       .id(id).h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11).border_1()
@@ -6522,10 +6526,11 @@ export default class PokemonHerd extends View {
         .when(activeFilters > 0, (el) => el.child(chip("filters-clear", "Clear", false, () => { this.only = {}; })))
         // What's on, at a glance, when the panel is shut.
         .when(!this.filtersOpen, (el) => el.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child([
-          this.only.fav && "★", this.only.mega && "Mega", this.only.legend && "Legendary", this.only.region, ...(this.only.types ?? []).map(typeLabel)].filter(Boolean).join(" · ")))))
+          this.only.fav && "★", this.only.box && "Box", this.only.mega && "Mega", this.only.legend && "Legendary", this.only.region, ...(this.only.types ?? []).map(typeLabel)].filter(Boolean).join(" · ")))))
       .when(!!this.filtersOpen, (el) => el.child(v_flex().gap(6).p(8).rounded(8).bg(t.raised).flex_none()
         .child(h_flex().flex_wrap().gap(4).items_center()
           .child(chip("only-fav", favKeys.length ? `★ ${favKeys.length}` : "★", !!this.only.fav, () => { this.only = { ...this.only, fav: !this.only.fav }; }))
+          .child(chip("only-box", `📦 Box ${boxKinds().length}`, !!this.only.box, () => { this.only = { ...this.only, box: !this.only.box }; }))
           .child(chip("only-mega", "Mega", !!this.only.mega, () => { this.only = { ...this.only, mega: !this.only.mega }; }))
           .child(chip("only-legend", "✦ Legendary", !!this.only.legend, () => { this.only = { ...this.only, legend: !this.only.legend }; })))
         .child(h_flex().flex_wrap().gap(4).items_center().children(REGIONS.map((r) => chip(`only-${r}`, r, this.only.region === r, () => {
@@ -6593,6 +6598,6 @@ export default class PokemonHerd extends View {
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
       )
-      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.region || this.only.mega || this.only.legend || this.only.types ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
+      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.box && !boxKinds().length ? "None waiting in your Box." : this.only.region || this.only.mega || this.only.legend || this.only.box || this.only.types ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
   }
 }
