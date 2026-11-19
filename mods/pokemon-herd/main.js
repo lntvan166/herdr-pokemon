@@ -627,9 +627,13 @@ const EMOTE_OF = { "!": "bang", "✓": "check", zZ: "zz", "❓": "question", "�
   // (💫 🎉 😜 💨 and the seasons' stay emoji: clearer at this size than their balloons, and the
   // seasons' come to many at once; their drawn balloons are kept in art/emotes, unused.)
 };
-const emote = (name, h = 20) => image(`mods/${MOD}/art/emotes/${name}.png`).w(Math.round((h * 19) / 20)).h(h).flex_none();
-const iconOrEmote = (icon, h, size) => (EMOTE_OF[icon] ? emote(EMOTE_OF[icon], h) : div().text_size(size).child(icon));
+// (Drawn 20×20 at a whole pixel only: its picture is 4× that, so each of its pixels lands on 4×4 of
+// the file; at 16 or 19 px, or half a pixel off, they blurred together.)
+const EMOTE_PX = 20;
+const emote = (name) => image(`mods/${MOD}/art/emotes/${name}.png`).w(EMOTE_PX).h(EMOTE_PX).flex_none();
+const iconOrEmote = (icon, size) => (EMOTE_OF[icon] ? emote(EMOTE_OF[icon]) : div().text_size(size).child(icon));
 // The egg: still; near hatching (80%) wobbling, by the second; nearly out (95%), cracked.
+// (24 px is its own size, crisp; smaller ones are blended, as small as they are.)
 const eggArt = (h, frac = 0, now = Date.now()) => image(`mods/${MOD}/art/egg/${frac >= 0.95 ? "egg-crack" : frac >= 0.8 && Math.floor(now / 1000) % 2 ? "egg-wobble" : "egg"}.png`)
   .w(Math.round((h * 21) / 24)).h(h).flex_none();
 // A hit's words with the abilities that touched it: "Super effective! · Levitate" (alone: theirs).
@@ -2643,7 +2647,7 @@ export default class PokemonHerd extends View {
     // A trainer's Pokémon in its ball still: not thrown yet (its trainer on its way to its corner),
     // or thrown a moment ago. (It showed a moment as the trainer came, then went to be thrown.)
     const inBall = !!v.trainer && (!v.trainer.waited || (!!v.sentOut && now - v.sentOut.at < SEND_OPEN));
-    root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(left - mid)
+    root.child(div().id(`visitor-${v.id}-${leg}`).absolute().top(0).h(ground + 10).w(sw).left(halt ? Math.round(left - mid) : left - mid) // (stopped: a whole pixel, its balloon crisp)
       .when(!halt, (el) => el.transition("left", { duration: Math.max(1, Math.round(v.dur - (v.walkFrom - v.start))), easing: "linear" }))
       .child(div()
         .when(!inBall, (el) => el.child(div().absolute().left(mid - shadowW / 2).top(ground - 2 * scale).w(shadowW).h(6 * scale).rounded_full().bg("#00000030")))
@@ -2668,8 +2672,8 @@ export default class PokemonHerd extends View {
             .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${wonSay(v.trainer)}”`));
           return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
-        .when(!!actIcon, (el) => el.child(div().absolute().left(mid + (pose.box.w / 2) * scale - 2).top(Math.max(2, ground - pose.box.h * scale - (EMOTE_OF[actIcon] ? 20 : 14))).text_size(13).font_bold()
-          .text_color(t.foreground).child(iconOrEmote(actIcon, 18, 13))))
+        .when(!!actIcon, (el) => el.child(div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - (EMOTE_OF[actIcon] ? 22 : 14)))).text_size(13).font_bold()
+          .text_color(t.foreground).child(iconOrEmote(actIcon, 13))))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
@@ -4599,7 +4603,7 @@ export default class PokemonHerd extends View {
         : mood === "done" ? emote("check")
         // Asleep: a dimmed balloon (smaller than ! and ✓); never while it fights (a spar, a wild
         // one, a raid: it showed over one throwing Earthquake).
-        : mood === "sleep" && !(m.react && now < m.react.until) && !(m.battleUntil > now) && !shotAt(m, now) ? emote("zz", 16).opacity(0.5)
+        : mood === "sleep" && !(m.react && now < m.react.until) && !(m.battleUntil > now) && !shotAt(m, now) ? emote("zz").opacity(0.45)
         : null;
       const x0 = isAt(a) - sw / 2 + hit.left;
       (heads[g ? rowOf(a) : 0] ??= []).push({ x0, x1: x0 + hit.w, top: bubble ? headY - 24 : headY - 4 });
@@ -4645,7 +4649,7 @@ export default class PokemonHerd extends View {
           .top(g ? rowOf(a) * g.rowH : 0)
           .h(g ? g.rowH : this.height)
           .w(sw)
-          .left((gap && m.moving ? m.from + (m.target - m.from) * clamp((now - m.start) / m.dur, 0, 1) : x) - sw / 2)
+          .left(Math.round(gap && m.moving ? m.from + (m.target - m.from) * clamp((now - m.start) / m.dur, 0, 1) : x) - Math.round(sw / 2)) // (a whole pixel: its balloon crisp)
           // Walking: over what is left of its walk (from where it is drawn now); standing: its own
           // short move (a step aside, a jump), or none at all after a gap.
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
@@ -4654,11 +4658,11 @@ export default class PokemonHerd extends View {
             ((sh) => sh && travelOf(sh.move?.type, sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
-            el.child(h_flex().absolute().left(0).w(sw).top(Math.max(2, headY - 24)).justify_center().text_size(12.5).child(bubble)))
+            el.child(h_flex().absolute().left(0).w(sw).top(Math.round(Math.max(2, headY - 24))).justify_center().text_size(12.5).child(bubble)))
           // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
           .when(!!reactIcon(m, now), (el) =>
-            el.child(div().absolute().left(sw / 2 + 8).top(Math.max(2, headY - (EMOTE_OF[reactIcon(m, now)] ? 16 : 12)))
-              .child(iconOrEmote(reactIcon(m, now), 16, 12)))) // still: GPUI drew a looping emoji without its colours
+            el.child(div().absolute().left(Math.round(sw / 2 + 8)).top(Math.round(Math.max(2, headY - (EMOTE_OF[reactIcon(m, now)] ? 18 : 12))))
+              .child(iconOrEmote(reactIcon(m, now), 12)))) // still: GPUI drew a looping emoji without its colours
           // A battle's special move: its type's icon flies across to the other (one transition,
           // set once: from where it starts on the first frame, to the other on the next ones).
           // (fx.js: its type's colours and look, a glow, a tail), landing as the other is hit.
@@ -4685,9 +4689,9 @@ export default class PokemonHerd extends View {
             .child(div().px(5).h(15).rounded(5).bg("#000000a8").flex().items_center().text_size(10).font_semibold().text_color("#ffd23f").child(raidBadge(a.pane, m)))))
           // A find, a heart, a berry; or hungry, waiting on you too long.
           .when(!!m.note || !!m.hungry, (el) =>
-            el.child(div().absolute().left(sw / 2 - 30).top(Math.max(2, headY - 14)).text_size(13)
+            el.child(div().absolute().left(Math.round(sw / 2 - 30)).top(Math.round(Math.max(2, headY - 14))).text_size(13)
               
-              .child(m.note?.item ? this.itemMark(m.note.item, 18) : iconOrEmote(m.note?.icon ?? "🥺", 18, 13))))
+              .child(m.note?.item ? this.itemMark(m.note.item, 18) : iconOrEmote(m.note?.icon ?? "🥺", 13))))
           // Tired (the 5-hour limit is near): working ones sweat.
           .when(!!this.tired && mood === "working", (el) =>
             el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
@@ -5690,7 +5694,8 @@ export default class PokemonHerd extends View {
     return v_flex().id("bag-care").flex_none().h(h).gap(10)
       .child(h_flex().gap(10).flex_none().child(parent(there[0], 0)).child(div().text_size(20).child("❤")).child(parent(there[1], 1)))
       .child(h_flex().gap(10).items_center().flex_none().px(10).py(8).rounded(8).bg(t.raised)
-        .child(egg ? eggArt(28, egg.done / egg.need) : image(`mods/${MOD}/art/daycare.png`).w(31).h(28).flex_none()) // (the Day Care, drawn)
+        // (Each at its own size, 1:1: crisp.)
+        .child(egg ? eggArt(24, egg.done / egg.need) : image(`mods/${MOD}/art/daycare.png`).w(38).h(34).flex_none()) // (the Day Care, drawn)
         .child(v_flex().flex_1().min_w(0).gap(4)
           .child(div().text_size(12).text_color(t.foreground).child(state))
           .when(!!egg, (el) => el.child(div().w_full().h(6).rounded_full().bg(t.border).overflow_hidden()
