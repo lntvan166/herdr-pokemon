@@ -3,16 +3,17 @@
 // Bag's Box tab and the strip draw without throwing, and their buttons do what they say. A
 // render that throws in Herdr shows "This view could not be re-rendered" and its clicks do
 // nothing (the picker with its filters open, 2.26.0).
-import { test, before } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { register } from "node:module";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 register("./render/loader.mjs", import.meta.url);
 globalThis.__freezePicks = true; // the saved Pokémon, never changed in place: a write to them throws
 process.env.POKEMON_TEST_HOME = mkdtempSync(join(tmpdir(), "pokemon-render-"));
+after(() => rmSync(process.env.POKEMON_TEST_HOME, { recursive: true, force: true })); // (one a run was left in /tmp)
 
 let H, K, Herd, ids;
 const cx = { spawn() {}, notify() {}, timer: { every() {}, after() {} }, stop_propagation() {}, open_url() {} };
