@@ -160,7 +160,11 @@ export function features(width, ground, row) {
   // Raindrops (weather): spread over the width, each its own speed and start.
   const drops = [];
   for (let i = 0; i < Math.round(width / 12); i++) drops.push({ x: r() * width, y: r() * ground, speed: 160 + r() * 80 });
-  return { hills, clouds, stars, tufts, trees, moon, flowers, flakes, drops };
+  // A bush or a rock now and then, between the trees (drawn when the scenery's pictures are in).
+  // Last, so everything above keeps its place.
+  const rocks = [];
+  for (let x = 90 + r() * 200; x < width - 20; x += 230 + r() * 280) rocks.push({ x: Math.round(x), kind: r() < 0.6 ? "bush" : "rock", s: 0.85 + r() * 0.35 });
+  return { hills, clouds, stars, tufts, trees, moon, flowers, flakes, drops, rocks };
 }
 
 // Where the snowflakes are `sec` seconds on: falling, swaying, back at the top under `line`

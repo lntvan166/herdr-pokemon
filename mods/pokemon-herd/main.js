@@ -71,6 +71,7 @@ import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS,
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL, ensureTrainer } from "./sprites.js";
+import { ensureScene } from "./sprites.js";
 import { cachedIcons, ensureRing, RING_REL, AURA_REL, loadSprite, ensureIcon, iconPath, ensureArt, artPath, ensureCry, ensureQuietCry, ensureWhite, whitePath, imageMagick, savedMegas, refreshMegas, latestVersion } from "./sprites.js";
 
 const SLOT = 128; // width of one Pokémon's box (sprite, bubble)
@@ -652,6 +653,10 @@ const RING = { ready: false };
 const MEGA_MARK = { ready: false }; // the Mega symbol's picture (sprites.js ensureMegaMark)
 ensureMegaMark().then(() => { MEGA_MARK.ready = true; }, () => {});
 ensureRing().then(() => { RING.ready = true; }, () => {});
+// The scenery's pictures (sprites.js ensureScene: trees by season, a bush, a rock, flowers, the
+// campfire), each with its night copy; till they're in (or without ImageMagick), flat shapes.
+let SCENE = null;
+ensureScene().then((s) => { SCENE = s; }, () => {});
 // `shadow`: a Shadow Pokémon's (some Alphas): its motes dark violet, a dark aura flickering behind it.
 // `still`: one of yours, on the strip all day: its ring only, not breathing, no motes (the moving
 // glow is for a wild one or a raid boss, there a moment).
@@ -1011,12 +1016,22 @@ export default class PokemonHerd extends View {
     const p = palette(nightness(hour), light, seasonAt(now), bright ? "bright" : "muted");
     const weather = this.weather ?? "clear";
     const storm = weather === "storm";
+    const se = seasonAt(now), night = nightness(hour);
+    // One of the scenery's pictures standing on `bottom`, `h` tall, at `op`: its day look, its
+    // night look over it as night falls.
+    const scenePic = (name, x, bottom, h, op) => {
+      const a = SCENE?.[name];
+      if (!a || op <= 0.02) return [];
+      const w = Math.round((h * a.w) / a.h);
+      const at = (path, o) => image(path).absolute().left(x).top(bottom - h).w(w).h(h).opacity(o);
+      return night > 0.02 ? [at(a.day, op), at(a.night, op * night)] : [at(a.day, op)];
+    };
     // Snow and leaves fall: the strip redraws once a second for them (tick: AMBIENT_MS) and each
     // flake slides there over that second. Rain stays still (it fell too fast to slide: it took a
     // redraw four times a second, the whole window each time, while an agent waited).
     this.snowing = p.snow > 0.05 || p.leaves > 0.05;
     const sec = Math.floor(now.getTime() / AMBIENT_MS) * AMBIENT_MS / 1000;
-    const key = `v4|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
+    const key = `v5|${Math.round(this.width)}|${ground}|${row}`; // bump when features() changes shape
     // Clouds and the moon fade over a Pokémon's head (its bubble stays readable): where heads were
     // on the last frame, which is a quarter second at most.
     const heads = this.heads?.[row] ?? [];
@@ -1052,14 +1067,24 @@ export default class PokemonHerd extends View {
           .absolute().left(a.x).top(a.y).size(a.size).rounded_full().border_2().border_color(a.color).opacity(strength)));
       })
       .children(f.hills.map((h) => div().absolute().left(Math.round(h.cx - h.rx)).top(line - h.ry).w(Math.round(2 * h.rx)).h(Math.round(2 * h.ry)).rounded_full().bg(p.hill)))
-      .children(f.trees.flatMap((t) => treeParts(t, line - 3).map(([x, y, w, h, c, round]) => {
+      // Trees: their pictures by season (blending into the next as it comes), darker by night; flat
+      // shapes till the pictures are in.
+      .children(SCENE ? f.trees.flatMap((t) => {
+        const h = Math.round(t.h * 1.15);
+        const names = t.kind === "pine" ? ["pine", "pine", "pine", "pine-winter"] : ["tree-spring", "tree-summer", "tree-autumn", "tree-winter"];
+        return [[se.a, 1 - se.t], [se.b, se.t]].filter(([, w]) => w > 0.02).flatMap(([i, w]) => scenePic(names[i], t.x, line - 1, h, w));
+      }) : f.trees.flatMap((t) => treeParts(t, line - 3).map(([x, y, w, h, c, round]) => {
         const el = div().absolute().left(x).top(y).w(w).h(h).bg(p[c]);
         return round ? el.rounded_full() : el;
       })))
+      // A bush or a rock now and then.
+      .when(!!SCENE, (el) => el.children(f.rocks.flatMap((k) => scenePic(k.kind, k.x, line + 1, Math.round((k.kind === "bush" ? 12 : 10) * k.s), 1))))
       .child(div().absolute().left(0).right(0).top(line - 3).h(7).bg(p.grass))
       .children(f.tufts.map((u) => div().absolute().left(u.x).top(line - 3 - u.h).w(1).h(u.h).bg(u.dark ? p.dark : p.grass)))
       .when(p.flowers > 0.05, (el) => el.children(f.flowers.map((w) => div()
         .absolute().left(w.x).top(line - 4).size(2).bg(w.pink ? "#f2a6c8" : "#f4e27a").opacity(p.flowers * (light ? 1 : 0.75)))))
+      // Spring: now and then a cluster of flowers among them.
+      .when(p.flowers > 0.05 && !!SCENE, (el) => el.children(f.flowers.filter((_, i) => i % 6 === 3).flatMap((w) => scenePic(w.pink ? "flowers-pink" : "flowers-yellow", w.x - 4, line + 1, 8, p.flowers))))
       .child(div().absolute().left(0).right(0).top(line + 4).h(2).bg(p.dark))
       // Falling snow, or autumn leaves (every other flake, slower): each slides to where it is
       // next; back at the top, it is a new one.
@@ -4167,6 +4192,15 @@ export default class PokemonHerd extends View {
       const fx = this.width / 2;
       for (const y of grounds) {
         const k = scale;
+        const art = SCENE?.fire && SCENE?.embers;
+        // Its pictures: the logs and embers, the flame over them flickering (the embers showing
+        // through as it dims).
+        if (art) {
+          root.child(div().absolute().left(fx - 40 * k).top(y - 46 * k).size(80 * k).rounded_full().bg("#ff9a3c").loop("opacity", { from: 0.08, to: 0.16, period: 1300 }))
+            .child(image(SCENE.embers.day).absolute().left(fx - 9 * k).top(y - 7 * k).w(18 * k).h(12 * k))
+            .child(image(SCENE.fire.day).absolute().left(fx - 10 * k).top(y - 21 * k).w(20 * k).h(23 * k).loop("opacity", { from: 0.7, to: 1, period: 420 }));
+          continue;
+        }
         root.child(div().absolute().left(fx - 40 * k).top(y - 46 * k).size(80 * k).rounded_full().bg("#ff9a3c").loop("opacity", { from: 0.08, to: 0.16, period: 1300 }))
           .child(div().absolute().left(fx - 9 * k).top(y - 3 * k).w(18 * k).h(4 * k).rounded(2).bg("#6b4528"))
           .child(div().absolute().left(fx - 6 * k).top(y - 5 * k).w(12 * k).h(3 * k).rounded(2).bg("#8a5a33"))

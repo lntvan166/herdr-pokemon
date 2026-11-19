@@ -181,7 +181,8 @@ From a clone of this repo: `git pull && scripts/install.sh`.
   them by `scripts/make-demos.py`.
 - Names, evolutions, base stats and types: [PokeAPI](https://github.com/PokeAPI/pokeapi)'s CSVs
   (`scripts/gen-species.mjs`, `scripts/gen-stats.mjs`). Item and badge art: PokeAPI's sprites.
-- Trainers' pictures: drawn for Pokerdr with ChatGPT's image generation, in the sprites' style.
+- Trainers' pictures and the scenery's (trees by season, bushes, rocks, flowers, the campfire):
+  drawn for Pokerdr with ChatGPT's image generation, in the sprites' style.
 - Pokémon Sidebar is a fork of [Better Sidebar](https://github.com/munza/herdr-mods) by Tawsif
   Aqib (Apache-2.0).
 - Pokémon and all related names are trademarks of Nintendo, Creatures and GAME FREAK. This is an

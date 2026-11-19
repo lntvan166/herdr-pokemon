@@ -611,6 +611,16 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
 - **Art:** PMD SpriteCollab (CC BY-NC 4.0). Names from PokeAPI. Nothing Pokémon is in
   `mods/`.
 
+- **The scenery's pictures** (`art/scene/*.png`, `sprites.js` `ensureScene`; drawn with ChatGPT
+  as two 6-object sheets on magenta, cut by equal columns, box-downscaled ×2): round trees by
+  season (spring blossom, summer, autumn, winter bare with snow), pines (snowy in winter), a bush,
+  a rock, two flower clusters, the campfire (logs and embers, its flame over them flickering).
+  Each gets a night copy (darker, bluer; made once in `data/pokemon-herd/scene`), drawn over the
+  day one as night falls (`nightness`); a season blending into the next blends its trees too
+  (`seasonAt` a/b/t). Bushes and rocks now and then (`features` `rocks`, last so nothing else
+  moves; the scene cache key v5); a flower cluster among spring's dots. Without ImageMagick, or
+  till they're in, the flat shapes as before (`treeParts`).
+
 ## Watch out
 
 - Each Pokémon's box is 128 px wide and spans its row. Take the mouse only on the visible

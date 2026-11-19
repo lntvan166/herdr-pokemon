@@ -300,6 +300,28 @@ export async function ensureRing() {
   return RING_REL;
 }
 
+// The scenery's pictures (art/scene: trees by season, pines, a bush, a rock, flowers, the
+// campfire; drawn for Pokerdr in the sprites' style), each with a night copy (darker, bluer; made
+// once): { <name>: { day, night, w, h } } (paths from Herdr's home), or null without ImageMagick.
+export const SCENE_ART = ["tree-spring", "tree-summer", "tree-autumn", "tree-winter", "pine", "pine-winter", "bush", "rock", "flowers-pink", "flowers-yellow", "fire", "embers"];
+export async function ensureScene() {
+  if (!(await imageMagick())) return null;
+  await fs.mkdir(`${DATA}/scene`, { recursive: true });
+  const out = {};
+  for (const name of SCENE_ART) {
+    const day = `mods/${MOD}/art/scene/${name}.png`;
+    if (!(await fs.exists(`${appHome()}/${day}`).catch(() => false))) continue;
+    const night = `${DATA}/scene/${name}-night-v1.png`;
+    if (!(await fs.exists(night).catch(() => false))) {
+      await im("convert", [`${appHome()}/${day}`, "-modulate", "45,65,100", "-fill", "#1a2a55", "-colorize", "18", `${night}.part.png`]);
+      await moveFile(`${night}.part.png`, night);
+    }
+    const [w, h] = (await im("identify", ["-format", "%w %h", `${appHome()}/${day}`])).split(" ").map(Number);
+    out[name] = { day, night: `${DATA_REL}/scene/${name}-night-v1.png`, w, h };
+  }
+  return out;
+}
+
 // The Mega Evolution symbol, as the games show it over a Pokémon Mega Evolving: a ring in the
 // rainbow's colours, a white drop of light inside (the symbol's DNA-like curl, simplified). Drawn
 // once (64 px). Returns its path as drawn.
