@@ -2368,7 +2368,7 @@ export default class PokemonHerd extends View {
     const down = (i) => i < tr.idx || (i === tr.idx && !!v.fainted);
     // Under its feet, where a name would go (it has none): over its head, in the strip's corner,
     // it touched ☰ and 🔊; by its head, it sat on its Pokémon.
-    return h_flex().absolute().left(x - w / 2).top(ground + 5).gap(gap)
+    return h_flex().id(`trainer-balls-${v.id}`).absolute().left(x - w / 2).top(ground + 5).gap(gap)
       .children(tr.team.map((_m, i) => div().size(d).rounded_full().border_1()
         .border_color(down(i) ? "#6b6b6b" : "#ffffff").bg(down(i) ? "#3a3a3a" : "#e5484d").opacity(down(i) ? 0.7 : 1)));
   }
@@ -2601,7 +2601,7 @@ export default class PokemonHerd extends View {
           const tx = mid - (v.dir === "r" ? 1 : -1) * this.trainerGap(v, scale);
           const throwing = !!(v.sentOut && now - v.sentOut.at < SEND_OPEN + 200); // its ball just thrown
           const f = this.trainerFigure(v, tx, ground, halt ? (halt.face ?? (v.dir === "r" ? "R" : "L")) : v.dir === "r" ? "R" : "L", !halt, stripScale, throwing);
-          const b = halt && this.trainerBalls(v, tx, ground, stripScale); // its team, once it waits
+          const b = this.trainerBalls(v, tx, ground, stripScale); // its team (walking in too: always there)
           // It won that one: its words, a moment.
           const size = cheering && this.trainerSize(v, stripScale);
           // (Kept left of the corner buttons: this box sits at left - mid on the strip.)
@@ -2664,10 +2664,19 @@ export default class PokemonHerd extends View {
       .when(!!ball, (el) => el.child(div().absolute().left(mid - 8).top(Math.max(2, headY - 18))
         
         .child(this.itemMark(ball, 18)))));
+    // Where a tag under it goes (`tagW` wide): centred under it, in the strip; a trainer's kept off
+    // the trainer's side, so its balls (under its feet) always show: a tag over them hid how many
+    // it had left.
+    const tagLeft = (tagW) => {
+      const centred = Math.max(4, Math.min(this.width - tagW - 6, v.x - tagW / 2));
+      if (!v.trainer) return centred;
+      const tx = v.x + (v.dir === "r" ? -1 : 1) * this.trainerGap(v, scale), half = (this.trainerSize(v, stripScale)?.w ?? 30) / 2 + 6;
+      return tx > v.x ? Math.max(4, Math.min(centred, tx - half - tagW)) : Math.min(this.width - tagW - 6, Math.max(centred, tx + half));
+    };
     // A trainer's next Pokémon out: "Hiker Ben sent out Golem!" under it a moment.
     if (v.sentOut && now - v.sentOut.at < 2500 && v.trainer) {
       const tagW = 300;
-      root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 6, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+      root.child(div().id(`visitor-tag-${v.id}`).absolute().left(tagLeft(tagW)).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().rounded(4).bg(t.chrome).text_size(10.5).font_semibold().text_color(t.foreground)
         .child(`${v.trainer.title} ${v.trainer.name} sent out ${fullName(v.pick.dex, v.pick.form)}!`));
       return;
@@ -2685,7 +2694,7 @@ export default class PokemonHerd extends View {
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
         : ball ? `: click to throw ${an(ITEMS[ball].name)}${shared(BALL_KEY) === ball ? "" : " (Auto)"}${baitNow ? ` + ${ITEMS[baitNow].name}` : ""}, ${rate}% to catch${v.pick.legend ? ` · ${LEGEND_THROWS - (v.throws ?? 0)} balls before it runs away` : ""}`
         : ": no Poké Balls (the Shop has them)";
-      root.child(div().absolute().left(Math.max(4, Math.min(this.width - tagW - 6, v.x - tagW / 2))).top(ground + 6).w(tagW).h(LABEL_H)
+      root.child(div().id(`visitor-tag-${v.id}`).absolute().left(tagLeft(tagW)).top(ground + 6).w(tagW).h(LABEL_H)
         .flex().items_center().justify_center().overflow_hidden().rounded(4).bg(t.chrome).text_size(10.5).text_color(t.foreground)
         .child(sparkled(`${what}${hp < 1 ? ` · HP ${Math.round(hp * 100)}%` : ""}${tail}`)));
     }

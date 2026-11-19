@@ -626,3 +626,29 @@ test("a wild one drawn late starts where it has walked to by now", () => {
   const mid = 128 / 2, x = K.lefts["visitor-late-0"] + mid;
   assert.ok(Math.abs(x - 500) < 20, `drawn at ${x}, where it is by now: ~500`);
 });
+
+// A trainer's balls (one a Pokémon, grey once down) always show: walking in too, and no tag
+// under it (sent out…, hover) over them: the tags keep off the trainer's side.
+test("a trainer's balls always show: walking in, and no tag over them", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  const now = Date.now();
+  const team = [{ dex: 3 }, { dex: 6 }, { dex: 9 }];
+  // Walking in (not in its corner yet).
+  st.visitor = { id: "walkin", pick: { dex: 3, hp: 1 }, dir: "l", row: 0, from: 1240, to: 1000, start: now - 1000, dur: 8000, purse: 0,
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team, idx: 0 } };
+  st.render(cx);
+  assert.ok("trainer-balls-walkin" in K.lefts, "its balls, walking in");
+  // In its corner, its next one just sent out: "… sent out …" kept left of the trainer.
+  st.visitor = { id: "corner", pick: { dex: 6, hp: 1 }, dir: "l", row: 0, from: 1100, to: 1099, start: now - 9000, dur: 1000, x: 1100, purse: 0,
+    halt: { kind: "trainer", x: 1100, at: now, until: now + 60000, face: "L" }, sentOut: { at: now - 1000, dex: 6 },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team, idx: 1, waited: true } };
+  st.render(cx);
+  const trainerX = 1100 + st.trainerGap(st.visitor, 0.75), half = st.trainerSize(st.visitor, 0.75).w / 2;
+  assert.ok(K.lefts["visitor-tag-corner"] + 300 <= trainerX - half, `tag ends at ${K.lefts["visitor-tag-corner"] + 300}, trainer from ${trainerX - half}`);
+});
