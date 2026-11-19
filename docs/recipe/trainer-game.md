@@ -13,6 +13,14 @@ with its reason; the tests (`tests/trainer.test.js`, `tests/items.test.js`) pin 
   ₽400, one called ₽100; up to ₽600 a day; fewer purses the more often visitors come) and tips
   (a pat that gives a heart ₽10, a spar set up by a drop ₽15, one watched ₽5; up to ₽200 a day).
   Prices are set from a working day (~₽3,000); anything sells back for half.
+- **Day Care** (`breed.js`, `breed-data.js` from PokeAPI by `scripts/gen-breed.mjs`): a pair of
+  Box keys in `pokemon-herd-daycare` (loadCare), set from a Box card. `creditWork`/`count` hand it
+  the minutes of all agents' work (`dayCare`, the leader only): every `LAY_MIN` 15, an egg 50% the
+  same species, 20% not (a ♂ and a ♀ sharing an egg group, or with a Ditto; No Eggs never); one
+  egg at a time, hatching after EGG_CYCLES × 3 min (15 to 240) into the Box: the mother's line's
+  first stage (babies too, but the nine needing an Incense), its parents' chosen moves it can
+  learn, two hearts, wild shiny odds, caught in the Pokédex. "🥚 X hatched" in the strip's corner
+  for two minutes (`last`).
 - **Catch rates** (`trainer.js` `baseRate`, `FLEE`): a first stage 0.3, alone 0.22, a middle
   one 0.18, a final one 0.1, times its kind's own catch rate from the games (`speciesCatch`,
   `capture.js` from PokeAPI by `scripts/gen-capture.mjs`: ×0.8 at 45 or less up to ×1.2 at 255,

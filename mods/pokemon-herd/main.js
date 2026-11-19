@@ -69,6 +69,7 @@ import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
+import { loadCare, careWork, hatchPick, canBreed, whyNot, LAY_MIN } from "./breed.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
 import { ensureMegaMark, MEGA_MARK_REL, ensureTrainer } from "./sprites.js";
 import { ensureScene } from "./sprites.js";
@@ -104,6 +105,7 @@ const RAID_KEY = `${MOD}-raid`; // the raid on now (events.js), the same in ever
 const OUTBREAK_KEY = `${MOD}-outbreak`; // an outbreak called on top of the day's: { dex, from, until }
 const BAIT_KEY = `${MOD}-bait`; // the Berry fed before each ball (Bag), while there are some
 const LEGEND_KEY = `${MOD}-legend`; // when the Research last called a legendary Pokémon over
+const CARE_KEY = `${MOD}-daycare`; // the Day Care: two of the Box left together, their egg (breed.js loadCare)
 const TOWER_KEY = `${MOD}-tower`; // the Battle Tower: the climb on now and the best one (trainers.js loadTower)
 const towerNow = () => loadTower(shared(TOWER_KEY));
 // A climb's lives: TOWER_LIVES, or as many of yours as are on screen if fewer (two of them: two
@@ -1231,6 +1233,7 @@ export default class PokemonHerd extends View {
     this.workFlushed = now;
     const before = dailyNow().count.work ?? 0;
     research("work", this.workPending / 60000);
+    this.dayCare(this.workPending / 60000, now);
     this.workPending = 0;
     this.raidEgg(before, dailyNow().count.work ?? 0, now);
   }
@@ -1249,6 +1252,7 @@ export default class PokemonHerd extends View {
       if (add > 0) {
         const before = dailyNow().count.work ?? 0;
         research("work", add / 60000);
+        this.dayCare(add / 60000, now);
         this.raidEgg(before, dailyNow().count.work ?? 0, now); // every 2½ hours of all agents' work, an egg
       }
     } else if (c.ms) m.workCounted = 0;
@@ -1992,6 +1996,24 @@ export default class PokemonHerd extends View {
   }
   // The day's work went from `before` to `after` minutes (the counting strip): every 2½ hours of
   // of all agents' work together (2 a day at most), with none on, an egg; its boss as sturdy as the agents open (each a Pokémon to hit it).
+  // The Day Care (breed.js): `minutes` more of your agents' work, its egg nearer hatching or a try
+  // at one; hatched, into the Box (and the Pokédex, as caught), said in the strip's corner.
+  dayCare(minutes, now) {
+    const care = loadCare(shared(CARE_KEY));
+    if (!care.egg && care.pair.length < 2) return;
+    const r = careWork(care, savedPicks(), minutes, now, Math.random, (d) => learnableOf(d).map((m) => m.name));
+    let next = r.care;
+    if (r.hatched) {
+      const dex = r.hatched.dex, keys = Object.keys(NATURES);
+      const pick = hatchPick(r.hatched, now, { shiny: Math.random() * charmOdds() < 1 && hasShiny(dex), size: rollSize(), gender: rollGender(dex), nature: keys[Math.floor(Math.random() * keys.length)] });
+      savePicks({ [`box-${now}-${dex}`]: pick });
+      saveDex(withCaught(pokedex(), pick));
+      payDexGoals();
+      next = { ...next, last: { dex, shiny: pick.shiny, at: now } };
+    }
+    setShared(CARE_KEY, next);
+  }
+
   raidEgg(before, after, now) {
     if (!settingsNow().raids) return;
     const r = loadRaid(shared(RAID_KEY));
@@ -4595,6 +4617,13 @@ export default class PokemonHerd extends View {
       root.child(div().id("pokemon-updated").absolute().right(50).top(4).h(16).px(6).rounded(8)
         .flex().items_center().text_size(10).bg("#00000059").text_color("#ffffff").child(`✓ Updated to ${VERSION}`));
     }
+    // An egg just hatched at the Day Care: "🥚 Charmander hatched · in the Box", two minutes.
+    const born = loadCare(shared(CARE_KEY)).last;
+    if (born && now - born.at < 120000) {
+      root.child(div().id("pokemon-hatched").absolute().right(50).top(done?.to === VERSION && now - done.at < 120000 ? 22 : 4).h(16).px(6).rounded(8)
+        .flex().items_center().text_size(10).bg("#00000059").text_color(born.shiny ? SHINY_GOLD : "#ffffff")
+        .child(`🥚 ${born.shiny ? "✨ " : ""}${nameOf(born.dex)} hatched · in the Box`));
+    }
     // Battle sounds, on or off at a click (Settings → Sound too).
     const loud = !!settingsNow().battleSounds;
     root.child(div().id("pokemon-sfx").absolute().right(6).top(4).size(18).rounded(5).bg("#00000066")
@@ -5429,6 +5458,25 @@ export default class PokemonHerd extends View {
   // The Bag's Box tab: every Pokémon you have, as a grid (those with agents and those waiting),
   // narrowed by the chips and the search. Click one: what it is, and what can be done with it
   // (Rename, Take what it holds, Bring out for an agent, Release: twice, "Sure?").
+  // The Day Care's line in the Box: who's there, whether they can have an egg, and the egg's
+  // progress (in minutes of your agents' work).
+  careLine(care, boxed, t) {
+    const there = care.pair.map((k) => boxed.find((x) => x.slot === k)).filter(Boolean);
+    const who = there.map((x) => `${nameFor(x.pick)}${x.pick.gender ? ` ${genderMark(x.pick.gender)}` : ""}`).join(" & ");
+    const how = there.length === 2 ? canBreed(there[0].pick, there[1].pick) : null;
+    const egg = care.egg;
+    const state = egg ? `an egg: ${Math.floor(egg.done)} of ${egg.need} min of work to hatch`
+      : there.length < 2 ? (there.length ? "leave one more to have an egg" : "")
+      : how ? `${how === "same" ? "they get along very well" : "they get along"}: a chance at an egg every ${LAY_MIN} min of work`
+      : `no eggs: ${whyNot(there[0].pick, there[1].pick)}`;
+    return h_flex().gap(8).items_center().flex_none().px(8).h(28).rounded(6).bg(t.raised)
+      .child(div().text_size(12).child("🥚"))
+      .when(!!egg, (el) => el.child(div().w(70).h(6).flex_none().rounded_full().bg(t.border).overflow_hidden()
+        .child(div().h_full().w(70 * Math.min(1, egg.done / egg.need)).bg(t.accent))))
+      .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted)
+        .child([who ? `Day Care: ${who}` : "Day Care", state].filter(Boolean).join(" · ")));
+  }
+
   renderBox(boxed, h, t, icon, herd = []) {
     const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
     const everyone = [...active, ...boxed];
@@ -5444,6 +5492,14 @@ export default class PokemonHerd extends View {
       ["shadow", "Shadow", (x) => !!x.pick.shadow],
     ];
     const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
+    // The Day Care (breed.js): the two left there (still in the Box), and its egg.
+    const care = loadCare(shared(CARE_KEY));
+    const inCare = new Set(care.pair.filter((k) => boxed.some((x) => x.slot === k)));
+    const toCare = (slot) => {
+      const c = loadCare(shared(CARE_KEY)), all = savedPicks();
+      const pair = c.pair.includes(slot) ? c.pair.filter((k) => k !== slot) : [...c.pair.filter((k) => all[k]), slot].slice(-2);
+      setShared(CARE_KEY, { ...c, pair, left: 0 });
+    };
     const shown = sortBox(everyone.filter(filter[2]).filter((x) => !q || fold(nameFor(x.pick)).includes(q) || fold(x.tag ?? "").includes(q) || fold(natureOf(x.pick)?.name ?? "").includes(q)), this.boxSort ?? "new");
     // Releasing (one, or a batch picked in Select): what it holds back to the Bag, and a little
     // money each (box.js releasePay). Never one with an agent or locked (box.js releasable).
@@ -5494,6 +5550,7 @@ export default class PokemonHerd extends View {
         .when(picked, (el) => el.child(div().absolute().bottom(4).right(4).size(16).rounded_full().bg(t.accent).flex().items_center().justify_center()
           .text_size(10).font_bold().text_color("#ffffff").child("✓")))
         .when(!!x.pick.locked, (el) => el.child(div().absolute().top(22).left(5).text_size(10).child("🔒")))
+        .when(inCare.has(x.slot), (el) => el.child(div().absolute().bottom(4).left(5).text_size(10).child("🥚")))
         .child(icon(x.pick, 48))
         .child(div().mt(2).child(typeBadges(x.pick, 11, 7.5)))
         .child(div().w_full().px(3).text_center().truncate().text_size(11).text_color(t.foreground).child(x.pick.nick ?? nameOf(x.pick.dex)))
@@ -5528,7 +5585,7 @@ export default class PokemonHerd extends View {
       const sure = this.releasing === slot;
       const nat = natureOf(pick);
       const facts = [pick.alpha ? (pick.shadow ? `Shadow Alpha: hits and takes ×1.2; purify at ♥${PURIFY_HEARTS}` : "Alpha") : "", `♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} job${pick.jobs === 1 ? "" : "s"}`, Number.isFinite(pick.size) ? sizeText(pick.size, pokedex().sizes?.[pick.dex]) : "", (pick.sparW || pick.sparL) ? `sparring ${pick.sparW ?? 0}–${pick.sparL ?? 0}` : "", nat ? `${nat.name}: ${nat.about}` : "", c.note, pick.stay && c.note !== "Everstone" ? "Everstone" : "",
-        pick.caught ? `caught in ${an(ITEMS[pick.ball ?? "poke-ball"].name)}, ${new Date(pick.caught).toLocaleDateString()}` : ""].filter(Boolean).join(" · ");
+        pick.caught ? (pick.hatched ? `hatched at the Day Care, ${new Date(pick.caught).toLocaleDateString()}` : `caught in ${an(ITEMS[pick.ball ?? "poke-ball"].name)}, ${new Date(pick.caught).toLocaleDateString()}`) : ""].filter(Boolean).join(" · ");
       return v_flex().gap(8)
         .child(h_flex().gap(12).items_center()
           // It walking, as the picker's preview shows it (its icon till that's in).
@@ -5547,6 +5604,8 @@ export default class PokemonHerd extends View {
         // take what it holds, purify it), then keeping the Box (lock, rename, release).
         .child(h_flex().gap(6).flex_wrap().items_center()
           .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "✕ Cancel" : "📤 Bring out to an agent…", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; }, false, true)))
+          // The Day Care: two at a time (a third takes the place of the first left there).
+          .when(!tag, (el) => el.child(pill(`box-care-${slot}`, inCare.has(slot) ? "🥚 Take it from the Day Care" : inCare.size >= 2 ? "🥚 Day Care (in place of the first)" : "🥚 Leave at the Day Care", () => toCare(slot))))
           // Fainted, resting: a Revive or Max Revive brings it back now.
           .children(["revive", "max-revive"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
             pill(`box-revive-${id}-${slot}`, `💊 ${ITEMS[id].name} ×${bag().items[id]}`, () => useOn(slot, id))))
@@ -5609,6 +5668,7 @@ export default class PokemonHerd extends View {
           this.boxSel = null;
           this.releasing = null;
         })))
+      .when(inCare.size > 0 || !!care.egg, (el) => el.child(this.careLine(care, boxed, t)))
       .when(!!picking, (el) => {
         const sel = [...picking].map((s) => everyone.find((x) => x.slot === s)).filter((x) => x && releasable(x));
         const pay = sel.reduce((n, x) => n + releasePay(x.pick), 0);

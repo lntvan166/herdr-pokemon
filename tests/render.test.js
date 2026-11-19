@@ -571,3 +571,35 @@ test("a trainer: those not fighting it step out of its side of the strip", () =>
   assert.ok(o.moving && o.target < 1100 - 80 - 37, `t1 steps out (to ${o.target})`);
   assert.ok(!far.moving, "one far off stays");
 });
+
+// The Day Care: two of the Box left there from their cards, its line drawn; an egg's minutes of
+// work done, it hatches into the Box (and the Pokédex), and the strip says so.
+test("the Day Care: a pair from the Box, an egg hatching into it", () => {
+  seed();
+  const CARE = `${ids.MOD}-daycare`;
+  setPanes({ ...H.store.get(ids.MOD).panes, "box-1-133": { dex: 133, gender: "m", hearts: 2 }, "box-3-448": { dex: 448, gender: "f", hearts: 1 } });
+  view({ bag: true, tab: "box", sel: "box-1-133" }).render(cx);
+  click("box-care-box-1-133:on_click");
+  assert.deepEqual(H.store.get(CARE).pair, ["box-1-133"]);
+  const v = view({ bag: true, tab: "box", sel: "box-3-448" });
+  v.render(cx);
+  click("box-care-box-3-448:on_click");
+  assert.deepEqual(H.store.get(CARE).pair, ["box-1-133", "box-3-448"]);
+  v.render(cx); // its line: Eevee ♂ & Lucario ♀, they get along
+  // Taken back out: one left.
+  click("box-care-box-3-448:on_click");
+  assert.deepEqual(H.store.get(CARE).pair, ["box-1-133"]);
+  // An egg one minute from hatching: a minute of work and it's a Riolu in the Box.
+  H.store.set(CARE, { v: 1, pair: ["box-1-133", "box-3-448"], egg: { dex: 447, need: 60, done: 59, at: 1 } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  st.dayCare(2, Date.now());
+  const born = Object.entries(picks()).find(([k, p]) => k.startsWith("box-") && p.dex === 447);
+  assert.ok(born && born[1].hatched && born[1].hearts === 2 && born[1].nature, "a Riolu, hatched");
+  assert.ok(H.store.get(`${ids.MOD}-dex`).caught.includes(447));
+  const care = H.store.get(CARE);
+  assert.equal(care.egg, null);
+  assert.equal(care.last.dex, 447);
+  st.render(cx); // "🥚 Riolu hatched · in the Box"
+  view({ bag: true, tab: "box", sel: born[0] }).render(cx);
+});
