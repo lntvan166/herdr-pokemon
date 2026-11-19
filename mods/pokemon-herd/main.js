@@ -2672,8 +2672,10 @@ export default class PokemonHerd extends View {
             .child(div().px(7).h(18).rounded(9).bg("#ffffff").flex().items_center().text_size(10.5).font_semibold().text_color("#202020").child(`“${wonSay(v.trainer)}”`));
           return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
-        .when(!!actIcon, (el) => el.child(div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - (EMOTE_OF[actIcon] ? 22 : 14)))).text_size(13).font_bold()
-          .text_color(t.foreground).child(iconOrEmote(actIcon, 13))))
+        // Its act's icon: a balloon centred over its head (as yours'), an emoji beside it.
+        .when(!!actIcon, (el) => el.child(EMOTE_OF[actIcon]
+          ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 24))).child(emote(EMOTE_OF[actIcon]))
+          : div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 14))).text_size(13).font_bold().text_color(t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
           .child(h_flex().h(LABEL_H).px(5).gap(4).rounded(4).items_center().bg(t.chrome)
@@ -4598,8 +4600,10 @@ export default class PokemonHerd extends View {
           .child(div().absolute().left(r - 3 * scale).top(r - 3 * scale).size(6 * scale).rounded_full().bg("#f4f4f4").border_1().border_color(t.foreground));
       }
 
-      const bubble =
-        mood === "blocked" ? emote("bang").loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
+      // An act's balloon (?, ♥, 💢: reactIcon) takes the place over its head while it shows.
+      const actBalloon = EMOTE_OF[reactIcon(m, now)] ? emote(EMOTE_OF[reactIcon(m, now)]) : null;
+      const bubble = actBalloon ? actBalloon
+        : mood === "blocked" ? emote("bang").loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
         : mood === "done" ? emote("check")
         // Asleep: a dimmed balloon (smaller than ! and ✓); never while it fights (a spar, a wild
         // one, a raid: it showed over one throwing Earthquake).
@@ -4660,7 +4664,7 @@ export default class PokemonHerd extends View {
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.round(Math.max(2, headY - 24))).justify_center().text_size(12.5).child(bubble)))
           // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
-          .when(!!reactIcon(m, now), (el) =>
+          .when(!!reactIcon(m, now) && !EMOTE_OF[reactIcon(m, now)], (el) =>
             el.child(div().absolute().left(Math.round(sw / 2 + 8)).top(Math.round(Math.max(2, headY - (EMOTE_OF[reactIcon(m, now)] ? 18 : 12))))
               .child(iconOrEmote(reactIcon(m, now), 12)))) // still: GPUI drew a looping emoji without its colours
           // A battle's special move: its type's icon flies across to the other (one transition,
