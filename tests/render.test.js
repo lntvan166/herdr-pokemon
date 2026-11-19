@@ -765,6 +765,12 @@ test("the Day Care tab: leave two, take one back, the hatched ones", () => {
   const v = view({ bag: true, tab: "care" });
   v.render(cx);
   assert.ok(K.handlers["care-in-box-9-132:on_click"], "Ditto offered");
+  // The search: "luc" leaves Lucario only.
+  for (const k of Object.keys(K.handlers)) if (k.startsWith("care-in-")) delete K.handlers[k];
+  v.careQuery = "luc"; v.render(cx);
+  assert.ok(K.handlers["care-in-box-3-448:on_click"], "Lucario a match");
+  assert.ok(!K.handlers["care-in-box-9-132:on_click"], "Ditto not");
+  v.careQuery = ""; v.render(cx);
   click("care-in-box-1-133:on_click");
   assert.deepEqual(H.store.get(CARE).pair, ["box-1-133"]);
   v.render(cx);

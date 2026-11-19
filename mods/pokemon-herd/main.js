@@ -5067,6 +5067,8 @@ export default class PokemonHerd extends View {
     // The Box's search: by name, nickname or the agent it's with.
     this.boxInput = InputState.new({ placeholder: "Search the Box…" });
     this.boxInput.on("change", (_e, cx) => { this.boxQuery = this.boxInput.value(); cx.notify(); });
+    this.careInput = InputState.new({ placeholder: "Search by name…" }); // the Day Care tab's candidates
+    this.careInput.on("change", (_e, cx) => { this.careQuery = this.careInput.value(); cx.notify(); });
     this.nickInput.on("submit", (_e, cx) => {
       const slot = this.renaming;
       const nick = cleanNick(this.nickInput.value());
@@ -5656,9 +5658,13 @@ export default class PokemonHerd extends View {
     // none, any that can have eggs (Ditto first). A click leaves it there.
     const one = there.length === 1 ? there[0] : null;
     const DITTO = { dex: 132 };
-    const fit = there.length >= 2 ? [] : boxed.filter((x) => !care.pair.includes(x.slot) && (one ? canBreed(one.pick, x.pick) : x.pick.dex === 132 || canBreed(x.pick, DITTO)))
-      .sort((a, b) => (one ? (b.pick.dex === one.pick.dex) - (a.pick.dex === one.pick.dex) : (b.pick.dex === 132) - (a.pick.dex === 132)) || (b.pick.caught ?? 0) - (a.pick.caught ?? 0))
-      .slice(0, 24);
+    // The search (accents folded, as the Box's): its name, nickname, species or ability.
+    const q = fold((this.careQuery ?? "").trim());
+    const matches = (x) => !q || [nameFor(x.pick), nameOf(x.pick.dex), abilityName(abilityOf(x.pick, x.slot))].some((n) => fold(n ?? "").includes(q));
+    const fitAll = there.length >= 2 ? [] : boxed.filter((x) => !care.pair.includes(x.slot) && (one ? canBreed(one.pick, x.pick) : x.pick.dex === 132 || canBreed(x.pick, DITTO)) && matches(x))
+      .sort((a, b) => (one ? (b.pick.dex === one.pick.dex) - (a.pick.dex === one.pick.dex) : (b.pick.dex === 132) - (a.pick.dex === 132)) || (b.pick.caught ?? 0) - (a.pick.caught ?? 0));
+    const CARE_SHOWN = 24;
+    const fit = fitAll.slice(0, CARE_SHOWN), more = fitAll.length - fit.length;
     const cand = (x) => div().id(`care-in-${x.slot}`).w(84).h(80).flex_none().rounded(8).flex().flex_col().items_center().justify_center().gap(2)
       .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { set([...care.pair.filter((k) => all[k]), x.slot].slice(-2)); cx.notify(); })
       .child(icon(x.pick, 40))
@@ -5672,8 +5678,11 @@ export default class PokemonHerd extends View {
           .child(div().text_size(12).text_color(t.foreground).child(state))
           .when(!!egg, (el) => el.child(div().w_full().h(6).rounded_full().bg(t.border).overflow_hidden()
             .child(div().h_full().w(Math.round(Math.min(1, egg.done / egg.need) * 460)).bg(t.accent))))))
-      .when(there.length < 2, (el) => el.child(div().text_size(11.5).text_color(t.muted).flex_none()
-        .child(fit.length ? (one ? `In the Box, partners for ${nameFor(one.pick)}:` : "In the Box, ones that can have eggs:") : one ? `None in the Box can have an egg with ${nameFor(one.pick)}.` : "None in the Box can have eggs yet.")))
+      .when(there.length < 2, (el) => el.child(h_flex().gap(8).items_center().flex_none()
+        .child(Input.new(this.careInput).w(170).h(26).px(8).rounded(6).border_1().border_color(t.border).bg(t.background).text_size(12).text_color(t.foreground))
+        .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted)
+          .child(fit.length ? `${one ? `Partners for ${nameFor(one.pick)}` : "Ones that can have eggs"}: ${fitAll.length}${more ? ` (the first ${fit.length} shown: search for the rest)` : ""}`
+            : q ? "None of those match." : one ? `None in the Box can have an egg with ${nameFor(one.pick)}.` : "None in the Box can have eggs yet."))))
       .when(fit.length > 0, (el) => el.child(div().id("care-fit").flex_1().min_h(0).overflow_y_scrollbar().child(h_flex().flex_wrap().gap(4).children(fit.map(cand)))))
       .when(born.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
         .child(div().text_size(11.5).text_color(t.muted).child(`Hatched here: ${care.hatched}`))
