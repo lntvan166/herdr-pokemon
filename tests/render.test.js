@@ -655,7 +655,7 @@ test("a trainer's balls always show: walking in, and no tag over them", () => {
 
 // Abilities in a battle: yours a Gyarados (Intimidate), the wild one a Snorlax with Thick Fat:
 // said in the first hit's words (no tag of their own over the fight), once each.
-test("abilities in a fight: Intimidate as they meet, in the first hit's words, once", () => {
+test("abilities in a fight: Intimidate as they meet, over its head before the moves, once", () => {
   seed();
   setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 130, jobs: 3, abil: 0 } });
   const st = view({ rows: 1, scale: 0.75 });
@@ -671,8 +671,12 @@ test("abilities in a fight: Intimidate as they meet, in the first hit's words, o
   st.tick(cx);
   const fx = st.visitor.fight;
   assert.ok(fx, "a fight");
+  // Intimidate: over Gyarados's head at once, on its own, before any move (the fight held back).
+  const note = (st.mons.t0.sparNotes ?? []).find((n) => /Intimidate/.test(n.text));
+  assert.ok(note && note.at - now < 600, JSON.stringify(st.mons.t0.sparNotes));
+  assert.ok(fx.at >= note.until - 400, `moves from ${fx.at - now}, Intimidate till ${note.until - now}`);
   const said = [fx.blow?.word?.[0], st.mons.t0.blows?.at(-1)?.word?.[0]].join(" | ");
-  assert.match(said, /Intimidate/);
+  assert.doesNotMatch(said, /Intimidate/); // not in a hit's words
   assert.equal(st.visitor.abil.w.st.atk, -1, "Snorlax's Attack a stage down");
   st.render(cx);
   assert.ok(!Object.keys(K.tops).some((k) => k.startsWith("abil-")), "no ability tag over the fight");
@@ -681,7 +685,7 @@ test("abilities in a fight: Intimidate as they meet, in the first hit's words, o
   Object.assign(st.mons.t0, { x: 560, moving: false });
   st.dropAt = { addr: "t0", dizzy: false };
   st.tick(cx);
-  const again = [st.visitor.fight?.blow?.word?.[0], st.mons.t0.blows?.at(-1)?.word?.[0]].join(" | ");
+  const again = [st.visitor.fight?.blow?.word?.[0], st.mons.t0.blows?.at(-1)?.word?.[0], ...(st.mons.t0.sparNotes ?? []).filter((n) => n.at > note.at).map((n) => n.text)].join(" | ");
   assert.doesNotMatch(again, /Intimidate/);
 });
 
@@ -704,4 +708,24 @@ test("a big one's words keep off its health bar", () => {
   // No room above (its head near the top): the move's name just under its bar (bar + 7), never
   // pinned to the top on the bar (2, before).
   assert.ok(move > 2, `move at ${move}`);
+});
+
+// The wild one's Intimidate: over its head as they meet, the moves after it.
+test("a wild one's Intimidate: said over its head first", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "gy", pick: { dex: 130, hp: 1, abil: 0 }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, purse: 0, halt: { kind: "curious", x: 600, at: now, until: now + 60000 } };
+  Object.assign(st.mons.t0, { x: 560, moving: false });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.equal(fx.entry?.text, "Intimidate");
+  assert.ok(fx.at >= fx.entry.until - 400, "the moves after it");
+  st.render(cx);
 });

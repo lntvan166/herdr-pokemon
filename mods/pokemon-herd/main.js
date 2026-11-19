@@ -618,6 +618,8 @@ const FX_GAP = 84; // how far apart yours and a wild one battle
 // Where a word over one's head goes (`h` tall, `below` px further down when under it): above its
 // health bar (healthBar at headY − 6) when the strip has room, else just under the bar. (Pinned to
 // the strip's top, a big one's move name and ability sat on its bar and hid it.)
+const ENTRY_MS = 900; // an ability as two meet (Intimidate): over its owner's head this long, before the moves
+const ABIL_COLOR = "#ffe08a";
 const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
 const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
   .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
@@ -1936,6 +1938,7 @@ export default class PokemonHerd extends View {
     if (v?.start) times.push(v.start + APPEAR_MS); // its "appeared!" goes
     // Its act's moments (wildacts.js): an icon going (running off, a dash), a teleport's flash.
     if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
+    if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
     if (egg) times.push(egg.hatch - HATCH_SHAKE, egg.hatch, egg.hatch + 40, egg.hatch + 480, egg.hatch + HATCH_MS);
@@ -2476,6 +2479,9 @@ export default class PokemonHerd extends View {
       }
       // Its health bar, while it stands (fainted, it goes with it: it stayed, empty, as it sank).
       if (!v.fainted || now - v.fainted < 600) root.child(hpBar(x));
+      // Its ability as they met (Intimidate…), over its head before the moves.
+      const en = fx.entry;
+      if (en && now >= en.at && now < en.until) root.child(fxWord(`entry-${v.id}-${en.at}`, [en.text, ABIL_COLOR], x, wordTop(headY, 16), this.fxFirst(`entry-${v.id}-${en.at}`) ? 0 : now < en.until - 260 ? 1 : 2));
       // A trainer's: it stands behind its Pokémon, watching.
       // Beaten: its words in a bubble, its pay rising off the field, then it turns and walks out
       // of the strip (WIN_WALK_AT after, over WIN_WALK_MS); the one of yours that won cheers (care).
@@ -3446,11 +3452,11 @@ export default class PokemonHerd extends View {
         // The abilities that showed: put in the words of the hit they touched (as they meet: the
         // first hit's), each once while these two face each other (Sharpness said every blow
         // was noise over the fight).
-        const words = { meet: [], hit: [], back: [] };
+        const words = { meetOwn: [], meetWild: [], hit: [], back: [] };
         if (!v.abil || v.abil.own !== drop.addr) {
           v.abil = { own: drop.addr, idx: v.trainer?.idx ?? -1, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);
-          words.meet.push(...m0.a, ...m0.b);
+          words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
         } else if (v.abil.idx !== (v.trainer?.idx ?? -1)) {
           // The trainer's next one out, yours still in: yours keeps its stages (Moxie's); only the
           // newcomer's Intimidate and the like show (yours showed as it came in).
@@ -3460,9 +3466,16 @@ export default class PokemonHerd extends View {
           if (mine === "intimidate") v.abil.o.ab = "";
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.o.ab = mine;
-          words.meet.push(...m0.a, ...m0.b);
+          words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
         }
         const so = v.abil.o, sw = v.abil.w;
+        // Each ability said once while these two face each other (v.abil.shown). One as they meet
+        // (Intimidate…): over its owner's head at once, on its own, ENTRY_MS before any move (as
+        // the games' banner), the fight held back that long.
+        const shown = (v.abil.shown ??= []);
+        const said = (keys) => { const out = [...new Set(keys)].filter((k) => k && !shown.includes(k)); shown.push(...out); return out.map(abilityName).filter(Boolean); };
+        const entry = { own: said(words.meetOwn), wild: said(words.meetWild) };
+        const entryMs = entry.own.length || entry.wild.length ? ENTRY_MS : 0;
         so.hp = ownHp(dm, now); sw.hp = hp;
         // Each one's move (moves.js), the weather's boost on it; one its target's ability makes
         // nothing of (Levitate, Water Absorb…) picked again, as the games' AI would (twice at most).
@@ -3526,7 +3539,7 @@ export default class PokemonHerd extends View {
         const willMega = mega && !dm.mega;
         const megaReady = !!this.sprites[spriteKey(dressed(pk), true)]?.walkR;
         if (willMega && !megaReady) this.want(pk, cx, true);
-        const at = now + 340 + (willMega ? MEGA_SHORT.burst + (megaReady ? 500 : 1800) : 0);
+        const at = now + 340 + entryMs + (willMega ? MEGA_SHORT.burst + (megaReady ? 500 : 1800) : 0);
         dm.dir = v.x > spot ? "r" : "l";
         const sp = reactionAnim("special", hasOf(dMeta)) ?? reactionAnim("spar", hasOf(dMeta));
         const ms = sp ? Math.max(600, msFor(dMeta)(sp)) : 700;
@@ -3549,13 +3562,13 @@ export default class PokemonHerd extends View {
           blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || omHit.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, omHit.crit), miss: omHit.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type, name: om.name },
         };
         if (!ownStrikes) v.fight.blow = null; // (fainted first: no move of its own)
-        // The abilities, in the words of the hit they touched ("Super effective! · Levitate"), each
-        // once while these two face each other (v.abil.shown); as they meet: the first hit's.
-        const shown = (v.abil.shown ??= []);
-        const said = (keys) => { const out = [...new Set(keys)].filter((k) => k && !shown.includes(k)); shown.push(...out); return out.map(abilityName).filter(Boolean); };
-        const first = wildFirst ? "back" : "hit";
-        const named = { hit: said([...(first === "hit" ? words.meet : []), ...words.hit]), back: said([...(first === "back" ? words.meet : []), ...words.back]) };
-        const withAbil = (word, names) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), "#ffe08a"]);
+        // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
+        const named = { hit: said(words.hit), back: said(words.back) };
+        // As they meet: over each one's head now, before the moves.
+        const shownAt = now + 300, shownTo = shownAt + ENTRY_MS;
+        if (entry.wild.length) v.fight.entry = { text: entry.wild.join(" · "), at: shownAt, until: shownTo };
+        if (entry.own.length) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: shownAt, until: shownTo, text: entry.own.join(" · "), color: ABIL_COLOR }];
+        const withAbil = (word, names) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), ABIL_COLOR]);
         if (v.fight.blow) v.fight.blow.word = withAbil(v.fight.blow.word, named.hit);
         else if (named.hit.length) named.back.unshift(...named.hit);
         const ownAt = ownLaunch - CHARGE_MS - 20; // it gathers power (after the wild one's blow, slower)
@@ -4627,7 +4640,7 @@ export default class PokemonHerd extends View {
           })
           // A note in a spar ("It's burned!"), over it while it lasts.
           .children((m.sparNotes ?? []).filter((n) => now >= n.at && now < n.until).map((n) => fxWord(`note-${a.address}-${n.at}`, [n.text, n.color], SLOT_MID,
-            Math.max(2, headY - 30), this.fxFirst(`note-${a.address}-${n.at}`) ? 0 : now < n.until - 300 ? 1 : 2)))
+            wordTop(headY, 16), this.fxFirst(`note-${a.address}-${n.at}`) ? 0 : now < n.until - 300 ? 1 : 2)))
           // It won a spar: "Charizard won! 3–1" (the pair's record) over it while it celebrates.
           .when(!!m.sparWin && now >= m.sparWin.at && now < m.sparWin.at + 1500, (el) => el.child(fxWord(`win-${a.address}-${m.sparWin.at}`,
             [m.sparWin.text, "#ffd23f"], SLOT_MID, Math.max(2, headY - 30), this.fxFirst(`win-${a.address}-${m.sparWin.at}`) ? 0 : now < m.sparWin.at + 1200 ? 1 : 2)))
