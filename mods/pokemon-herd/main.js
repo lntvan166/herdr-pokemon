@@ -889,6 +889,8 @@ const waitingNow = () => {
   return all.map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x);
 };
 const WAIT_ROW = 7;
+const CHIPS_ROW = 6; // the menu's ball or Berry chips on one line (Auto and 5), more wrap
+const PREVIEW_BOX = 3; // a preview's own kind waiting in the Box, at most this many listed
 // The kinds waiting in the Box ("6", "6-0001"…, as the picker's entries go), for its 📦 Box filter.
 const boxKinds = () => [...new Set(waitingNow().map((x) => (x.pick.form ? `${x.pick.dex}-${x.pick.form}` : String(x.pick.dex))))];
 // One of yours, right-clicked: its menu (what it is; items to use on it now; one waiting in the
@@ -3817,7 +3819,10 @@ export default class PokemonHerd extends View {
     const update = this.update();
     const m = menuParts();
     // Rows of 30, the chip sections 46 each, a divider, the update note.
-    const height = 16 + 30 * (4 + m.calls.length) + (m.balls.length ? 46 : 0) + (m.baits.length ? 46 : 0) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
+    // (A row of chips wraps past CHIPS_ROW of them: 26 more for the second line; all 7 balls ran
+    // off the popup's edge.)
+    const chipsH = (n) => (n ? 46 + (n + 1 > CHIPS_ROW ? 26 : 0) : 0);
+    const height = 16 + 30 * (4 + m.calls.length) + chipsH(m.balls.length) + chipsH(m.baits.length) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
     openOverlay({ mod: MOD, kind: "popup", width: 380, height, props: { menu: true, update } }); // room for every ball and Berry, with icons
   }
 
@@ -3839,9 +3844,9 @@ export default class PokemonHerd extends View {
       .child(txt)
       .child(div().text_size(11.5).text_color(t.muted).child(note));
     // A row of chips under a label: one on (the ball or the Berry in use); a click switches to it.
-    const chips = (id, label, opts, cur, pick) => v_flex().h(44).px(8).gap(3).justify_center()
+    const chips = (id, label, opts, cur, pick) => v_flex().h(opts.length > CHIPS_ROW ? 70 : 44).px(8).gap(3).justify_center()
       .child(div().text_size(11).text_color(t.muted).child(label))
-      .child(h_flex().gap(3).items_center().children(opts.map(([v, txt]) => div().id(`${id}-${v ?? "none"}`)
+      .child(h_flex().gap(3).flex_wrap().items_center().children(opts.map(([v, txt]) => div().id(`${id}-${v ?? "none"}`)
         .h(22).px(6).rounded(5).flex().items_center().flex_none().text_size(11.5).border_1()
         .border_color(v === cur ? t.accent : t.border).bg(v === cur ? t.selected : "#00000000")
         .text_color(v === cur ? t.foreground : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
@@ -5452,7 +5457,11 @@ export default class PokemonHerd extends View {
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
-    const LIST_H = 18 * 26 + 8 + 108; // the items list (it scrolls); the panel beside it is held to the same height (the Bag 108 taller)
+    // The items list (it scrolls); the panel beside it is held to the same height (the Bag 108
+    // taller; 8 kept spare). Undo showing (42 more at the top): that much shorter, or it pushed the
+    // badges out of the Bag for its 10 s.
+    const undoOn = !!this.undo && Date.now() - this.undo.at < UNDO_MS;
+    const LIST_H = 18 * 26 + 8 + 100 - (undoOn ? 42 : 0);
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
     // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
     const all = badgeProgress(s, b.marks, liveForBadges(saved));
@@ -5496,7 +5505,8 @@ export default class PokemonHerd extends View {
             .child(div().text_size(11).text_color(t.dim).child("Esc")))
           // The work done, and who did the most (the two species with the most jobs). (Its own line:
           // beside the money, it ran into the tabs once Day Care made them longer.)
-          .child(div().text_size(11.5).text_color(t.muted)
+          // (Held to 230 px: wider, it squeezed the tabs' column and cut the finding short.)
+          .child(div().max_w(230).truncate().text_size(11.5).text_color(t.muted)
             .child(`${s.jobs} jobs · ${duration(s.ms)} worked${s.top.length ? ` · most: ${s.top.slice(0, 2).map((x) => `${nameOf(x.dex)} ${x.jobs}`).join(", ")}` : ""}`))))
       // Just released or sold: Undo, for 10 s (not once the money's been spent).
       .when(!!this.undo && Date.now() - this.undo.at < UNDO_MS, (el) => {
@@ -5784,7 +5794,7 @@ export default class PokemonHerd extends View {
         .child(v_flex().flex_1().min_w(0).gap(4)
           .child(div().text_size(12).text_color(t.foreground).child(state))
           .when(!!egg, (el) => el.child(div().w_full().h(6).rounded_full().bg(t.border).overflow_hidden()
-            .child(div().h_full().w(Math.round(Math.min(1, egg.done / egg.need) * 460)).bg(t.accent))))))
+            .child(div().h_full().w(`${Math.round(Math.min(1, egg.done / egg.need) * 100)}%`).bg(t.accent)))))) // (a share of the track: a fixed 460 never looked full)
       .when(there.length < 2, (el) => el.child(h_flex().gap(8).items_center().flex_none()
         .child(Input.new(this.careInput).w(170).h(26).px(8).rounded(6).border_1().border_color(t.border).bg(t.background).text_size(12).text_color(t.foreground))
         .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.muted)
@@ -5975,11 +5985,11 @@ export default class PokemonHerd extends View {
         .when(this.bringing === slot, (el) => el.child(h_flex().flex_wrap().gap(6).items_center()
           .child(div().text_size(11).text_color(t.muted).child("Give it to:"))
           .children(herd.map((x) => div().id(`box-to-${slot}-${x.slot}`)
-            .h(26).px(8).gap(6).rounded(6).flex().items_center().flex_none().border_1().border_color(t.border)
+            .h(26).px(8).gap(6).rounded(6).flex().items_center().flex_none().max_w(240).border_1().border_color(t.border) // (a long agent name: cut, not off the card)
             .text_size(11.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; this.boxSel = null; cx.notify(); })
             .child(icon(x.pick, 20))
-            .child(sparkled(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`))))));
+            .child(div().min_w(0).truncate().child(sparkled(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`)))))));
     };
     return v_flex().id("bag-box").flex_none().h(h).gap(8)
       .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
@@ -6472,7 +6482,9 @@ export default class PokemonHerd extends View {
         .child(div().text_size(11).text_color(t.muted).child(`In the Box (${inBox.length})`))
         // Each one there as the Box shows it: Alpha, shiny, its name, hearts, nature, jobs, what it
         // holds and the ball it was caught in.
-        .children(inBox.map(([slot, b]) => h_flex().gap(6).items_center().h(26)
+        // (The best 3: with many of a kind it ran the picker's grid and search off the dialog.)
+        .when(inBox.length > PREVIEW_BOX, (e2) => e2.child(div().text_size(10.5).text_color(t.dim).child(`The first ${PREVIEW_BOX} shown; the rest in the Box (search ${nameOf(this.preview.dex)})`)))
+        .children(inBox.slice(0, PREVIEW_BOX).map(([slot, b]) => h_flex().gap(6).items_center().h(26)
           .when(!!b.alpha, (el) => el.child(div().h(16).px(4).rounded(4).flex().items_center().flex_none()
             .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α Alpha")))
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground)
@@ -6585,10 +6597,13 @@ export default class PokemonHerd extends View {
       // (While the filters are open, the card shrinks to one line and the Box row goes, for the
       // list's room; the Box row goes while a search or a filter narrows it too: then you're
       // looking for a kind.)
-      .when(!this.preview && !!cur?.dex, (el) => el.child(this.filtersOpen ? this.renderCurrentLine(cur, t) : this.renderCurrent(cur, t)))
+      // (Its moves being changed: the card takes half the room and scrolls, as the Box's: their
+      // whole list squeezed the grid to nothing and ran the search off the dialog.)
+      .when(!this.preview && !!cur?.dex, (el) => el.child(this.filtersOpen ? this.renderCurrentLine(cur, t)
+        : this.editingMoves ? div().id("pick-current").flex_1().min_h(0).overflow_y_scrollbar().child(this.renderCurrent(cur, t)) : this.renderCurrent(cur, t)))
       // Waiting in the Box (raised, their agents gone), latest first: one click brings one out
       // here, whatever its kind (else only found by its species' preview).
-      .when(!this.preview && !this.boxing && !narrowed && !this.filtersOpen && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
+      .when(!this.preview && !this.boxing && !narrowed && !this.filtersOpen && !this.editingMoves && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
         .child(div().text_size(11.5).text_color(t.muted).child(`📤 Waiting in your Box (${waiting.length}), ★ favourites first: click one to bring it out`))
         .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
           .children(waiting.slice(0, WAIT_ROW).map(({ slot, pick: b }) => v_flex().id(`pk-box-${slot}`).w(62).h(66).flex_none().items_center().justify_center().gap(1)
