@@ -6295,10 +6295,12 @@ export default class PokemonHerd extends View {
           .child(icon(cur, 56))
           .child(
             v_flex().flex_1().min_w(0).gap(2)
-              .child(h_flex().gap(6).items_center()
-                .child(div().text_size(14).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`)))
-                .child(div().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`))
-                .children(entryTypes(cur).map((ty) => div().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty)))))
+              // Its name whole first; its number and region give way (cut) when the buttons beside
+              // take the room (dual-typed, with Everstone: it was "Gall…").
+              .child(h_flex().gap(6).items_center().min_w(0)
+                .child(div().flex_none().text_size(14).font_semibold().text_color(t.foreground).child(sparkled(`${cur.shiny ? "✨ " : ""}${nameFor(cur)}`)))
+                .children(entryTypes(cur).map((ty) => div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty))))
+                .child(div().min_w(0).truncate().text_size(11).text_color(t.dim).child(`${dexNo(cur.dex)} · ${regionOf(cur) ?? ""}`)))
               // Hearts: red ones it has, grey ones to go (the emoji hearts draw all alike here).
               .child(h_flex().min_w(0).gap(1).items_center()
                 .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().flex_none().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
