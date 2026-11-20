@@ -910,7 +910,8 @@ function openMon(slot, pick, tag, megaNow = null) {
   openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}) } });
 } // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
-const openBag = (tab, sel = null) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 672, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}), ...(sel ? { sel } : {}) } });
+// (780 tall: a card with its moves open ran out of room at 672, over the badges.)
+const openBag = (tab, sel = null) => openOverlay({ mod: MOD, kind: "dialog", width: 600, height: 780, props: { bag: true, ...(typeof tab === "string" ? { tab } : {}), ...(sel ? { sel } : {}) } });
 
 function tabsById() {
   const out = {};
@@ -5451,7 +5452,7 @@ export default class PokemonHerd extends View {
     const usable = ids.filter((id) => takers[id].length).sort((x, y) => (takers[y][0].use === "evolve") - (takers[x][0].use === "evolve"));
     const sel = this.sel ?? usable[0] ?? ids.find((id) => b.items[id]) ?? ids[0];
     const held = heldAll[sel] ?? [];
-    const LIST_H = 18 * 26 + 8; // the items list (it scrolls); the panel beside it is held to the same height
+    const LIST_H = 18 * 26 + 8 + 108; // the items list (it scrolls); the panel beside it is held to the same height (the Bag 108 taller)
     const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
     // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
     const all = badgeProgress(s, b.marks, liveForBadges(saved));
@@ -6031,7 +6032,9 @@ export default class PokemonHerd extends View {
               if (col >= 0 && col < BOX_COLS && x) clickCell(x, cx);
             }))
           .child(Scrollbar.vertical("box").absolute().inset_0()))))
-      .child(div().flex_none().min_h(96).p(12).rounded(10).bg(t.raised).child(picking
+      // The chosen one's card: scrolling on its own past 60% of the tab (its moves open, the list
+      // it can learn: it ran over the badges, the grid squeezed to nothing).
+      .child(div().id("box-detail").flex_none().min_h(96).max_h(Math.round(h * 0.6)).overflow_y_scrollbar().p(12).rounded(10).bg(t.raised).child(picking
         ? div().text_size(12).text_color(t.dim).child("Click Pokémon to pick them, then Release (twice). Ones with agents and 🔒 locked ones stay. Duplicates picks every one but the best of each species, never a shiny, an Alpha or a legendary. Each pays ₽10; a shiny or an Alpha ₽50, a legendary ₽100.")
         : detail()));
   }
@@ -6370,7 +6373,7 @@ export default class PokemonHerd extends View {
       const all = learnableOf(k);
       return v_flex().gap(6)
         .child(row)
-        .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. PHY hits with its Attack, SPE with its Sp. Atk: its ${physicalSide ? "Attack" : "Sp. Atk"} is higher, so its ${physicalSide ? "PHY" : "SPE"} moves hit harder. Green outline: that side and its own type (×1.5), the strongest picks; one of another type covers what they don't. Gold: a signature move (it fires, and misses 1 in 5); white: its own.`))
+        .child(div().text_size(10.5).text_color(t.dim).child(`Can learn ${all.length}, ${MAX_MOVES} at most (click to take or drop). Its ${physicalSide ? "PHY" : "SPE"} moves hit harder; green: that kind and its own type, the strongest. Gold: a signature move.`))
         .child(h_flex().gap(4).flex_wrap()
           .children(all.map((m, i) => {
             const on = names.includes(m.name);
