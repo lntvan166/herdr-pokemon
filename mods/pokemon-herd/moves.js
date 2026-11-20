@@ -6,6 +6,7 @@
 // Def, the type's effect, ×1.5 for its own type, STAB: trainer.js gameDamage), so mostly its best
 // and now and then another; 1 time in 8 it's that type's signature move instead. A critical hit 1 time in 16 (×1.5). A move misses
 // as often as its accuracy in the games says (missOf: Thunder 3 in 10, Swift never). Pure.
+import { EXTRA_MOVES, MULTI_POWER } from "./more-moves.js";
 import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./base-stats.js";
 import { effectOn, typesOf, gameDamage, isPhysicalKey } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
@@ -31,8 +32,10 @@ export const MOVES = {
   fairy: ["Play Rough", "Moonblast", "Light of Ruin"],
 };
 // More each type has, as the games' learnsets: a weaker one young Pokémon know, and stronger or
-// commoner ones ([name, physical]). Each draws its own (fx-moves.js).
-export const MORE_MOVES = {
+// commoner ones ([name, physical]). Each draws its own (fx-moves.js). MORE_OWN: these, picked by
+// hand; MORE_MOVES: with the games' other ordinary damaging moves (more-moves.js EXTRA_MOVES, from
+// PokeAPI), drawn as their type's.
+export const MORE_OWN = {
   normal: [["Tackle", true], ["Swift", false], ["Double-Edge", true]],
   fire: [["Ember", false], ["Flame Wheel", true], ["Fire Blast", false], ["Flare Blitz", true]],
   water: [["Water Gun", false], ["Aqua Tail", true], ["Hydro Pump", false]],
@@ -52,6 +55,7 @@ export const MORE_MOVES = {
   steel: [["Metal Claw", true], ["Mirror Shot", false], ["Iron Tail", true]],
   fairy: [["Fairy Wind", false], ["Draining Kiss", false], ["Dazzling Gleam", false]],
 };
+export const MORE_MOVES = Object.fromEntries(Object.keys(MOVES).map((t) => [t, [...(MORE_OWN[t] ?? []), ...(EXTRA_MOVES[t] ?? [])]]));
 // Moves only one Pokémon (or its line) knows, as in the games: its own, always among its four
 // (movesetOf), drawn as a signature move. { type, power, physical, dex: [who knows it], and its
 // rule as the games have it: judgment (Arceus: its plate's type, so the type that does most to
@@ -133,7 +137,7 @@ export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
-export const powerOf = (name) => EXCLUSIVE[name]?.power ?? MOVE_POWER[name] ?? 80;
+export const powerOf = (name) => EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
 export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. Atk)
 // The moves it knows (not the signature ones): [{ type, name, physical }]: its four (MOVESET:
 // the key, else its species'), or, with none (Ditto), its types' as before.

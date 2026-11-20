@@ -77,7 +77,8 @@ test("effort and natures: a raised one a little stronger, a Jolly one sooner", (
 test("side effects as in the games: a status, a stat falling, a flinch; the turns they cost", () => {
   const seen = new Set(), skips = new Set(), ticks = new Set();
   for (let i = 0; i < 3000; i++) {
-    const r = sparTurns({ key: [25, 6, 131, 89, 248, 143][i % 6] }, { key: [149, 130, 3, 143, 25, 94][i % 6] });
+    const k = [25, 6, 131, 89, 248, 143][i % 6];
+    const r = sparTurns({ key: k, ...(k === 6 ? { moves: ["Flamethrower", "Air Slash"] } : {}) }, { key: [149, 130, 3, 143, 25, 94][i % 6] }); // (Charizard with Flamethrower: a burn to see)
     for (const t of r.turns) {
       if (t.effect) { seen.add(t.effect); assert.ok(SIDE_EFFECTS[t.move.name]?.[0] === t.effect); assert.ok(NOTE_TEXT.effect[t.effect]); }
       if (t.skip) { skips.add(t.skip); assert.ok(NOTE_TEXT.skip[t.skip]); }

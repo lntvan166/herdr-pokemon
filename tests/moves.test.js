@@ -12,9 +12,9 @@ test("every type has a physical, a special and a signature move, each with its p
 });
 
 test("it knows four moves it really learns: levelling up first, never a weak one if it has others", () => {
-  assert.deepEqual(movesetOf(6).map((m) => m.name), ["Fire Blast", "Air Slash", "Solar Beam", "Focus Blast"]); // Charizard (PokeAPI: it learns Fire Blast levelling up now)
+  assert.deepEqual(movesetOf(6).map((m) => m.name), ["Overheat", "Air Slash", "Solar Beam", "Double-Edge"]); // Charizard: the games' Overheat now among its moves
   assert.deepEqual(movesetOf(3).map((m) => m.name), ["Solar Beam", "Sludge Wave", "Double-Edge", "Outrage"]); // Venusaur: no Tackle
-  assert.deepEqual(movesetOf(10).map((m) => m.name), ["Bug Bite", "Tackle"]); // Caterpie knows only these
+  assert.deepEqual(movesetOf(10).map((m) => m.name), ["Bug Bite", "Electroweb", "Tackle"]); // Caterpie knows only these (Electroweb: the games' others)
   assert.deepEqual(movesetOf(475).slice(0, 2).map((m) => m.type).sort(), ["fighting", "psychic"]); // Gallade: one of each of its types
   assert.ok(movesetOf(132).length >= 1); // Ditto learns none of these: one stands in
   assert.ok(movesetOf("479f0002").some((m) => m.name === "Hydro Pump")); // Rotom Wash: its Hydro Pump
@@ -40,7 +40,7 @@ test("each turn: mostly its strongest move, now and then another; a signature mo
   const seen = {};
   for (let i = 0; i < 600; i++) { const m = pickMove(6, 3); seen[m.name] = (seen[m.name] ?? 0) + 1; }
   const top = Object.entries(seen).sort((a, b) => b[1] - a[1])[0];
-  assert.equal(top[0], "Fire Blast"); // 110 power, its own type (STAB), Venusaur weak to Fire
+  assert.equal(top[0], "Overheat"); // 130 power, its own type (STAB), Venusaur weak to Fire
   assert.ok(Object.keys(seen).length >= 3); // but not only that
   const zam = {};
   for (let i = 0; i < 600; i++) { const m = pickMove(65, 68); zam[m.name] = (zam[m.name] ?? 0) + 1; }
@@ -89,13 +89,14 @@ test("a physical blow leaves claw marks; a dash trails streaks", async () => {
 });
 
 test("each of the more moves has its own look, well formed, and its power from the games", async () => {
-  const { MORE_MOVES, powerOf } = await import("../mods/pokemon-herd/moves.js");
+  const { MORE_MOVES, MORE_OWN, powerOf } = await import("../mods/pokemon-herd/moves.js");
+  const own = new Set(Object.values(MORE_OWN).flat().map(([n]) => n));
   const { physicalParts, specialParts, physicalTimes, specialTimes } = await import("../mods/pokemon-herd/fx.js");
   const { PHYSICAL, SPECIAL } = await import("../mods/pokemon-herd/fx-moves.js");
   const { MOVE_POWER } = await import("../mods/pokemon-herd/base-stats.js");
   for (const [type, list] of Object.entries(MORE_MOVES)) for (const [name, physical] of list) {
-    assert.ok((physical ? PHYSICAL : SPECIAL)[name], name);
-    assert.ok(MOVE_POWER[name] > 0 && powerOf(name) === MOVE_POWER[name], name);
+    if (own.has(name)) assert.ok((physical ? PHYSICAL : SPECIAL)[name], name); // (the games' others: drawn as their type's)
+    assert.ok(MOVE_POWER[name] > 0 && powerOf(name) >= MOVE_POWER[name], name); // (a multi-hit one: all its hits)
     const parts = physical ? physicalParts(type, 50, 40, 56, 1, 7, null, name) : specialParts(type, 0, 100, 40, 7, null, name);
     assert.ok(parts.length > 0, name);
     for (const p of parts) assert.ok(p.color && [p.at, p.ms, p.a.x, p.a.y, p.a.w, p.a.h, p.b.x, p.b.y, p.b.w, p.b.h].every(Number.isFinite), name);

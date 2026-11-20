@@ -66,6 +66,7 @@ for (const [dex, form, label] of REGIONAL) {
 }
 // The moves' power (moves.js MOVES), from moves.csv: id,identifier,generation_id,type_id,power,…
 const { MOVES, MORE_MOVES, EXCLUSIVE } = await import("../mods/pokemon-herd/moves.js");
+const { MULTI_POWER } = await import("../mods/pokemon-herd/more-moves.js");
 const moveRows = (await (await fetch("https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/moves.csv")).text())
   .trim().split("\n").slice(1).map((l) => l.split(","));
 const powers = new Map(moveRows.map((c) => [c[1], Number(c[4]) || 0]));
@@ -125,7 +126,9 @@ for (const key of Object.keys(full)) {
   // for one fully evolved (×0.8: Venusaur's Earthquake over Tackle; it's been trained).
   // A weak one (power 50 or less: Tackle, Ember) only when it has nothing else: it can still be
   // taught one (LEARNS), it just never starts with it.
-  const score = (i) => { const [t, n, ph] = MOVE_LIST[i]; const pw = movePower[n] ?? 80; return pw * (ph === strongPhys ? 1.3 : 1) * (own.includes(t) ? 1.5 : 1) * (lv.has(i) ? 1 : final ? 0.8 : 0.3) * (pw <= WEAK ? 0.01 : 1); };
+  // (Its accuracy too: Zap Cannon's 120 hits half the time, worth 60; and the stat it hits with
+  // over its better one: Gengar's Double-Edge with its Attack 65 is worth half, not ×1/1.3.)
+  const score = (i) => { const [t, n, ph] = MOVE_LIST[i]; const pw = MULTI_POWER[n] ?? movePower[n] ?? 80; const acc = (moveAcc[n] ?? 100) / 100; return pw * acc * ((ph ? st[1] : st[3]) / Math.max(st[1], st[3])) * (own.includes(t) ? 1.5 : 1) * (lv.has(i) ? 1 : final ? 0.8 : 0.3) * (pw <= WEAK ? 0.01 : 1); };
   // One of its own types it learns none of here (Rotom Wash's Hydro Pump isn't drawn): that
   // type's move on its stronger side stands in.
   for (const t of own) if (MOVES[t] && !can.some((i) => MOVE_LIST[i][0] === t)) can.push(MOVE_LIST.findIndex(([ty, , ph]) => ty === t && ph === strongPhys));

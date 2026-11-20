@@ -4,6 +4,7 @@
 // the strip's DAMAGE_SCALE: a knockout in one blow can happen, as in the games). Each starts at
 // full health, the faster moving first; the first down loses, or after SPAR_TURNS each, the one with more left wins.
 // Nobody is hurt for real.
+import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf } from "./moves.js";
 import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds } from "./abilities.js";
@@ -15,7 +16,9 @@ export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
 // Speed halved); brn: burned (1/16 of its health a turn, its physical moves halved); psn: poisoned
 // (1/8 a turn); frz: frozen (no move till it thaws, 1 in 5 a turn); flinch: it loses its move this
 // round (only if hit first); atk/def/spa/spd: that stat of the other falls a stage (×⅔).
+// (The games' other moves' from PokeAPI too, more-moves.js EXTRA_SIDE; these first.)
 export const SIDE_EFFECTS = {
+  ...EXTRA_SIDE,
   "Body Slam": ["par", 0.3], "Thunder Punch": ["par", 0.1], "Thunderbolt": ["par", 0.1], "Thunder": ["par", 0.3],
   "Fire Punch": ["brn", 0.1], "Flamethrower": ["brn", 0.1],
   "Ice Punch": ["frz", 0.1], "Ice Beam": ["frz", 0.1], "Blizzard": ["frz", 0.1],
