@@ -93,7 +93,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       const move0 = moves[by].name === "Hex" && st[to].status ? { ...moves[by], power: moves[by].power * 2 } : moves[by];
       // Their abilities on this hit (abilities.js onHit): its type, a miss or not, ×, or nothing.
       ab[by].hp = hp[by]; ab[to].hp = hp[to];
-      const r = onHit(ab[by], ab[to], move0, { weather, missRate: missOf(move0.name) }, rnd);
+      const r = onHit(ab[by], ab[to], move0, { weather, missRate: move0.missRate ?? missOf(move0.name) }, rnd);
       const move = { ...move0, type: r.type, miss: r.miss, crit: r.crit };
       const d = damage(att.key, def.key, rnd, { mul: r.mul, type: move.type, alphaAttacker: !!att.alpha, alphaTarget: !!def.alpha, shadowAttacker: !!att.shadow, shadowTarget: !!def.shadow,
         ...moveHow(move), ctx: { na: att.nature, nb: def.nature, ea: att.effort, eb: def.effort } });

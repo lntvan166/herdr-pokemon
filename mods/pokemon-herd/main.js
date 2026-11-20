@@ -3718,7 +3718,7 @@ export default class PokemonHerd extends View {
           if (a.stages?.att.length) stageSaid[k].push(`Self: ${stageWords(a.stages.att)}`);
         };
         const mine = () => {
-          const r1 = onHit(so, sw, om, { weather, missRate: missOf(om.name) });
+          const r1 = onHit(so, sw, om, { weather, missRate: om.missRate ?? missOf(om.name) });
           omHit = { ...om, miss: r1.miss, crit: r1.crit };
           hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
           if (hit.fainted && sturdyHolds(sw, sw.hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("w:sturdy"); }
@@ -3733,7 +3733,7 @@ export default class PokemonHerd extends View {
         const theirs = () => {
           if (potion) return; // (its turn the Potion)
           const ownBefore = so.hp;
-          const r2 = onHit(sw, so, wm, { weather, missRate: missOf(wm.name) });
+          const r2 = onHit(sw, so, wm, { weather, missRate: wm.missRate ?? missOf(wm.name) });
           back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
           if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.back.push("o:sturdy"); }
           if (r2.heal) back = { ...back, hp: Math.min(1, ownBefore + r2.heal) };

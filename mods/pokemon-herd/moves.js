@@ -233,14 +233,19 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const roll = rnd();
   // Its own move: itself (drawn as a signature move, but as sure to hit as any, and as physical as
   // it is); else 1 in 8 its type's signature move.
-  // (Never to a weaker one: High Jump Kick 130 stays itself, not Close Combat 120, nor Zap Cannon
-  // Thunder: with the games' other moves, some are stronger than their type's own.)
-  const rises = !how.keep?.[k] && roll < ULTIMATE && powerOf(MOVES[base.type][2]) > powerOf(base.name);
+  // A gift: one risen hits as surely as the surer of the two (Thunderbolt risen to Thunder: 110,
+  // sure to hit; Zap Cannon's to it, 70%), and never to a weaker one, its power times that chance
+  // (Superpower 120 stays itself, not Close Combat 120; Focus Blast 120 at 70% rises to it). (With
+  // the games' other moves some are stronger than their type's own; Thunder's 30% made a rise worse.)
+  const sigName = MOVES[base.type][2];
+  const riseMiss = Math.min(missOf(sigName), missOf(base.name));
+  const rises = !how.keep?.[k] && roll < ULTIMATE && powerOf(sigName) * (1 - riseMiss) > powerOf(base.name) * (1 - missOf(base.name));
   const ultimate = !!ex || rises || !!base.sig; // (not one picked to finish it: Sucker Punch stays quick)
   const crit = ex?.crit === "always" || rnd() < (ex?.crit === "high" ? 1 / 8 : CRIT);
   const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
   // Its accuracy, and a small target's dodging (weather.js sizeMiss): it hits only if both let it.
-  const miss = rnd() < 1 - (1 - weatherMiss(name, how.weather)) * (1 - (sizeMiss(how.targetSize) ?? 0));
+  const missRate = rises ? Math.min(weatherMiss(name, how.weather), weatherMiss(base.name, how.weather)) : weatherMiss(name, how.weather); // (risen: the surer of the two)
+  const miss = rnd() < 1 - (1 - missRate) * (1 - (sizeMiss(how.targetSize) ?? 0));
   // Its kind: its own move's (the games'); a type's signature move as the move it rose from (a
   // Fire Punch risen to Blast Burn hits with its Attack: drawn special, it fell to its weaker side).
   const physical = ex ? ex.physical : base.physical;
@@ -249,5 +254,5 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   let eff = effectOn(type, target);
   if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
   const stab = own.includes(type) || !!ex?.judgment;
-  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true } : {}), crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
+  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
 }
