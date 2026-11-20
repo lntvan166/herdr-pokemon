@@ -6036,7 +6036,9 @@ export default class PokemonHerd extends View {
           .child(Scrollbar.vertical("box").absolute().inset_0()))))
       // The chosen one's card: scrolling on its own past 60% of the tab (its moves open, the list
       // it can learn: it ran over the badges, the grid squeezed to nothing).
-      .child(div().id("box-detail").when(!!sel && !picking, (el) => el.flex_1().min_h(0)).when(!sel || !!picking, (el) => el.flex_none().min_h(96)).overflow_y_scrollbar().p(12).rounded(10).bg(t.raised).child(picking
+      // (Scrolling only with one chosen: a scrolling box takes all the room there is, and the empty
+      // card squeezed the grid to one row.)
+      .child(div().id("box-detail").when(!!sel && !picking, (el) => el.flex_1().min_h(0).overflow_y_scrollbar()).when(!sel || !!picking, (el) => el.flex_none().min_h(96)).p(12).rounded(10).bg(t.raised).child(picking
         ? div().text_size(12).text_color(t.dim).child("Click Pokémon to pick them, then Release (twice). Ones with agents and 🔒 locked ones stay. Duplicates picks every one but the best of each species, never a shiny, an Alpha or a legendary. Each pays ₽10; a shiny or an Alpha ₽50, a legendary ₽100.")
         : detail()));
   }
