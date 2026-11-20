@@ -62,11 +62,11 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { statsFull, damage, moveHow, OWN_TAKE } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
+import { statsFull, damage, moveHow, OWN_TAKE, hpRatio } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
 import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OVERKILL, OVERKILL_GREEN, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR, SIDE_EFFECTS } from "./spar.js";
@@ -377,6 +377,8 @@ const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
 // (A trainer's Pokémon fainted, its next not out yet: kept as last settled (KEEP_AS_IS), not
 // "none": a reload then lost the whole trainer, the Rival too.)
 const KEEP_AS_IS = "keep";
+// Yours down in a fight with a wild one or a trainer's: its blow, or its own move's recoil.
+const ownDown = (fx) => !!(fx?.back?.fainted || fx?.ownRecoil?.fainted);
 const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.trainer.leaving ? KEEP_AS_IS
   : !v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
   : JSON.stringify([v.id, v.pick?.hp, v.pick?.dex, v.throws, v.gift, v.paid, v.start, v.halt?.kind, v.halt?.until, v.trainer?.idx, v.trainer?.fighter]));
@@ -1634,6 +1636,16 @@ export default class PokemonHerd extends View {
         if (fx.back.fainted) { own.restUntil = now + OWN_REST; own.faintAt = now; own.react = { anim: null, until: now + 3000, icon: "💫" }; }
         keepHp(agents().find((x) => x.address === fx.own)?.pane, { hp: own.hp, at: now, ...(fx.back.fainted ? { rest: own.restUntil } : {}) });
       }
+      // Its own move's recoil (Brave Bird) or crash (High Jump Kick missed), as its move lands.
+      const hurt = fx.ownRecoil && this.mons[fx.own];
+      if (hurt && !fx.recoilDone && now >= (fx.hitAt ?? fx.at + 500)) {
+        fx.recoilDone = true;
+        hurt.hpLost = { prev: ownHp(hurt, now), at: now };
+        hurt.hp = fx.ownRecoil.hp;
+        hurt.hpAt = now;
+        if (fx.ownRecoil.fainted) { hurt.restUntil = now + OWN_REST; hurt.faintAt = now; hurt.react = { anim: null, until: now + 3000, icon: "💫" }; }
+        keepHp(agents().find((x) => x.address === fx.own)?.pane, { hp: hurt.hp, at: now, ...(fx.ownRecoil.fainted ? { rest: hurt.restUntil } : {}) });
+      }
       if (now < fx.until) return true;
       if (fx.fainted) {
         v.fainted ??= now;
@@ -1690,17 +1702,17 @@ export default class PokemonHerd extends View {
         v.fight = null;
         v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
         // (Yours fainted: it stops, unless another was switched in meanwhile.)
-        if (fx.back?.fainted) v.trainer.gloat = now; // it won that one: its Pokémon cheers, it says so
-        if (fx.back?.fainted && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
+        if (ownDown(fx)) v.trainer.gloat = now; // it won that one: its Pokémon cheers, it says so
+        if (ownDown(fx) && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
         // The Rival: three of yours down and it wins (its record), and goes, gloating.
-        if (fx.back?.fainted && v.trainer.rival && !v.trainer.leaving && --v.trainer.lives <= 0) {
+        if (ownDown(fx) && v.trainer.rival && !v.trainer.leaving && --v.trainer.lives <= 0) {
           if (this.leader) { const r = loadRival(shared(RIVAL_KEY), now); setShared(RIVAL_KEY, { ...r, losses: r.losses + 1, nextAt: rivalNext(now) }); }
           v.trainer.won = now;
           this.trainerLeave(v, now);
           return true;
         }
         if (!this.visitor || v.trainer.leaving) return true; // (the climb is over: it's going)
-        if (fx.back?.fainted && v.trainer.fighter === fx.own) v.trainer.fighter = null;
+        if (ownDown(fx) && v.trainer.fighter === fx.own) v.trainer.fighter = null;
         else if (v.trainer.fighter) v.trainer.nextAt = now + 500;
         return true;
       }
@@ -3618,7 +3630,7 @@ export default class PokemonHerd extends View {
         // left it, v.abil.o: the kept health is written only once the fight's over, and one
         // dropped in while it was still fainting counted as a switch.)
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
-        const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && !!v.fight.back?.fainted) || (ownHp(before, now) ?? 0) <= 0.001;
+        const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && ownDown(v.fight)) || (ownHp(before, now) ?? 0) <= 0.001;
         const swapIn = !!v.trainer && !v.trainer.tower && !beforeDown;
         const itemTurn = !!v.trainer && !!drop.item; // (an item used: its turn, as a switch)
         const switched = swapIn || itemTurn;
@@ -3727,8 +3739,13 @@ export default class PokemonHerd extends View {
           const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
           words.hit.push(...O(a1.att), ...W(a1.def));
           moveStages(om, r1, hit, a1, sw, "hit");
+          const dealt1 = Math.max(0, sw.hp - hit.hp);
           sw.hp = hit.hp;
           if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
+          // Its recoil or crash (abilities.js selfHurt: Brave Bird, High Jump Kick missed).
+          const c1 = selfHurt(so, om, r1, dealt1, hpRatio(wildKey, ownKey));
+          words.hit.push(...O(c1.said));
+          if (c1.hurt > 0) { so.hp = Math.max(0, so.hp - c1.hurt); ownRecoil = { hp: so.hp, fainted: so.hp <= 0.001 }; stageSaid.hit.push(c1.word); }
         };
         const theirs = () => {
           if (potion) return; // (its turn the Potion)
@@ -3742,16 +3759,23 @@ export default class PokemonHerd extends View {
           const a2 = afterHit(sw, so, wm, { ...r2, fainted: back.fainted }, r2.type);
           words.back.push(...W(a2.att), ...O(a2.def));
           moveStages(wm, r2, back, a2, so, "back");
+          const dealt2 = Math.max(0, ownBefore - back.hp);
           so.hp = back.hp;
+          const c2 = selfHurt(sw, wm, r2, dealt2, hpRatio(ownKey, wildKey));
+          words.back.push(...W(c2.said));
+          if (c2.hurt > 0) { sw.hp = Math.max(0, sw.hp - c2.hurt); wildRecoil = { hp: sw.hp, fainted: sw.hp <= 0.001 }; stageSaid.back.push(c2.word); }
         };
         let omHit = { ...om };
-        if (wildFirst) { theirs(); if (!switched && !back?.fainted) mine(); }
-        else { if (!switched) mine(); if (!hit.fainted) theirs(); }
+        let ownRecoil = null, wildRecoil = null; // (its recoil: yours, its; { hp, fainted } after it)
+        if (wildFirst) { theirs(); if (!switched && !back?.fainted && !wildRecoil?.fainted) mine(); }
+        else { if (!switched) mine(); if (!hit.fainted && !ownRecoil?.fainted) theirs(); }
         // Speed Boost and the like, with the last hit's words (none: the first's).
         (back ? words.back : words.hit).push(...O(endTurn(so)), ...W(endTurn(sw)));
         // It struck first and yours fainted: yours never got its move off.
-        const ownStrikes = !switched && !(wildFirst && back?.fainted);
-        if (!ownStrikes) hit = { hp: Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: false };
+        const ownStrikes = !switched && !(wildFirst && (back?.fainted || wildRecoil?.fainted));
+        if (!ownStrikes) hit = { hp: wildRecoil ? wildRecoil.hp : Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: !!wildRecoil?.fainted };
+        // Its recoil after yours struck (yours first): its health as the fight ends, and down if so.
+        if (wildRecoil && !wildFirst) hit = { ...hit, hp: wildRecoil.hp, fainted: hit.fainted || wildRecoil.fainted };
         // It steps off to battle from a little way (fx.js fightGap: by their sizes), so the two
         // never stand on each other and their moves have room to fly.
         const spot = wildSpot(dm.x, v.x, EDGE, hiFor(this.width), fightGap(this.drawnWidth(pk, "working"), this.drawnWidth(v.pick, "idle")));
@@ -3792,7 +3816,7 @@ export default class PokemonHerd extends View {
         dm.awakeUntil = Math.max(dm.awakeUntil ?? 0, now + 20000); // awake through the fight, its agent idle or not (it slept between blows)
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, wildFirst, until: wildFirst ? (ownStrikes ? hitAt + 1100 : backHit + 900) : back ? backHit + 900 : hitAt + 1100,
-          x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit,
+          x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit, ...(ownRecoil ? { ownRecoil } : {}),
           blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || omHit.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, omHit.crit), miss: omHit.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type, name: om.name },
         };
         if (!ownStrikes) v.fight.blow = null; // (fainted first: no move of its own)

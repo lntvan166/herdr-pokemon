@@ -181,6 +181,9 @@ const natureK = (nature, i) => { const n = NATURE_STATS[nature]; return n?.[0] =
 // A stat at level 50 (its base; ×nature, ×effort), and HP.
 const statAt = (b, k = 1) => Math.floor((Math.floor(((2 * b + 31) * LEVEL) / 100) + 5) * k);
 const hpAt = (b) => Math.floor(((2 * b + 31) * LEVEL) / 100) + LEVEL + 10;
+// One's HP over another's (fighter keys): a share of the one's health as a share of the other's
+// (recoil: what it dealt, a share of its target's, comes back as a share of its own).
+export const hpRatio = (a, b) => hpAt(statsFull(a)[0] ?? 70) / hpAt(statsFull(b)[0] ?? 70);
 // Every Pokémon is level 50; being raised counts a little, like Legends: Arceus' effort levels:
 // +1% to its stats (not HP) a heart, +5% at most. One with no pick: 1.
 export const EFFORT_PER_HEART = 0.01;

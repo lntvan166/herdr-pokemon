@@ -246,6 +246,7 @@ export function duel(a, b, A, B, now, fight, at = null) {
     t = Math.max(t + d, land + hd) + 200;
     // What its move did besides ("It's paralyzed!"), then its own burn or poison hurting it.
     if (tn.self) { seq[k].push({ at: t, until: t + NOTE_MS, anim: null, note: ["self", tn.self] }); t += NOTE_MS + 100; }
+    if (tn.recoil) { seq[k].push({ at: t, until: t + NOTE_MS, anim: reactionAnim("startle", S.has), note: ["recoil", tn.recoil.word], hp: tn.recoil.hp }); t += NOTE_MS + 100; }
     if (tn.drain) { seq[k].push({ at: t, until: t + NOTE_MS, anim: null, note: ["drain", "drain"], hp: tn.drain.hp }); t += NOTE_MS + 100; }
     if (tn.effect) { seq[dk].push({ at: t, until: t + NOTE_MS, anim: null, note: ["effect", tn.effect] }); t += NOTE_MS + 100; }
     if (tn.tick) { seq[k].push({ at: t, until: t + NOTE_MS, anim: reactionAnim("startle", S.has), note: ["tick", tn.tick.kind], hp: tn.tick.hp }); t += NOTE_MS + 100; }

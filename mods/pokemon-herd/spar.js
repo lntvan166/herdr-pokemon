@@ -5,9 +5,9 @@
 // full health, the faster moving first; the first down loses, or after SPAR_TURNS each, the one with more left wins.
 // Nobody is hurt for real.
 import { EXTRA_SIDE } from "./more-moves.js";
-import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey } from "./trainer.js";
+import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -41,7 +41,8 @@ export const TICK_TEXT = { brn: "Hurt by its burn!", psn: "Hurt by poison!" };
 export const DRAIN_TEXT = { drain: "Its energy was drained!" };
 // Its own stages a move changed (turn.self "def:-1,spd:-1"): "Self: Def↓ SpD↓".
 const SELF_TEXT = new Proxy({}, { get: (_, k) => `Self: ${stageWords(String(k).split(",").map((x) => { const [s, n] = x.split(":"); return [s, Number(n)]; }))}` });
-export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT };
+export const RECOIL_TEXT = { "Recoil!": "Hurt by recoil!", "Crashed!": "It kept going and crashed!" };
+export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT, recoil: RECOIL_TEXT };
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
 export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
 
@@ -114,6 +115,9 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       if (named.length) turn.abil = named;
       // Giga Drain, Drain Punch, Draining Kiss: it heals by part of what it took.
       if (DRAIN[move.name] && dealt > 0 && hp[by] < 1) { hp[by] = Math.min(1, hp[by] + dealt * DRAIN[move.name]); turn.drain = { hp: hp[by] }; }
+      // Its recoil (Brave Bird: a third of what it dealt) or crash (High Jump Kick missed): abilities.js selfHurt.
+      const cost = selfHurt(ab[by], move, r, dealt, hpRatio(def.key, att.key));
+      if (cost.hurt > 0) { hp[by] = Math.max(0, hp[by] - cost.hurt); turn.recoil = { word: cost.word, hp: hp[by] }; }
       // Its side effect (not on one already down, nor a status on one that has one).
       const [what, chance] = SIDE_EFFECTS[move.name] ?? [];
       if (!move.miss && hp[to] > 0 && d.eff > 0 && what && rnd() < chance) {

@@ -12,7 +12,7 @@
 // that last while the two face each other (Intimidate, Moxie, Speed Boost, Justified…). One that
 // needs what the mod has none of (status, switching mid-battle, held items in battle, terrain)
 // does nothing here (`works`).
-import { SELF_STAGES } from "./move-stages.js";
+import { SELF_STAGES, RECOIL } from "./move-stages.js";
 import { SPECIES_ABILITIES, ABILITY_KEYS, ABILITY_NAMES, ABILITY_TEXTS, MOVE_FLAGS } from "./ability-data.js";
 
 const INDEX = new Map(ABILITY_KEYS.map((k, i) => [k, i]));
@@ -74,7 +74,7 @@ export const WORKS = new Set([
   "thick-fat", "heatproof", "filter", "solid-rock", "prism-armor", "multiscale", "shadow-shield", "fur-coat", "fluffy", "ice-scales",
   "purifying-salt", "intimidate", "guard-dog", "defiant", "competitive", "rattled", "moxie", "chilling-neigh", "grim-neigh", "beast-boost",
   "speed-boost", "justified", "stamina", "weak-armor", "steam-engine", "water-compaction", "anger-point", "sturdy", "no-guard",
-  "compound-eyes", "sniper", "super-luck", "battle-armor", "shell-armor", "inner-focus", "oblivious", "own-tempo", "scrappy",
+  "compound-eyes", "sniper", "super-luck", "battle-armor", "shell-armor", "inner-focus", "oblivious", "own-tempo", "scrappy", "rock-head", "magic-guard",
   // out of battle (main.js): finding things, eggs, who walks by, a wild one's nature
   "pickup", "honey-gather", "flame-body", "magma-armor", "static", "magnet-pull", "harvest", "synchronize",
 ]);
@@ -208,6 +208,21 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
 // Stage changes as short words ("Def↓ SpD↓", "Atk↑↑"), each stage an arrow.
 const STAT_WORD = { atk: "Atk", def: "Def", spa: "SpA", spd: "SpD", spe: "Spe" };
 export const stageWords = (list) => list.map(([s, n]) => `${STAT_WORD[s]}${(n > 0 ? "↑" : "↓").repeat(Math.min(3, Math.abs(n)))}`).join(" ");
+// Its move's cost to its own user, as the games': recoil, a share of what it dealt (RECOIL: Brave
+// Bird a third; `ratio`: the target's HP over its user's, as the share is of the target's health);
+// a crash, half its health, for a kick that missed or did nothing (High Jump Kick). Rock Head
+// spares it recoil, Magic Guard both. None for one risen to its type's strongest (1 in 8: a gift).
+// Returns { hurt (its share of health), word ("Recoil!", "Crashed!"), said ([keys]) }.
+export const CRASH = new Set(["Jump Kick", "High Jump Kick", "Axe Kick", "Supercell Slam"]);
+export function selfHurt(att, move, r, dealt, ratio = 1) {
+  const none = { hurt: 0, word: "", said: [] };
+  if (move.risen) return none;
+  const crash = CRASH.has(move.name) && (r.miss || r.mul === 0);
+  const recoil = !crash && !r.miss && r.mul > 0 && dealt > 0 && RECOIL[move.name];
+  if (!crash && !recoil) return none;
+  if (att.ab === "magic-guard" || (recoil && att.ab === "rock-head")) return { ...none, said: [att.ab] };
+  return crash ? { hurt: 0.5, word: "Crashed!", said: [] } : { hurt: dealt * recoil * ratio, word: "Recoil!", said: [] };
+}
 // Moves that ignore the target's stat stages, as the games' (Sacred Sword, Darkest Lariat, Chip Away).
 export const IGNORE_STAGES = new Set(["Sacred Sword", "Darkest Lariat", "Chip Away"]);
 // A stage changed by a move, not an ability (nothing said by name): `n` stages of `stat`, kept in

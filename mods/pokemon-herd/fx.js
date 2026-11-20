@@ -1,6 +1,7 @@
 import { archParts } from "./fx-arch.js";
 import { EXTRA_MOVES } from "./more-moves.js";
 const EXTRA_NAMES = new Set(Object.values(EXTRA_MOVES).flat().map(([n]) => n)); // (fx-arch.js draws these)
+const EXTRA_PHYSICAL = new Set(Object.values(EXTRA_MOVES).flat().filter(([, ph]) => ph).map(([n]) => n));
 import { PHYSICAL, SPECIAL, SIGNATURE } from "./fx-moves.js";
 // Battle effects, worked out here and drawn by main.js: what a move looks like by its type (a
 // glowing shot with a tail), the burst where a blow lands, how far the target is knocked back and
@@ -282,6 +283,13 @@ export function signatureParts(type, x0, x1, y, seed = 1, style = null, name = n
   const flash = (at, x, yy, d, color, ms = 260) => P(at, ms, O(x, yy, d * 0.4, d * 0.4, 1), O(x, yy, d, d, 0), color, { round: true });
   // A Pokémon's own move with a look of its own (fx-moves.js SIGNATURE: Judgment).
   if (SIGNATURE[name]) return SIGNATURE[name]({ x0, x1, y, g, sky, dir, dist, mid, st, rnd, P, O, ring, flash });
+  // Risen to its type's strongest (moves.js TOP_MOVE) that's one of the games' others (Zap Cannon,
+  // High Jump Kick, Foul Play, Double Iron Bash): its own look (fx-arch.js), a kick where it lands,
+  // a ball flying, lit gold as it lands (the type's scene was the old one's: Thunder's cloud).
+  if (EXTRA_NAMES.has(name)) {
+    const own = EXTRA_PHYSICAL.has(name) ? physicalParts(type, x1, y, g, dir, seed, style, name) : specialParts(type, x0, x1, y, seed, style, name);
+    return [...own, flash(0, x1, y, 58, "#ffd23f", 320), ring(40, x1, y, 10, 84, "#ffd23f", 460), ring(110, x1, y, 8, 58, st.hot, 380)];
+  }
   const out = [];
   switch (type) {
     case "normal": // Giga Impact: a white blast charging across, a shockwave where it lands

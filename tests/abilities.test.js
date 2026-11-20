@@ -166,3 +166,19 @@ test("moves' stages: Close Combat, Power-Up Punch, Sacred Sword", async () => {
   const sword = A.onHit(A.newSide(""), up, { name: "Sacred Sword", type: "fighting", physical: true, mul: 1, eff: 1 }).mul;
   assert.ok(Math.abs(sword / plain - 2) < 1e-9, "its +2 Defense counted for nothing");
 });
+
+// Recoil and crash, as the games' (selfHurt): Brave Bird a third of what it dealt; High Jump Kick
+// missed, half its health; Rock Head no recoil, Magic Guard neither; one risen (1 in 8), none.
+test("recoil and crash", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const bb = { name: "Brave Bird", type: "flying", physical: true };
+  assert.ok(Math.abs(A.selfHurt(A.newSide(""), bb, { mul: 1 }, 0.6).hurt - 0.198) < 1e-9);
+  assert.equal(A.selfHurt(A.newSide(""), bb, { mul: 1 }, 0.6).word, "Recoil!");
+  assert.equal(A.selfHurt(A.newSide("rock-head"), bb, { mul: 1 }, 0.6).hurt, 0);
+  assert.equal(A.selfHurt(A.newSide(""), { ...bb, risen: true }, { mul: 1 }, 0.6).hurt, 0);
+  const hjk = { name: "High Jump Kick", type: "fighting", physical: true };
+  assert.equal(A.selfHurt(A.newSide(""), hjk, { mul: 0, miss: true }, 0).hurt, 0.5);
+  assert.equal(A.selfHurt(A.newSide("rock-head"), hjk, { mul: 0, miss: true }, 0).hurt, 0.5, "Rock Head: recoil only");
+  assert.equal(A.selfHurt(A.newSide("magic-guard"), hjk, { mul: 0, miss: true }, 0).hurt, 0);
+  assert.equal(A.selfHurt(A.newSide(""), hjk, { mul: 1 }, 0.5).hurt, 0, "it hit: no crash");
+});
