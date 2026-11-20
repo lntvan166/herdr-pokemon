@@ -1049,3 +1049,24 @@ test("a quick move (Sucker Punch) goes first, whatever the Speed", () => {
   const fx = st.visitor.fight;
   if (fx.ownMove.name === "Sucker Punch") assert.equal(fx.wildFirst, false, "Sucker Punch first");
 });
+
+// Changing moves: a type picked, only its moves listed (Charizard learns 75); its kind too.
+test("the moves it can learn: filtered by type and kind", async () => {
+  seed();
+  const { learnableOf } = await import("../mods/pokemon-herd/moves.js");
+  const v = view({ bag: true, tab: "box", sel: "p0" });
+  v.render(cx);
+  click("moves-edit-p0-base:on_click");
+  v.render(cx);
+  const learned = () => Object.keys(K.handlers).filter((k) => /^learn-p0-base-\d+:on_click$/.test(k)).map((k) => learnableOf("6")[Number(k.split("-")[3].split(":")[0])]);
+  assert.ok(learned().length > 30, String(learned().length));
+  for (const k of Object.keys(K.handlers)) if (k.startsWith("learn-")) delete K.handlers[k];
+  click("mf-type-p0|base-fire:on_click");
+  v.render(cx);
+  const fire = learned();
+  assert.ok(fire.length > 3 && fire.every((m) => m.type === "fire"), fire.map((m) => m.name).join(","));
+  for (const k of Object.keys(K.handlers)) if (k.startsWith("learn-")) delete K.handlers[k];
+  click("mf-kind-p0|base-phy:on_click");
+  v.render(cx);
+  assert.ok(learned().every((m) => m.type === "fire" && m.physical));
+});

@@ -6438,11 +6438,28 @@ export default class PokemonHerd extends View {
       if (!editing) return row;
       const names = set.map((m) => m.name);
       const all = learnableOf(k);
+      // Filters, as the games' TM machine: its kind (PHY, SPE) and a type (those it learns, each
+      // with how many); its four first, then the strongest picks (green), then by power. (Dozens
+      // to learn now: Charizard 75.) Kept for this row (`moveFilter.id`).
+      const mf = this.moveFilter?.id === editId ? this.moveFilter : { id: editId, kind: "all", type: null };
+      const setF = (more) => { this.moveFilter = { ...mf, ...more }; };
+      const typeCount = {};
+      for (const m of all) typeCount[m.type] = (typeCount[m.type] ?? 0) + 1;
+      const shown = all.map((m, i) => [m, i])
+        .filter(([m]) => (mf.kind === "all" || (mf.kind === "phy") === !!m.physical) && (!mf.type || m.type === mf.type))
+        .sort(([a], [b]) => (names.includes(b.name) - names.includes(a.name)) || (isGood(b) - isGood(a)) || (powerOf(b.name) - powerOf(a.name)));
+      const fchip = (id, label, on, click, bg = null) => div().id(id).h(18).px(6).rounded(4).flex().items_center().flex_none().text_size(10).font_semibold().cursor_pointer()
+        .border_1().border_color(on ? t.foreground : "#00000000").bg(bg ?? (on ? t.selected : t.raised)).text_color(bg ? "#ffffff" : t.foreground).opacity(on || !bg ? 1 : 0.65)
+        .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
       return v_flex().gap(6)
         .child(row)
         .child(div().text_size(10.5).text_color(t.dim).child(`Can learn ${all.length}, ${MAX_MOVES} at most (click to take or drop). Its ${physicalSide ? "PHY" : "SPE"} moves hit harder; green: that kind and its own type, the strongest. Gold: a signature move.`))
+        .child(h_flex().gap(4).flex_wrap().items_center()
+          .children([["all", "All"], ["phy", "PHY"], ["spe", "SPE"]].map(([kd, label]) => fchip(`mf-kind-${editId}-${kd}`, label, mf.kind === kd, () => setF({ kind: kd }))))
+          .child(div().w(6))
+          .children(Object.keys(typeCount).sort((x, y) => typeCount[y] - typeCount[x]).map((ty) => fchip(`mf-type-${editId}-${ty}`, `${typeLabel(ty)} ${typeCount[ty]}`, mf.type === ty, () => setF({ type: mf.type === ty ? null : ty }), TYPE_COLOR[ty]))))
         .child(h_flex().gap(4).flex_wrap()
-          .children(all.map((m, i) => {
+          .children(shown.map(([m, i]) => {
             const on = names.includes(m.name);
             return div().id(`learn-${slot}-${mega ?? "base"}-${i}`).cursor_pointer().on_click((_e, cx) => {
               const live = savedPicks()[slot];
