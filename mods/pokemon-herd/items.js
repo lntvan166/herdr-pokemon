@@ -108,7 +108,8 @@ export const GROUPS = [
   ["Medicine", (id) => id === "revive" || id === "max-revive"],
   ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone")],
   ["Abilities", (id) => id.startsWith("ability-")],
-  ["To hold", (id) => ITEMS[id].kind === "held"],
+  ["To hold", (id) => ITEMS[id].kind === "held" && !ITEMS[id].battle],
+  ["For battle", (id) => !!ITEMS[id].battle],
   ["For the herd", (id) => ITEMS[id].kind === "boost" || id === "festival-ticket"],
   ["Calls", (id) => id === "honey" || id === "azure-flute"],
 ];
