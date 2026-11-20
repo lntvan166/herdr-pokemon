@@ -5,7 +5,7 @@
 // evolvedAt: when it last evolved (each view flashes it);
 // held: the item it holds (Lucky Egg, Soothe Bell, Amulet Coin…); nick: the name you gave it.
 // locked: never released (the Box's Lock).
-import { slotsOf, abilSlot } from "./abilities.js";
+import { slotsOf, abilSlot, BATTLE_ITEMS } from "./abilities.js";
 import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf, fullName } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
 import { NATURES, BALLS } from "./trainer.js";
@@ -111,7 +111,11 @@ export function randomEntry(entries, current, taken, rnd = Math.random) {
 // What a Pokémon can hold, and what each does: Lucky Egg, every job counts twice towards
 // evolving; Soothe Bell, every heart it gains is two; Amulet Coin, it finds items twice as often;
 // Leftovers, it never goes hungry; Exp. Share, each job its agent finishes counts for another too.
-export const HELD_IDS = ["lucky-egg", "soothe-bell", "amulet-coin", "leftovers", "exp-share"];
+// To hold: for its life with its agent (CARE_HELD), and for battles, as the games' (abilities.js
+// BATTLE_ITEMS: Life Orb, Choice Band…). One at a time.
+export const CARE_HELD = ["lucky-egg", "soothe-bell", "amulet-coin", "leftovers", "exp-share"];
+export const BATTLE_HELD = Object.keys(BATTLE_ITEMS);
+export const HELD_IDS = [...CARE_HELD, ...BATTLE_HELD];
 
 // Jobs its agent finishes before a Pokémon evolves (by levelling up); hearts for friendship.
 // Jobs to evolve by levelling up, as the games' levels: a first evolution after 15 (Charmander at

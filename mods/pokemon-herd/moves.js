@@ -189,7 +189,9 @@ export const risenDash = (name) => (MOVE_FLAGS[name] ?? "").includes("c");
 // A best damage roll against the average (trainer.js gameDamage: 0.85–1.0, 0.925 on average).
 const BEST_ROLL = 1 / 0.925;
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
-  const set = movesetOf(attacker, how.moves);
+  // A Choice item: only the move it chose first (`how.lock`) while it stays in.
+  const all = movesetOf(attacker, how.moves), locked = how.lock ? all.filter((m) => m.name === how.lock) : [];
+  const set = locked.length ? locked : all;
   const own = typesOf(attacker);
   const stabOf = (t) => (own.includes(t) ? STAB : 1);
   // What each would do (its own move as its rule makes it: Judgment's type, Arrows on a flier).
@@ -260,5 +262,5 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   let eff = effectOn(type, target);
   if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
   const stab = own.includes(type) || !!ex?.judgment;
-  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true } : {}), ...(rises ? { dash: risenDash(name) } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
+  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true, base: base.name } : {}), ...(rises ? { dash: risenDash(name) } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
 }

@@ -7,7 +7,7 @@
 import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -41,7 +41,7 @@ export const TICK_TEXT = { brn: "Hurt by its burn!", psn: "Hurt by poison!" };
 export const DRAIN_TEXT = { drain: "Its energy was drained!" };
 // Its own stages a move changed (turn.self "def:-1,spd:-1"): "Self: Def↓ SpD↓".
 const SELF_TEXT = new Proxy({}, { get: (_, k) => `Self: ${stageWords(String(k).split(",").map((x) => { const [s, n] = x.split(":"); return [s, Number(n)]; }))}` });
-export const RECOIL_TEXT = { "Recoil!": "Hurt by recoil!", "Crashed!": "It kept going and crashed!" };
+export const RECOIL_TEXT = { "Recoil!": "Hurt by recoil!", "Crashed!": "It kept going and crashed!", "Life Orb": "Hurt by its Life Orb!", "Rocky Helmet": "Hurt by the Rocky Helmet!", "Shell Bell": "Its Shell Bell healed it!", Leftovers: "Its Leftovers healed it!" };
 export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT, recoil: RECOIL_TEXT };
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
 export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
@@ -60,7 +60,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
   const st = { a: { stage: {} }, b: { stage: {} } }; // status, stat stages (multipliers)
   const turns = [];
   // Their abilities: each one's side (stages of its own, as abilities.js keeps them).
-  const ab = { a: newSide(A.ab), b: newSide(B.ab) };
+  const ab = { a: newSide(A.ab, 1, { item: A.held, nfe: A.nfe }), b: newSide(B.ab, 1, { item: B.held, nfe: B.nfe }) }; // (and what each holds)
   const met = meet(ab.a, ab.b);
   // Said once a spar for each side (keys tagged "a:", "b:": both with Intimidate, the second
   // was never said); the ids handed back untagged.
@@ -76,11 +76,11 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
     // (As the games' trainers: a move that knocks the other out now; a quick one first when slower.)
     const by = (to) => (to === "a" ? "b" : "a");
     const dmgOf = (X, Y) => (m) => damage(X.key, Y.key, () => 0.5, { mul: typesOfKey(X.key).includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), ctx: { na: X.nature, nb: Y.nature, ea: X.effort, eb: Y.effort } }).dmg * SPAR_HIT;
-    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, ai: true, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
+    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), ai: true, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
       threatened: movesetOf(Y.key, Y.moves).some((m) => dmgOf(Y, X)(m) >= hp[by(to)]) });
     const pick = (X, Y, to) => { let m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); for (let n = 0; n < 2 && immuneTo(ab[to], m); n++) m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); return m; };
     const moves = { a: pick(A, B, "b"), b: pick(B, A, "a") };
-    const pa = PRIORITY[moves.a.name] ?? 0, pb = PRIORITY[moves.b.name] ?? 0, sa = speed("a"), sb = speed("b");
+    const pa = (PRIORITY[moves.a.name] ?? 0) + quickClaw(ab.a, rnd), pb = (PRIORITY[moves.b.name] ?? 0) + quickClaw(ab.b, rnd), sa = speed("a"), sb = speed("b"); // (Quick Claw)
     const first = pa !== pb ? (pa > pb ? "a" : "b") : sa > sb ? "a" : sb > sa ? "b" : rnd() < 0.5 ? "a" : "b";
     let flinched = false;
     for (const by of [first, other(first)]) {
@@ -105,7 +105,8 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       const before = hp[to];
       hp[to] = Math.max(0, hp[to] - dmg);
       const said = [...tag(by, r.said.att), ...tag(to, r.said.def)];
-      if (hp[to] <= 0 && sturdyHolds(ab[to], before)) { hp[to] = 0.01; said.push(`${to}:sturdy`); } // Sturdy: it hangs on
+      const held = hp[to] <= 0 && sturdyHolds(ab[to], before);
+      if (held) { hp[to] = 0.01; said.push(`${to}:${held}`); } // Sturdy, Focus Sash: it hangs on
       if (r.heal) hp[to] = Math.min(1, hp[to] + r.heal); // Water Absorb…: a quarter back
       const after = afterHit(ab[by], ab[to], move, { ...r, fainted: hp[to] <= 0 }, r.type);
       said.push(...tag(by, after.att), ...tag(to, after.def));
@@ -116,8 +117,14 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       // Giga Drain, Drain Punch, Draining Kiss: it heals by part of what it took.
       if (DRAIN[move.name] && dealt > 0 && hp[by] < 1) { hp[by] = Math.min(1, hp[by] + dealt * DRAIN[move.name]); turn.drain = { hp: hp[by] }; }
       // Its recoil (Brave Bird: a third of what it dealt) or crash (High Jump Kick missed): abilities.js selfHurt.
-      const cost = selfHurt(ab[by], move, r, dealt, hpRatio(def.key, att.key));
-      if (cost.hurt > 0) { hp[by] = Math.max(0, hp[by] - cost.hurt); turn.recoil = { word: cost.word, hp: hp[by] }; }
+      const cost = selfHurt(ab[by], move, r, dealt, hpRatio(def.key, att.key), ab[to]); // (Life Orb, Rocky Helmet, Shell Bell too)
+      const costSaid = once(tag(by, cost.said));
+      if (costSaid.length) turn.abil = [...(turn.abil ?? []), ...costSaid];
+      if (cost.hurt !== 0) {
+        hp[by] = Math.min(1, Math.max(0, hp[by] - cost.hurt));
+        const why = cost.word || ["rocky-helmet", "life-orb", "shell-bell"].map((k) => cost.said.includes(k) && BATTLE_ITEMS[k]).find(Boolean) || "Recoil!";
+        turn.recoil = { word: why, hp: hp[by] };
+      }
       // Its side effect (not on one already down, nor a status on one that has one).
       const [what, chance] = SIDE_EFFECTS[move.name] ?? [];
       if (!move.miss && hp[to] > 0 && d.eff > 0 && what && rnd() < chance) {
@@ -134,7 +141,10 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       turns.push(turn);
     }
     // The round over: Speed Boost (said with the round's last turn).
-    const boosted = once([...tag("a", endTurn(ab.a)), ...tag("b", endTurn(ab.b))]);
+    // Leftovers: a sixteenth back to each still up.
+    const fed = [];
+    for (const k of ["a", "b"]) { ab[k].hp = hp[k]; const l = hp[k] > 0 ? leftovers(ab[k]) : 0; if (l) { hp[k] += l; fed.push(`${k}:leftovers`); turns.at(-1) && (turns.at(-1).left = { ...(turns.at(-1).left ?? {}), [k]: hp[k] }); } }
+    const boosted = once([...tag("a", endTurn(ab.a)), ...tag("b", endTurn(ab.b)), ...fed]);
     const last = turns.at(-1);
     if (boosted.length && last) last.abil = [...(last.abil ?? []), ...boosted];
   }

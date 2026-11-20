@@ -709,7 +709,7 @@ test("abilities in a fight: Intimidate as they meet, over its head before the mo
   assert.ok(fx.at >= note.until - 400, `moves from ${fx.at - now}, Intimidate till ${note.until - now}`);
   const said = [fx.blow?.word?.[0], st.mons.t0.blows?.at(-1)?.word?.[0]].join(" | ");
   assert.doesNotMatch(said, /Intimidate/); // not in a hit's words
-  assert.equal(st.visitor.abil.w.st.atk, -1, "Snorlax's Attack a stage down");
+  assert.ok(st.visitor.abil.w.st.atk <= -1, "Snorlax's Attack a stage down (more if its own move lowered it: Superpower)");
   st.render(cx);
   assert.ok(!Object.keys(K.tops).some((k) => k.startsWith("abil-")), "no ability tag over the fight");
   // The next exchange: Intimidate isn't said again.

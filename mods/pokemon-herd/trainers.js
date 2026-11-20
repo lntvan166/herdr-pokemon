@@ -8,7 +8,7 @@
 // its pay. Ignored, it leaves after WAIT_MS.
 import { WALKABLE, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
-import { isLegendary, typesOf, NATURES, effectOn } from "./trainer.js";
+import { isLegendary, typesOf, NATURES, effectOn, isPhysicalKey, fighterKey } from "./trainer.js";
 
 export const TRAINER_ODDS = 10; // 1 visitor in 10 is a trainer (not in an outbreak or a raid)
 export const WAIT_MS = 3 * 60000; // how long it waits for a battle, then walks on
@@ -174,9 +174,25 @@ export const towerOdds = (wins) => ({
   alpha: Math.min(0.5, 0.05 + 0.025 * wins),
 });
 // The `n`th trainer of a climb (1, 2…): `wins` before it = n - 1.
+// What a trainer's Pokémon holds, as the games' Battle Tower and rivals give theirs (abilities.js
+// BATTLE_ITEMS): one for its stronger side most often (a Choice Band or Life Orb on one that hits
+// physically), else one of the rest.
+const GEAR_PHYSICAL = ["choice-band", "life-orb", "muscle-band", "expert-belt"];
+const GEAR_SPECIAL = ["choice-specs", "life-orb", "wise-glasses", "expert-belt", "assault-vest"];
+const GEAR_ANY = ["focus-sash", "leftovers", "choice-scarf", "quick-claw", "scope-lens", "rocky-helmet", "weakness-policy", "air-balloon", "shell-bell"];
+export function gearFor(dex, rnd = Math.random) {
+  const own = isPhysicalKey(fighterKey(dex, {})) ? GEAR_PHYSICAL : GEAR_SPECIAL;
+  const pool = rnd() < 0.6 ? own : GEAR_ANY;
+  return pool[Math.floor(rnd() * pool.length)];
+}
+// Each holds a different one (the games' Item Clause).
+export function withGear(team, rnd = Math.random) {
+  const used = new Set();
+  return team.map((m) => { let g = gearFor(m.dex, rnd); for (let n = 0; n < 6 && used.has(g); n++) g = gearFor(m.dex, rnd); used.add(g); return { ...m, held: g }; });
+}
 export function towerTrainer(rnd, now, n, how = {}) {
   const tr = newTrainer(rnd, now, { ...how, size: 3, odds: towerOdds(n - 1), force: undefined });
-  return { ...tr, tower: n, effort: towerEffort(n - 1) };
+  return { ...tr, team: withGear(tr.team, rnd), tower: n, effort: towerEffort(n - 1) };
 }
 // The `n`th win: { money, items: [[id, count]] }.
 // Every floor a small gift too (balls, Berries, in turn; better ones from floor 8), and every 7th
@@ -236,7 +252,8 @@ export const RIVAL_EVERY = [4, 7]; // days between visits
 export const RIVAL_FIRST_MS = 2 * 3600000; // the first, two hours after the mod first sees it
 export const RIVAL_RETRY_MS = 6 * 3600000; // ignored (it waited and left): again a few hours on
 export const RIVAL_LIVES = 3;
-export const rivalEffort = (meets) => Math.min(1.9, 1.55 + 0.035 * meets); // (+0.035 a visit: with the games' AI, recoil and moves' stages, ~88% your win the first time, ~44% the seventh; +0.045 left it at 33%)
+export const rivalEffort = (meets) => Math.min(1.9, 1.55 + 0.025 * meets); // (+0.025 a visit: with held items from its third, ~86% your win the first time, ~44% the seventh; yours holding items too, ~55%)
+export const RIVAL_GEAR_FROM = 2; // (meets before: its third visit)
 export const RIVAL_POTIONS = 2, RIVAL_POTION_AT = 0.3, RIVAL_POTION = 0.5;
 // The starters, by type, a line each region (their first stage).
 export const STARTERS = {
@@ -273,7 +290,8 @@ export function rivalTrainer(rnd, now, r, how = {}) {
   const others = rivalPicks(how.yours, rnd, [lead]);
   const team = [...others.map((dex) => ({ dex, nature: nature() })), { dex: lead, nature: nature() }]; // its starter last, as the games'
   if (r.meets >= 3 && how.megaOf?.(lead) != null) team[2] = { ...team[2], mega: how.megaOf(lead) };
-  return { cls: "rival", title: RIVAL.title, name: r.name, team, at: now, effort: rivalEffort(r.meets), rival: true, meets: r.meets };
+  // Its team holds items from its third visit, as a rival's grows (abilities.js BATTLE_ITEMS).
+  return { cls: "rival", title: RIVAL.title, name: r.name, team: r.meets >= RIVAL_GEAR_FROM ? withGear(team, rnd) : team, at: now, effort: rivalEffort(r.meets), rival: true, meets: r.meets };
 }
 // Beating it: ₽600, ₽100 more each time it came (₽1,500 at most), a Rare Candy; the first win an
 // Ability Patch, after that an Ability Capsule one time in three.

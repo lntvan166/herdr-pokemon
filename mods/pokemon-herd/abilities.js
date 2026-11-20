@@ -84,7 +84,27 @@ export const works = (key) => WORKS.has(key);
 export const stageMul = (n) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
 const clampStage = (n) => Math.max(-6, Math.min(6, n));
 // One side of a battle: its ability, health and stages (kept while the two face each other).
-export const newSide = (ab, hp = 1) => ({ ab: ab || "", hp, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, fire: false });
+// `gear`: { item (what it holds: BATTLE_ITEMS), nfe (it can still evolve: Eviolite) }.
+export const newSide = (ab, hp = 1, gear = {}) => ({ ab: ab || "", hp, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, fire: false, item: gear.item || "", nfe: !!gear.nfe, used: false, locked: null });
+
+// Items held in battle, as the games' (their names; what each does, below and items.js itemAbout).
+// One used up (Focus Sash, Weakness Policy, Air Balloon) is gone for the rest of the battle only, as
+// the games' Battle Tower and link battles give it back after.
+export const BATTLE_ITEMS = {
+  "life-orb": "Life Orb", "choice-band": "Choice Band", "choice-specs": "Choice Specs", "choice-scarf": "Choice Scarf",
+  "focus-sash": "Focus Sash", "expert-belt": "Expert Belt", "muscle-band": "Muscle Band", "wise-glasses": "Wise Glasses",
+  "assault-vest": "Assault Vest", eviolite: "Eviolite", "rocky-helmet": "Rocky Helmet", "shell-bell": "Shell Bell",
+  "quick-claw": "Quick Claw", "scope-lens": "Scope Lens", "weakness-policy": "Weakness Policy", "air-balloon": "Air Balloon",
+};
+export const CHOICE = new Set(["choice-band", "choice-specs", "choice-scarf"]);
+// What's said of an ability or an item by its key (an item's words in a battle: "Life Orb").
+export const sayName = (key) => abilityName(key) || BATTLE_ITEMS[key] || (key === "leftovers" ? "Leftovers" : "");
+// Quick Claw: one time in five it moves first among moves as quick (a step of priority, half).
+export const quickClaw = (side, rnd = Math.random) => (side.item === "quick-claw" && rnd() < 0.2 ? 0.5 : 0);
+// Leftovers: a sixteenth of its health back at the end of each exchange.
+export const leftovers = (side) => (side.item === "leftovers" && side.hp > 0 && side.hp < 1 ? Math.min(1 / 16, 1 - side.hp) : 0);
+// Choice items: locked into the move it first used while it stays in (moves.js pickMove `lock`).
+export const lockOf = (side) => (CHOICE.has(side.item) ? side.locked : null);
 function raise(side, stat, n, said, by = side.ab) {
   side.st[stat] = clampStage(side.st[stat] + n);
   if (by) said.push(by);
@@ -111,7 +131,7 @@ export function meet(a, b) {
 }
 // Its Speed: its stage, its ability in the weather (×2).
 export function speedMul(side, weather) {
-  return stageMul(side.st.spe) * (WEATHER_SPEED[side.ab]?.includes(weather) ? 2 : 1);
+  return stageMul(side.st.spe) * (WEATHER_SPEED[side.ab]?.includes(weather) ? 2 : 1) * (side.item === "choice-scarf" ? 1.5 : 1);
 }
 export const fastInWeather = (side, weather) => !!WEATHER_SPEED[side.ab]?.includes(weather);
 // Whether `def`'s ability makes it immune to `move` (the attacker picks another, as the games' AI
@@ -142,6 +162,7 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   if (!miss && att.ab === "hustle" && move.physical && rnd() < 0.2) miss = true;
   // Crits: Super Luck a stage higher (1 in 8), Battle and Shell Armor none.
   if (!crit && att.ab === "super-luck" && rnd() < 1 / 16) { crit = true; said.att.push("super-luck"); }
+  if (!crit && att.item === "scope-lens" && rnd() < 1 / 16) { crit = true; said.att.push("scope-lens"); } // (a stage up: 1 in 8)
   if (crit && (def.ab === "battle-armor" || def.ab === "shell-armor")) { crit = false; said.def.push(def.ab); }
   // move.mul is 0 on a miss: what it'd be on a hit, from the move.
   let mul = miss ? 0 : (move.mul > 0 ? move.mul / (move.crit ? 1.5 : 1) : (move.stab ? 1.5 : 1)) * (crit ? 1.5 : 1);
@@ -156,6 +177,8 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     return { mul: 0, type, miss: false, crit, heal: im.heal ?? 0, said };
   }
   if (def.ab === "wonder-guard" && eff <= 1) { said.def.push("wonder-guard"); return { mul: 0, type, miss: false, crit, heal: 0, said }; }
+  // Air Balloon: no Ground move touches it till a hit pops it (afterHit).
+  if (def.item === "air-balloon" && !def.used && type === "ground") { said.def.push("air-balloon"); return { mul: 0, type, miss: false, crit, heal: 0, said }; }
   // The attacker's.
   const physical = !!move.physical;
   const atk = (k, x) => { base *= x; said.att.push(k); };
@@ -197,6 +220,13 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     case "purifying-salt": if (type === "ghost") def_("purifying-salt", 0.5); break;
     case "dry-skin": if (type === "fire") def_("dry-skin", 1.25); break;
   }
+  // Items: the attacker's (Life Orb ×1.3, a Choice Band or Specs ×1.5 on its side, Expert Belt ×1.2
+  // super-effective, Muscle Band or Wise Glasses ×1.1), the target's (Assault Vest: Sp. Def ×1.5;
+  // Eviolite, one that can still evolve: both ×1.5).
+  const gear = { "life-orb": 1.3, "choice-band": physical ? 1.5 : 1, "choice-specs": physical ? 1 : 1.5, "expert-belt": eff > 1 ? 1.2 : 1, "muscle-band": physical ? 1.1 : 1, "wise-glasses": physical ? 1 : 1.1 }[att.item] ?? 1;
+  if (gear !== 1) atk(att.item, gear);
+  if (def.item === "assault-vest" && !physical) def_("assault-vest", 1 / 1.5);
+  if (def.item === "eviolite" && def.nfe) def_("eviolite", 1 / 1.5);
   // Stages: its Attack (or Sp. Atk) over the target's Defense (or Sp. Def). A crit ignores the
   // attacker's drops and the target's rises, as in the games.
   // Sacred Sword and the like (IGNORE_STAGES): the target's stages, up or down, count for nothing.
@@ -214,14 +244,26 @@ export const stageWords = (list) => list.map(([s, n]) => `${STAT_WORD[s]}${(n > 
 // spares it recoil, Magic Guard both. None for one risen to its type's strongest (1 in 8: a gift).
 // Returns { hurt (its share of health), word ("Recoil!", "Crashed!"), said ([keys]) }.
 export const CRASH = new Set(["Jump Kick", "High Jump Kick", "Axe Kick", "Supercell Slam"]);
-export function selfHurt(att, move, r, dealt, ratio = 1) {
-  const none = { hurt: 0, word: "", said: [] };
-  if (move.risen) return none;
-  const crash = CRASH.has(move.name) && (r.miss || r.mul === 0);
-  const recoil = !crash && !r.miss && r.mul > 0 && dealt > 0 && RECOIL[move.name];
-  if (!crash && !recoil) return none;
-  if (att.ab === "magic-guard" || (recoil && att.ab === "rock-head")) return { ...none, said: [att.ab] };
-  return crash ? { hurt: 0.5, word: "Crashed!", said: [] } : { hurt: dealt * recoil * ratio, word: "Recoil!", said: [] };
+// Items too (`def`: the target's side): Life Orb a tenth of its health each hit it lands, Rocky
+// Helmet a sixth of the attacker's for a move that touches it, Shell Bell an eighth of what it dealt
+// back (a negative hurt). `hurt` all together; `said` the abilities' and items' keys.
+export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
+  const out = { hurt: 0, word: "", said: [] };
+  const words = [];
+  const landed = !r.miss && r.mul > 0;
+  const guard = att.ab === "magic-guard";
+  const crash = !move.risen && CRASH.has(move.name) && !landed;
+  const recoil = !move.risen && !crash && landed && dealt > 0 && RECOIL[move.name];
+  if (crash || recoil) {
+    if (guard || (recoil && att.ab === "rock-head")) out.said.push(att.ab);
+    else if (crash) { out.hurt += 0.5; words.push("Crashed!"); }
+    else { out.hurt += dealt * recoil * ratio; words.push("Recoil!"); }
+  }
+  if (landed && att.item === "life-orb" && !guard) { out.hurt += 0.1; out.said.push("life-orb"); }
+  if (landed && def?.item === "rocky-helmet" && flag(move, "c") && !guard) { out.hurt += 1 / 6; out.said.push("rocky-helmet"); }
+  if (landed && dealt > 0 && att.item === "shell-bell") { out.hurt -= (dealt * ratio) / 8; out.said.push("shell-bell"); }
+  out.word = words.join(" ");
+  return out;
 }
 // Moves that ignore the target's stat stages, as the games' (Sacred Sword, Darkest Lariat, Chip Away).
 export const IGNORE_STAGES = new Set(["Sacred Sword", "Darkest Lariat", "Chip Away"]);
@@ -239,7 +281,11 @@ export function stageBy(side, stat, n, out) {
 // like (it knocked the other out). Returns { att: [keys], def: [keys] }.
 export function afterHit(att, def, move, r, type = move.type, rnd = Math.random) {
   const said = { att: [], def: [], stages: { att: [] } };
+  if (CHOICE.has(att.item) && !att.locked) att.locked = move.base ?? move.name; // (missed or not: it chose)
   if (r.mul === 0 || r.miss) return said;
+  if (def.item === "air-balloon" && !def.used) { def.used = true; said.def.push("air-balloon"); } // popped
+  // Weakness Policy: hit super-effectively and still up, its Attack and Sp. Atk two stages up, once.
+  if (def.item === "weakness-policy" && !def.used && !r.fainted && (r.eff ?? 1) > 1) { def.used = true; raise(def, "atk", 2, [], ""); raise(def, "spa", 2, said.def, "weakness-policy"); }
   // (Not on one risen to its type's own, 1 in 8: a gift, drawn as Close Combat or Draco Meteor
   // but struck as the move it rose from, physical or special: no cost of theirs.)
   const own = !move.risen && SELF_STAGES[move.name];
@@ -268,4 +314,10 @@ export function endTurn(side) {
   return ["speed-boost"];
 }
 // Sturdy: at full health, one hit can't knock it out (it hangs on with a sliver).
-export const sturdyHolds = (side, hpBefore) => side.ab === "sturdy" && hpBefore >= 0.999;
+// Focus Sash too, once a battle: what held it ("sturdy", "focus-sash"), or "".
+export function sturdyHolds(side, hpBefore) {
+  if (hpBefore < 0.999) return "";
+  if (side.ab === "sturdy") return "sturdy";
+  if (side.item === "focus-sash" && !side.used) { side.used = true; return "focus-sash"; }
+  return "";
+}

@@ -1,7 +1,11 @@
 // The Bag (items found and earned, shared by every pane) and the badges. Pure.
 import { EVOLVE_HOW, EVOLVES_FROM } from "./species.js";
 import { nameOf } from "./dex.js";
-import { itemUse, useItem, HELD_IDS, MAX_HEARTS } from "./picks.js";
+import { itemUse, useItem, HELD_IDS, CARE_HELD, BATTLE_HELD, MAX_HEARTS } from "./picks.js";
+import { BATTLE_ITEMS } from "./abilities.js";
+const BATTLE_ICON = {"life-orb": "🔮", "choice-band": "🎗️", "choice-specs": "👓", "choice-scarf": "🧣", "focus-sash": "🎀", "expert-belt": "🥋", "muscle-band": "💪", "wise-glasses": "🤓", "assault-vest": "🦺", "eviolite": "💎", "rocky-helmet": "⛑️", "shell-bell": "🐚", "quick-claw": "🦅", "scope-lens": "🔭", "weakness-policy": "📜", "air-balloon": "🎈"};
+// What each does in a battle (itemAbout).
+const BATTLE_ABOUT = {"life-orb": "Its moves hit ×1.3, and each one that lands costs it a tenth of its health.", "choice-band": "Its physical moves hit ×1.5, but it uses only the move it chose first while it stays in.", "choice-specs": "Its special moves hit ×1.5, but it uses only the move it chose first while it stays in.", "choice-scarf": "It's ×1.5 faster, but it uses only the move it chose first while it stays in.", "focus-sash": "At full health, a hit that would knock it out leaves it hanging on, once a battle.", "expert-belt": "Its super-effective moves hit ×1.2.", "muscle-band": "Its physical moves hit ×1.1.", "wise-glasses": "Its special moves hit ×1.1.", "assault-vest": "It takes special moves as if its Sp. Def were ×1.5.", "eviolite": "One that can still evolve takes every hit as if its Defense and Sp. Def were ×1.5.", "rocky-helmet": "One that hits it with a move that touches loses a sixth of its health.", "shell-bell": "It gets back an eighth of the damage it deals.", "quick-claw": "One time in five it moves first (after quick moves).", "scope-lens": "Its moves land critical hits more often (1 in 8).", "weakness-policy": "Hit super-effectively and still up: its Attack and Sp. Atk two stages up, once a battle.", "air-balloon": "Ground moves miss it till a hit pops the balloon (back for the next battle)."};
 import { duration } from "./stats.js";
 // Kept in shared state as { v: 1, items: { <id>: count }, money, marks: { evolutions, nightJob, fullHearts } }.
 
@@ -30,6 +34,8 @@ export const ITEMS = {
   "amulet-coin": { name: "Amulet Coin", icon: "🪙", art: "items/amulet-coin", kind: "held" },
   leftovers: { name: "Leftovers", icon: "🍎", art: "items/leftovers", kind: "held" },
   "exp-share": { name: "Exp. Share", icon: "📡", art: "items/exp-share", kind: "held" },
+  // For battles (abilities.js BATTLE_ITEMS), one at a time, as the games'.
+  ...Object.fromEntries(BATTLE_HELD.map((id) => [id, { name: BATTLE_ITEMS[id], icon: BATTLE_ICON[id], art: `items/${id}`, kind: "held", battle: true }])),
   honey: { name: "Honey", icon: "🍯", art: "items/honey", kind: "use" },
   "azure-flute": { name: "Azure Flute", icon: "🪈", art: "items/azure-flute", kind: "use" },
   // From the Shop: for the whole herd, BOOST_MS each (the Festival Ticket at once).
@@ -57,7 +63,9 @@ export const PRICE = {
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "quick-ball": 200, "dusk-ball": 120, "timer-ball": 120, "master-ball": 25000,
   honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800, "ability-capsule": 1500, "ability-patch": 10000, // (a Patch also the Battle Tower's 28th floor)
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])),
-  ...Object.fromEntries(HELD_IDS.map((id) => [id, 2000])),
+  ...Object.fromEntries(CARE_HELD.map((id) => [id, 2000])),
+  // For battles: the strongest dearest (as the games' Battle Points: Life Orb, Choice, Focus Sash 48 BP, the rest 32).
+  ...Object.fromEntries(BATTLE_HELD.map((id) => [id, ["life-orb", "choice-band", "choice-specs", "choice-scarf", "focus-sash", "assault-vest", "weakness-policy"].includes(id) ? 4000 : 2500])),
   "x-speed": 150, "poke-flute": 100, "x-attack": 200, "soda-pop": 100, "festival-ticket": 250,
 };
 export const MAX_MONEY = 999999;
@@ -142,8 +150,9 @@ export function itemAbout(id) {
   if (id === "lucky-egg") return "For a Pokémon to hold: every job its agent finishes counts twice towards evolving.";
   if (id === "soothe-bell") return "For a Pokémon to hold: every heart it gains is two.";
   if (id === "amulet-coin") return "For a Pokémon to hold: it finds items twice as often.";
-  if (id === "leftovers") return "For a Pokémon to hold: it never goes hungry, however long its agent waits on you.";
   if (id === "exp-share") return "For a Pokémon to hold: each job its agent finishes also counts for the Pokémon on screen furthest from evolving.";
+  if (BATTLE_ABOUT[id]) return `For a Pokémon to hold in battle: ${BATTLE_ABOUT[id][0].toLowerCase()}${BATTLE_ABOUT[id].slice(1)}`;
+  if (id === "leftovers") return "For a Pokémon to hold: it never goes hungry, however long its agent waits on you; in battle, a sixteenth of its health back each exchange.";
   if (id === "honey") return "Calls a wild Pokémon over right away, with its gift.";
   if (id === "azure-flute") return "Calls a legendary Pokémon over. Hard to catch: 20 balls before it's gone, and it may get away.";
   if (id === "x-speed") return "For 10 minutes the whole herd is on the go: faster, and hardly stopping.";
@@ -182,7 +191,7 @@ export const MAX_ITEM = 999; // as the newer games' Bag
 const PICKUP = [
   ["berry", 18], ["sitrus-berry", 6], ["razz-berry", 10], ["pinap-berry", 5], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
   ["poke-ball", 22], ["great-ball", 7], ["ultra-ball", 2], ["quick-ball", 1], ["dusk-ball", 1], ["timer-ball", 1],
-  ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 3], ["honey", 4], ["berry", 3], ["revive", 2], ["max-revive", 0.5], ...HELD_IDS.map((id) => [id, 0.6]),
+  ...STONES.map((k) => [`${k}-stone`, 1.5]), ["rare-candy", 3], ["honey", 4], ["berry", 3], ["revive", 2], ["max-revive", 0.5], ...CARE_HELD.map((id) => [id, 0.6]), ...BATTLE_HELD.map((id) => [id, 0.15]),
 ];
 export function pickup(rnd = Math.random) {
   let r = rnd() * PICKUP.reduce((t, [, w]) => t + w, 0);
@@ -195,7 +204,7 @@ export function pickup(rnd = Math.random) {
 const GIFT = [
   ["poke-ball", 35], ["great-ball", 12], ["ultra-ball", 4],
   ["berry", 8], ["sitrus-berry", 4], ["razz-berry", 10], ["pinap-berry", 6], ["golden-razz-berry", 1], ["silver-pinap-berry", 1],
-  ...STONES.map((k) => [`${k}-stone`, 1]), ["rare-candy", 2], ["honey", 3], ["poke-ball", 2], ...HELD_IDS.map((id) => [id, 0.4]),
+  ...STONES.map((k) => [`${k}-stone`, 1]), ["rare-candy", 2], ["honey", 3], ["poke-ball", 2], ...CARE_HELD.map((id) => [id, 0.4]), ...BATTLE_HELD.map((id) => [id, 0.1]),
 ];
 const GIFT_COUNT = { "poke-ball": 3, "great-ball": 2 };
 // { id, n }: what a visitor leaves, and how many.
@@ -293,7 +302,7 @@ export function badgeGifts(summary, marks, live = {}) {
   const gifts = [];
   for (const b of badges(summary, marks, live)) {
     if (!b.earned || seen.includes(b.id)) continue;
-    gifts.push(HELD_IDS[BADGES.indexOf(BADGES.find((x) => x.id === b.id)) % HELD_IDS.length]);
+    gifts.push(CARE_HELD[BADGES.indexOf(BADGES.find((x) => x.id === b.id)) % CARE_HELD.length]);
     seen.push(b.id);
   }
   return { gifts, seen };

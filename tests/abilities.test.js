@@ -182,3 +182,46 @@ test("recoil and crash", async () => {
   assert.equal(A.selfHurt(A.newSide("magic-guard"), hjk, { mul: 0, miss: true }, 0).hurt, 0);
   assert.equal(A.selfHurt(A.newSide(""), hjk, { mul: 1 }, 0.5).hurt, 0, "it hit: no crash");
 });
+
+// Items held in battle, as the games'.
+test("battle items: damage, speed, Focus Sash, Air Balloon, Weakness Policy, costs, Choice lock", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const { pickMove } = await import("../mods/pokemon-herd/moves.js");
+  const hit = (att, def, m) => A.onHit(att, def, { type: "normal", physical: true, mul: 1, eff: 1, ...m }).mul;
+  const plain = hit(A.newSide(""), A.newSide(""), { name: "Tackle" });
+  const w = (item, m = {}, defItem = "", nfe = false) => hit(A.newSide("", 1, { item }), A.newSide("", 1, { item: defItem, nfe }), { name: "Tackle", ...m }) / plain;
+  assert.ok(Math.abs(w("life-orb") - 1.3) < 1e-9);
+  assert.ok(Math.abs(w("choice-band") - 1.5) < 1e-9);
+  assert.ok(Math.abs(w("choice-specs") - 1) < 1e-9, "Specs: not a physical move");
+  assert.ok(Math.abs(w("expert-belt", { eff: 2 }) - 1.2) < 1e-9);
+  assert.ok(Math.abs(w("", { physical: false }, "assault-vest") - 1 / 1.5) < 1e-9);
+  assert.ok(Math.abs(w("", {}, "eviolite", true) - 1 / 1.5) < 1e-9);
+  assert.equal(w("", {}, "eviolite", false), 1, "fully evolved: nothing");
+  assert.equal(A.speedMul(A.newSide("", 1, { item: "choice-scarf" }), "clear"), 1.5);
+  // Focus Sash: once.
+  const sash = A.newSide("", 1, { item: "focus-sash" });
+  assert.equal(A.sturdyHolds(sash, 1), "focus-sash");
+  assert.equal(A.sturdyHolds(sash, 1), "", "used up");
+  // Air Balloon: Ground misses till a hit pops it.
+  const bal = A.newSide("", 1, { item: "air-balloon" });
+  assert.equal(hit(A.newSide(""), bal, { name: "Earthquake", type: "ground" }), 0);
+  A.afterHit(A.newSide(""), bal, { name: "Tackle", type: "normal" }, { mul: 1 });
+  assert.ok(hit(A.newSide(""), bal, { name: "Earthquake", type: "ground" }) > 0, "popped");
+  // Weakness Policy: +2 Atk and SpA, once.
+  const wp = A.newSide("", 1, { item: "weakness-policy" });
+  A.afterHit(A.newSide(""), wp, { name: "Tackle" }, { mul: 1, eff: 2 });
+  assert.deepEqual([wp.st.atk, wp.st.spa], [2, 2]);
+  // Costs: Life Orb a tenth; Rocky Helmet a sixth (a move that touches); Shell Bell an eighth back.
+  assert.ok(Math.abs(A.selfHurt(A.newSide("", 1, { item: "life-orb" }), { name: "Surf" }, { mul: 1 }, 0.4).hurt - 0.1) < 1e-9);
+  assert.ok(Math.abs(A.selfHurt(A.newSide(""), { name: "Tackle" }, { mul: 1 }, 0.4, 1, A.newSide("", 1, { item: "rocky-helmet" })).hurt - 1 / 6) < 1e-9);
+  assert.equal(A.selfHurt(A.newSide(""), { name: "Surf" }, { mul: 1 }, 0.4, 1, A.newSide("", 1, { item: "rocky-helmet" })).hurt, 0, "Surf doesn't touch");
+  assert.ok(Math.abs(A.selfHurt(A.newSide("", 1, { item: "shell-bell" }), { name: "Surf" }, { mul: 1 }, 0.4).hurt + 0.05) < 1e-9);
+  assert.equal(A.selfHurt(A.newSide("magic-guard", 1, { item: "life-orb" }), { name: "Surf" }, { mul: 1 }, 0.4).hurt, 0);
+  // Choice: locked into its first move.
+  const ch = A.newSide("", 1, { item: "choice-band" });
+  A.afterHit(ch, A.newSide(""), { name: "Iron Head" }, { mul: 1 });
+  assert.equal(A.lockOf(ch), "Iron Head");
+  for (let i = 0; i < 50; i++) { const m = pickMove("983", "94", Math.random, { lock: A.lockOf(ch) }); assert.equal(m.base ?? m.name, "Iron Head"); }
+  // Leftovers: a sixteenth.
+  assert.equal(A.leftovers({ ...A.newSide("", 0.5, { item: "leftovers" }) }), 1 / 16);
+});

@@ -229,10 +229,13 @@ export function duel(a, b, A, B, now, fight, at = null) {
   }
   for (const tn of fight.turns) {
     const k = tn.by, dk = k === "a" ? "b" : "a", S = side[k], D = side[dk];
+    // Leftovers at the round's end (spar.js `left`: each one's health after): its words, its bar.
+    const leftNotes = () => { if (!tn.left) return; for (const [kk, h] of Object.entries(tn.left)) seq[kk].push({ at: t, until: t + NOTE_MS, anim: null, note: ["recoil", "Leftovers"], hp: h }); t += NOTE_MS + 100; };
     // It can't move (paralysed, frozen, flinched): a shudder and the game's words.
     if (tn.skip) {
       seq[k].push({ at: t, until: t + NOTE_MS, anim: reactionAnim("startle", S.has), note: ["skip", tn.skip] });
       t += NOTE_MS + 200;
+      leftNotes();
       continue;
     }
     const anim = reactionAnim(tn.move.physical ? "spar" : "special", S.has) ?? reactionAnim("spar", S.has);
@@ -250,6 +253,7 @@ export function duel(a, b, A, B, now, fight, at = null) {
     if (tn.drain) { seq[k].push({ at: t, until: t + NOTE_MS, anim: null, note: ["drain", "drain"], hp: tn.drain.hp }); t += NOTE_MS + 100; }
     if (tn.effect) { seq[dk].push({ at: t, until: t + NOTE_MS, anim: null, note: ["effect", tn.effect] }); t += NOTE_MS + 100; }
     if (tn.tick) { seq[k].push({ at: t, until: t + NOTE_MS, anim: reactionAnim("startle", S.has), note: ["tick", tn.tick.kind], hp: tn.tick.hp }); t += NOTE_MS + 100; }
+    leftNotes();
   }
   const w = fight.winner, l = w === "a" ? "b" : "a";
   seq[w].push({ at: t, until: t + 1500, anim: reactionAnim("celebrate", side[w].has), icon: "🎉", result: "win" });
