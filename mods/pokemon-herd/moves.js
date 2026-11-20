@@ -138,6 +138,11 @@ export const PICK_SHARP = 3; // how strongly it favours its best move: chance �
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
 export const powerOf = (name) => EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
+// Each type's strongest move by its power in the games (MOVES and MORE_MOVES; a tie, its own list's
+// first): what a move rises to, 1 in 8 (pickMove), sure to hit. Zap Cannon, High Jump Kick, Brave
+// Bird, Foul Play, Double Iron Bash where those beat the type's own (Thunder, Close Combat…).
+export const TOP_MOVE = Object.fromEntries(Object.keys(MOVES).map((t) => [t,
+  [...MOVES[t].slice().reverse(), ...(MORE_MOVES[t] ?? []).map(([n]) => n)].reduce((best, n) => (powerOf(n) > powerOf(best) ? n : best))]));
 export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. Atk)
 // The moves it knows (not the signature ones): [{ type, name, physical }]: its four (MOVESET:
 // the key, else its species'), or, with none (Ditto), its types' as before.
@@ -233,19 +238,15 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const roll = rnd();
   // Its own move: itself (drawn as a signature move, but as sure to hit as any, and as physical as
   // it is); else 1 in 8 its type's signature move.
-  // A gift: one risen hits as surely as the surer of the two (Thunderbolt risen to Thunder: 110,
-  // sure to hit; Zap Cannon's to it, 70%), and never to a weaker one, its power times that chance
-  // (Superpower 120 stays itself, not Close Combat 120; Focus Blast 120 at 70% rises to it). (With
-  // the games' other moves some are stronger than their type's own; Thunder's 30% made a rise worse.)
-  const sigName = MOVES[base.type][2];
-  const riseMiss = Math.min(missOf(sigName), missOf(base.name));
-  const rises = !how.keep?.[k] && roll < ULTIMATE && powerOf(sigName) * (1 - riseMiss) > powerOf(base.name) * (1 - missOf(base.name));
+  // Risen (1 in 8): its type's strongest move (TOP_MOVE), sure to hit, a gift: Zap Cannon chosen
+  // hits half the time, as the games'; an Electric move risen to it never misses.
+  const rises = !ex && !base.sig && !how.keep?.[k] && roll < ULTIMATE;
   const ultimate = !!ex || rises || !!base.sig; // (not one picked to finish it: Sucker Punch stays quick)
   const crit = ex?.crit === "always" || rnd() < (ex?.crit === "high" ? 1 / 8 : CRIT);
-  const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
+  const name = rises ? TOP_MOVE[base.type] : base.name;
   // Its accuracy, and a small target's dodging (weather.js sizeMiss): it hits only if both let it.
-  const missRate = rises ? Math.min(weatherMiss(name, how.weather), weatherMiss(base.name, how.weather)) : weatherMiss(name, how.weather); // (risen: the surer of the two)
-  const miss = rnd() < 1 - (1 - missRate) * (1 - (sizeMiss(how.targetSize) ?? 0));
+  const missRate = rises ? 0 : weatherMiss(name, how.weather);
+  const miss = !rises && rnd() < 1 - (1 - missRate) * (1 - (sizeMiss(how.targetSize) ?? 0));
   // Its kind: its own move's (the games'); a type's signature move as the move it rose from (a
   // Fire Punch risen to Blast Burn hits with its Attack: drawn special, it fell to its weaker side).
   const physical = ex ? ex.physical : base.physical;

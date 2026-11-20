@@ -194,23 +194,24 @@ test("picking as the games' trainers (scores): a finisher, a quick one when slow
   assert.ok(wild.size >= 3, [...wild].join(","));
 });
 
-// The 1 in 8 rise to its type's own move: never to a weaker one, power times its chance to hit
-// (Superpower 120 stays itself, not Close Combat 120); one risen marked, and its own cost not paid (abilities.js afterHit).
-test("the rise to a type's own move: never weaker, and free", async () => {
+// The 1 in 8 rise: to its type's strongest move in the games (TOP_MOVE), sure to hit, its own cost
+// unpaid. Zap Cannon chosen hits half the time, as the games'; risen to, never misses.
+test("the rise to a type's strongest move: sure to hit, and free", async () => {
   const A = await import("../mods/pokemon-herd/abilities.js");
-  let rose = 0, risen = null;
-  for (let i = 0; i < 400; i++) {
-    const bb = pickMove("106", "1", Math.random, { moves: ["Brick Break"] });
-    if (bb.name === "Close Combat") { rose++; risen = bb; }
+  const { TOP_MOVE } = await import("../mods/pokemon-herd/moves.js");
+  assert.equal(TOP_MOVE.electric, "Zap Cannon");
+  assert.equal(TOP_MOVE.fighting, "High Jump Kick");
+  let rose = 0, plainMiss = 0, plain = 0, risen = null;
+  for (let i = 0; i < 800; i++) {
+    const z = pickMove("25", "1", Math.random, { moves: ["Zap Cannon"] });
+    if (z.risen || z.ultimate) { assert.equal(z.miss, false); assert.equal(z.missRate, 0); }
+    else { plain++; if (z.miss) plainMiss++; }
+    const t = pickMove("149", "1", Math.random, { moves: ["Dragon Claw"] });
+    if (t.name === "Draco Meteor") { rose++; risen = t; assert.ok(t.risen && !t.miss); }
   }
-  assert.ok(rose > 10 && risen.risen);
-  // Thunderbolt risen to Thunder: as sure to hit as Thunderbolt; Superpower (120, sure) stays itself.
-  for (let i = 0; i < 400; i++) {
-    const t = pickMove("25", "1", Math.random, { moves: ["Thunderbolt"] });
-    if (t.risen) assert.equal(t.missRate, 0);
-    assert.equal(pickMove("68", "1", Math.random, { moves: ["Superpower"] }).name, "Superpower");
-  }
+  assert.ok(plainMiss / plain > 0.35 && plainMiss / plain < 0.65, `${plainMiss}/${plain}`);
+  assert.ok(rose > 40 && risen.physical, "Dragon Claw risen: physical still");
   const s = A.newSide("");
   A.afterHit(s, A.newSide(""), risen, { mul: 1 });
-  assert.equal(s.st.def, 0, "a risen Close Combat: no Defense lost");
+  assert.equal(s.st.spa, 0, "a risen Draco Meteor: no Sp. Atk lost");
 });

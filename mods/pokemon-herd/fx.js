@@ -311,7 +311,7 @@ export function signatureParts(type, x0, x1, y, seed = 1, style = null, name = n
       }
       out.push(flash(0, x1, y, 40, st.hot));
       break;
-    case "electric": { // Thunder: a dark cloud over it, a bolt out of the sky
+    case "electric": { // Zap Cannon (its strongest: moves.js TOP_MOVE): a dark cloud over it, a bolt out of the sky
       out.push(P(-420, 380, O(x1, sky - 4, 20, 6, 0), O(x1, sky - 4, 46, 12, 0.85), "#3a3f55", { round: true }));
       const n = 5, seg = (y - sky) / n;
       for (let i = 0; i < n; i++) {
@@ -329,7 +329,7 @@ export function signatureParts(type, x0, x1, y, seed = 1, style = null, name = n
       }
       out.push(P(0, 500, O(x1, y, 64, 30, 0.3), O(x1, y, 84, 36, 0), st.hot, { round: true }));
       break;
-    case "fighting": // Close Combat: a flurry of blows landing all over it
+    case "fighting": // High Jump Kick (TOP_MOVE), drawn as a flurry of blows landing all over it
       for (let i = 0; i < 7; i++) {
         const x = x1 + (rnd() - 0.5) * 30, yy = y + (rnd() - 0.5) * 26;
         out.push(ring(-300 + i * 50, x, yy, 4, 22, i % 2 ? st.hot : st.core, 220, 1), flash(-300 + i * 50, x, yy, 12, st.mid, 160));
