@@ -3549,8 +3549,12 @@ export default class PokemonHerd extends View {
         // A trainer (not the Tower's: swapping on the strip is free there, from the Box costs 10%):
         // one of yours swapped in while the one before is still up costs a free hit (the games':
         // switching takes your turn): it strikes, yours doesn't.
+        // (Down already, as the games': its replacement comes in free. Its health as the last blow
+        // left it, v.abil.o: the kept health is written only once the fight's over, and one
+        // dropped in while it was still fainting counted as a switch.)
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
-        const switched = !!v.trainer && !v.trainer.tower && !!before && (ownHp(before, now) ?? 0) > 0.001;
+        const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && !!v.fight.back?.fainted) || (ownHp(before, now) ?? 0) <= 0.001;
+        const switched = !!v.trainer && !v.trainer.tower && !beforeDown;
         if (!v.abil || v.abil.own !== drop.addr) {
           v.abil = { own: drop.addr, idx: v.trainer?.idx ?? -1, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);
