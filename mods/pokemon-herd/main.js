@@ -61,7 +61,7 @@ import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, v
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
-import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf, missOf } from "./moves.js";
+import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf, missOf, PRIORITY } from "./moves.js";
 import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
@@ -3637,7 +3637,10 @@ export default class PokemonHerd extends View {
         // trainer's) faster: it strikes first, and yours, if it's still up, strikes after; else
         // yours first and it hits back (it always did, slow or not).
         const P = perkNow(); // the badges' perks (Boulder, Volcano: its moves; Thunder: it takes less; Soul: Speed)
-        const wildFirst = !potion && (switched || speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * P.speed }) * speedMul(so, weather));
+        // A quick move (Ice Shard, Sucker Punch: PRIORITY) first whatever the Speed, as the games'
+        // (it was only so in spars).
+        const prioOwn = PRIORITY[om.name] ?? 0, prioWild = PRIORITY[wm.name] ?? 0;
+        const wildFirst = !potion && (switched || (prioOwn !== prioWild ? prioWild > prioOwn : speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * P.speed }) * speedMul(so, weather)));
         // The two hits in the order they come: the faster first, the second as the first left
         // things (its health, its stages). (Yours was reckoned first always: theirs, striking first,
         // saw its Blaze, Justified, Stamina as your hit would leave them.)

@@ -1029,3 +1029,23 @@ test("both with Intimidate: said for each", () => {
   assert.equal(st.visitor.fight.entry?.text, "Intimidate");
   assert.ok((st.mons.t0.sparNotes ?? []).some((n) => n.text === "Intimidate"));
 });
+
+// A quick move first whatever the Speed: yours a slow Snorlax with Sucker Punch only, the wild
+// one a fast Electrode: Snorlax strikes first.
+test("a quick move (Sucker Punch) goes first, whatever the Speed", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 143, jobs: 3, moves: ["Sucker Punch"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "qk", pick: { dex: 101, hp: 1 }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, purse: 0, halt: { kind: "curious", x: 600, at: now, until: now + 60000 } };
+  Object.assign(st.mons.t0, { x: 560, moving: false, react: null });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  if (fx.ownMove.name === "Sucker Punch") assert.equal(fx.wildFirst, false, "Sucker Punch first");
+});
