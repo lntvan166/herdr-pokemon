@@ -10,6 +10,7 @@ import { EXTRA_MOVES, MULTI_POWER } from "./more-moves.js";
 import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./base-stats.js";
 import { effectOn, typesOf, gameDamage, isPhysicalKey } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
+import { MOVE_FLAGS } from "./ability-data.js";
 
 export const MOVES = {
   normal: ["Body Slam", "Hyper Voice", "Giga Impact"],
@@ -181,6 +182,10 @@ export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t
 // `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
 // `how.weather`: the weather's id (weatherMiss, weatherPower). `how.moves`: the names chosen for it (a pick's `moves`). A signature move chosen is used as one
 // (its own look).
+// One risen rushes in to strike if its move touches (the games' contact flag: Brave Bird, Head
+// Smash, Foul Play, High Jump Kick), else fires from where it stands, whatever it rose from (its
+// damage still its own kind's). `dash` on the move: fx.js travelOf.
+export const risenDash = (name) => (MOVE_FLAGS[name] ?? "").includes("c");
 // A best damage roll against the average (trainer.js gameDamage: 0.85–1.0, 0.925 on average).
 const BEST_ROLL = 1 / 0.925;
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
@@ -255,5 +260,5 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   let eff = effectOn(type, target);
   if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
   const stab = own.includes(type) || !!ex?.judgment;
-  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
+  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true } : {}), ...(rises ? { dash: risenDash(name) } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
 }

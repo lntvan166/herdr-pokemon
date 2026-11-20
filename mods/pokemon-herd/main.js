@@ -1939,7 +1939,7 @@ export default class PokemonHerd extends View {
   fxMove(id, move, x0, x1, y, launch, land, now, noDash = false) {
     const style = move ? moveStyle(move.type, move.blue) : MOVE.normal;
     const out = [];
-    let kind = travelOf(move?.type, move?.physical);
+    let kind = travelOf(move?.type, move?.dash ?? move?.physical);
     if (kind === "dash" && noDash) kind = "orb";
     if (now >= launch - CHARGE_MS && now < launch) out.push(fxCharge(`${id}-c`, style, x0, y, this.fxFirst(`${id}-c`)));
     // A signature move: its own look (fx.js signatureParts), timed to land when it's hit.
@@ -2592,7 +2592,7 @@ export default class PokemonHerd extends View {
         .top(fainting && !ff ? 8 : 0).opacity(fainting && !ff ? 0 : 1)
         .transition("top", { duration: 700, easing: "ease-in" }).transition("opacity", { duration: 900, delay: 150 })
         .child(this.withBlows(`wild-${v.id}`, fx.blow ? [fx.blow] : [], wildBody, mid, headY, ground, now,
-          fx.back && travelOf(fx.wildMove?.type, fx.wildMove?.physical) === "dash" ? lungeOf(dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now, stopOfMove(fx.wildMove)), fx.wildMove, fx.backLaunch) : null)));
+          fx.back && travelOf(fx.wildMove?.type, fx.wildMove?.dash ?? fx.wildMove?.physical) === "dash" ? lungeOf(dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now, stopOfMove(fx.wildMove)), fx.wildMove, fx.backLaunch) : null)));
       // Its move, flying back at yours (fx.js: its type's look).
       if (fx.back && fx.wildMove && now >= fx.backLaunch - CHARGE_MS && now < fx.backHit + 280) {
         const dir = fx.ownX > x ? 1 : -1;
@@ -4887,7 +4887,7 @@ export default class PokemonHerd extends View {
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
           .child(this.withBlows(`mon-${a.address}`, m.blows,
             m.evolveFx && now - m.evolveFx.at >= EVOLVE_WHITE && now - m.evolveFx.at < EVOLVE_BURST && m.evolveFx.from ? body.opacity(0) : body, SLOT_MID, headY, ground, now,
-            ((sh) => sh && travelOf(sh.move?.type, sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
+            ((sh) => sh && travelOf(sh.move?.type, sh.move?.dash ?? sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(0).w(sw).top(Math.round(Math.max(2, headY - 24))).justify_center().text_size(12.5).child(bubble)))

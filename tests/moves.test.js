@@ -215,3 +215,14 @@ test("the rise to a type's strongest move: sure to hit, and free", async () => {
   A.afterHit(s, A.newSide(""), risen, { mul: 1 });
   assert.equal(s.st.spa, 0, "a risen Draco Meteor: no Sp. Atk lost");
 });
+
+// One risen rushes in if its move touches (Brave Bird, Foul Play), else fires from afar.
+test("a risen move dashes in by its own contact", async () => {
+  const { risenDash } = await import("../mods/pokemon-herd/moves.js");
+  assert.equal(risenDash("Brave Bird"), true);
+  assert.equal(risenDash("Head Smash"), true);
+  assert.equal(risenDash("Foul Play"), true);
+  assert.equal(risenDash("Zap Cannon"), false);
+  for (let i = 0; i < 400; i++) { const m = pickMove("6", "1", Math.random, { moves: ["Air Slash"] }); if (m.risen) { assert.equal(m.name, "Brave Bird"); assert.equal(m.dash, true); assert.equal(m.physical, false); return; } }
+  assert.fail("no rise in 400");
+});
