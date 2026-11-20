@@ -225,7 +225,9 @@ export function stageBy(side, stat, n, out) {
 export function afterHit(att, def, move, r, type = move.type, rnd = Math.random) {
   const said = { att: [], def: [], stages: { att: [] } };
   if (r.mul === 0 || r.miss) return said;
-  const own = SELF_STAGES[move.name];
+  // (Not on one risen to its type's own, 1 in 8: a gift, drawn as Close Combat or Draco Meteor
+  // but struck as the move it rose from, physical or special: no cost of theirs.)
+  const own = !move.risen && SELF_STAGES[move.name];
   if (own && (own[0] >= 1 || rnd() < own[0])) for (const [stat, n] of own[1]) stageBy(att, stat, n, said.stages.att);
   if (r.fainted) {
     if (att.ab === "moxie" || att.ab === "chilling-neigh") raise(att, "atk", 1, said.att);

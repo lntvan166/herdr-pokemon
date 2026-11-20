@@ -193,3 +193,20 @@ test("picking as the games' trainers (scores): a finisher, a quick one when slow
   for (let i = 0; i < 400; i++) wild.add(pickMove("983", "94", Math.random, { ...set, random: true }).name);
   assert.ok(wild.size >= 3, [...wild].join(","));
 });
+
+// The 1 in 8 rise to its type's own move: never to a weaker one (High Jump Kick 130 stays itself,
+// not Close Combat 120); one risen marked, and its own cost not paid (abilities.js afterHit).
+test("the rise to a type's own move: never weaker, and free", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  let rose = 0, risen = null;
+  for (let i = 0; i < 400; i++) {
+    const hjk = pickMove("106", "1", Math.random, { moves: ["High Jump Kick"] });
+    assert.equal(hjk.name, "High Jump Kick");
+    const bb = pickMove("106", "1", Math.random, { moves: ["Brick Break"] });
+    if (bb.name === "Close Combat") { rose++; risen = bb; }
+  }
+  assert.ok(rose > 10 && risen.risen);
+  const s = A.newSide("");
+  A.afterHit(s, A.newSide(""), risen, { mul: 1 });
+  assert.equal(s.st.def, 0, "a risen Close Combat: no Defense lost");
+});
