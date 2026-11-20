@@ -168,15 +168,22 @@ test("a type's signature move keeps the kind of the move it rose from (a physica
   assert.fail("no signature move in 400");
 });
 
-test("picking as the games' trainers: a quick move to finish when slower, else the strongest", () => {
+test("picking as the games' trainers (scores): a finisher, a quick one when slower, the strongest; wild ones at random", () => {
   const set = { moves: ["Kowtow Cleave", "Sucker Punch", "Iron Head", "Stone Edge"] };
-  // Both would finish it; Kingambit slower: Sucker Punch, first.
-  const ko = (m) => ["Kowtow Cleave", "Sucker Punch"].includes(m.name);
-  for (let i = 0; i < 50; i++) assert.equal(pickMove("983", "94", Math.random, { ...set, finishes: ko, slower: true }).name, "Sucker Punch");
-  // Faster: no need: the surest finisher (Kowtow Cleave never misses).
-  assert.equal(pickMove("983", "94", Math.random, { ...set, finishes: ko, slower: false }).name, "Kowtow Cleave");
-  // Nothing finishes it: by damage, Kowtow Cleave the likeliest.
+  const D = { "Kowtow Cleave": 0.6, "Sucker Punch": 0.5, "Iron Head": 0.35, "Stone Edge": 0.4 };
+  const ai = (more) => ({ ...set, ai: true, dmgOf: (m) => D[m.name] ?? 0.3, ...more });
+  // Both finish it (40% left): the quick one scores +6 over +4.
+  // (Both super-effective on Gengar: a tie now and then, as the games' rolls go.)
+  const quick = (more) => { let n = 0; for (let i = 0; i < 200; i++) if (pickMove("983", "94", Math.random, ai(more)).name === "Sucker Punch") n++; return n; };
+  assert.ok(quick({ targetHp: 0.4 }) > 140);
+  // Nothing finishes it (full): the strongest (the rest −1; Sucker Punch −2 most often).
   const seen = {};
-  for (let i = 0; i < 600; i++) { const n = pickMove("983", "94", Math.random, { ...set, finishes: () => false, slower: true }).name; seen[n] = (seen[n] ?? 0) + 1; }
-  assert.equal(Object.entries(seen).sort((a, b) => b[1] - a[1])[0][0], "Kowtow Cleave");
+  for (let i = 0; i < 300; i++) { const n = pickMove("983", "94", Math.random, ai({ targetHp: 1 })).name; seen[n] = (seen[n] ?? 0) + 1; }
+  assert.ok((seen["Kowtow Cleave"] ?? 0) > 250, JSON.stringify(seen));
+  // Slower and about to go down: the quick one, a hit in first.
+  assert.ok(quick({ targetHp: 1, slower: true, threatened: true }) > 140);
+  // A wild one: any of its moves.
+  const wild = new Set();
+  for (let i = 0; i < 400; i++) wild.add(pickMove("983", "94", Math.random, { ...set, random: true }).name);
+  assert.ok(wild.size >= 3, [...wild].join(","));
 });

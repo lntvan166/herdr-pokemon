@@ -65,8 +65,8 @@ test("the faster moves first, as in the games", () => {
 test("effort and natures: a raised one a little stronger, a Jolly one sooner", () => {
   let low = 0, high = 0;
   for (let i = 0; i < 2000; i++) {
-    if (sparTurns({ key: 6 }, { key: 9 }).winner === "a") low++; // Charizard vs Blastoise
-    if (sparTurns({ key: 6, effort: 1.05 }, { key: 9 }).winner === "a") high++;
+    if (sparTurns({ key: 6 }, { key: 6 }).winner === "a") low++; // Charizard vs Charizard (even: Blastoise beat it every time, picking as trainers do)
+    if (sparTurns({ key: 6, effort: 1.05 }, { key: 6 }).winner === "a") high++;
   }
   assert.ok(high > low, `${low} ${high}`);
   // Speed with natures: a Jolly Charmeleon (110) outruns a Brave Charizard (108); Raticate (117) a Brave Charizard too.
@@ -78,7 +78,7 @@ test("side effects as in the games: a status, a stat falling, a flinch; the turn
   const seen = new Set(), skips = new Set(), ticks = new Set();
   for (let i = 0; i < 3000; i++) {
     const k = [25, 6, 131, 89, 248, 143][i % 6];
-    const r = sparTurns({ key: k, ...(k === 6 ? { moves: ["Flamethrower", "Air Slash"] } : {}) }, { key: [149, 130, 3, 143, 25, 94][i % 6] }); // (Charizard with Flamethrower: a burn to see)
+    const r = sparTurns({ key: k, ...(k === 6 ? { moves: ["Flamethrower"] } : k === 25 ? { moves: ["Headbutt"] } : {}) }, { key: [149, 130, 3, 143, 25, 94][i % 6] }); // (Charizard with Flamethrower, Pikachu with Headbutt, first: a burn and a flinch to see)
     for (const t of r.turns) {
       if (t.effect) { seen.add(t.effect); assert.ok(SIDE_EFFECTS[t.move.name]?.[0] === t.effect); assert.ok(NOTE_TEXT.effect[t.effect]); }
       if (t.skip) { skips.add(t.skip); assert.ok(NOTE_TEXT.skip[t.skip]); }

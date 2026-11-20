@@ -1070,3 +1070,25 @@ test("the moves it can learn: filtered by type and kind", async () => {
   v.render(cx);
   assert.ok(learned().every((m) => m.type === "fire" && m.physical));
 });
+
+// The Rival's next one out: the one that suits the fight against yours (your Charizard: its
+// Blastoise before its Venusaur), its ace kept for last.
+test("the Rival sends the best-suited one next", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { rival: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "rs", pick: { dex: 25, hp: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0, fainted: now - 6000,
+    fight: { at: now - 7000, until: now - 6000, hitAt: now - 6500, x: 800, ownX: 760, own: "t0", fainted: true, hp: 0, back: null },
+    trainer: { cls: "rival", title: "Rival", name: "Blaze", rival: true, team: [{ dex: 25 }, { dex: 3 }, { dex: 9 }, { dex: 6 }], idx: 0, waited: true, lives: 3, potions: 2, effort: 1.55, fighter: "t0" } };
+  st.tick(cx);
+  const tr = st.visitor.trainer;
+  assert.equal(tr.idx, 1);
+  assert.equal(tr.team[1].dex, 9, tr.team.map((m) => m.dex).join(","));
+  assert.equal(tr.team[3].dex, 6, "its ace still last");
+});

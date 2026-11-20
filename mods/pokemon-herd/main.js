@@ -1626,6 +1626,18 @@ export default class PokemonHerd extends View {
         if (tr && now >= v.fainted + 2200 && !tr.beaten) {
           // A trainer: its next Pokémon out, or beaten (its pay, once, from the counting strip).
           if (tr.idx + 1 < tr.team.length) {
+            // The Rival sends the one that suits the fight best against yours in now (the games'
+            // smart trainers: one that hits yours hard, little hurt back, faster); its starter, its
+            // ace, kept for last unless it's far the better (−0.75).
+            const yours = ids[fx.own];
+            if (tr.rival && yours && tr.idx + 2 < tr.team.length) {
+              const ok = fighterKey(yours.dex, { form: yours.form });
+              const last = tr.team.length - 1;
+              const fit = (m, j) => { const k = fighterKey(m.dex, {}); return bestEffect(k, ok) - 0.5 * bestEffect(ok, k) + (speedOf(k, { nature: m.nature, effort: tr.effort ?? TEAM_EFFORT }) > speedOf(ok, { nature: yours.nature, effort: effortOf(yours) }) ? 0.25 : 0) - (j === last ? 0.75 : 0); };
+              let best = tr.idx + 1;
+              for (let j = tr.idx + 1; j <= last; j++) if (fit(tr.team[j], j) > fit(tr.team[best], best)) best = j;
+              if (best !== tr.idx + 1) [tr.team[tr.idx + 1], tr.team[best]] = [tr.team[best], tr.team[tr.idx + 1]];
+            }
             tr.idx++;
             const nx = tr.team[tr.idx];
             v.pick = trainerMon(nx);
@@ -3637,9 +3649,17 @@ export default class PokemonHerd extends View {
         const spWild = speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather);
         const ownTy = typesOf(ownKey), wildTy = typesOf(wildKey);
         const avg = () => 0.5;
-        const finishesWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg >= hp;
-        const finishesOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg >= (so.hp ?? 1);
-        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather, ...(v.trainer ? { finishes: finishesWild, slower: spWild > spOwn } : {}) }), wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, ...(v.trainer ? { finishes: finishesOwn, slower: spOwn > spWild } : {}) });
+        // Each move's average damage, a share of the other's health (as hitWild and hitBack reckon it).
+        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        // Against a trainer both sides pick as the games' trainers (moves.js pickMove `ai`); a wild
+        // one any of its moves (the games' wild ones have no AI), yours by damage (to weaken it).
+        const ownSet = movesetOf(ownKey, chosenFor(pk, ownKey)), wildSet = movesetOf(wildKey);
+        const ownHpNow = so.hp ?? 1;
+        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather,
+          ...(v.trainer ? { ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => dmgOnOwn(m) >= ownHpNow) } : {}) });
+        const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather,
+          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => dmgOnWild(m) >= hp) } : { random: true }) });
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
         // Who moves first: the faster (Speed, its nature and how it's raised, as spars do; a tie,
