@@ -65,6 +65,7 @@ import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
+import { statsFull } from "./trainer.js";
 import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
@@ -6316,8 +6317,14 @@ export default class PokemonHerd extends View {
   // one, four at most; "Default" goes back to its own four. Saved on its pick (`moves`).
   moveRow(e, t, slot = null) {
     const key = fighterKey(e.dex, e.form ? { form: e.form } : {});
-    const chip = (m, on = true) => h_flex().h(18).px(6).gap(4).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type]).opacity(on ? 1 : 0.4)
+    // Each move's kind, as the games show it: PHY (physical: its Attack against their Defense) or
+    // SPE (special: its Sp. Atk against their Sp. Def). (`good`: on its stronger side and of its own
+    // type, STAB ×1.5: the best to choose, outlined.)
+    const kind = (m) => div().px(2).h(11).rounded(2).flex().items_center().bg("#00000047").text_size(7.5).font_bold().text_color("#ffffff").child(m.physical ? "PHY" : "SPE");
+    const chip = (m, on = true, good = false) => h_flex().h(18).px(6).gap(4).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type]).opacity(on ? 1 : 0.4)
       .when(!!m.sig || !!m.exclusive, (el) => el.border_1().border_color(m.exclusive ? "#ffffff" : "#ffd23f"))
+      .when(good && !m.sig && !m.exclusive, (el) => el.border_1().border_color("#7dffa0"))
+      .child(kind(m))
       .child(div().text_size(10.5).font_semibold().text_color(typeText(m.type)).child(m.name))
       .child(div().text_size(9).text_color(typeText(m.type)).opacity(0.75).child(String(powerOf(m.name))));
     const pill = (id, label, click) => div().id(id).h(18).px(7).rounded(4).flex().items_center().flex_none().text_size(10.5).border_1()
@@ -6346,9 +6353,15 @@ export default class PokemonHerd extends View {
         savePicks({ [slot]: Object.keys(next).length ? { ...rest, megaMoves: next } : rest });
       };
       const label = mega === null ? (chosen ? "Moves (chosen)" : "Moves") : `As Mega${mega ? ` ${mega}` : ""}${chosen ? " (chosen)" : ""}`;
+      // Its stronger side: Attack or Sp. Atk (its species' base stats, this form's), as fights reckon it.
+      const st = statsFull(k), physicalSide = st[1] >= st[3];
+      const sideText = `${physicalSide ? "Physical" : "Special"} side: ${physicalSide ? `Atk ${st[1]} · Sp. Atk ${st[3]}` : `Sp. Atk ${st[3]} · Atk ${st[1]}`}`;
+      const ownTypes = new Set(typesOf(k));
+      const isGood = (m) => m.physical === physicalSide && ownTypes.has(m.type);
       const row = h_flex().gap(4).flex_wrap().items_center()
         .child(div().text_size(11).text_color(t.muted).mr(2).child(label))
         .children(set.map((m) => chip(m)))
+        .child(div().ml(4).text_size(10.5).text_color(t.dim).child(sideText))
         .when(sigs.length > 0 && !editing && mega === null, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
         .when(mega !== null && !chosen && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child("its own four")))
         .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}-${mega ?? "base"}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : editId; })));
@@ -6357,7 +6370,7 @@ export default class PokemonHerd extends View {
       const all = learnableOf(k);
       return v_flex().gap(6)
         .child(row)
-        .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. Gold: a signature move (it fires, and misses 1 in 5); white: its own.`))
+        .child(div().text_size(10.5).text_color(t.dim).child(`What it can learn (${all.length}): click to take or drop one, ${MAX_MOVES} at most. PHY hits with its Attack, SPE with its Sp. Atk: its ${physicalSide ? "Attack" : "Sp. Atk"} is higher, so its ${physicalSide ? "PHY" : "SPE"} moves hit harder. Green outline: that side and its own type (×1.5), the strongest picks; one of another type covers what they don't. Gold: a signature move (it fires, and misses 1 in 5); white: its own.`))
         .child(h_flex().gap(4).flex_wrap()
           .children(all.map((m, i) => {
             const on = names.includes(m.name);
@@ -6367,7 +6380,7 @@ export default class PokemonHerd extends View {
               const next = on ? (cur.length > 1 ? cur.filter((n) => n !== m.name) : cur) : cur.length < MAX_MOVES ? [...cur, m.name] : cur;
               save(next);
               cx.notify();
-            }).child(chip(m, on));
+            }).child(chip(m, on, isGood(m)));
           })))
         .when(chosen, (el) => el.child(h_flex().child(pill(`moves-default-${slot}-${mega ?? "base"}`, "Default: its own four", () => save(null)))));
     };

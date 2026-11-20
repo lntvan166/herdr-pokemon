@@ -172,7 +172,7 @@ export const LEVEL = 50;
 // All damage × this: the games' numbers (with STAB and coverage moves) end a fight in two hits;
 // the strip's battles keep their pace (a wild one weakened to the red, a spar of a few turns).
 export const DAMAGE_SCALE = 0.65;
-const statsFull = (k) => STATS[k] ?? STATS[String(parseInt(k, 10))] ?? [70, 70, 70, 70, 70];
+export const statsFull = (k) => STATS[k] ?? STATS[String(parseInt(k, 10))] ?? [70, 70, 70, 70, 70];
 export const isPhysicalKey = (k) => { const s = statsFull(k); return s[1] >= s[3]; };
 // A nature's ×1.1 and ×0.9, as the games' (stat index: 1 Attack, 2 Defense, 3 Sp. Atk, 4 Sp. Def,
 // 5 Speed). The mod's Lazy is the games' Lax.
