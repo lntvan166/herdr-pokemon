@@ -183,7 +183,17 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // What each would do (its own move as its rule makes it: Judgment's type, Arrows on a flier).
   const typeOf = (m) => (EXCLUSIVE[m.name]?.judgment ? judgedType(target) : m.type);
   const effOf = (m) => { const e = effectOn(typeOf(m), target); return e === 0 && EXCLUSIVE[m.name]?.flying && typesOf(target).includes("flying") ? 1 : e; };
-  const weights = set.map((m) => (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - weatherMiss(m.name, how.weather)) * weatherPower(m.name, how.weather)) ** PICK_SHARP); // what it'd do, times how sure it is to hit
+  // As the games' trainers choose (`how.finishes(m)`: whether it'd knock the other out now, its
+  // health against the move's average damage; `how.slower`: the other moves first): a move that
+  // finishes it, a quick one (Sucker Punch) first when slower, else the strongest; none: by
+  // damage, as before (mostly the strongest, now and then another).
+  if (how.finishes) {
+    const ko = set.filter((m) => !EXCLUSIVE[m.name]?.judgment && how.finishes(m));
+    const quick = how.slower ? ko.filter((m) => (PRIORITY[m.name] ?? 0) > 0) : [];
+    const pickOf = (list) => list.reduce((b, m) => ((1 - weatherMiss(m.name, how.weather)) > (1 - weatherMiss(b.name, how.weather)) ? m : b));
+    if (quick.length || ko.length) how = { ...how, only: pickOf(quick.length ? quick : ko).name }; // (the surest of them)
+  }
+  const weights = set.map((m) => how.only ? (m.name === how.only ? 1 : 0) : (gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - weatherMiss(m.name, how.weather)) * weatherPower(m.name, how.weather)) ** PICK_SHARP); // what it'd do, times how sure it is to hit
   const total = weights.reduce((x, y) => x + y, 0);
   let r = rnd() * total, k = 0;
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
@@ -192,7 +202,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const roll = rnd();
   // Its own move: itself (drawn as a signature move, but as sure to hit as any, and as physical as
   // it is); else 1 in 8 its type's signature move.
-  const ultimate = !!ex || roll < ULTIMATE || !!base.sig;
+  const ultimate = !!ex || (!how.only && roll < ULTIMATE) || !!base.sig; // (not one picked to finish it: Sucker Punch stays quick)
   const crit = ex?.crit === "always" || rnd() < (ex?.crit === "high" ? 1 / 8 : CRIT);
   const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
   // Its accuracy, and a small target's dodging (weather.js sizeMiss): it hits only if both let it.

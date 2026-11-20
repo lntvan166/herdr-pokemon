@@ -66,7 +66,7 @@ import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { statsFull } from "./trainer.js";
+import { statsFull, damage, moveHow, OWN_TAKE } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
 import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
@@ -3629,7 +3629,17 @@ export default class PokemonHerd extends View {
         // Each one's move (moves.js), the weather's boost on it; one its target's ability makes
         // nothing of (Levitate, Water Absorb…) picked again, as the games' AI would (twice at most).
         const moveAt = (k, t, side, how) => { let m = this.boosted(pickMove(k, t, Math.random, how)); for (let n = 0; n < 2 && immuneTo(side, m); n++) m = this.boosted(pickMove(k, t, Math.random, how)); return m; };
-        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather }), wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather });
+        // Each picks as the games' trainers do (moves.js pickMove `finishes`, `slower`): a move that
+        // knocks the other out now (its health against the move's average damage), a quick one
+        // first when slower (Kingambit's Sucker Punch to finish, else its Kowtow Cleave).
+        const Pk = perkNow();
+        const spOwn = speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * Pk.speed }) * speedMul(so, weather);
+        const spWild = speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather);
+        const ownTy = typesOf(ownKey), wildTy = typesOf(wildKey);
+        const avg = () => 0.5;
+        const finishesWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg >= hp;
+        const finishesOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg >= (so.hp ?? 1);
+        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather, ...(v.trainer ? { finishes: finishesWild, slower: spWild > spOwn } : {}) }), wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, ...(v.trainer ? { finishes: finishesOwn, slower: spOwn > spWild } : {}) });
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
         // Who moves first: the faster (Speed, its nature and how it's raised, as spars do; a tie,

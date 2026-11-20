@@ -167,3 +167,16 @@ test("a type's signature move keeps the kind of the move it rose from (a physica
   }
   assert.fail("no signature move in 400");
 });
+
+test("picking as the games' trainers: a quick move to finish when slower, else the strongest", () => {
+  const set = { moves: ["Kowtow Cleave", "Sucker Punch", "Iron Head", "Stone Edge"] };
+  // Both would finish it; Kingambit slower: Sucker Punch, first.
+  const ko = (m) => ["Kowtow Cleave", "Sucker Punch"].includes(m.name);
+  for (let i = 0; i < 50; i++) assert.equal(pickMove("983", "94", Math.random, { ...set, finishes: ko, slower: true }).name, "Sucker Punch");
+  // Faster: no need: the surest finisher (Kowtow Cleave never misses).
+  assert.equal(pickMove("983", "94", Math.random, { ...set, finishes: ko, slower: false }).name, "Kowtow Cleave");
+  // Nothing finishes it: by damage, Kowtow Cleave the likeliest.
+  const seen = {};
+  for (let i = 0; i < 600; i++) { const n = pickMove("983", "94", Math.random, { ...set, finishes: () => false, slower: true }).name; seen[n] = (seen[n] ?? 0) + 1; }
+  assert.equal(Object.entries(seen).sort((a, b) => b[1] - a[1])[0][0], "Kowtow Cleave");
+});
