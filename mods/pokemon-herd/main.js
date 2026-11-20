@@ -6017,7 +6017,9 @@ export default class PokemonHerd extends View {
       })
       // A virtual list of rows of BOX_COLS: only those in view are drawn (all 200-odd at once took
       // ~2,400 elements, and Herdr gave up re-rendering: "interrupted").
-      .child(div().flex_1().min_h(0).p(6).rounded(10).bg(t.raised)
+      // (One chosen: the grid one row, the card the rest, scrolling. With max_h the card didn't
+      // scroll: its moves open, it ran over the badges.)
+      .child(div().p(6).rounded(10).bg(t.raised).when(!!sel && !picking, (el) => el.flex_none().h(BOX_ROW + 12)).when(!sel || !!picking, (el) => el.flex_1().min_h(0))
         .when(!shown.length && everyone.length > 0, (el) => el.child(div().p(8).text_size(12).text_color(t.dim).child("None matches.")))
         .when(shown.length > 0, (el) => el.child(div().size_full().relative()
           .on_mouse_move((e) => { this.boxX = e.local_position.x / zoom(); })
@@ -6034,7 +6036,7 @@ export default class PokemonHerd extends View {
           .child(Scrollbar.vertical("box").absolute().inset_0()))))
       // The chosen one's card: scrolling on its own past 60% of the tab (its moves open, the list
       // it can learn: it ran over the badges, the grid squeezed to nothing).
-      .child(div().id("box-detail").flex_none().min_h(96).max_h(Math.round(h * 0.6)).overflow_y_scrollbar().p(12).rounded(10).bg(t.raised).child(picking
+      .child(div().id("box-detail").when(!!sel && !picking, (el) => el.flex_1().min_h(0)).when(!sel || !!picking, (el) => el.flex_none().min_h(96)).overflow_y_scrollbar().p(12).rounded(10).bg(t.raised).child(picking
         ? div().text_size(12).text_color(t.dim).child("Click Pokémon to pick them, then Release (twice). Ones with agents and 🔒 locked ones stay. Duplicates picks every one but the best of each species, never a shiny, an Alpha or a legendary. Each pays ₽10; a shiny or an Alpha ₽50, a legendary ₽100.")
         : detail()));
   }
