@@ -1,3 +1,6 @@
+import { archParts } from "./fx-arch.js";
+import { EXTRA_MOVES } from "./more-moves.js";
+const EXTRA_NAMES = new Set(Object.values(EXTRA_MOVES).flat().map(([n]) => n)); // (fx-arch.js draws these)
 import { PHYSICAL, SPECIAL, SIGNATURE } from "./fx-moves.js";
 // Battle effects, worked out here and drawn by main.js: what a move looks like by its type (a
 // glowing shot with a tail), the burst where a blow lands, how far the target is knocked back and
@@ -428,6 +431,8 @@ export function physicalParts(type, x, y, g, dir = 1, seed = 1, style = null, na
   const out = [];
   // A move with its own look (fx-moves.js).
   if (PHYSICAL[name]) return PHYSICAL[name]({ x, y, g, dir, st, rnd, P, O, ring, puff, steps, fist });
+  // The games' others (PokeAPI's): drawn by their kind (fx-arch.js: a fang, a punch, a beam…).
+  if (EXTRA_NAMES.has(name)) { const a = archParts(name, true, type, { x, y, g, dir, st, rnd, P, O, ring, puff, steps, fist }); if (a) return a; }
   switch (type) {
     case "normal": // Body Slam: it lands flat on it, a squash of white and dust
       out.push(P(0, 300, O(x, y + 4, 20, 8, 1), O(x, y + 6, 54, 6, 0), st.hot, { round: true }), ring(0, x, g, 10, 64, "#c8bca8", 420));
@@ -535,6 +540,7 @@ export function specialParts(type, x0, x1, y, seed = 1, style = null, name = nul
   const fly = (at, w, h, color, more = {}, dy = 0, o = 1) => P(at, -at, O(x0, y + dy, w, h, o), O(x1, y + dy, w, h, o), color, { ease: "linear", ...more });
   const out = [];
   if (SPECIAL[name]) return SPECIAL[name]({ x0, x1, y, g, dir, dist, mid, st, rnd, P, O, ring, flash, fly, FLY });
+  if (EXTRA_NAMES.has(name)) { const a = archParts(name, false, type, { x0, x1, y, g, dir, dist, mid, st, rnd, P, O, ring, flash, fly, FLY }); if (a) return a; }
   switch (type) {
     case "normal": // Hyper Voice: rings of sound rolling out to it
       for (let i = 0; i < 3; i++) out.push(P(-FLY + i * 70, FLY - i * 70, O(x0, y, 6, 12, 1), O(x1, y, 14, 34, 0.5), i % 2 ? st.hot : st.core, { round: true, ring: true, ease: "linear" }));
