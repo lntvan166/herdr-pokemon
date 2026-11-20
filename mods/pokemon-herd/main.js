@@ -429,7 +429,7 @@ function takeFrom(slot) {
 // dev.js (git-ignored): commands for trying things on this machine; absent elsewhere.
 let dev = null;
 import("./dev.js").then((m) => { dev = m; }, () => {});
-const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag, mega) => openMon(slot, pick, tag, mega), openPick: (slot, pick, tag, more) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag, ...more } }) };
+const devApi = { bag: () => bag(), saveBag: (b) => saveBag(b), addItem, buyItem: (id, n = 1) => { const b = buy(bag(), id, n); if (b) saveBag(b); return !!b; }, useOn: (slot, id) => useOn(slot, id), shared, setShared, HONEY_KEY, LEGEND_KEY, openBag: (t, sel) => openBag(t, sel), herdAgents: () => herdAgents(), picks: () => savedPicks(), openMon: (slot, pick, tag, mega) => openMon(slot, pick, tag, mega), openPick: (slot, pick, tag, more) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag, ...more } }) };
 
 // The Pokédex and the day's Research (trainer.js), shared by every window.
 const pokedex = () => keptRead(DEX_KEY, () => loadDex(shared(DEX_KEY)));
