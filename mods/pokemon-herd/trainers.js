@@ -233,7 +233,7 @@ export const RIVAL_EVERY = [4, 7]; // days between visits
 export const RIVAL_FIRST_MS = 2 * 3600000; // the first, two hours after the mod first sees it
 export const RIVAL_RETRY_MS = 6 * 3600000; // ignored (it waited and left): again a few hours on
 export const RIVAL_LIVES = 3;
-export const rivalEffort = (meets) => Math.min(1.9, 1.55 + 0.05 * meets); // (+0.05 a visit: the games' moves made yours stronger, +0.03 left it at 65% your win the 7th)
+export const rivalEffort = (meets) => Math.min(1.9, 1.55 + 0.045 * meets); // (+0.045 a visit: with the games' trainer AI on both sides and its next one picked by matchup, ~89% your win the first time, ~45% the seventh; +0.05 left it at 38%)
 export const RIVAL_POTIONS = 2, RIVAL_POTION_AT = 0.3, RIVAL_POTION = 0.5;
 // The starters, by type, a line each region (their first stage).
 export const STARTERS = {
