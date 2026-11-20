@@ -222,7 +222,8 @@ export function loadTower(raw) {
 // swapping one of yours in while the one before is still up costs a free hit (the games': it
 // takes your turn), and it has RIVAL_POTIONS Potions (+½, one in the red, once each, its turn).
 // Simulated against an 8-strong strip played well (the best-typed in, switched out below ⅓, so
-// few faint): you win ~90% the first time, ~75% the third, ~52% the seventh. (Without the switch's
+// few faint): you win ~88% the first time, ~68% the fourth, ~45% the seventh (with the games'
+// moves, 228 more; before them, ~90/75/52 at +0.03 a visit). (Without the switch's
 // cost, the Potions and this effort, ~100% every time; an Alpha from the 5th made it drop from
 // ~50% to ~13%: none.) Its record against you is kept; it pays more than a trainer, an Ability
 // Patch the first time you beat it.
@@ -232,7 +233,7 @@ export const RIVAL_EVERY = [4, 7]; // days between visits
 export const RIVAL_FIRST_MS = 2 * 3600000; // the first, two hours after the mod first sees it
 export const RIVAL_RETRY_MS = 6 * 3600000; // ignored (it waited and left): again a few hours on
 export const RIVAL_LIVES = 3;
-export const rivalEffort = (meets) => Math.min(1.75, 1.55 + 0.03 * meets);
+export const rivalEffort = (meets) => Math.min(1.9, 1.55 + 0.05 * meets); // (+0.05 a visit: the games' moves made yours stronger, +0.03 left it at 65% your win the 7th)
 export const RIVAL_POTIONS = 2, RIVAL_POTION_AT = 0.3, RIVAL_POTION = 0.5;
 // The starters, by type, a line each region (their first stage).
 export const STARTERS = {
