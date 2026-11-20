@@ -34,7 +34,7 @@ export const MOVES = {
 // commoner ones ([name, physical]). Each draws its own (fx-moves.js).
 export const MORE_MOVES = {
   normal: [["Tackle", true], ["Swift", false], ["Double-Edge", true]],
-  fire: [["Ember", false], ["Flame Wheel", true], ["Fire Blast", false]],
+  fire: [["Ember", false], ["Flame Wheel", true], ["Fire Blast", false], ["Flare Blitz", true]],
   water: [["Water Gun", false], ["Aqua Tail", true], ["Hydro Pump", false]],
   grass: [["Vine Whip", true], ["Giga Drain", false], ["Solar Beam", false]],
   electric: [["Thunder Shock", false], ["Spark", true], ["Wild Charge", true]],
@@ -48,7 +48,7 @@ export const MORE_MOVES = {
   rock: [["Rock Throw", true], ["Ancient Power", false], ["Rock Slide", true]],
   ghost: [["Lick", true], ["Hex", false], ["Phantom Force", true]],
   dragon: [["Twister", false], ["Dragon Breath", false], ["Outrage", true]],
-  dark: [["Bite", true], ["Snarl", false], ["Knock Off", true]],
+  dark: [["Bite", true], ["Snarl", false], ["Knock Off", true], ["Night Slash", true], ["Sucker Punch", true]],
   steel: [["Metal Claw", true], ["Mirror Shot", false], ["Iron Tail", true]],
   fairy: [["Fairy Wind", false], ["Draining Kiss", false], ["Dazzling Gleam", false]],
 };
@@ -58,6 +58,7 @@ export const MORE_MOVES = {
 // the other), crit: "high" (1 in 8) | "always", flying (hits a Flying type, neutral) }.
 export const EXCLUSIVE = {
   "Judgment": { type: "normal", power: 100, physical: false, dex: [493], judgment: true },
+  "Kowtow Cleave": { type: "dark", power: 85, physical: true, dex: [983] }, // Kingambit's: never misses (the games')
   "Psystrike": { type: "psychic", power: 100, physical: false, dex: [150] },
   "Roar of Time": { type: "dragon", power: 150, physical: false, dex: [483] },
   "Spacial Rend": { type: "dragon", power: 100, physical: false, dex: [484], crit: "high" },
@@ -108,7 +109,7 @@ export const exclusiveOf = (attacker) => {
   return Object.entries(EXCLUSIVE).filter(([, m]) => m.dex.includes(dex)).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
 };
 // Moving first whatever the Speed (+1, as the games' Ice Shard); healing by part of the damage done.
-export const PRIORITY = { "Ice Shard": 1 };
+export const PRIORITY = { "Ice Shard": 1, "Sucker Punch": 1 }; // (first whatever the Speed)
 export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75, "Oblivion Wing": 0.75 };
 export const ULTIMATE = 1 / 8;
 export const MAX_MOVES = 4; // a signature move (its power: Blast Burn 150)
@@ -192,7 +193,9 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const name = base.sig || ex ? base.name : ultimate ? MOVES[base.type][2] : base.name;
   // Its accuracy, and a small target's dodging (weather.js sizeMiss): it hits only if both let it.
   const miss = rnd() < 1 - (1 - weatherMiss(name, how.weather)) * (1 - (sizeMiss(how.targetSize) ?? 0));
-  const physical = ex ? ex.physical : ultimate ? false : base.physical; // a signature move fires (Blast Burn, Hydro Cannon…), chosen or not
+  // Its kind: its own move's (the games'); a type's signature move as the move it rose from (a
+  // Fire Punch risen to Blast Burn hits with its Attack: drawn special, it fell to its weaker side).
+  const physical = ex ? ex.physical : base.physical;
   // Judgment: the type that does most to it (its plate's; Arceus is that type: STAB).
   const type = ex?.judgment ? judgedType(target) : base.type;
   let eff = effectOn(type, target);

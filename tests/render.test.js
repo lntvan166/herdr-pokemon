@@ -177,17 +177,19 @@ test("the Bag's Box tab: a card's actions", () => {
 
 // A Mega's moves are its own to choose: Change on its row saves them apart (`megaMoves`), and
 // the one as it is keeps its own; none chosen for the Mega, it fights with its own four.
-test("a Mega's moves: a Change of their own", () => {
+test("a Mega's moves: a Change of their own", async () => {
   seed();
   const v = view({ bag: true, tab: "box", sel: "p0" });
   v.render(cx);
   assert.ok(K.handlers["moves-edit-p0-base:on_click"], "Change for Charizard");
   click("moves-edit-p0-X:on_click");
   v.render(cx);
-  click("learn-p0-X-2:on_click"); // Flamethrower, one of Mega X's own four: dropped
+  const { learnableOf } = await import("../mods/pokemon-herd/moves.js");
+  const i = learnableOf("6mX").findIndex((m) => m.name === "Flare Blitz");
+  click(`learn-p0-X-${i}:on_click`); // Flare Blitz, one of Mega X's own four: dropped
   const p0 = picks().p0;
   assert.equal(p0.megaMoves?.X?.length, 3);
-  assert.ok(!p0.megaMoves.X.includes("Flamethrower"));
+  assert.ok(!p0.megaMoves.X.includes("Flare Blitz"));
   assert.equal(p0.moves, undefined, "Charizard's own four untouched");
   v.render(cx);
   click("moves-default-p0-X:on_click");

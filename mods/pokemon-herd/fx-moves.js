@@ -196,6 +196,23 @@ export const PHYSICAL = {
     ...steps(0, 340, x - dir * 14, y + 10, 8, dir * 4, -2, [st.hot, st.core], 4),
     P(40, 520, O(x, y - 4, 7, 7, 1), O(x + dir * 46, y - 34, 7, 7, 0), "#ffd23f", { round: true, ease: "ease-out" }),
   ],
+  // A blade of shadow slashed across it: one long dark streak, a cold glint at its end.
+  "Night Slash": ({ x, y, dir, P, O, steps, st }) => [
+    ...steps(0, 340, x - dir * 18, y - 16, 10, dir * 4, 3.4, [st.hot, st.core, "#2a1a3a"], 3),
+    P(80, 260, O(x + dir * 18, y + 14, 3, 3, 1), O(x + dir * 18, y + 14, 10, 10, 0), "#e8e0ff", { round: true }),
+  ],
+  // In before it can move: a quick dark jab, a flicker, a snap ring.
+  "Sucker Punch": ({ x, y, dir, P, O, ring, fist, st }) => [
+    ...fist("#2a1a3a", st.core),
+    P(0, 200, O(x - dir * 4, y, 12, 12, 1), O(x - dir * 4, y, 26, 26, 0), st.hot, { round: true }),
+    ring(20, x - dir * 4, y, 8, 30, "#c8b8f0", 240),
+  ],
+  // Its whole body ablaze, thrown into it: a great burst of flame, embers, scorched ground.
+  "Flare Blitz": ({ x, y, g, dir, P, O, ring, puff, st, rnd }) => {
+    const out = [P(0, 360, O(x, y, 24, 24, 1), O(x, y, 72, 72, 0), st.core, { round: true }), ring(0, x, y, 16, 80, st.hot, 420), ring(80, x, g, 10, 70, "#5a3a2a", 420)];
+    for (let i = 0; i < 9; i++) out.push(P(40, 420, O(x, y, 5, 5, 1), O(x + (rnd() - 0.5) * 70, y - 10 - rnd() * 40, 3, 3, 0), [st.hot, st.mid, "#fff2a8"][i % 3], { round: true }));
+    return out.concat(puff(60, x - dir * 10, g - 4, 26, "#6a4a3a", 380, 0.7));
+  },
   // A steel claw: two short silver scratches, a glint.
   "Metal Claw": ({ x, y, dir, P, O, steps }) => [
     ...steps(0, 360, x - dir * 12, y - 12, 7, dir * 3, 4, ["#ffffff", "#8aa0b8"], 3), ...steps(30, 360, x - dir * 4, y - 12, 7, dir * 3, 4, ["#ffffff", "#8aa0b8"], 3),
@@ -421,6 +438,17 @@ export const SIGNATURE = {
       P(0, 360, O(mid, y, dist + 30, 56, 0.25), O(x1, y, 40, 70, 0), "#3a5ac8", { round: true }));
     for (let i = 0; i < 4; i++) out.push(P(-200 + i * 30, 220, O(x1 - 30 + i * 20, y - 30, 2, 2, 0), O(x1 - 30 + i * 20, y + 10, 2, 28, 0.8), "#c8f0ff", { ease: "ease-in" }));
     return out.concat(flash(0, x1, y, 56, "#ffffff", 300), ring(0, x1, y, 12, 90, "#4f8cff", 480), ring(80, x1, g - 2, 10, 80, "#9fe8ff", 440));
+  },
+  // Kowtow Cleave (Kingambit's): it bows, then its blade comes down and across the target, an X of
+  // shadow and steel with a gold glint where they cross, the ground cut under it.
+  "Kowtow Cleave": ({ x0, x1, y, P, O, flash, ring }) => {
+    const out = [flash(-420, x0, y + 6, 18, "#e8c84a", 200)];
+    for (const [k, sgn] of [[0, 1], [1, -1]]) {
+      const at = -160 + k * 110;
+      out.push(P(at, 140, O(x1 - 26, y - 22 * sgn, 2, 2, 1), O(x1, y, 64, 4, 1), k ? "#8aa0b8" : "#ffffff", { ease: "ease-out" }),
+        P(at + 140, 320, O(x1, y, 64, 4, 1), O(x1, y, 74, 10, 0), "#3a2a4a"));
+    }
+    return out.concat(flash(60, x1, y, 30, "#ffe9a8", 260), ring(80, x1, y, 8, 66, "#e8c84a", 420), P(120, 340, O(x1, y + 26, 70, 3, 0.9), O(x1, y + 26, 96, 1, 0), "#e8e0ff"));
   },
   // Spacial Rend: space itself tears across it in pink slashes, light leaking from the rips.
   "Spacial Rend": ({ x0, x1, y, P, O, flash, ring, rnd }) => {

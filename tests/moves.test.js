@@ -12,7 +12,7 @@ test("every type has a physical, a special and a signature move, each with its p
 });
 
 test("it knows four moves it really learns: levelling up first, never a weak one if it has others", () => {
-  assert.deepEqual(movesetOf(6).map((m) => m.name), ["Flamethrower", "Air Slash", "Solar Beam", "Focus Blast"]); // Charizard
+  assert.deepEqual(movesetOf(6).map((m) => m.name), ["Fire Blast", "Air Slash", "Solar Beam", "Focus Blast"]); // Charizard (PokeAPI: it learns Fire Blast levelling up now)
   assert.deepEqual(movesetOf(3).map((m) => m.name), ["Solar Beam", "Sludge Wave", "Double-Edge", "Outrage"]); // Venusaur: no Tackle
   assert.deepEqual(movesetOf(10).map((m) => m.name), ["Bug Bite", "Tackle"]); // Caterpie knows only these
   assert.deepEqual(movesetOf(475).slice(0, 2).map((m) => m.type).sort(), ["fighting", "psychic"]); // Gallade: one of each of its types
@@ -40,7 +40,7 @@ test("each turn: mostly its strongest move, now and then another; a signature mo
   const seen = {};
   for (let i = 0; i < 600; i++) { const m = pickMove(6, 3); seen[m.name] = (seen[m.name] ?? 0) + 1; }
   const top = Object.entries(seen).sort((a, b) => b[1] - a[1])[0];
-  assert.equal(top[0], "Flamethrower"); // 90 power, its own type (STAB), Venusaur weak to Fire
+  assert.equal(top[0], "Fire Blast"); // 110 power, its own type (STAB), Venusaur weak to Fire
   assert.ok(Object.keys(seen).length >= 3); // but not only that
   const zam = {};
   for (let i = 0; i < 600; i++) { const m = pickMove(65, 68); zam[m.name] = (zam[m.name] ?? 0) + 1; }
@@ -156,4 +156,13 @@ test("every Pokémon's own move has a scene of its own, drawn in finite boxes", 
     }
     assert.ok(signatureTimes(m.type, name).length > 0, name);
   }
+});
+
+test("a type's signature move keeps the kind of the move it rose from (a physical one hits with Attack)", () => {
+  // Fire Punch (physical) risen to Blast Burn: physical, as the move it was.
+  for (let i = 0; i < 400; i++) {
+    const m = pickMove("6mX", 3, Math.random, { moves: ["Fire Punch"] });
+    if (m.ultimate) { assert.equal(m.physical, true, m.name); return; }
+  }
+  assert.fail("no signature move in 400");
 });
