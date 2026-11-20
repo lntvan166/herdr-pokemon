@@ -62,14 +62,15 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
 import { statsFull, damage, moveHow, OWN_TAKE } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
-import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
+import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OVERKILL, OVERKILL_GREEN, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
-import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR } from "./spar.js";
+import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR, SIDE_EFFECTS } from "./spar.js";
+const STAGE_STATS = ["atk", "def", "spa", "spd", "spe"];
 import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
 import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
@@ -382,6 +383,7 @@ const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.tr
 // A trainer's battle under way (fought, not over): its id and the heals used in it (TRAINER_HEALS:
 // shared, so the Bag, a menu or the Box anywhere count alike), else null.
 const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
+const ITEM_TURN_MS = 700, ITEM_TURN_FRESH = 30000; // its turn after an item: this soon; an item this old, none
 function trainerFight() {
   const v = shared(VISITOR_KEY)?.v;
   if (!v?.trainer?.fought || v.trainer.beaten || v.trainer.leaving) return null;
@@ -402,7 +404,7 @@ function useOn(slot, id) {
   if (!r) return null;
   // (Revived in a climb: back in it, to fight again; the life it cost stays lost.)
   if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1, out: r.revive ? climb.run.out.filter((x) => x !== slot) : climb.run.out } });
-  if (fight && (r.heal || r.revive)) setShared(TRAINER_HEALS_KEY, { id: fight.id, n: fight.used + 1 });
+  if (fight && (r.heal || r.revive)) setShared(TRAINER_HEALS_KEY, { id: fight.id, n: fight.used + 1, at: Date.now() }); // (`at`: the strip gives the trainer its turn)
   savePicks({ [slot]: r.pick });
   healBy(slot, r.heal);
   reviveBy(slot, r.revive);
@@ -1762,10 +1764,20 @@ export default class PokemonHerd extends View {
     // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
     // there and up (as if dropped on it again).
     const trv = v.trainer;
-    if (trv?.fighter && trv.nextAt && now >= trv.nextAt && !v.fight && !v.throw && !trv.beaten && !trv.leaving) {
+    // An item used on yours in its battle (useOn: a Berry, a Revive) took your turn, as the games':
+    // its Pokémon strikes the one of yours facing it, yours doesn't (an exchange with `item`).
+    // (Healed for free, a Berry a blow kept yours up for ever.)
+    const used = trv?.fought && shared(TRAINER_HEALS_KEY);
+    // (A moment after: the heal on the strip first. Only a fresh one: after a reload, not again.)
+    if (used?.id === v.id && (used.at ?? 0) > (trv.itemSeen ?? 0) && now - used.at < ITEM_TURN_FRESH && trv.fighter && !v.fight && !v.throw && !trv.beaten && !trv.leaving) {
+      trv.itemSeen = used.at;
+      trv.itemTurn = true;
+      trv.nextAt = now + ITEM_TURN_MS;
+    } else if (trv?.fighter && trv.nextAt && now >= trv.nextAt && !v.fight && !v.throw && !trv.beaten && !trv.leaving) {
       const fm = this.mons[trv.fighter];
       trv.nextAt = null;
-      if (fm && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false };
+      const item = !!trv.itemTurn; trv.itemTurn = false;
+      if (fm && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false, item };
       else trv.fighter = null;
     }
     // (Its Pokémon placed so the trainer, beyond it, stays inside the strip, however wide it is.)
@@ -3607,7 +3619,9 @@ export default class PokemonHerd extends View {
         // dropped in while it was still fainting counted as a switch.)
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
         const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && !!v.fight.back?.fainted) || (ownHp(before, now) ?? 0) <= 0.001;
-        const switched = !!v.trainer && !v.trainer.tower && !beforeDown;
+        const swapIn = !!v.trainer && !v.trainer.tower && !beforeDown;
+        const itemTurn = !!v.trainer && !!drop.item; // (an item used: its turn, as a switch)
+        const switched = swapIn || itemTurn;
         const idxNow = v.trainer?.idx ?? -1;
         if (!v.abil) {
           v.abil = { own: drop.addr, idx: idxNow, o: newSide(ownAb), w: newSide(wildAb) };
@@ -3649,7 +3663,7 @@ export default class PokemonHerd extends View {
           v.trainer.potions--; v.trainer.potionIdx = v.trainer.idx;
           hp = Math.min(1, hp + RIVAL_POTION); v.pick.hp = hp; wild.hp = hp; sw.hp = hp;
         }
-        const entry = { own: [...(switched ? ["Switched in!"] : []), ...said(words.meetOwn)], wild: [...(potion ? ["Potion! +50%"] : []), ...said(words.meetWild)] };
+        const entry = { own: [...(swapIn ? ["Switched in!"] : itemTurn ? ["Item used!"] : []), ...said(words.meetOwn)], wild: [...(potion ? ["Potion! +50%"] : []), ...said(words.meetWild)] };
         const entryMs = entry.own.length || entry.wild.length ? ENTRY_MS : 0;
         // Each one's move (moves.js), the weather's boost on it; one its target's ability makes
         // nothing of (Levitate, Water Absorb…) picked again, as the games' AI would (twice at most).
@@ -3665,12 +3679,14 @@ export default class PokemonHerd extends View {
         // Each move's average damage, a share of the other's health (as hitWild and hitBack reckon it).
         const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
         const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
-        // Against a trainer both sides pick as the games' trainers (moves.js pickMove `ai`); a wild
-        // one any of its moves (the games' wild ones have no AI), yours by damage (to weaken it).
+        // Both sides pick as the games' trainers (moves.js pickMove `ai`), yours on a wild one to
+        // weaken it, not knock it out (`catching`: its quick move first when slower and in danger);
+        // a wild one any of its moves (the games' wild ones have no AI).
         const ownSet = movesetOf(ownKey, chosenFor(pk, ownKey)), wildSet = movesetOf(wildKey);
         const ownHpNow = so.hp ?? 1;
         const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather,
-          ...(v.trainer ? { ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => dmgOnOwn(m) >= ownHpNow) } : {}) });
+          ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => dmgOnOwn(m) >= ownHpNow),
+          ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
         const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather,
           ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => dmgOnWild(m) >= hp) } : { random: true }) });
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
@@ -3690,6 +3706,17 @@ export default class PokemonHerd extends View {
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
         if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
         let hit = { hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false }, back = null;
+        // Its move's stages, as the games': its own (Close Combat's Def and SpD down: abilities.js
+        // afterHit) and, by chance, the other's (Crunch's Def, spar.js SIDE_EFFECTS), said with its blow
+        // ("Def↓ · Self: Def↓ SpD↓"). Kept while these two face each other, as the abilities' stages.
+        const stageSaid = { hit: [], back: [] };
+        const moveStages = (m, r, res, a, target, k) => {
+          const foe = [];
+          const [what, chance] = SIDE_EFFECTS[m.name] ?? [];
+          if (STAGE_STATS.includes(what) && !res.fainted && (res.eff ?? 1) > 0 && Math.random() < chance) stageBy(target, what, -1, foe);
+          if (foe.length) stageSaid[k].push(stageWords(foe));
+          if (a.stages?.att.length) stageSaid[k].push(`Self: ${stageWords(a.stages.att)}`);
+        };
         const mine = () => {
           const r1 = onHit(so, sw, om, { weather, missRate: missOf(om.name) });
           omHit = { ...om, miss: r1.miss, crit: r1.crit };
@@ -3699,6 +3726,7 @@ export default class PokemonHerd extends View {
           words.hit.push(...O(r1.said.att), ...W(r1.said.def));
           const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
           words.hit.push(...O(a1.att), ...W(a1.def));
+          moveStages(om, r1, hit, a1, sw, "hit");
           sw.hp = hit.hp;
           if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         };
@@ -3713,6 +3741,7 @@ export default class PokemonHerd extends View {
           words.back.push(...W(r2.said.att), ...O(r2.said.def));
           const a2 = afterHit(sw, so, wm, { ...r2, fainted: back.fainted }, r2.type);
           words.back.push(...W(a2.att), ...O(a2.def));
+          moveStages(wm, r2, back, a2, so, "back");
           so.hp = back.hp;
         };
         let omHit = { ...om };
@@ -3768,7 +3797,7 @@ export default class PokemonHerd extends View {
         };
         if (!ownStrikes) v.fight.blow = null; // (fainted first: no move of its own)
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
-        const named = { hit: said(words.hit), back: said(words.back) };
+        const named = { hit: [...said(words.hit), ...stageSaid.hit], back: [...said(words.back), ...stageSaid.back] };
         // As they meet: over each one's head now, before the moves.
         const shownAt = now + 300, shownTo = shownAt + ENTRY_MS;
         if (entry.wild.length) v.fight.entry = { text: entry.wild.join(" · "), at: shownAt, until: shownTo };

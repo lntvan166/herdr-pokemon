@@ -145,3 +145,24 @@ test("both with the same ability: said for each side (a spar)", () => {
   const s = sparTurns({ key: "150", ab: "pressure" }, { key: "129", ab: "sturdy" }, rnd);
   assert.ok(s.turns.filter((t) => t.abil?.includes("sturdy")).length <= 1);
 });
+
+// A move's stages on its own user (move-stages.js, the games'): Close Combat's Def and SpD down even
+// as the other faints, Power-Up Punch's Attack up; none on a miss. Sacred Sword ignores the target's.
+test("moves' stages: Close Combat, Power-Up Punch, Sacred Sword", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const a = A.newSide(""), d = A.newSide("");
+  const cc = { name: "Close Combat", type: "fighting", physical: true, mul: 1.5, eff: 1 };
+  const r = A.afterHit(a, d, cc, { mul: 1.5, fainted: true });
+  assert.deepEqual([a.st.def, a.st.spd], [-1, -1]);
+  assert.deepEqual(r.stages.att, [["def", -1], ["spd", -1]]);
+  assert.equal(A.stageWords(r.stages.att), "Def↓ SpD↓");
+  A.afterHit(a, d, cc, { mul: 0, miss: true });
+  assert.equal(a.st.def, -1, "a miss: nothing");
+  const b = A.newSide("");
+  A.afterHit(b, d, { name: "Power-Up Punch", type: "fighting", physical: true }, { mul: 1 });
+  assert.equal(b.st.atk, 1);
+  const up = A.newSide(""); up.st.def = 2;
+  const plain = A.onHit(A.newSide(""), up, { name: "Brick Break", type: "fighting", physical: true, mul: 1, eff: 1 }).mul;
+  const sword = A.onHit(A.newSide(""), up, { name: "Sacred Sword", type: "fighting", physical: true, mul: 1, eff: 1 }).mul;
+  assert.ok(Math.abs(sword / plain - 2) < 1e-9, "its +2 Defense counted for nothing");
+});

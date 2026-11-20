@@ -7,7 +7,7 @@
 import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -39,7 +39,9 @@ export const STATUS_TEXT = { par: "It's paralyzed!", brn: "It's burned!", psn: "
 export const SKIP_TEXT = { par: "Fully paralyzed!", frz: "Frozen solid!", flinch: "It flinched!" };
 export const TICK_TEXT = { brn: "Hurt by its burn!", psn: "Hurt by poison!" };
 export const DRAIN_TEXT = { drain: "Its energy was drained!" };
-export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT };
+// Its own stages a move changed (turn.self "def:-1,spd:-1"): "Self: Def↓ SpD↓".
+const SELF_TEXT = new Proxy({}, { get: (_, k) => `Self: ${stageWords(String(k).split(",").map((x) => { const [s, n] = x.split(":"); return [s, Number(n)]; }))}` });
+export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT };
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
 export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
 
@@ -107,6 +109,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       const after = afterHit(ab[by], ab[to], move, { ...r, fainted: hp[to] <= 0 }, r.type);
       said.push(...tag(by, after.att), ...tag(to, after.def));
       const turn = { by, move: { ...move, eff: d.eff }, dmg, hp: hp[to] };
+      if (after.stages?.att.length) turn.self = after.stages.att.map(([s, n]) => `${s}:${n}`).join(","); // (Close Combat: its own Def, SpD down)
       const named = once(said);
       if (named.length) turn.abil = named;
       // Giga Drain, Drain Punch, Draining Kiss: it heals by part of what it took.

@@ -182,6 +182,12 @@ test("picking as the games' trainers (scores): a finisher, a quick one when slow
   assert.ok((seen["Kowtow Cleave"] ?? 0) > 250, JSON.stringify(seen));
   // Slower and about to go down: the quick one, a hit in first.
   assert.ok(quick({ targetHp: 1, slower: true, threatened: true }) > 140);
+  // Slower, Sucker Punch's best roll finishing it (its average just short): it, before Gengar strikes.
+  assert.ok(quick({ targetHp: (D["Sucker Punch"] ?? 0.3) * 1.05, slower: true }) > 140);
+  // Catching (yours on a wild one): no finishing bonus; one that would knock it out −10, the
+  // strongest that leaves it standing instead.
+  const cat = {}; for (let i = 0; i < 200; i++) { const n = pickMove("983", "94", Math.random, ai({ targetHp: 0.5, catching: true, koAt: (D["Kowtow Cleave"] ?? 0.3) - 0.01 })).name; cat[n] = (cat[n] ?? 0) + 1; }
+  assert.equal(cat["Kowtow Cleave"] ?? 0, 0, JSON.stringify(cat));
   // A wild one: any of its moves.
   const wild = new Set();
   for (let i = 0; i < 400; i++) wild.add(pickMove("983", "94", Math.random, { ...set, random: true }).name);

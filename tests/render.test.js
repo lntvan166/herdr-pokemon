@@ -933,6 +933,35 @@ test("the Rival: a switch costs a free hit; its Potion", () => {
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Switched/.test(n.text)));
 });
 
+// An item used on yours in a trainer's battle takes your turn (the games'): its Pokémon strikes the
+// one of yours facing it, yours doesn't; a moment after, once.
+test("a trainer: an item takes your turn", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  const side = { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } };
+  st.visitor = { id: "tri", pick: { dex: 9, hp: 1, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true, fought: true, fighter: "t1" },
+    abil: { own: "t1", idx: 0, o: { ...side }, w: { ...side } } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  H.store.set(`${ids.MOD}-trainer-heals`, { id: "tri", n: 1, at: Date.now() });
+  st.tick(cx);
+  assert.ok(st.visitor.trainer.itemTurn && !st.visitor.fight, "its turn, in a moment");
+  st.visitor.trainer.nextAt = Date.now() - 1;
+  st.tick(cx); st.tick(cx); // (picked up, then played)
+  const fx = st.visitor.fight;
+  assert.ok(fx?.back && fx.blow === null, "it struck, yours didn't");
+  assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Item used/.test(n.text)));
+  assert.equal(st.visitor.trainer.itemTurn, false, "once");
+});
+
 // An ordinary trainer too: a switch with the one before still up costs a free hit; not in the Tower.
 test("a trainer: a switch costs a free hit (not in the Tower)", () => {
   seed();

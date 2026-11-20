@@ -12,6 +12,7 @@
 // that last while the two face each other (Intimidate, Moxie, Speed Boost, Justified…). One that
 // needs what the mod has none of (status, switching mid-battle, held items in battle, terrain)
 // does nothing here (`works`).
+import { SELF_STAGES } from "./move-stages.js";
 import { SPECIES_ABILITIES, ABILITY_KEYS, ABILITY_NAMES, ABILITY_TEXTS, MOVE_FLAGS } from "./ability-data.js";
 
 const INDEX = new Map(ABILITY_KEYS.map((k, i) => [k, i]));
@@ -198,17 +199,34 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   }
   // Stages: its Attack (or Sp. Atk) over the target's Defense (or Sp. Def). A crit ignores the
   // attacker's drops and the target's rises, as in the games.
-  const a = physical ? att.st.atk : att.st.spa, d = physical ? def.st.def : def.st.spd;
+  // Sacred Sword and the like (IGNORE_STAGES): the target's stages, up or down, count for nothing.
+  const a = physical ? att.st.atk : att.st.spa, d = IGNORE_STAGES.has(move.name) ? 0 : physical ? def.st.def : def.st.spd;
   base *= stageMul(crit ? Math.max(0, a) : a) / stageMul(crit ? Math.min(0, d) : d);
   return { mul: mul * base, type, miss: false, crit, heal: 0, said };
 }
 
-// After a hit landed (`r`: { fainted, crit, eff }): the stages it changes. Justified (a Dark hit),
+// Stage changes as short words ("Def↓ SpD↓", "Atk↑↑"), each stage an arrow.
+const STAT_WORD = { atk: "Atk", def: "Def", spa: "SpA", spd: "SpD", spe: "Spe" };
+export const stageWords = (list) => list.map(([s, n]) => `${STAT_WORD[s]}${(n > 0 ? "↑" : "↓").repeat(Math.min(3, Math.abs(n)))}`).join(" ");
+// Moves that ignore the target's stat stages, as the games' (Sacred Sword, Darkest Lariat, Chip Away).
+export const IGNORE_STAGES = new Set(["Sacred Sword", "Darkest Lariat", "Chip Away"]);
+// A stage changed by a move, not an ability (nothing said by name): `n` stages of `stat`, kept in
+// `out` ([stat, n] as it took: none at ±6).
+export function stageBy(side, stat, n, out) {
+  const was = side.st[stat];
+  side.st[stat] = clampStage(was + n);
+  if (side.st[stat] !== was) out.push([stat, side.st[stat] - was]);
+}
+// After a hit landed (`r`: { fainted, crit, eff }): the stages it changes. Its move's on its own
+// user first (move-stages.js SELF_STAGES, as the games': Close Combat's Defense and Sp. Def −1 even
+// as the other faints, Power-Up Punch's Attack +1; `stages.att` [stat, n] for the words). Justified (a Dark hit),
 // Stamina, Weak Armor, Rattled, Steam Engine, Water Compaction, Anger Point (a crit); Moxie and the
 // like (it knocked the other out). Returns { att: [keys], def: [keys] }.
-export function afterHit(att, def, move, r, type = move.type) {
-  const said = { att: [], def: [] };
+export function afterHit(att, def, move, r, type = move.type, rnd = Math.random) {
+  const said = { att: [], def: [], stages: { att: [] } };
   if (r.mul === 0 || r.miss) return said;
+  const own = SELF_STAGES[move.name];
+  if (own && (own[0] >= 1 || rnd() < own[0])) for (const [stat, n] of own[1]) stageBy(att, stat, n, said.stages.att);
   if (r.fainted) {
     if (att.ab === "moxie" || att.ab === "chilling-neigh") raise(att, "atk", 1, said.att);
     else if (att.ab === "grim-neigh") raise(att, "spa", 1, said.att);

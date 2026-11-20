@@ -176,6 +176,8 @@ export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t
 // `how.targetSize`: a small target is harder to hit (weather.js sizeMiss).
 // `how.weather`: the weather's id (weatherMiss, weatherPower). `how.moves`: the names chosen for it (a pick's `moves`). A signature move chosen is used as one
 // (its own look).
+// A best damage roll against the average (trainer.js gameDamage: 0.85–1.0, 0.925 on average).
+const BEST_ROLL = 1 / 0.925;
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const set = movesetOf(attacker, how.moves);
   const own = typesOf(attacker);
@@ -192,18 +194,25 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // scored, a tie at random. `how.dmgOf(m)`: its average damage, a share of the target's health
   // (`how.targetHp` left). `how.random`: a wild one's, any of its moves (the games' wild Pokémon
   // have no AI). None of these: by damage (×^PICK_SHARP), mostly the strongest, now and then another.
+  // A quick one when slower: a knock-out if its best roll does it (a chance to finish it before it
+  // strikes beats a sure one after its blow: Kingambit's Sucker Punch on a worn Gengar, not Kowtow
+  // Cleave and a Shadow Ball first). `how.catching` (yours on a wild one, to be caught): no finishing
+  // bonus, and a move that would knock it out (`how.koAt`: the overkill it takes) −10.
   const exp = (m) => gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - weatherMiss(m.name, how.weather)) * weatherPower(m.name, how.weather);
   let weights;
   if (how.ai && how.dmgOf) {
     const dmg = set.map((m) => how.dmgOf(m) * (1 - weatherMiss(m.name, how.weather)));
-    const best = Math.max(...dmg);
+    const over = (m) => !!how.catching && how.dmgOf(m) >= (how.koAt ?? Infinity);
+    const best = Math.max(...dmg.filter((d, i) => !over(set[i])), 0); // (catching: the strongest that leaves it standing)
     const keep = [];
     const score = set.map((m, i) => {
-      const e = effOf(m), quick = (PRIORITY[m.name] ?? 0) > 0, ko = e > 0 && how.dmgOf(m) >= (how.targetHp ?? 1);
+      const e = effOf(m), quick = (PRIORITY[m.name] ?? 0) > 0;
+      const ko = e > 0 && how.dmgOf(m) * (quick && how.slower ? BEST_ROLL : 1) >= (how.targetHp ?? 1);
       keep[i] = ko || quick; // (one to finish it, or a quick one: kept as it is, not turned signature)
       let sc = 100;
       if (e === 0) return sc - 10;
-      if (ko) sc += quick ? 6 : 4;
+      if (how.catching) { keep[i] = quick; if (over(m)) sc -= 10; }
+      else if (ko) sc += quick ? 6 : 4;
       if (dmg[i] < best) sc -= 1;
       if (e >= 4) { if (rnd() < 0.3125) sc += 2; } else if (e > 1 && rnd() < 0.61) sc += 1;
       if (e < 1 && rnd() < 0.75) sc -= 1;
