@@ -119,3 +119,20 @@ test("in a spar too: Intimidate as they meet, Sturdy hangs on, each said once", 
     assert.equal(again.length, 1, "said once");
   }
 });
+
+test("its ability stays as it moves between the strip and the Box (its slot written in on load)", () => {
+  const loaded = loadPicks({ v: 2, panes: { "w1:p2": { dex: 16 } } }).panes["w1:p2"];
+  assert.ok([0, 1].includes(loaded.abil));
+  for (const key of ["box-1-16", "box-2-16", "p9"]) assert.equal(abilityOf(loaded, key), abilityOf(loaded, "w1:p2"), key);
+});
+
+test("Fluffy: a contact Fire move ×1 (½ × 2); Compound Eyes: hits acc × 1.3 of the time", () => {
+  assert.equal(onHit(newSide(""), newSide("fluffy"), mv("fire", { physical: true, name: "Fire Punch" })).mul, 1);
+  assert.equal(onHit(newSide(""), newSide("fluffy"), mv("fire", { name: "Flamethrower" })).mul, 2);
+  assert.equal(onHit(newSide(""), newSide("fluffy"), mv("normal", { physical: true, name: "Body Slam" })).mul, 0.5);
+  // Thunder, 70%: 91% with Compound Eyes.
+  let seed = 4; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let hits = 0; const N = 20000;
+  for (let i = 0; i < N; i++) { const miss = rnd() < 0.3; if (!onHit(newSide("compound-eyes"), newSide(""), mv("electric", { miss }), { missRate: 0.3 }, rnd).miss) hits++; }
+  assert.ok(Math.abs(hits / N - 0.91) < 0.015, String(hits / N));
+});

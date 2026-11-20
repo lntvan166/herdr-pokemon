@@ -955,3 +955,29 @@ test("a trainer: the next one in after yours fainted is free", () => {
   st.tick(cx);
   assert.ok(!(st.mons.t1.sparNotes ?? []).some((n) => /Switched/.test(n.text)), "free: no switch");
 });
+
+// Another of yours in against a trainer: its Pokémon keeps its stages (its Moxie's), its Intimidate
+// doesn't fire again. The Rival's first greeting is the first-meeting one.
+test("a switch keeps the trainer's side; the Rival's first greeting", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  const side = (ab, atk = 0) => ({ ab, hp: 1, st: { atk, def: 0, spa: 0, spd: 0, spe: 0 } });
+  st.visitor = { id: "ks", pick: { dex: 130, hp: 1, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 130 }, { dex: 6 }], idx: 0, waited: true, tower: 1 },
+    abil: { own: "t0", idx: 0, o: side(""), w: side("intimidate", 2), shown: ["intimidate"] } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0 });
+  st.dropAt = { addr: "t1", dizzy: false };
+  st.tick(cx);
+  assert.ok(st.visitor.abil.w.st.atk >= 2, `its Attack stage ${st.visitor.abil.w.st.atk}`);
+  assert.equal(st.visitor.abil.o.st.atk, 0, "its Intimidate not again on yours");
+  const tr = st.rivalComes(now, () => null);
+  assert.match(tr.greet, /herd/);
+});

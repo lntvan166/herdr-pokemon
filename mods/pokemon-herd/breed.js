@@ -110,7 +110,9 @@ export function careWork(care, picks, minutes, now, rnd = Math.random, learnable
     // Hatched: the minutes over it go toward the next egg.
     return { care: { ...care, egg: null, left: Math.min(LAY_MIN, done - care.egg.need), hatched: care.hatched + 1 }, hatched: care.egg };
   }
-  const [a, b] = care.pair.map((k) => (k.startsWith("box-") ? picks[k] : null));
+  // (`picks`: those in the Box only, the caller's: an agent's that closed is there too, under its
+  // pane's key; only "box-" ones were looked at, and such a pair never laid.)
+  const [a, b] = care.pair.map((k) => picks[k] ?? null);
   const how = canBreed(a, b);
   if (!how) return { care: { ...care, left: 0 } };
   let left = care.left + minutes;

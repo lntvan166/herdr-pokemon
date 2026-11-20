@@ -15,7 +15,7 @@ test("loadPicks migrates legacy", () => {
 
 test("loadPicks prefers current", () => {
   const r = loadPicks({ v: 2, panes: { p1: { dex: 4, shiny: true } } }, { panes: { p1: 25 } });
-  const { gender, ...p1 } = r.panes.p1; // its gender, given by its slot (gender.js)
+  const { gender, abil, ...p1 } = r.panes.p1; // its gender and ability slot, given by its slot (gender.js, abilities.js)
   assert.deepEqual({ ...r, panes: { p1 } }, { panes: { p1: { dex: 4, shiny: true, mega: "auto" } }, migrated: false });
   assert.ok(gender === "m" || gender === "f");
 });

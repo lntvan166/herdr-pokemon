@@ -68,7 +68,10 @@ test("the Day Care runs on work: tries every 15 minutes, one egg at a time, hatc
   // Unlucky tries: nothing; a pair not in the Box (one on an agent) or that can't: nothing.
   r = careWork(loadCare({ v: 1, pair: ["box-1-4", "box-2-4"] }), picks, LAY_MIN * 3, 0, () => 0.9);
   assert.ok(!r.laid && r.care.left === 0);
-  assert.ok(!careWork(loadCare({ v: 1, pair: ["box-1-4", "p0"] }), picks, 60, 0, () => 0).laid);
+  const { p0: _onScreen, ...inBox } = picks; // (the caller passes the Box only: p0 has an agent on screen)
+  assert.ok(!careWork(loadCare({ v: 1, pair: ["box-1-4", "p0"] }), inBox, 60, 0, () => 0).laid);
+  // One whose agent closed is in the Box under its pane's key: it can be at the Day Care.
+  assert.ok(careWork(loadCare({ v: 1, pair: ["box-1-4", "pGone"] }), { ...inBox, pGone: m(4, "f") }, 15, 0, () => 0).laid);
   assert.ok(!careWork(loadCare({ v: 1, pair: ["box-1-4"] }), picks, 60, 0, () => 0).laid);
   // An egg hatches even if its parents were taken out meanwhile.
   r = careWork(loadCare({ v: 1, pair: [], egg: { dex: 4, need: 60, done: 50, at: 0 } }), {}, 20, 0);

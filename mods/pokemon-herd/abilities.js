@@ -136,7 +136,8 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   // Accuracy: No Guard never misses; Compound Eyes ×1.3; Hustle ×0.8.
   const acc = 1 - (how.missRate ?? 0);
   if (miss && (att.ab === "no-guard" || def.ab === "no-guard")) { miss = false; said[att.ab === "no-guard" ? "att" : "def"].push("no-guard"); }
-  else if (miss && att.ab === "compound-eyes" && acc < 1 && rnd() < Math.min(1, acc * 1.3) - acc) { miss = false; said.att.push("compound-eyes"); }
+  // (Of the misses, the share Compound Eyes turns to hits: so it hits acc × 1.3 of the time in all.)
+  else if (miss && att.ab === "compound-eyes" && acc < 1 && rnd() < (Math.min(1, acc * 1.3) - acc) / (1 - acc)) { miss = false; said.att.push("compound-eyes"); }
   if (!miss && att.ab === "hustle" && move.physical && rnd() < 0.2) miss = true;
   // Crits: Super Luck a stage higher (1 in 8), Battle and Shell Armor none.
   if (!crit && att.ab === "super-luck" && rnd() < 1 / 16) { crit = true; said.att.push("super-luck"); }
@@ -189,7 +190,8 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     case "filter": case "solid-rock": case "prism-armor": if (eff > 1) def_(def.ab, 0.75); break;
     case "multiscale": case "shadow-shield": if (def.hp >= 0.999) def_(def.ab, 0.5); break;
     case "fur-coat": if (physical) def_("fur-coat", 0.5); break;
-    case "fluffy": if (flag(move, "c") && type !== "fire") def_("fluffy", 0.5); else if (type === "fire") def_("fluffy", 2); break;
+    // (A contact Fire move: ½ × 2, as the games'; it was ×2.)
+    case "fluffy": { const x = (flag(move, "c") ? 0.5 : 1) * (type === "fire" ? 2 : 1); if (x !== 1) def_("fluffy", x); break; }
     case "ice-scales": if (!physical) def_("ice-scales", 0.5); break;
     case "purifying-salt": if (type === "ghost") def_("purifying-salt", 0.5); break;
     case "dry-skin": if (type === "fire") def_("dry-skin", 1.25); break;

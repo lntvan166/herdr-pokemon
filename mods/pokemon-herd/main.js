@@ -1434,7 +1434,9 @@ export default class PokemonHerd extends View {
       r.starter = rivalStarter(top ? Number(top) : null);
     }
     const yours = herdAgents().map((a) => savedPicks()[a.pane || a.address]?.dex).filter(Boolean); // (its two others against these)
-    const tr = rivalTrainer(Math.random, now, r, { megaOf, yours });
+    // Its words and your record as it stands before this visit (counted below: the first visit's
+    // greeting was never said).
+    const tr = { ...rivalTrainer(Math.random, now, r, { megaOf, yours }), greet: rivalGreet(r), record: [r.wins, r.losses] };
     if (this.leader) setShared(RIVAL_KEY, { ...r, meets: r.meets + 1, nextAt: now + RIVAL_RETRY_MS });
     return tr;
   }
@@ -1631,7 +1633,7 @@ export default class PokemonHerd extends View {
           // The Tower: each floor paid once a day (towerWin); one more win, the next one up soon.
           const t = tr.tower ? towerNow() : null;
           const tw = tr.tower ? towerWin(tr.tower, t.paid, dayOf(now)) : null;
-          tr.paid = tw ? tw.pay : tr.rival ? rivalPay(loadRival(shared(RIVAL_KEY), now)) : trainerPay(tr);
+          tr.paid = tw ? tw.pay : tr.rival ? rivalPay(((r) => ({ ...r, meets: Math.max(0, r.meets - 1) }))(loadRival(shared(RIVAL_KEY), now))) /* (as it was before this visit, counted as it came) */ : trainerPay(tr);
           if (tr.rival && this.leader) { const r = loadRival(shared(RIVAL_KEY), now); setShared(RIVAL_KEY, { ...r, wins: r.wins + 1, nextAt: rivalNext(now) }); } // you won: its record, and a week or so till the next
           // (The Marsh Badge: trainers pay 10% more.)
           if (tr.paid.money) tr.paid = { ...tr.paid, money: Math.round(tr.paid.money * perkNow().trainerPay) };
@@ -1737,7 +1739,7 @@ export default class PokemonHerd extends View {
     if (v.trainer && !v.trainer.waited) {
       v.trainer.waited = true; if (v.act) v.act.done = true; v.from = v.x = cornerX(); v.halt = { kind: "trainer", x: v.from, at: now, until: now + WAIT_MS, icon: "❗", face: "L" };
       // The Rival: its entrance (a sweep across the strip, its challenge, its words: renderVisitor).
-      if (v.trainer.rival) { v.trainer.introAt = now; v.speedK = 1; const r = loadRival(shared(RIVAL_KEY), now); v.trainer.greet = rivalGreet(r); v.trainer.record = [r.wins, r.losses]; }
+      if (v.trainer.rival) { v.trainer.introAt = now; v.speedK = 1; }
       v.sentOut = { at: now, dex: v.pick.dex }; // its first Pokémon, out of its ball too
     }
     // Stopped for its act (wildacts.js): still where it stopped, till it walks on.
@@ -2073,7 +2075,10 @@ export default class PokemonHerd extends View {
     // One with Flame Body (Magma Armor, Steam Engine) on the strip: its egg hatches twice as fast.
     const all = savedPicks();
     const warm = herdAgents().some((a) => a.pane && all[a.pane] && ["flame-body", "magma-armor", "steam-engine"].includes(abilityOf(all[a.pane], a.pane)));
-    const r = careWork(care, all, minutes, now, Math.random, (d) => learnableOf(d).map((m) => m.name), warm ? 2 : 1);
+    // Only those in the Box (not one with an agent on screen) can be at the Day Care.
+    const inBox = { ...all };
+    for (const a of herdAgents()) if (a.pane) delete inBox[a.pane];
+    const r = careWork(care, inBox, minutes, now, Math.random, (d) => learnableOf(d).map((m) => m.name), warm ? 2 : 1);
     let next = r.care;
     if (r.hatched) {
       const dex = r.hatched.dex, keys = Object.keys(NATURES);
@@ -3559,9 +3564,22 @@ export default class PokemonHerd extends View {
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
         const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && !!v.fight.back?.fainted) || (ownHp(before, now) ?? 0) <= 0.001;
         const switched = !!v.trainer && !v.trainer.tower && !beforeDown;
-        if (!v.abil || v.abil.own !== drop.addr) {
-          v.abil = { own: drop.addr, idx: v.trainer?.idx ?? -1, o: newSide(ownAb), w: newSide(wildAb) };
+        const idxNow = v.trainer?.idx ?? -1;
+        if (!v.abil) {
+          v.abil = { own: drop.addr, idx: idxNow, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);
+          words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
+        } else if (v.abil.own !== drop.addr) {
+          // Another of yours in: theirs keeps its stages (Moxie's, Speed Boost's) and its Intimidate
+          // doesn't fire again; only yours' as it comes in (both new if theirs is new too). (Each
+          // swap made theirs anew: its boosts gone, its Intimidate again.)
+          const fresh = v.abil.idx !== idxNow;
+          v.abil.own = drop.addr; v.abil.o = newSide(ownAb);
+          if (fresh) { v.abil.idx = idxNow; v.abil.w = newSide(wildAb); }
+          const theirs = v.abil.w.ab;
+          if (!fresh && theirs === "intimidate") v.abil.w.ab = "";
+          const m0 = meet(v.abil.o, v.abil.w);
+          v.abil.w.ab = theirs;
           words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
         } else if (v.abil.idx !== (v.trainer?.idx ?? -1)) {
           // The trainer's next one out, yours still in: yours keeps its stages (Moxie's); only the
@@ -3601,21 +3619,27 @@ export default class PokemonHerd extends View {
         // yours first and it hits back (it always did, slow or not).
         const P = perkNow(); // the badges' perks (Boulder, Volcano: its moves; Thunder: it takes less; Soul: Speed)
         const wildFirst = !potion && (switched || speedOf(wildKey, { nature: v.pick.nature, effort: v.trainer ? (v.trainer.effort ?? TEAM_EFFORT) : 1 }) * speedMul(sw, weather) > speedOf(ownKey, { nature: pk.nature, effort: effortOf(pk) * P.speed }) * speedMul(so, weather));
-        const r1 = switched ? { mul: 0, type: om.type, miss: true, crit: false, heal: 0, said: { att: [], def: [] } } : onHit(so, sw, om, { weather, missRate: missOf(om.name) });
-        const omHit = { ...om, miss: r1.miss, crit: r1.crit };
-        let hit = switched ? { hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false } : hitWild(wild, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
-        if (hit.fainted && sturdyHolds(sw, hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("sturdy"); }
-        if (r1.heal) hit = { ...hit, hp: Math.min(1, hp + r1.heal) };
-        words.hit.push(...r1.said.att, ...r1.said.def);
-        const a1 = switched ? { att: [], def: [] } : afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
-        words.hit.push(...a1.att, ...a1.def);
-        sw.hp = hit.hp;
-        if (r1.miss && !switched) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
+        // The two hits in the order they come: the faster first, the second as the first left
+        // things (its health, its stages). (Yours was reckoned first always: theirs, striking first,
+        // saw its Blaze, Justified, Stamina as your hit would leave them.)
         // Woken from its nap by it: cross, it hits back harder (wildacts.js GRUMPY_HIT).
         if (v.halt && !v.trainer) { if (v.halt.kind === "nap") v.pick.grumpy = true; v.halt = null; v.pick.asleep = false; }
-        const ownBefore = so.hp;
-        let back = null;
-        if (!(hit.fainted && !wildFirst) && !potion) {
+        let hit = { hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false }, back = null;
+        const mine = () => {
+          const r1 = onHit(so, sw, om, { weather, missRate: missOf(om.name) });
+          omHit = { ...om, miss: r1.miss, crit: r1.crit };
+          hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+          if (hit.fainted && sturdyHolds(sw, sw.hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("sturdy"); }
+          if (r1.heal) hit = { ...hit, hp: Math.min(1, sw.hp + r1.heal) };
+          words.hit.push(...r1.said.att, ...r1.said.def);
+          const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
+          words.hit.push(...a1.att, ...a1.def);
+          sw.hp = hit.hp;
+          if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
+        };
+        const theirs = () => {
+          if (potion) return; // (its turn the Potion)
+          const ownBefore = so.hp;
           const r2 = onHit(sw, so, wm, { weather, missRate: missOf(wm.name) });
           back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
           if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.back.push("sturdy"); }
@@ -3625,8 +3649,12 @@ export default class PokemonHerd extends View {
           const a2 = afterHit(sw, so, wm, { ...r2, fainted: back.fainted }, r2.type);
           words.back.push(...a2.att, ...a2.def);
           so.hp = back.hp;
-        }
-        words.back.push(...endTurn(so), ...endTurn(sw));
+        };
+        let omHit = { ...om };
+        if (wildFirst) { theirs(); if (!switched && !back?.fainted) mine(); }
+        else { if (!switched) mine(); if (!hit.fainted) theirs(); }
+        // Speed Boost and the like, with the last hit's words (none: the first's).
+        (back ? words.back : words.hit).push(...endTurn(so), ...endTurn(sw));
         // It struck first and yours fainted: yours never got its move off.
         const ownStrikes = !switched && !(wildFirst && back?.fainted);
         if (!ownStrikes) hit = { hp: Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: false };
@@ -5462,7 +5490,7 @@ export default class PokemonHerd extends View {
     // badges out of the Bag for its 10 s.
     const undoOn = !!this.undo && Date.now() - this.undo.at < UNDO_MS;
     const LIST_H = 18 * 26 + 8 + 100 - (undoOn ? 42 : 0);
-    const SHOW = held.length ? 2 : 4; // takers listed (fewer when "Held by" comes first); the rest as "and n more"
+    const SHOW = held.length ? 4 : 7; // takers listed (fewer when "Held by" comes first); the rest as "and n more" (the Bag taller: 7, it was 4)
     // Badges, each with how far along it is (from the Pokémon on screen now, where it depends on them).
     const all = badgeProgress(s, b.marks, liveForBadges(saved));
     const next = nextBadge(all);
@@ -5687,6 +5715,7 @@ export default class PokemonHerd extends View {
                 : h.use === "jobs" ? `${h.pick.jobs ?? 0} → ${h.after.jobs}/${evolveJobs(h.pick.dex)} jobs`
                 : h.use === "revive" ? `fainted → up now, ${Math.round(100 * (REVIVE[sel] ?? 0.5))}% health`
                 : h.use === "heal" ? `health ${Math.round(100 * (hpOf(h.slot) ?? 1))}% → ${Math.round(100 * Math.min(1, (hpOf(h.slot) ?? 1) + HEAL[sel]))}%`
+                : h.use === "ability" ? `${abilityName(abilityOf(h.pick, h.slot))} → ${abilityName(abilityOf(h.after, h.slot))}${h.after.abil === 2 ? " (hidden)" : ""}` // a Capsule or a Patch
                 : `♥ ${heartsText(friendOf(h.pick))} → ${heartsText(friendOf(h.after))}${(hpOf(h.slot) ?? 1) < 1 ? ` · heals ${Math.round(100 * HEAL[sel])}%` : ""}`)))
             .child(div().id(`use-${h.slot}`).h(26).px(14).rounded_full().flex().items_center().flex_none()
               .bg(t.solid).text_color(t.solid_foreground).text_size(12).font_semibold()
