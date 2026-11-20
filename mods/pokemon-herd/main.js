@@ -25,7 +25,7 @@ import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupd
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
 import { rivalTrainer, rivalPay, loadRival, rivalNext, rivalStarter, rivalGreet, RIVAL_BEATEN, RIVAL_WON, RIVAL_LIVES, RIVAL_RETRY_MS, RIVAL_POTIONS, RIVAL_POTION_AT, RIVAL_POTION } from "./trainers.js";
-import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH } from "./trainers.js";
+import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH, TRAINER_HEALS } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
 // What a trainer says, beaten (its class's words; one of them by its name, the same each time).
 const BEATEN_SAYS = {
@@ -379,6 +379,15 @@ const KEEP_AS_IS = "keep";
 const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.trainer.leaving ? KEEP_AS_IS
   : !v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
   : JSON.stringify([v.id, v.pick?.hp, v.pick?.dex, v.throws, v.gift, v.paid, v.start, v.halt?.kind, v.halt?.until, v.trainer?.idx, v.trainer?.fighter]));
+// A trainer's battle under way (fought, not over): its id and the heals used in it (TRAINER_HEALS:
+// shared, so the Bag, a menu or the Box anywhere count alike), else null.
+const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
+function trainerFight() {
+  const v = shared(VISITOR_KEY)?.v;
+  if (!v?.trainer?.fought || v.trainer.beaten || v.trainer.leaving) return null;
+  const h = shared(TRAINER_HEALS_KEY);
+  return { id: v.id, used: h?.id === v.id ? h.n : 0 };
+}
 // Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
 // now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
 function useOn(slot, id) {
@@ -387,10 +396,13 @@ function useOn(slot, id) {
   // A Battle Tower climb on: TOWER_HEALS healing items a floor (Berries, Revives).
   const climb = TOWER_HEAL_IDS.includes(id) ? towerNow() : null;
   if (climb?.run && climb.run.heals >= TOWER_HEALS) return null;
+  const fight = TOWER_HEAL_IDS.includes(id) ? trainerFight() : null;
+  if (fight && fight.used >= TRAINER_HEALS) return null;
   const r = useItem(live, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
   if (!r) return null;
   // (Revived in a climb: back in it, to fight again; the life it cost stays lost.)
   if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1, out: r.revive ? climb.run.out.filter((x) => x !== slot) : climb.run.out } });
+  if (fight && (r.heal || r.revive)) setShared(TRAINER_HEALS_KEY, { id: fight.id, n: fight.used + 1 });
   savePicks({ [slot]: r.pick });
   healBy(slot, r.heal);
   reviveBy(slot, r.revive);
@@ -903,7 +915,8 @@ const boxKinds = () => [...new Set(waitingNow().map((x) => (x.pick.form ? `${x.p
 const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", "ability-capsule", "ability-patch", ...STONES.map((k) => `${k}-stone`), ...HELD_IDS];
 const monUsable = (pick, slot, b = bag()) => {
   const climb = towerNow().run; // (this floor's heal used: no healing item till the next)
-  const spent = !!climb && climb.heals >= TOWER_HEALS;
+  const fight = trainerFight();
+  const spent = (!!climb && climb.heals >= TOWER_HEALS) || (!!fight && fight.used >= TRAINER_HEALS);
   return MON_ITEMS.filter((id) => b.items[id] && !(spent && TOWER_HEAL_IDS.includes(id)) && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
 };
 const openPick = (slot, pick, tag) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag } });
@@ -4452,9 +4465,9 @@ export default class PokemonHerd extends View {
         })()))
       // From the Bag: what does something to it now (a Berry, a Revive, a stone that evolves it).
       .when(items.length > 0, (el) => el.child(v_flex().gap(4)
-        .child(label(((c) => (!c ? "🎒 Use from the Bag"
+        .child(label(((c, f) => (f && !c ? `🎒 Use from the Bag · vs a trainer: ${Math.max(0, TRAINER_HEALS - f.used)} of ${TRAINER_HEALS} heals left` : !c ? "🎒 Use from the Bag"
           : c.heals < TOWER_HEALS ? "🎒 Use from the Bag · 🗼 Tower: 1 heal (Berry or Revive) on this floor"
-          : "🎒 Use from the Bag · 🗼 Tower: heal used on this floor, next on the next floor"))(towerNow().run)))
+          : "🎒 Use from the Bag · 🗼 Tower: heal used on this floor, next on the next floor"))(towerNow().run, trainerFight())))
         .child(h_flex().flex_wrap().gap(4)
           .children(items.map((id) => chip(`mon-use-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
       // What it holds (take it back), and what it could hold instead.

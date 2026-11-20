@@ -160,6 +160,9 @@ export const TOWER_HEALS = 1; // a floor
 // from 0.95), ~8 floors played straight, ~11 switching every exchange to the best-typed.
 export const TOWER_SWITCH = 0.1;
 export const TOWER_HEAL_IDS = ["berry", "sitrus-berry", "revive", "max-revive"];
+// A trainer's battle (the Rival's too), once fought: TRAINER_HEALS healing items in all, as many as
+// the Rival's Potions (spammed from the right-click menu, a Berry each blow, yours never fell).
+export const TRAINER_HEALS = 2; // (RIVAL_POTIONS)
 export const TOWER_NEXT_MS = 6000; // the next one in, after a win
 // Its trainers' Pokémon, raised: 0.95 on the first floor, +0.01 a floor, 1.3 at most. (Since the
 // faster moves first, 1.1 from the start made a climb ~4.7 floors, 7-strong, ~3 for 3 of them;

@@ -361,6 +361,30 @@ test("the Battle Tower: one heal a floor", () => {
   assert.ok(K.handlers["mon-use-berry:on_click"], "a Berry again");
 });
 
+// A trainer's battle under way: two healing items in all (as the Rival's Potions), then none
+// offered (right-click spam healed yours each blow); a new trainer, two again.
+test("a trainer's battle: two heals in all", () => {
+  seed();
+  const VK = `${ids.MOD}-visitor`, HP = `${ids.MOD}-hp`;
+  H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }] } } });
+  H.store.set(ids.BAG_KEY, { ...H.store.get(ids.BAG_KEY), items: { ...H.store.get(ids.BAG_KEY).items, berry: 5 } });
+  const hurt = () => H.store.set(HP, { p0: { hp: 0.2, at: Date.now() } });
+  const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
+  const again = () => { hurt(); for (const k of Object.keys(K.handlers)) delete K.handlers[k]; m.render(cx); };
+  again(); click("mon-use-berry:on_click");
+  again(); click("mon-use-berry:on_click");
+  again();
+  assert.equal(K.handlers["mon-use-berry:on_click"], undefined, "no third heal in this battle");
+  assert.equal(H.store.get(ids.BAG_KEY).items.berry, 3, "two eaten");
+  H.store.set(VK, { at: Date.now(), v: { id: 8, trainer: { fought: true, idx: 0, team: [{ dex: 25 }] } } });
+  again();
+  assert.ok(K.handlers["mon-use-berry:on_click"], "another trainer: heals again");
+  H.store.set(VK, { at: Date.now(), v: { id: 9, trainer: { idx: 0, team: [{ dex: 25 }] } } });
+  H.store.set(`${ids.MOD}-trainer-heals`, { id: 9, n: 2 });
+  again();
+  assert.ok(K.handlers["mon-use-berry:on_click"], "not fought yet: heal freely");
+});
+
 // In a climb, switching between yours on the strip is free; one swapped in from the Box comes in
 // with its agent's health as it stood, less 10% (not a fresh one).
 test("the Battle Tower: from the Box costs 10%, switching on the strip doesn't", () => {
