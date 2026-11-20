@@ -2725,9 +2725,16 @@ export default class PokemonHerd extends View {
           return f ? el.child(f).when(!!b, (e2) => e2.child(b)).when(!!said, (e2) => e2.child(said)) : el;
         })
         // Its act's icon: a balloon centred over its head (as yours'), an emoji beside it.
-        // (A balloon kept below the corner's line, "… appeared!", which sits at the strip's top.)
+        // A balloon over its head; while the corner's line shows ("… appeared!", at the strip's
+        // top) kept below it; no room over its head, beside it (pushed down, it sat on its face).
         .when(!!actIcon, (el) => el.child(EMOTE_OF[actIcon]
-          ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(Math.round(Math.max(22, ground - pose.box.h * scale - 24))).child(emote(EMOTE_OF[actIcon]))
+          ? (() => {
+            const pill = !v.leg && !v.trainer?.rival && now - (v.start ?? 0) < APPEAR_MS;
+            const over = Math.round(ground - pose.box.h * scale - 24), floor = pill ? 22 : 2;
+            return over >= floor
+              ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(over).child(emote(EMOTE_OF[actIcon]))
+              : div().absolute().left(Math.round(mid - (pose.box.w / 2) * scale - EMOTE_PX + 4)).top(Math.round(Math.max(floor, ground - pose.box.h * scale - 4))).child(emote(EMOTE_OF[actIcon]));
+          })()
           : div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 14))).text_size(13).font_bold().text_color(t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
         .when(!!v.pick.alpha, (el) => el.child(h_flex().absolute().left(0).w(sw).top(ground + 6).justify_center()
