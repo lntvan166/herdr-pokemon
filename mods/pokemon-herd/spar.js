@@ -56,8 +56,11 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
   // Their abilities: each one's side (stages of its own, as abilities.js keeps them).
   const ab = { a: newSide(A.ab), b: newSide(B.ab) };
   const met = meet(ab.a, ab.b);
-  const shown = new Set([...met.a, ...met.b]);
-  const once = (keys) => [...new Set(keys)].filter((k) => k && !shown.has(k) && shown.add(k));
+  // Said once a spar for each side (keys tagged "a:", "b:": both with Intimidate, the second
+  // was never said); the ids handed back untagged.
+  const tag = (side, ks) => ks.map((k) => `${side}:${k}`);
+  const shown = new Set([...tag("a", met.a), ...tag("b", met.b)]);
+  const once = (keys) => [...new Set(keys)].filter((k) => k && !shown.has(k) && shown.add(k)).map((k) => k.slice(2));
   const speed = (k) => speedOf(side[k].key, side[k]) * (st[k].status === "par" ? 0.5 : 1) * (st[k].stage.spe ?? 1) * speedMul(ab[k], weather);
   const other = (k) => (k === "a" ? "b" : "a");
   const over = () => hp.a <= 0 || hp.b <= 0;
@@ -90,11 +93,11 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       const dealt = Math.min(hp[to], dmg);
       const before = hp[to];
       hp[to] = Math.max(0, hp[to] - dmg);
-      const said = [...r.said.att, ...r.said.def];
-      if (hp[to] <= 0 && sturdyHolds(ab[to], before)) { hp[to] = 0.01; said.push("sturdy"); } // Sturdy: it hangs on
+      const said = [...tag(by, r.said.att), ...tag(to, r.said.def)];
+      if (hp[to] <= 0 && sturdyHolds(ab[to], before)) { hp[to] = 0.01; said.push(`${to}:sturdy`); } // Sturdy: it hangs on
       if (r.heal) hp[to] = Math.min(1, hp[to] + r.heal); // Water Absorb…: a quarter back
       const after = afterHit(ab[by], ab[to], move, { ...r, fainted: hp[to] <= 0 }, r.type);
-      said.push(...after.att, ...after.def);
+      said.push(...tag(by, after.att), ...tag(to, after.def));
       const turn = { by, move: { ...move, eff: d.eff }, dmg, hp: hp[to] };
       const named = once(said);
       if (named.length) turn.abil = named;
@@ -116,7 +119,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       turns.push(turn);
     }
     // The round over: Speed Boost (said with the round's last turn).
-    const boosted = once([...endTurn(ab.a), ...endTurn(ab.b)]);
+    const boosted = once([...tag("a", endTurn(ab.a)), ...tag("b", endTurn(ab.b))]);
     const last = turns.at(-1);
     if (boosted.length && last) last.abil = [...(last.abil ?? []), ...boosted];
   }

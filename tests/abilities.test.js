@@ -136,3 +136,12 @@ test("Fluffy: a contact Fire move ×1 (½ × 2); Compound Eyes: hits acc × 1.3 
   for (let i = 0; i < N; i++) { const miss = rnd() < 0.3; if (!onHit(newSide("compound-eyes"), newSide(""), mv("electric", { miss }), { missRate: 0.3 }, rnd).miss) hits++; }
   assert.ok(Math.abs(hits / N - 0.91) < 0.015, String(hits / N));
 });
+
+test("both with the same ability: said for each side (a spar)", () => {
+  let seed = 8; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const r = sparTurns({ key: "130", ab: "intimidate" }, { key: "130", ab: "intimidate" }, rnd);
+  assert.deepEqual([r.entry.a, r.entry.b], [["intimidate"], ["intimidate"]]);
+  // Mewtwo at two Sturdy Magikarp in turn: each said once for its side.
+  const s = sparTurns({ key: "150", ab: "pressure" }, { key: "129", ab: "sturdy" }, rnd);
+  assert.ok(s.turns.filter((t) => t.abil?.includes("sturdy")).length <= 1);
+});

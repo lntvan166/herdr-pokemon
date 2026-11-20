@@ -18,6 +18,7 @@ const HP_KEY = `${MOD}-hp`; // yours hurt: { pane: { hp, at, rest? } } (trainer.
 const SPAR_KEY = `${MOD}-spar-records`; // each pair's sparring record today (spar.js withResult)
 const GUIDE_KEY = `${MOD}-guide-seen`; // Settings opened once: it opens on the Guide that time
 const COPIES = new Map(); // every strip copy ticking, for leaderOf (the module is shared by copies)
+if (globalThis.__freezePicks) globalThis.__copies = COPIES; // (tests: cleared for each, a view the strip that counts)
 import { loadFavorites, toggleFavorite, isFavorite, favoriteEntries } from "./favorites.js";
 import { loadSettings, withSetting, VISIT_EVERY } from "./settings.js";
 import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupdate.js";
@@ -372,7 +373,11 @@ function chosenFor(pick, key) {
 }
 const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
 // What a visitor kept says (keepVisitor): "none" when there's none to keep.
-const visitorSig = (v) => (!v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
+// (A trainer's Pokémon fainted, its next not out yet: kept as last settled (KEEP_AS_IS), not
+// "none": a reload then lost the whole trainer, the Rival too.)
+const KEEP_AS_IS = "keep";
+const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.trainer.leaving ? KEEP_AS_IS
+  : !v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
   : JSON.stringify([v.id, v.pick?.hp, v.pick?.dex, v.throws, v.gift, v.paid, v.start, v.halt?.kind, v.halt?.until, v.trainer?.idx, v.trainer?.fighter]));
 // Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
 // now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
@@ -1458,7 +1463,7 @@ export default class PokemonHerd extends View {
     const v = this.visitor;
     if (v && (v.fight || v.throw || !v.start)) return;
     const sig = visitorSig(v);
-    if (sig === this.visitorSig) return;
+    if (sig === KEEP_AS_IS || sig === this.visitorSig) return;
     this.visitorSig = sig;
     setShared(VISITOR_KEY, sig === "none" ? null : { at: Date.now(), v: JSON.parse(JSON.stringify({ ...v, fight: null, throw: null, hpLost: undefined, blink: undefined, sentOut: undefined })) });
   }
@@ -1468,6 +1473,10 @@ export default class PokemonHerd extends View {
   visit(list, ids, g, now, cx) {
     const pace = VISIT_EVERY[settingsNow().visitors]; // [from, to] minutes; null: off
     if (!pace || !this.sized || this.width < 200) { this.visitor = null; return false; }
+    // No longer the strip that counts (another took over): its visitor goes, and the new one takes
+    // it back as last settled (keepVisitor; a fight under way is fought again there), so its pay
+    // and the Rival's record are written once, by it. (This one fought on unpaid, unrecorded.)
+    if (!this.leader) { const had = !!this.visitor; this.visitor = null; this.visitorBack = false; return had; }
     stripWidth = this.width; // (its walk: across in CROSS_S, whatever the width)
     if (this.leader && !shared(RIVAL_KEY)) setShared(RIVAL_KEY, loadRival(null, now)); // (its first visit two hours on, kept)
     // A Mass Outbreak (events.js): its species walks by every 2–3 minutes while it lasts.
@@ -3555,6 +3564,9 @@ export default class PokemonHerd extends View {
         // first hit's), each once while these two face each other (Sharpness said every blow
         // was noise over the fight).
         const words = { meetOwn: [], meetWild: [], hit: [], back: [] };
+        // Each ability tagged by whose it is ("o:" yours, "w:" theirs): said once for each side
+        // (both with Intimidate: one list, and the second was never said).
+        const O = (ks) => ks.map((k) => `o:${k}`), W = (ks) => ks.map((k) => `w:${k}`);
         // A trainer (not the Tower's: swapping on the strip is free there, from the Box costs 10%):
         // one of yours swapped in while the one before is still up costs a free hit (the games':
         // switching takes your turn): it strikes, yours doesn't.
@@ -3568,7 +3580,7 @@ export default class PokemonHerd extends View {
         if (!v.abil) {
           v.abil = { own: drop.addr, idx: idxNow, o: newSide(ownAb), w: newSide(wildAb) };
           const m0 = meet(v.abil.o, v.abil.w);
-          words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
+          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
         } else if (v.abil.own !== drop.addr) {
           // Another of yours in: theirs keeps its stages (Moxie's, Speed Boost's) and its Intimidate
           // doesn't fire again; only yours' as it comes in (both new if theirs is new too). (Each
@@ -3580,7 +3592,7 @@ export default class PokemonHerd extends View {
           if (!fresh && theirs === "intimidate") v.abil.w.ab = "";
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.w.ab = theirs;
-          words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
+          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
         } else if (v.abil.idx !== (v.trainer?.idx ?? -1)) {
           // The trainer's next one out, yours still in: yours keeps its stages (Moxie's); only the
           // newcomer's Intimidate and the like show (yours showed as it came in).
@@ -3590,14 +3602,14 @@ export default class PokemonHerd extends View {
           if (mine === "intimidate") v.abil.o.ab = "";
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.o.ab = mine;
-          words.meetOwn.push(...m0.a); words.meetWild.push(...m0.b);
+          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
         }
         const so = v.abil.o, sw = v.abil.w;
         // Each ability said once while these two face each other (v.abil.shown). One as they meet
         // (Intimidate…): over its owner's head at once, on its own, ENTRY_MS before any move (as
         // the games' banner), the fight held back that long.
         const shown = (v.abil.shown ??= []);
-        const said = (keys) => { const out = [...new Set(keys)].filter((k) => k && !shown.includes(k)); shown.push(...out); return out.map(abilityName).filter(Boolean); };
+        const said = (keys) => { const out = [...new Set(keys)].filter((k) => k && !shown.includes(k)); shown.push(...out); return out.map((k) => abilityName(k.slice(2))).filter(Boolean); };
         so.hp = ownHp(dm, now); sw.hp = hp;
         // The Rival's Potion: its one in the red, once each (RIVAL_POTIONS a battle): its turn.
         const potion = !!v.trainer?.rival && (v.trainer.potions ?? 0) > 0 && hp < RIVAL_POTION_AT && v.trainer.potionIdx !== v.trainer.idx && !switched;
@@ -3629,11 +3641,11 @@ export default class PokemonHerd extends View {
           const r1 = onHit(so, sw, om, { weather, missRate: missOf(om.name) });
           omHit = { ...om, miss: r1.miss, crit: r1.crit };
           hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
-          if (hit.fainted && sturdyHolds(sw, sw.hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("sturdy"); }
+          if (hit.fainted && sturdyHolds(sw, sw.hp)) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push("w:sturdy"); }
           if (r1.heal) hit = { ...hit, hp: Math.min(1, sw.hp + r1.heal) };
-          words.hit.push(...r1.said.att, ...r1.said.def);
+          words.hit.push(...O(r1.said.att), ...W(r1.said.def));
           const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
-          words.hit.push(...a1.att, ...a1.def);
+          words.hit.push(...O(a1.att), ...W(a1.def));
           sw.hp = hit.hp;
           if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
         };
@@ -3642,19 +3654,19 @@ export default class PokemonHerd extends View {
           const ownBefore = so.hp;
           const r2 = onHit(sw, so, wm, { weather, missRate: missOf(wm.name) });
           back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
-          if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.back.push("sturdy"); }
+          if (back.fainted && sturdyHolds(so, ownBefore)) { back = { ...back, hp: 0.01, fainted: false }; words.back.push("o:sturdy"); }
           if (r2.heal) back = { ...back, hp: Math.min(1, ownBefore + r2.heal) };
           if (r2.miss) back.text = "It missed!";
-          words.back.push(...r2.said.att, ...r2.said.def);
+          words.back.push(...W(r2.said.att), ...O(r2.said.def));
           const a2 = afterHit(sw, so, wm, { ...r2, fainted: back.fainted }, r2.type);
-          words.back.push(...a2.att, ...a2.def);
+          words.back.push(...W(a2.att), ...O(a2.def));
           so.hp = back.hp;
         };
         let omHit = { ...om };
         if (wildFirst) { theirs(); if (!switched && !back?.fainted) mine(); }
         else { if (!switched) mine(); if (!hit.fainted) theirs(); }
         // Speed Boost and the like, with the last hit's words (none: the first's).
-        (back ? words.back : words.hit).push(...endTurn(so), ...endTurn(sw));
+        (back ? words.back : words.hit).push(...O(endTurn(so)), ...W(endTurn(sw)));
         // It struck first and yours fainted: yours never got its move off.
         const ownStrikes = !switched && !(wildFirst && back?.fainted);
         if (!ownStrikes) hit = { hp: Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: false };

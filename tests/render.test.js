@@ -31,6 +31,7 @@ let rev = 1;
 const setPanes = (panes) => { H.store.set(ids.MOD, { v: 2, panes }); H.store.set(`${ids.MOD}-picks-rev`, ++rev); }; // as savePicks does
 function seed() {
   H.store.clear();
+  globalThis.__copies?.clear(); // (each test's view the strip that counts, not one from a test before)
   setPanes({
     "box-1-133": { dex: 133, hearts: 2, jobs: 4 },
     "box-2-25": { dex: 25, locked: true, jobs: 1 },
@@ -972,7 +973,7 @@ test("a switch keeps the trainer's side; the Rival's first greeting", () => {
   st.visitor = { id: "ks", pick: { dex: 130, hp: 1, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
     halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
     trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 130 }, { dex: 6 }], idx: 0, waited: true, tower: 1 },
-    abil: { own: "t0", idx: 0, o: side(""), w: side("intimidate", 2), shown: ["intimidate"] } };
+    abil: { own: "t0", idx: 0, o: side(""), w: side("intimidate", 2), shown: ["w:intimidate"] } };
   Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0 });
   st.dropAt = { addr: "t1", dizzy: false };
   st.tick(cx);
@@ -980,4 +981,49 @@ test("a switch keeps the trainer's side; the Rival's first greeting", () => {
   assert.equal(st.visitor.abil.o.st.atk, 0, "its Intimidate not again on yours");
   const tr = st.rivalComes(now, () => null);
   assert.match(tr.greet, /herd/);
+});
+
+// A strip that no longer counts drops its visitor (the new one takes it back as last settled);
+// a trainer between its Pokémon is kept as it was, not lost to a reload.
+test("a strip that stops counting drops its visitor; a trainer between Pokémon kept", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.sized = true; st.width = 1200; st.height = 112;
+  const now = Date.now();
+  globalThis.__copies.set("other", { at: now, shown: true }); // another strip, shown first, counts
+  st.visitor = { id: "w", pick: { dex: 16, hp: 1 }, dir: "l", row: 0, from: 1000, to: -40, start: now - 3000, dur: 23000, purse: 0 };
+  st.tick(cx);
+  assert.equal(st.leader, false);
+  assert.equal(st.visitor, null, "dropped");
+  // Kept: a trainer whose Pokémon just fainted, its next to come.
+  globalThis.__copies.clear();
+  const KEY = `${ids.MOD}-visitor`;
+  const lead = view({ rows: 1, scale: 0.75 });
+  lead.sized = true; lead.width = 1200; lead.height = 112; lead.leader = true;
+  lead.visitor = { id: "tk", pick: { dex: 9, hp: 0.5 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true } };
+  lead.keepVisitor();
+  assert.equal(H.store.get(KEY)?.v?.id, "tk");
+  lead.visitor.fainted = now;
+  lead.keepVisitor();
+  assert.equal(H.store.get(KEY)?.v?.id, "tk", "kept as it was, not none");
+});
+
+// Both with Intimidate (your Gyarados and a wild one): said over each one's head.
+test("both with Intimidate: said for each", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p0: { dex: 130, jobs: 3, abil: 0 } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "gy2", pick: { dex: 130, hp: 1, abil: 0 }, dir: "l", row: 0, from: 600, to: 599, start: now - 5000, dur: 1000, x: 600, purse: 0, halt: { kind: "curious", x: 600, at: now, until: now + 60000 } };
+  Object.assign(st.mons.t0, { x: 560, moving: false, react: null });
+  st.dropAt = { addr: "t0", dizzy: false };
+  st.tick(cx);
+  assert.equal(st.visitor.fight.entry?.text, "Intimidate");
+  assert.ok((st.mons.t0.sparNotes ?? []).some((n) => n.text === "Intimidate"));
 });
