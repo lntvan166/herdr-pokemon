@@ -66,7 +66,7 @@ import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { statsFull, damage, moveHow, OWN_TAKE, hpRatio } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
+import { statsFull, damage, moveHow, OWN_TAKE, hpRatio, effectOn } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
 import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OVERKILL, OVERKILL_GREEN, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR, SIDE_EFFECTS } from "./spar.js";
@@ -386,6 +386,7 @@ const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.tr
 // A trainer's battle under way (fought, not over): its id and the heals used in it (TRAINER_HEALS:
 // shared, so the Bag, a menu or the Box anywhere count alike), else null.
 const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
+const CHOOSE_MS = 6000; // Choose moves: this long to pick, then it picks itself
 const SETUP_NOTE_MS = 1400; // a setup move's words (Swords Dance! Atk↑↑), this long
 const ITEM_TURN_MS = 700, ITEM_TURN_FRESH = 30000; // its turn after an item: this soon; an item this old, none
 function trainerFight() {
@@ -854,7 +855,8 @@ const petAt = {}; // pane -> when it last got a heart from a click or a quick an
 let settingsMemo = null;
 const settingsNow = () => {
   const now = Date.now();
-  if (!settingsMemo || now - settingsMemo.at >= 250) settingsMemo = { at: now, s: loadSettings(shared(SETTINGS_KEY)) };
+  const raw = shared(SETTINGS_KEY); // (read again when they change: a toggle took a moment to show)
+  if (!settingsMemo || settingsMemo.raw !== raw || now - settingsMemo.at >= 250) settingsMemo = { at: now, raw, s: loadSettings(raw) };
   return settingsMemo.s;
 };
 const setSetting = (key, value) => { const s = withSetting(settingsNow(), key, value); settingsMemo = null; setShared(SETTINGS_KEY, s); };
@@ -1799,6 +1801,11 @@ export default class PokemonHerd extends View {
     // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
     // there and up (as if dropped on it again).
     const trv = v.trainer;
+    // Choose moves: picked, or time's up (the AI's then): the exchange with it.
+    if (trv?.choosing && (trv.choosing.chosen || now >= trv.choosing.until) && !v.fight) {
+      const ch = trv.choosing; trv.choosing = null;
+      if (!trv.beaten && !trv.leaving) this.dropAt = { ...ch.drop, manual: true, ...(ch.chosen ? { move: ch.chosen } : {}) };
+    }
     // An item used on yours in its battle (useOn: a Berry, a Revive) took your turn, as the games':
     // its Pokémon strikes the one of yours facing it, yours doesn't (an exchange with `item`).
     // (Healed for free, a Berry a blow kept yours up for ever.)
@@ -2082,6 +2089,7 @@ export default class PokemonHerd extends View {
     if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
     if (v?.trainer?.introAt) { const a = v.trainer.introAt; times.push(a, a + 40, a + 250, a + 900, a + RIVAL_INTRO_MS - 300, a + RIVAL_INTRO_MS, a + RIVAL_INTRO_MS + 4500); }
     if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
+    if (v?.trainer?.choosing) times.push(v.trainer.choosing.at, v.trainer.choosing.at + 40, v.trainer.choosing.until);
     if (v?.fight?.wildNote) times.push(v.fight.wildNote.at, v.fight.wildNote.at + 40, v.fight.wildNote.until - 260, v.fight.wildNote.until);
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
     const egg = loadRaid(shared(RAID_KEY));
@@ -2577,6 +2585,9 @@ export default class PokemonHerd extends View {
     const hit = { left: mid - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
     const now = Date.now();
     const th = v.throw;
+    // Choose moves: yours' chips over it while it waits on you.
+    const ch = v.trainer?.choosing, chm = ch && this.mons[ch.addr];
+    if (chm && this.leader) root.child(this.moveChooser(v, ch, now, chm.x, wordTop(headY, 16) - 22));
     // Its health, once one of yours has hit it: a thin bar over its head (green, amber, red).
     const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
     const hpBar = (x) => healthBar(x, headY - 6, hp, this.lostOf(`wild-${v.id}`, v.hpLost, now));
@@ -2933,6 +2944,36 @@ export default class PokemonHerd extends View {
   }
 
   // An item's look on the strip: its sprite once it's in, else its emoji (size px).
+  // Choose moves (Settings): against a trainer, yours' turn waits on you: its moves as chips over it
+  // (moveChooser) for CHOOSE_MS, the exchange then with the one picked (`drop.move`), or the AI's.
+  // Not when it can't move anyway: switched in with the one before still up, an item's turn, resting.
+  askMove(drop, ids, now) {
+    const v = this.visitor, tr = v?.trainer;
+    if (!tr || tr.beaten || tr.leaving || drop.manual || drop.item || !this.leader || !settingsNow().chooseMoves) return false;
+    const dm = this.mons[drop.addr], pk = ids[drop.addr];
+    if (!dm || !pk || now < (dm.restUntil ?? 0)) return false;
+    const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
+    if (before && !tr.tower && (v.abil.o?.hp ?? 1) > 0.001 && (ownHp(before, now) ?? 0) > 0.001) return false;
+    const key = fighterKey(pk.dex, { form: pk.form }), wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
+    const lock = v.abil?.own === drop.addr ? lockOf(v.abil.o) : null;
+    const set = movesetOf(key, chosenFor(pk, key)).filter((m) => !lock || m.name === lock);
+    tr.choosing = { addr: drop.addr, at: now, until: now + CHOOSE_MS, drop: { ...drop }, moves: set.map((m) => ({ name: m.name, type: m.type, physical: m.physical, status: !!m.status, eff: m.status ? 1 : effectOn(m.type, wildKey) })) };
+    tr.nextAt = null;
+    return true;
+  }
+  // The chips over yours while it waits on you (Choose moves): each move in its type's colour, how
+  // well it'd do (×2, ×½, ×0), a bar running out; a click picks it.
+  moveChooser(v, ch, now, x, top) {
+    const W = 196;
+    const tag = (e) => (e >= 4 ? " ×4" : e >= 2 ? " ×2" : e === 0 ? " ×0" : e < 1 ? " ×½" : "");
+    const first = this.fxFirst(`choose-${ch.at}`);
+    return v_flex().id(`chooser-${ch.at}`).absolute().left(Math.round(x - W / 2)).top(Math.max(0, top)).w(W).gap(2).items_center()
+      .child(h_flex().flex_wrap().justify_center().gap(3).children(ch.moves.map((m, i) => div().id(`choose-move-${i}`).h(16).px(5).rounded(4).flex().items_center().flex_none()
+        .bg(TYPE_COLOR[m.type]).text_size(9.5).font_semibold().text_color(typeText(m.type)).cursor_pointer().border_1().border_color(ch.chosen === m.name ? "#ffffff" : "#00000055")
+        .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); ch.chosen = m.name; ch.until = Math.min(ch.until, Date.now()); cx.notify(); })
+        .child(`${m.status ? "↑ " : ""}${m.name}${tag(m.eff)}`))))
+      .child(div().h(2).rounded(1).bg("#ffd23f").w(first ? W - 40 : 0).transition("width", { duration: Math.max(1, ch.until - now), easing: "linear" }));
+  }
   // The sidebar's card asked for one (Pokémon Sidebar: its held item clicked, or its right-click
   // menu; shared CARD_OPEN_KEY { address, kind, at }): its card in the Box, its menu, or the
   // picker. Once, by the counting strip.
@@ -3633,6 +3674,8 @@ export default class PokemonHerd extends View {
         }
       }
       changed = true;
+    } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now) && this.askMove(drop, ids, now)) {
+      changed = true; // (Choose moves on: its chips first, the exchange once one's picked or time's up)
     } else if (dm && dMeta && this.wildNear(dm, rowAt(list[dj], dj), now)) {
       // Dropped by a wild one: it attacks it (trainer.js hitWild), facing it, its type flying; the
       // wild one hits back (hitBack). Not while yours rests after fainting. A hit twice its health
@@ -3744,7 +3787,7 @@ export default class PokemonHerd extends View {
         const ownSet = movesetOf(ownKey, chosenFor(pk, ownKey)), wildSet = movesetOf(wildKey, v.pick.moves);
         const ownHpNow = so.hp ?? 1;
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
-        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather, lock: lockOf(so),
+        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), // (Choose moves: the one you picked)
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
           stages: so.st, selfHp: ownHpNow, first: !so.turns, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
@@ -4032,7 +4075,7 @@ export default class PokemonHerd extends View {
     // (A row of chips wraps past CHIPS_ROW of them: 26 more for the second line; all 7 balls ran
     // off the popup's edge.)
     const chipsH = (n) => (n ? 46 + (n + 1 > CHIPS_ROW ? 26 : 0) : 0);
-    const height = 16 + 30 * (4 + m.calls.length) + chipsH(m.balls.length) + chipsH(m.baits.length) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
+    const height = 16 + 30 * (5 + m.calls.length) + chipsH(m.balls.length) + chipsH(m.baits.length) + 10 + (m.balls.length || m.baits.length ? 10 : 0) + (update ? 56 : 0);
     openOverlay({ mod: MOD, kind: "popup", width: 380, height, props: { menu: true, update } }); // room for every ball and Berry, with icons
   }
 
@@ -4077,6 +4120,8 @@ export default class PokemonHerd extends View {
           ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${Math.max(0, towerLives(tw.run) - tw.run.faints)} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
           : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · 1 heal a floor · from the Box −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
       })())
+      // Choosing moves against a trainer, on or off at once (Settings → Choose moves).
+      .child(row("menu-choose", `🎯 Choose moves: ${settingsNow().chooseMoves ? "On" : "Off"}`, settingsNow().chooseMoves ? "you pick each move vs trainers" : "they fight by themselves", () => setSetting("chooseMoves", !settingsNow().chooseMoves)))
       .when(m.balls.length > 0 || m.baits.length > 0, (el) => el.child(div().h(1).mx(8).my(4).bg(t.border)))
       .when(m.balls.length > 0, (el) => el.child(chips("menu-ball", `Ball to throw · ${named(m.ball, true)}`, [[null, "Auto"], ...m.balls.map((id) => [id, String(b.items[id])])], m.ball,
         (v) => setShared(BALL_KEY, v))))
@@ -4348,6 +4393,7 @@ export default class PokemonHerd extends View {
         ["evolve", "Evolution", "They evolve as their agents work. Off: jobs still count."],
         ["pickup", "Pickup", "Idle ones find Berries, stones, balls and Rare Candy."],
         ["spar", "Sparring", "Two idle ones spar now and then, and like each other more."],
+        ["chooseMoves", "Choose moves", "Against a trainer, pick each move from the chips over yours (6 s, then it picks). Also in the strip's right-click menu."],
         ["family", "Sub-agents", "A sub-agent is its agent's Pokémon, younger, following it."],
         ["weather", "Weather", "Rain while agents wait on you; a storm when they wait long."],
         ["campfire", "Campfire", "At night, all resting: they sleep round a fire."],

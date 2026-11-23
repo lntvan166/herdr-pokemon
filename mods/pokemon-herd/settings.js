@@ -10,6 +10,7 @@ export const DEFAULTS = {
   pickup: true, // idle Pokémon find items
   weather: true, // rain while agents wait on you, a storm when they wait long
   spar: true, // two idle Pokémon now and then spar
+  chooseMoves: false, // against a trainer: you pick each move (chips over yours, CHOOSE_MS), else the AI
   family: true, // a sub-agent is its agent's Pokémon, younger, and follows it
   campfire: true, // at night with every agent resting, the herd sleeps round a fire
   tired: true, // near the 5-hour limit (Usage Limits) the herd sweats and walks slower

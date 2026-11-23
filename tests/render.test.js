@@ -1224,3 +1224,36 @@ test("a trainer's battle: Swords Dance raises yours, no blow", () => {
   assert.equal(st.visitor.abil.o.st.atk, 2);
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Swords Dance! Atk↑↑/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
 });
+
+// Choose moves (Settings): against a trainer, yours' turn waits on its chips; one clicked, the
+// exchange with it; none in time, the AI's. Off: as before.
+test("Choose moves: chips first, then the exchange with the one picked", () => {
+  seed();
+  H.store.set(`${ids.MOD}-settings`, { v: 1, chooseMoves: true });
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 983, jobs: 3, moves: ["Kowtow Cleave", "Iron Head", "Swords Dance"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "trch", pick: { dex: 143, hp: 1, abil: 0, trainer: true }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143 }], idx: 0, waited: true } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  st.dropAt = { addr: "t1", dizzy: false };
+  st.tick(cx);
+  const ch = st.visitor.trainer.choosing;
+  assert.ok(ch && !st.visitor.fight, "its chips, no exchange yet");
+  assert.deepEqual(ch.moves.map((m) => m.name), ["Kowtow Cleave", "Iron Head", "Swords Dance"]);
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  st.render(cx);
+  assert.ok(K.handlers["choose-move-2:on_mouse_down:left"], "drawn, clickable");
+  K.handlers["choose-move-2:on_mouse_down:left"]({}, cx);
+  st.tick(cx); st.tick(cx);
+  assert.ok(st.visitor.fight, "the exchange");
+  assert.equal(st.visitor.fight.ownMove.name, "Swords Dance");
+  H.store.set(`${ids.MOD}-settings`, {});
+});
