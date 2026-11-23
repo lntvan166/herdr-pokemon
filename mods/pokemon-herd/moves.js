@@ -120,7 +120,10 @@ export const exclusiveOf = (attacker) => {
   return Object.entries(EXCLUSIVE).filter(([, m]) => m.dex.includes(dex) && (m.form == null || m.form === form)).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
 };
 // Moving first whatever the Speed (+1, as the games' Ice Shard); healing by part of the damage done.
-export const PRIORITY = { "Ice Shard": 1, "Sucker Punch": 1 }; // (first whatever the Speed)
+// The games' priority: +1 Quick Attack, Mach Punch, Aqua Jet…; +2 Extreme Speed (first even before
+// those). (Grassy Glide: only in Grassy Terrain, which there isn't here.)
+export const PRIORITY = { "Ice Shard": 1, "Sucker Punch": 1, "Quick Attack": 1, "Mach Punch": 1, "Bullet Punch": 1, "Aqua Jet": 1, "Shadow Sneak": 1,
+  "Vacuum Wave": 1, "Accelerock": 1, "Water Shuriken": 1, "Extreme Speed": 2 }; // (first whatever the Speed)
 export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75, "Oblivion Wing": 0.75 };
 export const ULTIMATE = 1 / 8;
 export const MAX_MOVES = 4; // a signature move (its power: Blast Burn 150)

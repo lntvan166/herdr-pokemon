@@ -279,3 +279,10 @@ test("Urshifu: Wicked Blow or Surging Strikes, by its style", async () => {
   assert.ok(!learnableOf("892f0001").some((m) => m.name === "Wicked Blow"));
   assert.equal(EXCLUSIVE["Surging Strikes"].crit, "always");
 });
+
+test("priority moves, as the games': Aqua Jet, Mach Punch +1; Extreme Speed +2", async () => {
+  const { PRIORITY } = await import("../mods/pokemon-herd/moves.js");
+  assert.equal(PRIORITY["Aqua Jet"], 1);
+  assert.equal(PRIORITY["Mach Punch"], 1);
+  assert.equal(PRIORITY["Extreme Speed"], 2);
+});

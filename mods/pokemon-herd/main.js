@@ -56,7 +56,7 @@ const SHINY_STYLE = { glow: "#fff4b0", core: "#ffe27a", mid: "#fffbe0", hot: "#f
 const CORNER_W = 56;
 const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1300, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.held ? { held: m.held } : {}), ...(m.moves ? { moves: m.moves } : {}), ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
-import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
+import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, allJobs, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
 import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, badgeSet, perks, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, holdOrder, HOLD_SHOWN, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
@@ -4932,7 +4932,7 @@ export default class PokemonHerd extends View {
           // (Its ability too: the whole of it on hover.)
           // (Mega Evolved now: its Mega's own.)
           .child(div().id("mon-info").text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate().tooltip(megaNow != null && megaAbility(fighterKey(pick.dex, { mega: megaNow })) ? ((ab) => `Ability (Mega): ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`)(megaAbility(fighterKey(pick.dex, { mega: megaNow }))) : abilLine(pick, p.slot))
-            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, abilityName((megaNow != null && megaAbility(fighterKey(pick.dex, { mega: megaNow }))) || abilityOf(pick, p.slot)), pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
+            .child([`♥ ${heartsText(friendOf(pick))}`, `${allJobs(pick)} jobs`, state, abilityName((megaNow != null && megaAbility(fighterKey(pick.dex, { mega: megaNow }))) || abilityOf(pick, p.slot)), pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
         // Its four moves (as it is), two by two, in their types' colours.
         .child((() => {
           const ms = movesFor(pick, megaNow != null ? fighterKey(pick.dex, { mega: megaNow }) : fighterKey(pick.dex, pick.form ? { form: pick.form } : {})); // (Mega now: its Mega's four)
@@ -7258,7 +7258,7 @@ export default class PokemonHerd extends View {
           .when(!!b.alpha, (el) => el.child(div().h(16).px(4).rounded(4).flex().items_center().flex_none()
             .bg(ALPHA_RED).text_size(10).font_bold().text_color("#ffffff").child("α Alpha")))
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground)
-            .child(sparkled([`${b.shiny ? "✨ " : ""}${nameFor(b)}`, `♥ ${heartsText(friendOf(b))}`, natureOf(b)?.name, `${b.jobs ?? 0} jobs`].filter(Boolean).join(" · "))))
+            .child(sparkled([`${b.shiny ? "✨ " : ""}${nameFor(b)}`, `♥ ${heartsText(friendOf(b))}`, natureOf(b)?.name, `${allJobs(b)} jobs`].filter(Boolean).join(" · "))))
           .when(!!b.held, (el) => el.child(this.itemMark(b.held, 18)))
           .when(!!b.caught, (el) => el.child(this.itemMark(b.ball ?? "poke-ball", 16)))
           .child(button(`bring-${slot}`, "Bring out", false, () => { this.preview = null; this.choose(pv, { slot }); }))))))

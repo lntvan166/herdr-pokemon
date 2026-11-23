@@ -34,7 +34,7 @@ export function sortBox(list, how = "new") {
 // How much one is worth keeping, among its species: one with an agent or locked first, then a
 // shiny, an Alpha, more hearts, more jobs, the older one.
 const worth = (x) => (x.tag || x.pick.locked ? 1e9 : 0) + (x.pick.shiny ? 1e7 : 0) + (x.pick.alpha ? 1e6 : 0)
-  + friendOf(x.pick) * 1e4 + Math.min(9999, x.pick.jobs ?? 0);
+  + friendOf(x.pick) * 1e4 + Math.min(9999, (x.pick.jobs ?? 0) + (x.pick.pastJobs ?? 0));
 
 // The duplicates: of each species (and form), every one but the best; never a shiny, an Alpha
 // or a legendary (those you pick by hand), nor one that can't be released. Slots.

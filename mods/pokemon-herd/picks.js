@@ -37,6 +37,7 @@ export function loadPicks(current, legacy) {
       const form = hasForm(p.dex, p.form) ? p.form : undefined; // a regional form, if it still exists
       const megaKind = p.megaKind === "X" || p.megaKind === "Y" ? p.megaKind : undefined; // Mega X or Y
       const jobs = Number.isInteger(p.jobs) && p.jobs > 0 ? p.jobs : undefined;
+      const pastJobs = Number.isInteger(p.pastJobs) && p.pastJobs > 0 ? p.pastJobs : undefined; // (its jobs before it evolved)
       const friend = Number.isInteger(p.friend) && p.friend >= 0 ? Math.min(p.friend, FRIEND_MAX)
         : Number.isInteger(p.hearts) && p.hearts > 0 ? Math.min(p.hearts, MAX_HEARTS) * HEART_PTS : undefined;
       const hearts = friend ? Math.floor(friend / HEART_PTS) : undefined;
@@ -47,7 +48,7 @@ export function loadPicks(current, legacy) {
       const nature = typeof p.nature === "string" && Object.hasOwn(NATURES, p.nature) ? p.nature : undefined; // not "constructor"…
       const ball = caught && BALLS.includes(p.ball) ? p.ball : undefined; // the ball it was caught in
       const fed = p.fed && typeof p.fed.day === "string" && Number.isInteger(p.fed.n) && p.fed.n > 0 ? { day: p.fed.day, n: p.fed.n } : undefined;
-      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(p.hatched === true && caught ? { hatched: true } : {}), abil: abilSlot(p, pane) /* its slot written in now: by its key alone, boxed or brought out under a new key, it changed */, ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
+      panes[pane] = { dex: p.dex, shiny: p.shiny === true && hasShiny(p.dex, form), mega: megaMode(p.mega), ...(form ? { form } : {}), ...(megaKind ? { megaKind } : {}), ...(jobs ? { jobs } : {}), ...(pastJobs ? { pastJobs } : {}), ...(p.stay === true ? { stay: true } : {}), ...(p.locked === true ? { locked: true } : {}), ...(friend ? { friend } : {}), ...(hearts ? { hearts } : {}), ...(evolvedAt ? { evolvedAt } : {}), ...(held ? { held } : {}), ...(nick ? { nick } : {}), ...(caught ? { caught } : {}), ...(nature ? { nature } : {}), ...(ball ? { ball } : {}), ...(fed ? { fed } : {}), ...(p.alpha === true && caught ? { alpha: true } : {}), ...(p.shadow === true && caught ? { shadow: true } : {}), ...(p.hatched === true && caught ? { hatched: true } : {}), abil: abilSlot(p, pane) /* its slot written in now: by its key alone, boxed or brought out under a new key, it changed */, ...(caught && Number.isFinite(p.size) && p.size >= 0.5 && p.size <= 1.5 ? { size: p.size } : {}),
         // Sparring won and lost (spar.js), kept.
         ...(Number.isInteger(p.sparW) && p.sparW > 0 ? { sparW: p.sparW } : {}), ...(Number.isInteger(p.sparL) && p.sparL > 0 ? { sparL: p.sparL } : {}),
         // The moves chosen for it (moves.js chosenOf checks them against what it learns): names, 4 at most.
@@ -152,12 +153,16 @@ export function evolveTarget(pick, slot, how) {
 
 // The pick, evolved into `dex`: a regional form into the same region's form when there is one;
 // shiny (if that one has a shiny sprite), Mega mode, X/Y, hearts and the Everstone carry over;
-// the job count starts over. `at`: when, so every view can flash it.
+// the job count starts over (those before kept in `pastJobs`: shown with them). `at`: when, so every
+// view can flash it.
+// Every job it has done, before it evolved too (pastJobs): what its card shows.
+export const allJobs = (pick) => (pick?.jobs ?? 0) + (pick?.pastJobs ?? 0);
 export function evolveInto(pick, dex, at) {
   const label = pick.form && formsOf(pick.dex).find((f) => f.form === pick.form)?.label;
   const form = label ? formsOf(dex).find((f) => f.label === label)?.form : undefined;
   const { form: _f, jobs: _j, ...rest } = pick;
-  return { ...rest, dex, shiny: pick.shiny && hasShiny(dex, form), ...(form ? { form } : {}), jobs: 0, ...(at ? { evolvedAt: at } : {}) };
+  const pastJobs = (pick.pastJobs ?? 0) + (pick.jobs ?? 0);
+  return { ...rest, dex, shiny: pick.shiny && hasShiny(dex, form), ...(form ? { form } : {}), jobs: 0, ...(pastJobs ? { pastJobs } : {}), ...(at ? { evolvedAt: at } : {}) };
 }
 
 // Its agent finished a job: one more on its count, and it evolves if it can. Returns { pick, evolved }.

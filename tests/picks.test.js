@@ -127,7 +127,7 @@ test("gainJob counts, then evolves at EVOLVE_JOBS", () => {
   }
   const r = gainJob(p, "pane");
   assert.equal(r.evolved, true);
-  assert.deepEqual(r.pick, { dex: 5, shiny: true, mega: "on", jobs: 0 });
+  assert.deepEqual(r.pick, { dex: 5, shiny: true, mega: "on", jobs: 0, pastJobs: EVOLVE_JOBS }); // (its jobs before: kept, shown with these)
 });
 
 test("gainJob: Everstone and final stages keep counting without evolving", () => {
@@ -551,4 +551,15 @@ test("leaderOf: a copy laid out (shown) leads over one never laid out, however e
   assert.equal(leaderOf(copies, "shown", 300, 3000, true), true);
   // Two shown: the first of them, as before.
   assert.equal(leaderOf(copies, "shown2", 400, 3000, true), false);
+});
+
+// Evolving starts its count towards the next over, but its jobs before are kept (pastJobs): its card
+// shows them all (Kubfu's 30 still there as an Urshifu), and they're kept on a reload.
+import { evolveInto, allJobs } from "../mods/pokemon-herd/picks.js";
+test("evolving keeps the jobs it did before (shown, not counted towards the next)", () => {
+  const u = evolveInto({ dex: 891, jobs: 30, shiny: false, mega: "auto" }, 892, 1);
+  assert.equal(u.jobs, 0);
+  assert.equal(allJobs(u), 30);
+  assert.equal(allJobs(evolveInto({ ...u, jobs: 5 }, 892, 2)), 35);
+  assert.equal(loadPicks({ panes: { p1: u } }, null).panes.p1.pastJobs, 30);
 });
