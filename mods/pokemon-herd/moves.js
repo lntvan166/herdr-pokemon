@@ -109,11 +109,15 @@ export const EXCLUSIVE = {
   "Aqua Step": { type: "water", power: 80, physical: true, dex: [914] },
   "Headlong Rush": { type: "ground", power: 120, physical: true, dex: [901] },
   "Stone Axe": { type: "rock", power: 65, physical: true, dex: [900] },
+  // Urshifu's, by its style (`form`: its form's key part, "" its own): Single Strike's Wicked Blow,
+  // Rapid Strike's Surging Strikes (three hits of 25), both always a critical hit, as the games'.
+  "Wicked Blow": { type: "dark", power: 75, physical: true, dex: [892], form: "", crit: "always" },
+  "Surging Strikes": { type: "water", power: 75, physical: true, dex: [892], form: "f0001", crit: "always" },
 };
 // Its own move(s), if it has one: [{ type, name, physical, exclusive }].
 export const exclusiveOf = (attacker) => {
-  const dex = parseInt(attacker, 10);
-  return Object.entries(EXCLUSIVE).filter(([, m]) => m.dex.includes(dex)).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
+  const dex = parseInt(attacker, 10), form = String(attacker).match(/f\d+/)?.[0] ?? "";
+  return Object.entries(EXCLUSIVE).filter(([, m]) => m.dex.includes(dex) && (m.form == null || m.form === form)).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
 };
 // Moving first whatever the Speed (+1, as the games' Ice Shard); healing by part of the damage done.
 export const PRIORITY = { "Ice Shard": 1, "Sucker Punch": 1 }; // (first whatever the Speed)
@@ -154,7 +158,8 @@ export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. At
 const entryOf = (i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2], ...(i >= SIG_FROM ? { sig: true } : {}) });
 export function learnableOf(attacker) {
   const l = LEARNS[attacker] ?? LEARNS[String(parseInt(attacker, 10))];
-  return [...exclusiveOf(attacker), ...(l ? l.map(entryOf) : movesetOf(attacker).filter((m) => !m.exclusive)), ...setupOf(attacker)];
+  const own = exclusiveOf(attacker), mine = new Set(own.map((m) => m.name));
+  return [...own, ...(l ? l.map(entryOf) : movesetOf(attacker).filter((m) => !m.exclusive)).filter((m) => !mine.has(m.name)), ...setupOf(attacker)];
 }
 // Setup moves (move-stages.js SETUP: Swords Dance, Dragon Dance…): no damage, its own stats up, kept
 // while it stays in. Those its species learns, as entries ({ status: true, stages }); one taught

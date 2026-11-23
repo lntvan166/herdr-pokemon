@@ -872,4 +872,31 @@ export const SIGNATURE = {
     }
     return out.concat(flash(0, x1, y, 44, "#efe4c8", 260), ring(0, x1, y, 10, 60, "#c8b080", 400));
   },
+  // Wicked Blow: Single Strike Urshifu's one dark fist, driven home, darkness bursting out of it
+  // in jagged spikes (always a critical hit: a gold glint as it lands).
+  "Wicked Blow": ({ x0, x1, y, dir, P, O, flash, ring }) => {
+    const out = [P(-300, 300, O(x0 + dir * 10, y, 12, 12, 0.6), O(x1 - dir * 6, y, 22, 22, 1), "#3a2a4a", { round: true, ease: "ease-in" }),
+      P(-140, 140, O(x1 - dir * 30, y, 30, 4, 0.7), O(x1 - dir * 4, y, 10, 2, 1), "#8a5ab8", { ease: "ease-in" })];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2, r = i % 2 ? 26 : 38;
+      out.push(P(0, 300, O(x1, y, 5, 5, 1), O(x1 + Math.cos(a) * r, y + Math.sin(a) * r * 0.8, 3, 3, 0), i % 2 ? "#8a5ab8" : "#2a1a38"));
+    }
+    return out.concat(flash(0, x1, y, 56, "#2a1a38", 320), ring(0, x1, y, 10, 80, "#8a5ab8", 440),
+      P(40, 260, O(x1 + dir * 4, y - 10, 4, 4, 1), O(x1 + dir * 4, y - 10, 14, 14, 0), "#ffd75e", { round: true }));
+  },
+  // Surging Strikes: Rapid Strike Urshifu's three quick blows of water, each a splash and a ring,
+  // a swirl of water round it after.
+  "Surging Strikes": ({ x0, x1, y, dir, P, O, flash, ring, rnd }) => {
+    const out = [P(-420, 260, O(x0 + dir * 10, y, 10, 10, 0.7), O(x1 - dir * 8, y, 16, 16, 1), "#2a8cff", { round: true, ease: "ease-in" })];
+    for (const [k, at] of [[0, -180], [1, -90], [2, 0]]) {
+      const yy = y + (k - 1) * 8;
+      out.push(flash(at, x1, yy, 30 + k * 8, k === 2 ? "#ffffff" : "#8fd3ff", 200), ring(at, x1, yy, 8, 40 + k * 10, "#4fb4ff", 300));
+      for (let i = 0; i < 3; i++) out.push(P(at, 320, O(x1, yy, 4, 4, 1), O(x1 + dir * (10 + rnd() * 18), yy - 14 + rnd() * 20, 3, 3, 0), "#8fd3ff", { round: true }));
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      out.push(P(60 + i * 30, 300, O(x1 + Math.cos(a) * 18, y + Math.sin(a) * 14, 5, 5, 1), O(x1 + Math.cos(a + 1) * 26, y + Math.sin(a + 1) * 20, 3, 3, 0), i % 2 ? "#4fb4ff" : "#ffd75e", { round: true }));
+    }
+    return out;
+  },
 };

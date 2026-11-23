@@ -112,7 +112,7 @@ test("a Pokémon's own move (EXCLUSIVE): always among its four; Judgment takes t
   assert.equal(movesetOf(26).some((m) => m.name === "Volt Tackle"), false); // Raichu doesn't
   assert.ok(movesetOf(493).length <= 4);
   assert.ok(learnableOf(493).some((m) => m.name === "Judgment" && m.exclusive));
-  for (const [name, m] of Object.entries(EXCLUSIVE)) assert.ok(m.type && m.power > 0 && m.dex.length && exclusiveOf(m.dex[0]).some((x) => x.name === name), name);
+  for (const [name, m] of Object.entries(EXCLUSIVE)) assert.ok(m.type && m.power > 0 && m.dex.length && exclusiveOf(m.form ? `${m.dex[0]}${m.form}` : m.dex[0]).some((x) => x.name === name), name);
   // Judgment: ×4 on Charizard (Rock), Dragonite (Ice), Tyranitar (Fighting); ×2 on Gengar (Ground).
   assert.equal(judgedType(6), "rock");
   assert.equal(judgedType(149), "ice");
@@ -266,4 +266,16 @@ test("Struggle: nothing it knows can touch it", async () => {
   assert.equal(m.eff, 1);
   assert.equal(A.selfHurt(A.newSide(""), m, { mul: 1 }, 0.2).hurt, 0.25);
   assert.notEqual(pickMove("27", "6", Math.random, { moves: ["Earthquake", "Swords Dance"], stages: { atk: 0 } }).name, "Struggle", "a setup move left of use: not yet");
+});
+
+// Urshifu's own move by its style: Single Strike's Wicked Blow, Rapid Strike's Surging Strikes;
+// among its four, taught once (not twice: Wicked Blow was a dark move it learns too).
+test("Urshifu: Wicked Blow or Surging Strikes, by its style", async () => {
+  const { movesetOf, learnableOf, EXCLUSIVE } = await import("../mods/pokemon-herd/moves.js");
+  assert.equal(movesetOf("892")[0].name, "Wicked Blow");
+  assert.equal(movesetOf("892f0001")[0].name, "Surging Strikes");
+  assert.equal(learnableOf("892").filter((m) => m.name === "Wicked Blow").length, 1);
+  assert.ok(!learnableOf("892").some((m) => m.name === "Surging Strikes"));
+  assert.ok(!learnableOf("892f0001").some((m) => m.name === "Wicked Blow"));
+  assert.equal(EXCLUSIVE["Surging Strikes"].crit, "always");
 });
