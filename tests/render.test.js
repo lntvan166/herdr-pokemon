@@ -124,6 +124,25 @@ test("the picker's Box row: favourites first, a click brings one out", () => {
   assert.deepEqual(H.log.closed, ["ov-pick"]);
 });
 
+// Many items to hold: the best four for it (holdOrder), and More for the rest.
+test("a Pokémon's menu: the best items to hold, the rest on More", () => {
+  seed();
+  const b = H.store.get(ids.BAG_KEY);
+  H.store.set(ids.BAG_KEY, { ...b, items: { ...b.items, "life-orb": 1, "choice-band": 1, "choice-specs": 1, "focus-sash": 1, "rocky-helmet": 1, "shell-bell": 1, leftovers: 1, "soothe-bell": 1 } });
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  const v = view({ mon: true, slot: "p1", current: { dex: 37 }, tag: "web", overlay: "ov-mon" }); // Vulpix: special
+  v.render(cx);
+  const shown = Object.keys(K.handlers).filter((k) => /^mon-hold-(?!more)/.test(k));
+  assert.equal(shown.length, 4, shown.join());
+  assert.ok(K.handlers["mon-hold-choice-specs:on_click"] && K.handlers["mon-hold-life-orb:on_click"], "its side's first");
+  assert.ok(!K.handlers["mon-hold-choice-band:on_click"]);
+  assert.ok(K.handlers["mon-hold-more:on_click"]);
+  v.allHold = true;
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  assert.ok(K.handlers["mon-hold-choice-band:on_click"], "every one, on More");
+});
+
 test("a Pokémon's menu: draws, uses an item, brings one out, opens the picker", () => {
   seed();
   const v = view({ mon: true, slot: "p1", current: { dex: 37 }, tag: "web", overlay: "ov-mon" });

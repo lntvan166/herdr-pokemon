@@ -1,6 +1,7 @@
 // The Bag (items found and earned, shared by every pane) and the badges. Pure.
 import { EVOLVE_HOW, EVOLVES_FROM } from "./species.js";
-import { nameOf } from "./dex.js";
+import { nameOf, evolutionsOf } from "./dex.js";
+import { isPhysicalKey, fighterKey } from "./trainer.js";
 import { itemUse, useItem, HELD_IDS, CARE_HELD, BATTLE_HELD, MAX_HEARTS } from "./picks.js";
 import { BATTLE_ITEMS } from "./abilities.js";
 const BATTLE_ICON = {"life-orb": "🔮", "choice-band": "🎗️", "choice-specs": "👓", "choice-scarf": "🧣", "focus-sash": "🎀", "expert-belt": "🥋", "muscle-band": "💪", "wise-glasses": "🤓", "assault-vest": "🦺", "eviolite": "💎", "rocky-helmet": "⛑️", "shell-bell": "🐚", "quick-claw": "🦅", "scope-lens": "🔭", "weakness-policy": "📜", "air-balloon": "🎈"};
@@ -136,6 +137,19 @@ export const CHARM_ART = "items/shiny-charm";
 export function stoneTakers(kind) {
   const from = Object.entries(EVOLVE_HOW).filter(([, ways]) => ways.includes(`stone:${kind}`)).map(([dex]) => EVOLVES_FROM[dex]);
   return [...new Set(from)].sort((a, b) => a - b).map(nameOf);
+}
+
+// Items to hold, the best for it first (a Pokémon's menu shows HOLD_SHOWN, the rest on asking):
+// for battle by its stronger side (a Choice Band or Life Orb on one that hits physically),
+// Eviolite and a Lucky Egg first on one that can still evolve, Leftovers and Focus Sash for any;
+// the rest after, as the Bag has them.
+export const HOLD_SHOWN = 4;
+export function holdOrder(pick, ids) {
+  const nfe = evolutionsOf(pick.dex).length > 0;
+  const phys = isPhysicalKey(fighterKey(pick.dex, { form: pick.form }));
+  const best = [...(nfe ? ["eviolite", "lucky-egg"] : []), ...(phys ? ["choice-band", "life-orb", "muscle-band"] : ["choice-specs", "life-orb", "wise-glasses"]), "leftovers", "focus-sash", "expert-belt", "choice-scarf", "assault-vest"];
+  const rank = (id) => { const i = best.indexOf(id); return i < 0 ? best.length + ids.indexOf(id) : i; };
+  return [...ids].sort((a, b) => rank(a) - rank(b));
 }
 
 // What an item does, in a sentence.

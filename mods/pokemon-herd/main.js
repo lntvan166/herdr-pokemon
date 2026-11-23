@@ -57,7 +57,7 @@ const CORNER_W = 56;
 const WIN_SAY_MS = 2200, WIN_WALK_AT = 2500, WIN_WALK_MS = 1300, WIN_PAY_END = 4800;
 const trainerMon = (m) => ({ dex: m.dex, nature: m.nature, trainer: true, size: 1, ...(m.held ? { held: m.held } : {}), ...(m.mega != null ? { mega: "on", ...(m.mega ? { megaKind: m.mega } : {}) } : { mega: "off" }), ...(m.legend ? { legend: true } : {}), ...(m.alpha ? { alpha: true } : {}) });
 import { loadPicks, assign, randomEntry, gainJob, EVOLVE_JOBS, evolveJobs, CANDY_JOBS, MAX_HEARTS, withHearts, itemUse, useItem, HEAL, REVIVE, needsText, evolveNeeds, takeHeld, HELD_IDS, familyOf, youngOf, subAgents, cardOf, withFriend, friendOf, FRIEND, FRIEND_MAX, fromFolders, leaderOf, boxList, raised, rivalsOf, agentOfToast, switchedPick, trimPanes, fromBox, boxOnSwitch, rollShiny, nameFor, cleanNick, sessionUsed, sayingOf, TIRED_AT, heartsText, holdersOf, visitorPick, expShareTarget, canPurify, purified, PURIFY_HEARTS, PURIFY_PAY } from "./picks.js";
-import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, badgeSet, perks, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
+import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, visitorGift, maxBuy, grouped, groupOf, jobPay, backPay, addMoney, buy, loadBoosts, withBoost, BOOST_MS, pickup, pickupDelay, CANDY_JOB_MS, shinyOdds, badges, badgeSet, perks, CHARM_JOBS, CHARM_ART, itemAbout, takersOf, holdOrder, HOLD_SHOWN, badgeGifts, badgeProgress, nextBadge, MAX_ITEM, GROUPS } from "./items.js";
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
@@ -924,14 +924,15 @@ const monUsable = (pick, slot, b = bag()) => {
   return MON_ITEMS.filter((id) => b.items[id] && !(spent && TOWER_HEAL_IDS.includes(id)) && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
 };
 const openPick = (slot, pick, tag) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag } });
-function openMon(slot, pick, tag, megaNow = null) {
+function openMon(slot, pick, tag, megaNow = null, allHold = false) {
   const live = savedPicks()[slot] ?? pick;
   const usable = live?.dex ? monUsable(live, slot) : [];
-  const uses = usable.filter((id) => !HELD_IDS.includes(id)).length, holds = usable.length - uses + (live?.held ? 1 : 0);
+  const uses = usable.filter((id) => !HELD_IDS.includes(id)).length, holdN = usable.length - uses;
+  const holds = (allHold ? holdN : Math.min(holdN, HOLD_SHOWN)) + (holdN > HOLD_SHOWN ? 1 : 0) + (live?.held ? 1 : 0); // (More: a chip too)
   const waiting = waitingNow().filter((x) => x.slot !== slot).length;
   const section = (n) => (n ? 26 + 30 * Math.ceil(n / 3) : 0);
   const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + 10 + 2 * 32;
-  openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}) } });
+  openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}), ...(allHold ? { allHold } : {}) } });
 } // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
 // (780 tall: a card with its moves open ran out of room at 672, over the badges.)
@@ -990,6 +991,7 @@ export default class PokemonHerd extends View {
     this.picker = !!props()?.picker;
     this.menu = !!props()?.menu;
     this.monView = !!props()?.mon; // one of yours, right-clicked: its menu
+    this.allHold = !!props()?.allHold; // its menu: every item to hold, not the best few
     this.bagView = !!props()?.bag;
     this.settingsView = !!props()?.settings;
     this.partyView = props()?.view === "party";
@@ -4542,9 +4544,11 @@ export default class PokemonHerd extends View {
       // What it holds (take it back), and what it could hold instead.
       .when(holds.length > 0 || !!pick.held, (el) => el.child(v_flex().gap(4)
         .child(label(pick.held ? `🧷 Holds ${ITEMS[pick.held].name}: take it, or give another` : "🧷 Give it something to hold"))
+        // The best for it first (items.js holdOrder), HOLD_SHOWN of them; the rest on asking (More).
         .child(h_flex().flex_wrap().gap(4)
           .when(!!pick.held, (e2) => e2.child(chip("mon-take", this.itemMark(pick.held, 16), `Take ${ITEMS[pick.held].name}`, () => takeFrom(slot))))
-          .children(holds.map((id) => chip(`mon-hold-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
+          .children((this.allHold ? holdOrder(pick, holds) : holdOrder(pick, holds).slice(0, HOLD_SHOWN)).map((id) => chip(`mon-hold-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id))))
+          .when(holds.length > HOLD_SHOWN, (e2) => e2.child(chip("mon-hold-more", div(), this.allHold ? "Fewer" : `More (${holds.length - HOLD_SHOWN})`, () => { this.allHold = !this.allHold; openMon(slot, props()?.current, props()?.tag, props()?.megaNow ?? null, this.allHold); }))))))
       // One waiting in the Box, in its place (this one goes to the Box).
       .when(waiting.length > 0, (el) => el.child(v_flex().gap(4)
         .child(label(`📤 Bring out from the Box (${waiting.length}), ★ first: this one goes in`))
