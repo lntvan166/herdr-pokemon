@@ -2162,7 +2162,7 @@ export default class PokemonHerd extends View {
     if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
     if (v?.trainer?.introAt) { const a = v.trainer.introAt; times.push(a, a + 40, a + 250, a + 900, a + RIVAL_INTRO_MS - 300, a + RIVAL_INTRO_MS, a + RIVAL_INTRO_MS + 4500); }
     if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
-    if (v?.trainer?.choosing) times.push(v.trainer.choosing.at, v.trainer.choosing.at + 40, v.trainer.choosing.until);
+    if (v?.trainer?.choosing) { const c = v.trainer.choosing; times.push(c.at, c.at + 40, c.until); for (let k = c.at + 1000; k < c.until; k += 1000) times.push(k); } // (its seconds counting down)
     if (v?.fight?.wildCost) times.push(v.fight.wildCost.at, v.fight.wildCost.at + 40, v.fight.wildCost.until - 260, v.fight.wildCost.until);
     if (v?.fight?.wildNote) times.push(v.fight.wildNote.at, v.fight.wildNote.at + 40, v.fight.wildNote.until - 260, v.fight.wildNote.until);
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
@@ -2659,9 +2659,6 @@ export default class PokemonHerd extends View {
     const hit = { left: mid - (s.box.w / 2) * scale - 2, top: headY - 2, w: s.box.w * scale + 4, h: s.box.h * scale + 4 };
     const now = Date.now();
     const th = v.throw;
-    // Choose moves: yours' chips over it while it waits on you.
-    const ch = v.trainer?.choosing, chm = ch && this.mons[ch.addr];
-    if (chm && this.leader) root.child(this.moveChooser(v, ch, now, chm.x, wordTop(headY, 16) - 22));
     // Its health, once one of yours has hit it: a thin bar over its head (green, amber, red).
     const hp = Number.isFinite(v.pick.hp) ? v.pick.hp : 1;
     const hpBar = (x) => healthBar(x, headY - 6, hp, this.lostOf(`wild-${v.id}`, v.hpLost, now));
@@ -3044,17 +3041,31 @@ export default class PokemonHerd extends View {
   }
   // The chips over yours while it waits on you (Choose moves): each move in its type's colour, how
   // well it'd do (×2, ×½, ×0), a bar running out; a click picks it.
-  moveChooser(v, ch, now, x, top) {
-    const W = 196;
-    const tag = (e) => (e >= 4 ? " ×4" : e >= 2 ? " ×2" : e === 0 ? " ×0" : e < 1 ? " ×½" : "");
+  // A thin bar along the strip's top (the sky over their heads), over yours: "Your move", its four
+  // (type, kind, power, ×2 / ×½ / ×0), its seconds and a line running out. (A panel beside yours
+  // covered a big one, Charizard by the trainer; drawn over the trainer's, the chips were under them.)
+  moveChooser(v, ch, now, x, ground) {
+    const W = 470, H = 24;
+    const tag = (e) => (e >= 4 ? "×4" : e >= 2 ? "×2" : e === 0 ? "×0" : e < 1 ? "×½" : "");
+    const tagColor = (e) => (e >= 2 ? "#7dffa0" : e === 0 ? "#ff6b6b" : e < 1 ? "#ffb86b" : "#ffffff");
     const first = this.fxFirst(`choose-${ch.at}`);
-    return v_flex().id(`chooser-${ch.at}`).absolute().left(Math.round(x - W / 2)).top(Math.max(0, top)).w(W).gap(2).items_center()
-      .child(h_flex().flex_wrap().justify_center().gap(3).children(ch.moves.map((m, i) => div().id(`choose-move-${i}`).h(16).px(5).rounded(4).flex().items_center().flex_none()
-        .bg(TYPE_COLOR[m.type]).text_size(9.5).font_semibold().text_color(typeText(m.type)).cursor_pointer().border_1().border_color(ch.chosen === m.name ? "#ffffff" : "#00000055")
-        .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); ch.chosen = m.name; ch.until = Math.min(ch.until, Date.now()); cx.notify(); })
-        .child(`${m.status ? "↑ " : ""}${m.name}${tag(m.eff)}`))))
-      .child(div().h(2).rounded(1).bg("#ffd23f").w(first ? W - 40 : 0).transition("width", { duration: Math.max(1, ch.until - now), easing: "linear" }));
+    const left = clamp(x - W / 2, 4, Math.max(4, this.width - W - 60)); // (clear of ☰ and 🔊 at the right)
+    const btn = (m, i) => h_flex().id(`choose-move-${i}`).h(20).gap(4).px(5).rounded(5).items_center().flex_none()
+      .bg(TYPE_COLOR[m.type] ?? "#888888").cursor_pointer().border_1().border_color(ch.chosen === m.name ? "#ffffff" : "#00000066")
+      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); ch.chosen = m.name; ch.until = Math.min(ch.until, Date.now()); cx.notify(); })
+      .child(div().px(2).h(11).rounded(2).flex().items_center().flex_none().bg("#00000055").text_size(7.5).font_bold().text_color("#ffffff").child(m.status ? "UP" : m.physical ? "PHY" : "SPE"))
+      .child(div().text_size(10.5).font_semibold().text_color(typeText(m.type)).child(m.name))
+      .when(!!tag(m.eff), (el) => el.child(div().px(2).rounded(2).bg("#000000aa").text_size(9).font_bold().text_color(tagColor(m.eff)).child(tag(m.eff))));
+    return v_flex().id(`chooser-${ch.at}`).absolute().left(Math.round(left)).top(2).w(W).gap(1)
+      .child(h_flex().h(H).gap(4).px(5).rounded(6).items_center().bg("#141414e0")
+        .child(div().flex_none().text_size(10).font_semibold().text_color("#ffd23f").child("Your move"))
+        .children(ch.moves.map((m, i) => btn(m, i)))
+        .child(div().flex_1())
+        .child(div().flex_none().text_size(9.5).text_color("#bbbbbb").child(`${Math.max(0, Math.ceil((ch.until - now) / 1000))}s`)))
+      .child(div().h(2).rounded(1).bg("#ffd23f").w(first ? W : 0).transition("width", { duration: Math.max(1, ch.until - now), easing: "linear" }));
   }
+
+
   // The sidebar's card asked for one (Pokémon Sidebar: its held item clicked, or its right-click
   // menu; shared CARD_OPEN_KEY { address, kind, at }): its card in the Box, its menu, or the
   // picker. Once, by the counting strip.
@@ -5416,6 +5427,10 @@ export default class PokemonHerd extends View {
     }
     this.renderRaid(root, grounds, scale, now, t);
     this.renderVisitor(root, grounds, scale);
+    // Choose moves: yours' turn, its moves in a panel drawn last (over the trainer and its Pokémon,
+    // which covered the chips), on the side of yours away from them.
+    const chv = this.visitor, ch = chv?.trainer?.choosing, chm = ch && this.mons[ch.addr];
+    if (chm && this.leader) root.child(this.moveChooser(chv, ch, now, chm.x, grounds[Math.min(chv.row ?? 0, grounds.length - 1)]));
     // An effect drawn for the first time (where it starts): a frame right after sets it moving.
     if (this.fxKick) {
       this.fxKick = false;
