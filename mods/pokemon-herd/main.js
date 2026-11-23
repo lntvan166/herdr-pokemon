@@ -6342,7 +6342,8 @@ export default class PokemonHerd extends View {
               .child(`Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))(abilityOf(pick, slot)))
             // Its Megas' own (Mega Charizard X: Tough Claws), which it has while Mega Evolved.
             .children(megaAbils(pick).map(({ label, ab }) => div().text_size(11.5).text_color(t.muted)
-              .child(`${label}: ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))))) // all of it, wrapped: the Box is where the details are
+              .child(`${label}: ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))))
+) // all of it, wrapped: the Box is where the details are
         .child(this.movesPanel(pick, t, slot, false, false))
         // Its actions, in two rows: what you do with it (bring it out, feed it, bring it back up,
         // take what it holds, purify it), then keeping the Box (lock, rename, release).
@@ -6409,6 +6410,8 @@ export default class PokemonHerd extends View {
         .child(div().text_size(11).text_color(t.muted).child("Sort"))
         .children(SORTS.map(([k, label]) => chip(`box-s-${k}`, label, (this.boxSort ?? "new") === k, () => { this.boxSort = k; })))
         .child(div().flex_1())
+        // A card open: ✕ shuts it, back to the list (always in sight: the card scrolls under it).
+        .when(!!sel && !picking, (el) => el.child(chip("box-close", "✕ Close card", false, () => { this.boxSel = null; this.editingMoves = null; })))
         .child(chip("box-select", picking ? "Done" : "Select…", !!picking, () => {
           this.boxPicking = picking ? null : new Set();
           this.releasingAll = false;
@@ -6789,13 +6792,13 @@ export default class PokemonHerd extends View {
       .border_1().border_color(isGood(m) ? "#7dffa0" : m.exclusive ? "#ffffff" : t.border)
       .child(div().w(4).h(30).rounded(2).flex_none().bg(TYPE_COLOR[m.type]))
       .child(v_flex().flex_1().min_w(0).gap(2)
-        .child(h_flex().gap(5).items_center().min_w(0).child(kindBadge(m)).child(div().min_w(0).truncate().text_size(12.5).font_semibold().text_color(t.foreground).child(m.name)))
+        .child(h_flex().gap(5).items_center().min_w(0).child(kindBadge(m)).child(this.hoversMove(div().id(`mslot-n-${editId}-${i}`).min_w(0).truncate().text_size(12.5).font_semibold().text_color(t.foreground).child(m.name), editId, m, k)))
         .child(h_flex().gap(6).items_center().child(typeBadge(m.type))
           .child(div().text_size(10.5).text_color(t.muted).child(m.status ? m.stages.map(([s2, n]) => `${s2}${n > 0 ? "+" : ""}${n}`).join(" ") : `${powerOf(m.name)} · ${accOf(m)}${ownTypes.includes(m.type) ? " · ×1.5" : ""}`))))
       .when(!!slot && set.length > 1, (el) => el.child(div().id(`mslot-x-${editId}-${i}`).size(20).rounded(4).flex().items_center().justify_center().flex_none()
         .text_size(11).text_color(t.muted).cursor_pointer().hover((st2) => st2.bg(t.hover).text_color(t.foreground))
         .on_click((_e, cx) => { save(current().filter((n) => n !== m.name)); cx.notify(); }).child("✕")))
-      .map((el) => this.hoversMove(el, editId, m, k).flex_1().min_w(0)); // (the hover card is the row's item: it takes the half)
+      ; // (its facts on its name: a hover card around the whole card was the row's item, sized to its text)
     const empty = (i) => div().h(46).flex_1().rounded(8).border_1().border_color(t.border).flex().items_center().justify_center().text_size(11).text_color(t.dim).child(`empty · pick one below`);
     const slots = Array.from({ length: MAX_MOVES }, (_, i) => (set[i] ? card(set[i], i) : empty(i)));
     // Every move it can learn, filtered (this.moveFilter, as the Box's).
