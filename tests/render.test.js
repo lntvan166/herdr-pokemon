@@ -1319,3 +1319,20 @@ test("its own stages (Superpower): said over the attacker", () => {
   assert.doesNotMatch(fx.blow?.word?.[0] ?? "", /↓/, "not over Snorlax");
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Atk↓ Def↓/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
 });
+
+// A hover over one in the preview's line says what it is, as its card does (a panel: tooltips take one line).
+test("the picker: a hover in the line shows its card's facts", () => {
+  seed();
+  const v = picker();
+  v.showPreview({ dex: 6 }, cx);
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  const key = Object.keys(K.handlers).find((k) => k.startsWith("pv-evo-") && k.includes("on_hover"));
+  assert.ok(key, Object.keys(K.handlers).filter((k) => k.startsWith("pv-")).join());
+  K.handlers[key](true, cx);
+  assert.equal(v.hoverInfo?.zone, "pv");
+  assert.ok(v.infoPanel("pv", { accent: "#fff", popover: "#000", foreground: "#fff", muted: "#aaa", dim: "#888" }));
+  v.render(cx);
+  K.handlers[key](false, cx);
+  assert.equal(v.hoverInfo, null);
+});

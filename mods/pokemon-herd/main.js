@@ -988,16 +988,6 @@ const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * L
 // Its ability in a line ("Ability: Guts: …"), as the Box says it: hidden marked, and if it does
 // nothing here. `slot`: its save slot (which of its species' it has).
 const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ? `Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}` : ""; };
-// What a kind is, as its card says it (a hover over it in the picker's line): its name and types,
-// its abilities, its four moves and its stronger side.
-function entryInfo(e) {
-  const k = fighterKey(e.dex, e.form ? { form: e.form } : {});
-  const st = statsFull(k), phys = st[1] >= st[3];
-  return [`${fullName(e.dex, e.form)} · ${typesOf(k).map(typeLabel).join("/")}`,
-    `Abilities: ${speciesAbils(e.dex, e.form ?? null)}`,
-    `Moves: ${movesetOf(k).map((m) => `${m.name} (${m.physical ? "PHY" : "SPE"} ${powerOf(m.name)})`).join(", ")}`,
-    `${phys ? "Physical" : "Special"} side: Atk ${st[1]} · Sp. Atk ${st[3]}`].join("\n");
-}
 // Its Megas' own abilities ([{ label: "As Mega X", ab }]), for one with Megas (not a form).
 const megaAbils = (pick) => (pick?.form ? [] : megaForms(pick?.dex)).map(({ kind }) => ({ kind, ab: megaAbility(fighterKey(pick.dex, { mega: kind })) }))
   .filter((x) => x.ab).map(({ kind, ab }) => ({ label: `As Mega${kind ? ` ${kind}` : ""}`, ab }));
@@ -3015,6 +3005,35 @@ export default class PokemonHerd extends View {
     else if (ask.kind === "pick") this.openPicker(a, pick, tag);
     else openBag("box", a.pane);
   }
+  // A hover over one (its line, one waiting in the Box…) says what it is, as its card does, in a
+  // panel of its own (`infoPanel`, where `zone` is drawn: tooltips take one line only).
+  // `slot`: a saved one's (its own ability, its chosen moves); none: its kind's.
+  hovers(el, zone, pick, slot = null) {
+    const key = `${zone}|${slot ?? entryKey(pick)}`;
+    return el.on_hover((h, cx) => {
+      if (h) this.hoverInfo = { key, zone, pick, slot };
+      else if (this.hoverInfo?.key === key) this.hoverInfo = null;
+      cx.notify();
+    });
+  }
+  infoPanel(zone, t) {
+    const hi = this.hoverInfo;
+    if (!hi || hi.zone !== zone) return null;
+    const p = hi.pick, k = fighterKey(p.dex, p.form ? { form: p.form } : {});
+    const st = statsFull(k), phys = st[1] >= st[3];
+    const set = movesetOf(k, hi.slot ? chosenFor(p, k) : null);
+    const chip = (m) => h_flex().h(17).px(5).gap(3).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type])
+      .child(div().text_size(7.5).font_bold().px(2).bg("#00000047").rounded(2).text_color("#ffffff").child(m.status ? "UP" : m.physical ? "PHY" : "SPE"))
+      .child(div().text_size(10).font_semibold().text_color(typeText(m.type)).child(`${m.name}${m.status ? "" : ` ${powerOf(m.name)}`}`));
+    return v_flex().id(`info-${zone}`).gap(4).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover).flex_none()
+      .child(h_flex().gap(6).items_center().flex_wrap()
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(sparkled(`${p.shiny ? "✨ " : ""}${hi.slot ? nameFor(p) : fullName(p.dex, p.form)}`)))
+        .children(typesOf(k).map((ty) => div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty))))
+        .child(div().text_size(10.5).text_color(t.dim).child(`${phys ? "Physical" : "Special"} side: Atk ${st[1]} · Sp. Atk ${st[3]}`)))
+      .child(div().text_size(11).text_color(t.muted).child(hi.slot ? abilLine(p, hi.slot) : `Abilities: ${speciesAbils(p.dex, p.form ?? null)}`))
+      .child(h_flex().gap(3).flex_wrap().children(set.map(chip)))
+      .when(!!(hi.slot && p.held), (el) => el.child(h_flex().gap(4).items_center().text_size(10.5).text_color(t.muted).child("Holds").child(this.itemMark(p.held, 14)).child(ITEMS[p.held]?.name ?? "")));
+  }
   itemMark(id, size) {
     const art = ITEMS[id]?.art;
     if (art && !ART_READY.has(art) && !ART_ASKED.has(art)) {
@@ -4664,7 +4683,7 @@ export default class PokemonHerd extends View {
       .on_click(() => { close(); click(); })
       .child(txt).child(div().text_size(11).text_color(t.dim).child(note));
     const state = hp === null ? "Fainted: resting" : hp < 1 ? `HP ${Math.round(hp * 100)}%` : "";
-    return v_flex().id("pokemon-mon").size_full().p(10).gap(8).bg(t.popover)
+    const menu = v_flex().id("pokemon-mon").size_full().p(10).gap(8).bg(t.popover)
       // Who it is.
       .child(h_flex().h(56).gap(10).items_center()
         .child(megaLook && this.icons[entryKey(megaLook)] === "ready" ? icon(megaLook, 48) : icon(pick, 48))
@@ -4704,6 +4723,7 @@ export default class PokemonHerd extends View {
           .children(waiting.slice(0, 5).map(({ slot: from, pick: w }) => v_flex().id(`mon-bring-${from}`).w(58).h(66).flex_none().items_center().justify_center().gap(1)
             .relative().rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
             .on_click(() => { if (bringOut(from, slot)) close(); })
+            .map((el2) => this.hovers(el2, "monwait", w, from))
             .child(icon(w, 34))
             .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${w.shiny ? "✨" : ""}${nameFor(w)}`)))
             .child(div().text_size(9).text_color(t.muted).child(`♥ ${heartsText(friendOf(w))}`))
@@ -4716,6 +4736,9 @@ export default class PokemonHerd extends View {
       .child(div().h(1).bg(t.border))
       .child(row("mon-pick", "🔄 Choose another Pokémon…", "every kind", () => openPick(slot, pick, p.tag)))
       .child(row("mon-box", "📦 Its card in the Box", "rename, moves, lock", () => openBag("box", slot)));
+    // One waiting in the Box, hovered: what it is, over the top of the menu (no room below it).
+    const info = this.infoPanel("monwait", t);
+    return info ? div().relative().size_full().child(menu).child(div().absolute().top(8).left(8).right(8).child(info)) : menu;
   }
 
   render(cx) {
@@ -6099,7 +6122,8 @@ export default class PokemonHerd extends View {
     const cand = (x) => div().id(`care-in-${x.slot}`).w(84).h(80).flex_none().rounded(8).flex().flex_col().items_center().justify_center().gap(2)
       .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { set([...care.pair.filter((k) => all[k]), x.slot].slice(-2)); cx.notify(); })
       .child(icon(x.pick, 40))
-      .child(div().w_full().px(3).text_center().truncate().text_size(10.5).text_color(t.foreground).child(sparkled(label(x.pick))));
+      .child(div().w_full().px(3).text_center().truncate().text_size(10.5).text_color(t.foreground).child(sparkled(label(x.pick))))
+      .map((el) => this.hovers(el, "care", x.pick, x.slot));
     const born = [...care.born].reverse().filter((b) => all[b.slot]);
     return v_flex().id("bag-care").flex_none().h(h).gap(10)
       .child(h_flex().gap(10).flex_none().child(parent(there[0], 0)).child(div().text_size(20).child("❤")).child(parent(there[1], 1)))
@@ -6116,6 +6140,7 @@ export default class PokemonHerd extends View {
           .child(fit.length ? `${one ? `Partners for ${nameFor(one.pick)}` : "Ones that can have eggs"}: ${fitAll.length}${more ? ` (the first ${fit.length} shown: search for the rest)` : ""}`
             : q ? "None of those match." : one ? `None in the Box can have an egg with ${nameFor(one.pick)}.` : "None in the Box can have eggs yet."))))
       .when(fit.length > 0, (el) => el.child(div().id("care-fit").flex_1().min_h(0).overflow_y_scrollbar().child(h_flex().flex_wrap().gap(4).children(fit.map(cand)))))
+      .when(!!this.infoPanel("care", t), (el) => el.child(this.infoPanel("care", t)))
       .when(born.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
         .child(div().text_size(11.5).text_color(t.muted).child(`Hatched here: ${care.hatched}`))
         .child(h_flex().gap(6).flex_wrap().children(born.map((b) => div().id(`care-born-${b.slot}`).h(26).px(8).gap(6).rounded(6).flex().items_center().border_1().border_color(t.border)
@@ -6628,9 +6653,11 @@ export default class PokemonHerd extends View {
               .cursor_pointer().hover((s2) => s2.bg(t.hover))
               .on_click((_e, cx) => { if (!isCur(e)) this.showPreview(e, cx); })
               .child(icon(e, branchy ? 30 : 36))
-              .when(!branchy, (el2) => el2.child(div().text_size(10.5).text_color(t.muted).child(fullName(e.dex, e.form))))),
+              .when(!branchy, (el2) => el2.child(div().text_size(10.5).text_color(t.muted).child(fullName(e.dex, e.form))))
+              .map((el2) => this.hovers(el2, "cur", e))),
           ])),
       ))
+      .when(!!this.infoPanel("cur", t), (el) => el.child(this.infoPanel("cur", t)))
       .child(this.moveRow(cur, t, props()?.slot))
       .child(this.renderBagRow(cur, t));
   }
@@ -6859,13 +6886,15 @@ export default class PokemonHerd extends View {
           .children(line.flatMap((st, i) => [
             ...(i ? [div().text_size(12).text_color(t.dim).px(2).child("›")] : []),
             ...st.map((e) => v_flex()
-              .id(`pv-evo-${entryKey(e)}`).tooltip(entryInfo(e)).items_center().flex_none().rounded(6).px(2).py(1)
+              .id(`pv-evo-${entryKey(e)}`).items_center().flex_none().rounded(6).px(2).py(1)
               .border_1().border_color(isPv(e) ? t.accent : "#00000000").bg(isPv(e) ? t.selected : "#00000000")
               .cursor_pointer().hover((s2) => s2.bg(t.hover))
               .on_click((_e, cx) => { if (!isPv(e)) this.showPreview(e, cx, pv.shiny); })
-              .child(icon(e, 30))),
+              .child(icon(e, 30))
+              .map((el2) => this.hovers(el2, "pv", e))),
           ])),
-      ));
+      ))
+      .when(!!this.infoPanel("pv", t), (el) => el.child(this.infoPanel("pv", t)));
   }
 
   // The Bag, for this Pokémon: Berries (a heart), Rare Candy (evolve now) and the stones it can
@@ -6966,6 +6995,7 @@ export default class PokemonHerd extends View {
           .children(waiting.slice(0, WAIT_ROW).map(({ slot, pick: b }) => v_flex().id(`pk-box-${slot}`).w(62).h(66).flex_none().items_center().justify_center().gap(1)
             .relative().rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
             .on_click(() => this.choose(b, { slot }))
+            .map((el2) => this.hovers(el2, "wait", b, slot))
             .child(this.icons[entryKey(b)] === "ready" ? image(iconPath(b.dex, b.form)).size(34).flex_none() : div().size(34).flex_none())
             .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${b.shiny ? "✨" : ""}${nameFor(b)}`)))
             .child(div().text_size(9).text_color(t.muted).child(`♥ ${heartsText(friendOf(b))}`))
@@ -6974,7 +7004,8 @@ export default class PokemonHerd extends View {
           .when(waiting.length > WAIT_ROW, (e2) => e2.child(div().id("pk-box-more").h(66).px(10).flex().items_center().flex_none().rounded(8).border_1().border_color(t.border)
             .text_size(11.5).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click(() => { closeOverlay(p.overlay); openBag("box"); })
-            .child(`+${waiting.length - WAIT_ROW} · Box →`))))))
+            .child(`+${waiting.length - WAIT_ROW} · Box →`))))
+        .when(!!this.infoPanel("wait", t), (e2) => e2.child(this.infoPanel("wait", t)))))
       // Mega: Off / On / Auto (Mega while its agent works), for a Pokémon that has one.
       .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()

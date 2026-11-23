@@ -16,6 +16,7 @@ function mk() {
       if (k === "left") return (x) => { if (id != null) lefts[id] = x; return p; };
       if (k === "top") return (y) => { if (id != null) tops[id] = y; return p; };
       if (k === "children") return (arr) => { for (const c of arr ?? []) void c; return p; };
+      if (k === "map") return (f) => f(p); // (as GPUI's: the element through `f`)
       if (k === "on_click" || k === "on_item_click" || k === "on_mouse_down" || k === "on_hover") {
         return (...a) => { const f = a[a.length - 1]; if (id != null) handlers[`${id}:${k}${a.length > 1 ? `:${a[0]}` : ""}`] = f; return p; };
       }
