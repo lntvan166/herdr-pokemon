@@ -305,6 +305,7 @@ export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
     else if (crash) { out.hurt += 0.5; words.push("Crashed!"); }
     else { out.hurt += dealt * recoil * ratio; words.push("Recoil!"); }
   }
+  if (landed && move.name === "Struggle" && !guard) { out.hurt += 0.25; words.push("Recoil!"); } // (a quarter of its health: Rock Head no help)
   if (landed && att.item === "life-orb" && !guard) { out.hurt += 0.1; out.said.push("life-orb"); }
   if (landed && def?.item === "rocky-helmet" && flag(move, "c") && !guard) { out.hurt += 1 / 6; out.said.push("rocky-helmet"); }
   if (landed && dealt > 0 && att.item === "shell-bell") { out.hurt -= (dealt * ratio) / 8; out.said.push("shell-bell"); }

@@ -257,3 +257,13 @@ test("the AI doesn't use Ground moves on Levitate", async () => {
   const how = { moves: ["Earthquake", "Stone Edge"], ai: true, dmgOf: (m) => (m.name === "Earthquake" ? 0.6 : 0.3), targetHp: 1, immune: (m) => A.immuneTo(lev, m) };
   for (let i = 0; i < 100; i++) { const m = pickMove("445", "94", Math.random, how); assert.equal(m.base ?? m.name, "Stone Edge"); } // (risen 1 in 8: Head Smash)
 });
+
+// Nothing it knows can touch it: Struggle (the games'), typeless, 50, a quarter of its health back.
+test("Struggle: nothing it knows can touch it", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const m = pickMove("27", "6", Math.random, { moves: ["Earthquake"] }); // Sandshrew's only move, at a flying Charizard
+  assert.equal(m.name, "Struggle");
+  assert.equal(m.eff, 1);
+  assert.equal(A.selfHurt(A.newSide(""), m, { mul: 1 }, 0.2).hurt, 0.25);
+  assert.notEqual(pickMove("27", "6", Math.random, { moves: ["Earthquake", "Swords Dance"], stages: { atk: 0 } }).name, "Struggle", "a setup move left of use: not yet");
+});

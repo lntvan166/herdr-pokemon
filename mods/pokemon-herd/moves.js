@@ -139,7 +139,7 @@ export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
-export const powerOf = (name) => SETUP[name] ? 0 : EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
+export const powerOf = (name) => name === "Struggle" ? 50 : SETUP[name] ? 0 : EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
 // Each type's strongest move by its power in the games (MOVES and MORE_MOVES; a tie, its own list's
 // first): what a move rises to, 1 in 8 (pickMove), sure to hit. Zap Cannon, High Jump Kick, Brave
 // Bird, Foul Play, Double Iron Bash where those beat the type's own (Thunder, Close Combat…).
@@ -243,6 +243,16 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // strikes beats a sure one after its blow: Kingambit's Sucker Punch on a worn Gengar, not Kowtow
   // Cleave and a Shadow Ball first). `how.catching` (yours on a wild one, to be caught): no finishing
   // bonus, and a move that would knock it out (`how.koAt`: the overkill it takes) −10.
+  // Nothing it knows can touch it (every damaging move made nothing of, by its type or an ability
+  // shown: `how.immune`; any setup move of no more use): Struggle, as the games' last resort,
+  // typeless (it hits anything), 50, a quarter of its own health back on it (abilities.js
+  // selfHurt). (Two such, neither able to hurt the other, fought on for ever.)
+  const touches = (m) => !m.status && effOf(m) > 0 && !how.immune?.({ ...m, eff: effOf(m) });
+  const setupLeft = (m) => m.status && m.stages.some(([st, n]) => n > 0 && (how.stages?.[st] ?? 0) < 6);
+  if (set.length && !set.some(touches) && !set.some(setupLeft)) {
+    const crit = rnd() < CRIT;
+    return { type: "typeless", name: "Struggle", physical: true, ultimate: false, crit, miss: false, stab: false, power: 50, mul: crit ? CRIT_HIT : 1, eff: 1, missRate: 0, struggle: true };
+  }
   const exp = (m) => gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - weatherMiss(m.name, how.weather)) * weatherPower(m.name, how.weather);
   let weights;
   if (how.ai && how.dmgOf) {
