@@ -855,8 +855,9 @@ const petAt = {}; // pane -> when it last got a heart from a click or a quick an
 let settingsMemo = null;
 const settingsNow = () => {
   const now = Date.now();
-  const raw = shared(SETTINGS_KEY); // (read again when they change: a toggle took a moment to show)
-  if (!settingsMemo || settingsMemo.raw !== raw || now - settingsMemo.at >= 250) settingsMemo = { at: now, raw, s: loadSettings(raw) };
+  // (Read at most every 250 ms: asked many times a tick, a read each time doubled the tick, 26 → 54 ms.
+  // A change here, setSetting, shows at once; one from another window within 250 ms.)
+  if (!settingsMemo || now - settingsMemo.at >= 250) settingsMemo = { at: now, s: loadSettings(shared(SETTINGS_KEY)) };
   return settingsMemo.s;
 };
 const setSetting = (key, value) => { const s = withSetting(settingsNow(), key, value); settingsMemo = null; setShared(SETTINGS_KEY, s); };

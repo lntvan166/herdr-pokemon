@@ -1228,9 +1228,10 @@ test("a trainer's battle: Swords Dance raises yours, no blow", () => {
 
 // Choose moves (Settings): against a trainer, yours' turn waits on its chips; one clicked, the
 // exchange with it; none in time, the AI's. Off: as before.
-test("Choose moves: chips first, then the exchange with the one picked", () => {
+test("Choose moves: chips first, then the exchange with the one picked", async () => {
   seed();
   H.store.set(`${ids.MOD}-settings`, { v: 1, chooseMoves: true });
+  await new Promise((r) => setTimeout(r, 300)); // (settings are read again after 250 ms)
   setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 983, jobs: 3, moves: ["Kowtow Cleave", "Iron Head", "Swords Dance"] } });
   const st = view({ rows: 1, scale: 0.75 });
   st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
@@ -1257,6 +1258,7 @@ test("Choose moves: chips first, then the exchange with the one picked", () => {
   assert.ok(st.visitor.fight, "the exchange");
   assert.equal(st.visitor.fight.ownMove.name, "Swords Dance");
   H.store.set(`${ids.MOD}-settings`, {});
+  await new Promise((r) => setTimeout(r, 300)); // (off again for the tests after)
 });
 
 // Sucker Punch into a Swords Dance fails (the games'): no damage on it, "But it failed!".
