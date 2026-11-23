@@ -356,52 +356,22 @@ test("the Battle Tower: start, a trainer, three faints and it's over", () => {
 });
 
 // A trainer beaten: its balls, its words, its pay rising, then it walks off: all drawn.
-// In a climb, one healing item a floor (a Berry or a Revive): the second does nothing, and the
-// menu offers none till the next floor.
-test("the Battle Tower: one heal a floor", () => {
+// In a climb, or any trainer's battle: no limit on healing items (each takes your turn, as the
+// games': the trainer's Pokémon strikes), each one counted for its turn.
+test("a trainer's battle and the Tower: heals without limit, each one counted", () => {
   seed();
-  const KEY = `${ids.MOD}-tower`, HP = `${ids.MOD}-hp`;
+  const KEY = `${ids.MOD}-tower`, VK = `${ids.MOD}-visitor`, HP = `${ids.MOD}-hp`;
   H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now() - 1000, wins: 0, faints: 0, out: [], nextAt: 0 } });
-  const hurt = () => H.store.set(HP, { p0: { hp: 0.2, at: Date.now() } });
-  const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
-  hurt();
-  m.render(cx);
-  click("mon-use-berry:on_click");
-  assert.equal(H.store.get(KEY).run.heals, 1);
-  hurt();
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
-  m.render(cx);
-  assert.equal(K.handlers["mon-use-berry:on_click"], undefined, "no Berry offered on this floor");
-  assert.equal(H.store.get(ids.BAG_KEY).items.berry, 2, "one eaten");
-  // The next floor: its heal back.
-  H.store.set(KEY, { ...H.store.get(KEY), run: { ...H.store.get(KEY).run, wins: 1, heals: 0 } });
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
-  m.render(cx);
-  assert.ok(K.handlers["mon-use-berry:on_click"], "a Berry again");
-});
-
-// A trainer's battle under way: two healing items in all (as the Rival's Potions), then none
-// offered (right-click spam healed yours each blow); a new trainer, two again.
-test("a trainer's battle: two heals in all", () => {
-  seed();
-  const VK = `${ids.MOD}-visitor`, HP = `${ids.MOD}-hp`;
   H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }] } } });
   H.store.set(ids.BAG_KEY, { ...H.store.get(ids.BAG_KEY), items: { ...H.store.get(ids.BAG_KEY).items, berry: 5 } });
   const hurt = () => H.store.set(HP, { p0: { hp: 0.2, at: Date.now() } });
   const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
   const again = () => { hurt(); for (const k of Object.keys(K.handlers)) delete K.handlers[k]; m.render(cx); };
-  again(); click("mon-use-berry:on_click");
-  again(); click("mon-use-berry:on_click");
+  for (let i = 0; i < 3; i++) { again(); click("mon-use-berry:on_click"); }
   again();
-  assert.equal(K.handlers["mon-use-berry:on_click"], undefined, "no third heal in this battle");
-  assert.equal(H.store.get(ids.BAG_KEY).items.berry, 3, "two eaten");
-  H.store.set(VK, { at: Date.now(), v: { id: 8, trainer: { fought: true, idx: 0, team: [{ dex: 25 }] } } });
-  again();
-  assert.ok(K.handlers["mon-use-berry:on_click"], "another trainer: heals again");
-  H.store.set(VK, { at: Date.now(), v: { id: 9, trainer: { idx: 0, team: [{ dex: 25 }] } } });
-  H.store.set(`${ids.MOD}-trainer-heals`, { id: 9, n: 2 });
-  again();
-  assert.ok(K.handlers["mon-use-berry:on_click"], "not fought yet: heal freely");
+  assert.ok(K.handlers["mon-use-berry:on_click"], "a fourth, still");
+  assert.equal(H.store.get(ids.BAG_KEY).items.berry, 2, "three eaten");
+  assert.equal(H.store.get(`${ids.MOD}-trainer-heals`).n, 3, "each counted: its turn");
 });
 
 // In a climb, switching between yours on the strip is free; one swapped in from the Box comes in

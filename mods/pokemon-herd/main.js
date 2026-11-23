@@ -402,9 +402,8 @@ function useOn(slot, id) {
   if (!live || !hasItem(id)) return null;
   // A Battle Tower climb on: TOWER_HEALS healing items a floor (Berries, Revives).
   const climb = TOWER_HEAL_IDS.includes(id) ? towerNow() : null;
-  if (climb?.run && climb.run.heals >= TOWER_HEALS) return null;
+  // (No limit, in a climb or a trainer's battle: each one takes your turn, as the games'.)
   const fight = TOWER_HEAL_IDS.includes(id) ? trainerFight() : null;
-  if (fight && fight.used >= TRAINER_HEALS) return null;
   const r = useItem(live, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
   if (!r) return null;
   // (Revived in a climb: back in it, to fight again; the life it cost stays lost.)
@@ -925,7 +924,7 @@ const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy"
 const monUsable = (pick, slot, b = bag()) => {
   const climb = towerNow().run; // (this floor's heal used: no healing item till the next)
   const fight = trainerFight();
-  const spent = (!!climb && climb.heals >= TOWER_HEALS) || (!!fight && fight.used >= TRAINER_HEALS);
+  const spent = false; // (no limit any more: each heal takes your turn)
   return MON_ITEMS.filter((id) => b.items[id] && !(spent && TOWER_HEAL_IDS.includes(id)) && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
 };
 const openPick = (slot, pick, tag) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag } });
@@ -4146,7 +4145,7 @@ export default class PokemonHerd extends View {
         const tw = towerNow();
         return tw.run
           ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${Math.max(0, towerLives(tw.run) - tw.run.faints)} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
-          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · 1 heal a floor · from the Box −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
+          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · a heal or switch takes your turn · from the Box −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
       })())
       // Choosing moves against a trainer, on or off at once (Settings → Choose moves).
       .child(row("menu-choose", `🎯 Choose moves: ${settingsNow().chooseMoves ? "On" : "Off"}`, settingsNow().chooseMoves ? "you pick each move vs trainers" : "they fight by themselves", () => setSetting("chooseMoves", !settingsNow().chooseMoves)))
@@ -4658,9 +4657,7 @@ export default class PokemonHerd extends View {
         })()))
       // From the Bag: what does something to it now (a Berry, a Revive, a stone that evolves it).
       .when(items.length > 0, (el) => el.child(v_flex().gap(4)
-        .child(label(((c, f) => (f && !c ? `🎒 Use from the Bag · vs a trainer: ${Math.max(0, TRAINER_HEALS - f.used)} of ${TRAINER_HEALS} heals left` : !c ? "🎒 Use from the Bag"
-          : c.heals < TOWER_HEALS ? "🎒 Use from the Bag · 🗼 Tower: 1 heal (Berry or Revive) on this floor"
-          : "🎒 Use from the Bag · 🗼 Tower: heal used on this floor, next on the next floor"))(towerNow().run, trainerFight())))
+        .child(label(((c, f) => (f || c ? "🎒 Use from the Bag · vs a trainer: each takes your turn (it strikes)" : "🎒 Use from the Bag"))(towerNow().run, trainerFight())))
         .child(h_flex().flex_wrap().gap(4)
           .children(items.map((id) => chip(`mon-use-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
       // What it holds (take it back), and what it could hold instead.
@@ -5239,7 +5236,7 @@ export default class PokemonHerd extends View {
       const waitFor = climb.run && !tv?.trainer?.tower
         ? (["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now)) ? " · next trainer after the raid"
           : tv && !tv.trainer ? " · a wild one is leaving first" : " · trainer coming…") : "";
-      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(Math.max(0, towerLives(climb.run) - climb.run.faints))}${"♡".repeat(Math.min(climb.run.faints, towerLives(climb.run)))} · ${climb.run.heals < TOWER_HEALS ? "1 heal this floor" : "heal used"}${climb.best ? ` · best ${climb.best}` : ""}`
+      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(Math.max(0, towerLives(climb.run) - climb.run.faints))}${"♡".repeat(Math.min(climb.run.faints, towerLives(climb.run)))}${climb.best ? ` · best ${climb.best}` : ""}`
         : `🗼 Climb over (${over.why}): ${over.wins} win${over.wins === 1 ? "" : "s"}${over.best ? ", a new best!" : ""}`;
       // On the left, under the raid's and the outbreak's notes: the trainer stands in the right corner.
       root.child(div().id("pokemon-tower").absolute().left(6).top(this.leftNotes(now) * 18 + 4).h(16).px(6).rounded(8)

@@ -149,25 +149,26 @@ export function pixelsOf(rows, colors) {
 // yours end the climb (each one out for the rest of it), as does leaving one waiting (WAIT_MS).
 // Each win pays (towerPay), each floor once a day (a climb again the same day pays only above
 // the day's highest: no farming the first floors); every 7th a gift. No healing by itself in a
-// climb, and TOWER_HEALS items a floor (Berries, Revives; a new floor, again). Simulated with the
+// climb; Berries and Revives as you like, each taking your turn (as the games': the limit,
+// TOWER_HEALS a floor, went with that). Earlier, simulated with the
 // game's own battles (Sitrus; a 7-strong team with legendaries / 3 of them): 2 a climb ~8 / ~4.4
 // floors; 1 a floor ~9 / ~5.6; 2 a floor ~11 / ~9.3; unlimited ~13 / ~13, up to 41. A day's
 // climb pays ~₽600 and its small gifts, a couple of hours of agents' work.
 export const TOWER_LIVES = 3;
-export const TOWER_HEALS = 1; // a floor
+export const TOWER_HEALS = Infinity; // (no limit: each heal takes your turn)
 // One of yours swapped for another in a climb (brought out of the Box, or a new kind chosen): it
 // comes in with its agent's health as it stands, less this (the Box held fresh ones by the
-// hundred). Switching between those on the strip is free: simulated (Speed first, its trainers
-// from 0.95), ~8 floors played straight, ~11 switching every exchange to the best-typed.
+// hundred). Switching between those on the strip costs your turn, as with any trainer (it was free).
 export const TOWER_SWITCH = 0.1;
 export const TOWER_HEAL_IDS = ["berry", "sitrus-berry", "revive", "max-revive"];
-// A trainer's battle (the Rival's too), once fought: TRAINER_HEALS healing items in all, as many as
-// the Rival's Potions (spammed from the right-click menu, a Berry each blow, yours never fell).
-export const TRAINER_HEALS = 2; // (RIVAL_POTIONS)
+// A trainer's battle (the Rival's too): healing items without limit, each one taking your turn
+// (spammed from the right-click menu a Berry a blow kept yours up for ever, free; it was 2 in all).
+export const TRAINER_HEALS = Infinity;
 export const TOWER_NEXT_MS = 6000; // the next one in, after a win
 // Its trainers' Pokémon, raised: 0.95 on the first floor, +0.01 a floor, 1.3 at most. (Since the
 // faster moves first, 1.1 from the start made a climb ~4.7 floors, 7-strong, ~3 for 3 of them;
 // 0.95: ~7.2 and ~5.4.)
+export const TOWER_GEAR_FROM = Number(globalThis.process?.env?.TGF ?? 5), TOWER_SETUP_FROM = Number(globalThis.process?.env?.TSF ?? 10);
 export const towerEffort = (wins) => Math.min(1.3, 0.95 + 0.01 * wins);
 export const towerOdds = (wins) => ({
   legend: Math.min(0.5, 0.05 + 0.025 * wins),
@@ -208,7 +209,10 @@ export function withGear(team, rnd = Math.random) {
 }
 export function towerTrainer(rnd, now, n, how = {}) {
   const tr = newTrainer(rnd, now, { ...how, size: 3, odds: towerOdds(n - 1), force: undefined });
-  return { ...tr, team: withSetup(withGear(tr.team, rnd), rnd), tower: n, effort: towerEffort(n - 1) };
+  // Its Pokémon hold items from TOWER_GEAR_FROM, know a setup move from TOWER_SETUP_FROM (from the
+  // first, a climb ended at ~4.8 floors, ~9.7 before them).
+  const gear = n >= TOWER_GEAR_FROM ? withGear(tr.team, rnd) : tr.team;
+  return { ...tr, team: n >= TOWER_SETUP_FROM ? withSetup(gear, rnd) : gear, tower: n, effort: towerEffort(n - 1) };
 }
 // The `n`th win: { money, items: [[id, count]] }.
 // Every floor a small gift too (balls, Berries, in turn; better ones from floor 8), and every 7th
