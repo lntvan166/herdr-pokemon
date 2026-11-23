@@ -1407,3 +1407,22 @@ test("a Choice item locks it in a setup move too", () => {
   assert.equal(st.visitor.fight?.ownMove?.name, "Bulk Up");
   assert.equal(st.visitor.abil.o.locked, "Bulk Up");
 });
+
+// A swap takes all it is: what it holds, its moves, its ability's slot, its health.
+test("swap: all it is goes with it", () => {
+  seed();
+  const cur = picks();
+  const others = Object.keys(cur).filter((k) => k !== "p0" && cur[k]?.dex);
+  setPanes({ ...H.store.get(ids.MOD).panes, p0: { ...cur.p0, held: "life-orb", moves: ["Flamethrower"], abil: 2 } });
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  const v = view({ mon: true, slot: "p0", current: picks().p0, tag: "api", overlay: "ov-mon" });
+  v.render(cx);
+  const key = Object.keys(K.handlers).find((k) => k.startsWith("mon-swap-") && k.endsWith(":on_click"));
+  const other = key.slice("mon-swap-".length, -":on_click".length);
+  click(key);
+  const moved = picks()[other];
+  assert.equal(moved.held, "life-orb");
+  assert.deepEqual(moved.moves, ["Flamethrower"]);
+  assert.equal(moved.abil, 2, "its ability's slot (hidden)");
+  assert.ok(others.length > 0);
+});

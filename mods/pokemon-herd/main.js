@@ -369,6 +369,9 @@ function swapPanes(a, b) {
   const hp = { ...(shared(HP_KEY) ?? {}) }, ha = hp[a], hb = hp[b];
   delete hp[a]; delete hp[b];
   setShared(HP_KEY, { ...hp, ...(hb ? { [a]: hb } : {}), ...(ha ? { [b]: ha } : {}) });
+  // A climb on: one out of it (fainted in it) stays out, wherever it goes.
+  const tw = towerNow();
+  if (tw.run?.out?.some((x) => x === a || x === b)) saveTower({ ...tw, run: { ...tw.run, out: tw.run.out.map((x) => (x === a ? b : x === b ? a : x)) } });
   return true;
 }
 // Agents on screen besides `slot`'s, with a Pokémon (a menu's Swap row): [{ pane, pick, tag }].
