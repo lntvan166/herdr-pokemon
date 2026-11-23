@@ -61,8 +61,8 @@ import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, v
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
-import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf } from "./abilities.js";
+import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY } from "./moves.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -981,6 +981,16 @@ const scaleIn = (p) => (Number.isFinite(Number(p?.scale)) && Number(p.scale) > 0
 const scaleOf = () => scaleIn(props());
 // One row's height at a scale: the sprites, the ground, and the lines for names.
 const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * LABEL_H;
+
+// Its ability in a line ("Ability: Guts: …"), as the Box says it: hidden marked, and if it does
+// nothing here. `slot`: its save slot (which of its species' it has).
+const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ? `Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}` : ""; };
+// A species' abilities, all it can have ("Blaze · Solar Power (hidden)"), those that work here first.
+const speciesAbils = (dex) => {
+  const out = [];
+  for (const i of [0, 1, 2]) { const k = abilityOf({ dex, abil: i }); if (k && slotsOf(dex)[i] && !out.some((x) => x.k === k)) out.push({ k, hidden: i === 2 }); }
+  return out.map((x) => `${abilityName(x.k)}${x.hidden ? " (hidden)" : ""}`).join(" · ");
+};
 
 // ---- the view -------------------------------------------------------------------
 
@@ -4542,8 +4552,9 @@ export default class PokemonHerd extends View {
         .child(v_flex().flex_1().min_w(0).gap(2)
           .child(div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${megaNow != null ? `Mega ${pick.nick ?? nameOf(pick.dex)}${megaNow ? ` ${megaNow}` : ""}` : nameFor(pick)}${p.tag ? ` · ${p.tag}` : ""}`)))
           .child(typeBadges(megaNow != null ? { ...pick, megaNow } : pick, 14, 9))
-          .child(div().text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate()
-            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
+          // (Its ability too: the whole of it on hover.)
+          .child(div().id("mon-info").text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate().tooltip(abilLine(pick, p.slot))
+            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, abilityName(abilityOf(pick, p.slot)), pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
         // Its four moves (as it is), two by two, in their types' colours.
         .child((() => {
           const ms = movesFor(pick, megaNow != null ? fighterKey(pick.dex, { mega: megaNow }) : fighterKey(pick.dex, pick.form ? { form: pick.form } : {})); // (Mega now: its Mega's four)
@@ -6120,7 +6131,7 @@ export default class PokemonHerd extends View {
             // the mod has nothing for (status, switching…) says so.
             .child(((ab) => div().id(`box-abil-${slot}`).text_size(11.5).text_color(t.muted)
               .child(`Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))(abilityOf(pick, slot))))) // all of it, wrapped: the Box is where the details are
-        .child(this.moveRow(pick, t, slot))
+        .child(this.moveRow(pick, t, slot, false))
         // Its actions, in two rows: what you do with it (bring it out, feed it, bring it back up,
         // take what it holds, purify it), then keeping the Box (lock, rename, release).
         .child(h_flex().gap(6).flex_wrap().items_center()
@@ -6450,6 +6461,8 @@ export default class PokemonHerd extends View {
               .child(h_flex().min_w(0).gap(1).items_center()
                 .children(Array.from({ length: MAX_HEARTS }, (_, i) => div().flex_none().text_size(12.5).text_color(i < hearts ? HEART : t.border).child("♥")))
                 .child(div().ml(8).min_w(0).truncate().text_size(11.5).text_color(t.muted).child(line ? `All ${nameOf(cur.dex)} so far: ${line}` : `No ${nameOf(cur.dex)} has finished a job yet`)))
+              // Its ability (the whole line on hover).
+              .when(!!props()?.slot && !!abilityOf(cur, props().slot), (el) => el.child(div().id("pick-abil").min_w(0).truncate().text_size(11).text_color(t.muted).tooltip(abilLine(cur, props().slot)).child(abilLine(cur, props().slot))))
               .child(h_flex().gap(8).items_center()
                 .child(div().min_w(0).text_size(11.5).text_color(t.foreground).child(progress))
                 .when(byJobs, (el) => el.child(
@@ -6520,7 +6533,7 @@ export default class PokemonHerd extends View {
   // it may turn them into now and then. For one of yours (`slot`), "Change": every move it can
   // really learn (moves.js learnableOf: weak ones and signature moves too), click to take or drop
   // one, four at most; "Default" goes back to its own four. Saved on its pick (`moves`).
-  moveRow(e, t, slot = null) {
+  moveRow(e, t, slot = null, abil = true) { // (`abil`: its ability said while changing moves; the Box card says it above)
     const key = fighterKey(e.dex, e.form ? { form: e.form } : {});
     // Each move's kind, as the games show it: PHY (physical: its Attack against their Defense) or
     // SPE (special: its Sp. Atk against their Sp. Def). (`good`: on its stronger side and of its own
@@ -6541,7 +6554,7 @@ export default class PokemonHerd extends View {
       const set = movesFor(e, k);
       const own = mega === null ? e.moves : e.megaMoves?.[megaSlot(mega)];
       const chosen = !!chosenOf(k, own);
-      const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => MOVES[m.type]?.[2]).filter((n) => n && !set.some((m) => m.name === n)))];
+      const sigs = [...new Set(set.filter((m) => !m.sig).map((m) => TOP_MOVE[m.type]).filter((n) => n && !set.some((m) => m.name === n)))]; // (what they rise to, 1 in 8)
       const editId = `${slot}|${mega === null ? "base" : `mega${mega}`}`; // (Gallade's one Mega is kind "": never the same as it as it is)
       const editing = !!slot && this.editingMoves === editId;
       const save = (moves) => {
@@ -6588,6 +6601,8 @@ export default class PokemonHerd extends View {
         .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
       return v_flex().gap(6)
         .child(row)
+        // Its ability, as moves go with it (Technician, Sharpness, Iron Fist…).
+        .when(!!slot && abil, (el) => el.child(div().text_size(10.5).text_color(t.muted).child(abilLine(savedPicks()[slot] ?? e, slot))))
         .child(div().text_size(10.5).text_color(t.dim).child(`Can learn ${all.length}, ${MAX_MOVES} at most (click to take or drop). Its ${physicalSide ? "PHY" : "SPE"} moves hit harder; green: that kind and its own type, the strongest. Gold: a signature move.`))
         .child(h_flex().gap(4).flex_wrap().items_center()
           .children([["all", "All"], ["phy", "PHY"], ["spe", "SPE"]].map(([kd, label]) => fchip(`mf-kind-${editId}-${kd}`, label, mf.kind === kd, () => setF({ kind: kd }))))
@@ -6658,7 +6673,9 @@ export default class PokemonHerd extends View {
           .child(div().text_size(11.5).text_color(t.muted).child(this.locked(pv) === "trainer" ? "Trainer mode: catch one as it walks by, or raise yours till it evolves."
             : this.locked(pv) ? "Legendary: catch one as it walks by (the day's Research gives an Azure Flute to call one), or open them all in Settings."
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
-            : "Preview: click another to see it, or Replace to take this one")))
+            : "Preview: click another to see it, or Replace to take this one"))
+          // The abilities it may have (which one, by its save slot: an Ability Capsule or Patch changes it).
+          .child(div().text_size(11).text_color(t.dim).truncate().child(`Abilities: ${speciesAbils(pv.dex)}`)))
         // Favourites are starred here (or on the card, for the one it is).
         .child((() => {
           const on = isFavorite(favs(), pv);
