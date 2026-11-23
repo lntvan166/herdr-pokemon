@@ -4259,7 +4259,7 @@ export default class PokemonHerd extends View {
         const tw = towerNow();
         return tw.run
           ? row("menu-tower", "🗼 Battle Tower: give up", `${tw.run.wins} win${tw.run.wins === 1 ? "" : "s"} · ${Math.max(0, towerLives(tw.run) - tw.run.faints)} lives left`, () => { saveTower({ ...tw, best: Math.max(tw.best, tw.run.wins), run: null }); unfreezeHp(tw.run.at, Date.now()); })
-          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"} · a heal or switch takes your turn · from the Box −10%`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
+          : row("menu-tower", "🗼 Battle Tower", `${tw.best ? `Best ${tw.best} · ` : ""}${towerLives()} li${towerLives() === 1 ? "fe" : "ves"}`, () => saveTower({ ...tw, run: { at: Date.now(), wins: 0, faints: 0, out: [], nextAt: 0, lives: towerLives() } }));
       })())
       // Choosing moves against a trainer, on or off at once (Settings → Choose moves).
       .child(row("menu-choose", `🎯 Choose moves: ${settingsNow().chooseMoves ? "On" : "Off"}`, settingsNow().chooseMoves ? "you pick each move vs trainers" : "they fight by themselves", () => setSetting("chooseMoves", !settingsNow().chooseMoves)))
