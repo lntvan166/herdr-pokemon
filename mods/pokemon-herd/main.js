@@ -988,6 +988,16 @@ const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * L
 // Its ability in a line ("Ability: Guts: …"), as the Box says it: hidden marked, and if it does
 // nothing here. `slot`: its save slot (which of its species' it has).
 const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ? `Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}` : ""; };
+// What a kind is, as its card says it (a hover over it in the picker's line): its name and types,
+// its abilities, its four moves and its stronger side.
+function entryInfo(e) {
+  const k = fighterKey(e.dex, e.form ? { form: e.form } : {});
+  const st = statsFull(k), phys = st[1] >= st[3];
+  return [`${fullName(e.dex, e.form)} · ${typesOf(k).map(typeLabel).join("/")}`,
+    `Abilities: ${speciesAbils(e.dex, e.form ?? null)}`,
+    `Moves: ${movesetOf(k).map((m) => `${m.name} (${m.physical ? "PHY" : "SPE"} ${powerOf(m.name)})`).join(", ")}`,
+    `${phys ? "Physical" : "Special"} side: Atk ${st[1]} · Sp. Atk ${st[3]}`].join("\n");
+}
 // Its Megas' own abilities ([{ label: "As Mega X", ab }]), for one with Megas (not a form).
 const megaAbils = (pick) => (pick?.form ? [] : megaForms(pick?.dex)).map(({ kind }) => ({ kind, ab: megaAbility(fighterKey(pick.dex, { mega: kind })) }))
   .filter((x) => x.ab).map(({ kind, ab }) => ({ label: `As Mega${kind ? ` ${kind}` : ""}`, ab }));
@@ -6849,7 +6859,7 @@ export default class PokemonHerd extends View {
           .children(line.flatMap((st, i) => [
             ...(i ? [div().text_size(12).text_color(t.dim).px(2).child("›")] : []),
             ...st.map((e) => v_flex()
-              .id(`pv-evo-${entryKey(e)}`).items_center().flex_none().rounded(6).px(2).py(1)
+              .id(`pv-evo-${entryKey(e)}`).tooltip(entryInfo(e)).items_center().flex_none().rounded(6).px(2).py(1)
               .border_1().border_color(isPv(e) ? t.accent : "#00000000").bg(isPv(e) ? t.selected : "#00000000")
               .cursor_pointer().hover((s2) => s2.bg(t.hover))
               .on_click((_e, cx) => { if (!isPv(e)) this.showPreview(e, cx, pv.shiny); })
