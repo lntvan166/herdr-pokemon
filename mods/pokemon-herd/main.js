@@ -62,7 +62,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -3494,7 +3494,7 @@ export default class PokemonHerd extends View {
       }
       // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
       if (k1 && k2) {
-        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves, ab: megaAbility(k) ?? abilityOf(p, a.pane || a.address), held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
+        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves, ab: abilityOf(p, a.pane || a.address), megaAb: megaAbility(k) /* its own first, then its Mega's: spar.js */, held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
         const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv), this.boostNow().id);
         for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) tn.move.abil = tn.abil.map(sayName).filter(Boolean); } // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
         // Their abilities as they meet (Intimidate…): over each one's head first, on their own,
@@ -3704,8 +3704,10 @@ export default class PokemonHerd extends View {
         const weather = this.boostNow().id;
         const slotOf = list[dj].pane || list[dj].address;
         this.wildAbil(v);
-        // (Mega Evolved: its Mega's own, Mega Charizard X's Tough Claws.)
-        const ownAb = megaAbility(ownKey) ?? abilityOf(pk, slotOf), wildAb = megaAbility(wildKey) ?? abilityOf(v.pick, v.id);
+        // Each comes in with its own ability (Gyarados' Intimidate), then, Mega Evolved, takes its
+        // Mega's (Mold Breaker; abilities.js megaEvolve, below): the games' order.
+        const ownAb = abilityOf(pk, slotOf), wildAb = abilityOf(v.pick, v.id);
+        const ownMegaAb = megaAbility(ownKey), wildMegaAb = megaAbility(wildKey);
         // What each holds (abilities.js BATTLE_ITEMS; Leftovers): yours its own, a trainer's its team's.
         // Eviolite: one that can still evolve, not Mega Evolved.
         const ownGear = { item: pk.held, nfe: !mega && evolutionsOf(pk.dex).length > 0 }, wildGear = { item: v.pick.held, nfe: v.pick.mega !== "on" && evolutionsOf(v.pick.dex).length > 0 };
@@ -3754,6 +3756,15 @@ export default class PokemonHerd extends View {
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.o.ab = mine;
           words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
+        }
+        // Mega Evolving now (each once while it faces this one): its Mega's ability, an Intimidate
+        // of its own again (Mega Manectric), said as they meet.
+        for (const [side, other, mab, T1, T2, mine] of [[v.abil.o, v.abil.w, ownMegaAb, O, W, true], [v.abil.w, v.abil.o, wildMegaAb, W, O, false]]) {
+          if (!mab || side.mega) continue;
+          side.mega = true;
+          const m1 = megaEvolve(side, other, mab);
+          (mine ? words.meetOwn : words.meetWild).push(...T1(m1.a));
+          (mine ? words.meetWild : words.meetOwn).push(...T2(m1.b));
         }
         const so = v.abil.o, sw = v.abil.w;
         // Each ability said once while these two face each other (v.abil.shown). One as they meet

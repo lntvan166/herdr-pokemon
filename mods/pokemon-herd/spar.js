@@ -7,7 +7,7 @@
 import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -64,6 +64,11 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
   // Their abilities: each one's side (stages of its own, as abilities.js keeps them).
   const ab = { a: newSide(A.ab, 1, { item: A.held, nfe: A.nfe }), b: newSide(B.ab, 1, { item: B.held, nfe: B.nfe }) }; // (and what each holds)
   const met = meet(ab.a, ab.b);
+  // Mega Evolved: in with its own ability (Intimidate), then its Mega's (`megaAb`), as the games'.
+  for (const [k, o] of [["a", "b"], ["b", "a"]]) {
+    const m1 = megaEvolve(ab[k], ab[o], side[k].megaAb);
+    met[k].push(...m1.a); met[o].push(...m1.b);
+  }
   // Said once a spar for each side (keys tagged "a:", "b:": both with Intimidate, the second
   // was never said); the ids handed back untagged.
   const tag = (side, ks) => ks.map((k) => `${side}:${k}`);

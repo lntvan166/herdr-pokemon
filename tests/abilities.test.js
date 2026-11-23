@@ -238,3 +238,20 @@ test("Mega abilities", async () => {
   const claws = A.onHit(A.newSide(A.megaAbility("6mX")), A.newSide(""), { name: "Dragon Claw", type: "dragon", physical: true, mul: 1, eff: 1 }).mul;
   assert.ok(Math.abs(claws / plain - 1.3) < 1e-9);
 });
+
+// Mega Evolving: in with its own ability first (Gyarados' Intimidate), then its Mega's; a Mega's
+// own Intimidate works as it evolves (Mega Manectric).
+test("Mega Evolving: its own ability first, then its Mega's", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const gy = A.newSide("intimidate"), foe = A.newSide("");
+  A.meet(gy, foe);
+  assert.equal(foe.st.atk, -1);
+  const m = A.megaEvolve(gy, foe, "mold-breaker");
+  assert.equal(gy.ab, "mold-breaker");
+  assert.deepEqual(m.a, ["mold-breaker"]);
+  assert.equal(foe.st.atk, -1, "no second drop");
+  const man = A.newSide("static"), foe2 = A.newSide("");
+  A.meet(man, foe2);
+  A.megaEvolve(man, foe2, "intimidate");
+  assert.equal(foe2.st.atk, -1, "its Mega's Intimidate as it evolves");
+});

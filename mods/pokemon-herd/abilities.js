@@ -133,6 +133,21 @@ export function meet(a, b) {
   scare(b, a, said.b, said.a);
   return said;
 }
+// Mega Evolving, as the games': it came in with its own ability (Gyarados' Intimidate, said as they
+// met), then takes its Mega's (Mold Breaker); one that works as it comes in works again now (Mega
+// Manectric's Intimidate). Returns { a: [keys] (its new one, and what it did), b: [the other's] }.
+export function megaEvolve(side, other, megaAb) {
+  const said = { a: [], b: [] };
+  if (!megaAb || megaAb === side.ab) return said;
+  side.ab = megaAb;
+  const theirs = other.ab;
+  other.ab = ""; // (only its own new one, not the other's again)
+  const m = meet(side, other);
+  other.ab = theirs;
+  said.a.push(...(m.a.length ? m.a : [megaAb]));
+  said.b.push(...m.b);
+  return said;
+}
 // Its Speed: its stage, its ability in the weather (×2).
 export function speedMul(side, weather) {
   return stageMul(side.st.spe) * (WEATHER_SPEED[side.ab]?.includes(weather) ? 2 : 1) * (side.item === "choice-scarf" ? 1.5 : 1);
