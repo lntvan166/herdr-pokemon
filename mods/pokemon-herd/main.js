@@ -65,6 +65,7 @@ import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE,
 import { MULTI_POWER } from "./more-moves.js";
 import { SELF_STAGES as GEN_SELF, RECOIL as GEN_RECOIL } from "./move-stages.js";
 import { SIG_SELF, SIG_RECOIL } from "./sig-moves.js";
+import { FORM_ITEM_IDS, REGION_MAPS, KEPT_ITEMS } from "./form-items.js";
 const SELF_STAGES = { ...GEN_SELF, ...SIG_SELF }, RECOIL = { ...GEN_RECOIL, ...SIG_RECOIL };
 import { MOVE_FLAGS } from "./ability-data.js";
 import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE, canStatus, statusSkip, statusEnd, orbStatus, STATUS_SAY, SKIP_SAY, STATUS_NAMES_SHORT } from "./abilities.js";
@@ -436,7 +437,7 @@ function useOn(slot, id) {
   savePicks({ [slot]: r.pick });
   healBy(slot, r.heal);
   reviveBy(slot, r.revive);
-  saveBag(addItem(addItem(bag(), id, -1), r.back ?? id, r.back ? 1 : 0));
+  saveBag(addItem(addItem(bag(), id, KEPT_ITEMS.has(id) ? 0 : -1), r.back ?? id, r.back ? 1 : 0)); // (a tool or a Map: kept)
   if (r.evolved) noteEvolved();
   if ((r.pick.hearts ?? 0) >= MAX_HEARTS && !bag().marks.fullHearts) saveBag(mark(bag(), { fullHearts: true }));
   if (id === "berry" || id === "sitrus-berry") research("berry");
@@ -971,7 +972,7 @@ const PREVIEW_BOX = 3; // a preview's own kind waiting in the Box, at most this 
 const boxKinds = () => [...new Set(waitingNow().map((x) => (x.pick.form ? `${x.pick.dex}-${x.pick.form}` : String(x.pick.dex))))];
 // One of yours, right-clicked: its menu (what it is; items to use on it now; one waiting in the
 // Box to bring out in its place; another kind; its card in the Box). Sized to what it shows.
-const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", "ability-capsule", "ability-patch", ...STONES.map((k) => `${k}-stone`), "scroll-of-waters", ...HELD_IDS];
+const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", "ability-capsule", "ability-patch", ...STONES.map((k) => `${k}-stone`), "scroll-of-waters", ...FORM_ITEM_IDS, ...Object.keys(REGION_MAPS), ...HELD_IDS];
 const monUsable = (pick, slot, b = bag()) => {
   const climb = towerNow().run; // (this floor's heal used: no healing item till the next)
   const fight = trainerFight();
@@ -6306,7 +6307,7 @@ export default class PokemonHerd extends View {
             .child(icon(h.pick, 32))
             .child(v_flex().flex_1().min_w(0).gap(1)
               .child(div().text_size(12.5).text_color(t.foreground).truncate().child(`${nameFor(h.pick)} · ${h.tag}`))
-              .child(div().text_size(11.5).text_color(t.muted).truncate().child(h.use === "evolve"
+              .child(div().text_size(11.5).text_color(t.muted).truncate().child(h.use === "evolve" || h.use === "form"
                 ? `becomes ${fullName(h.after.dex, h.after.form)}`
                 : h.use === "hold" ? (h.pick.held ? `holds it; its ${ITEMS[h.pick.held].name} comes back` : "holds it")
                 : h.use === "jobs" ? `${h.pick.jobs ?? 0} → ${h.after.jobs}/${evolveJobs(h.pick.dex)} jobs`
@@ -6587,7 +6588,7 @@ export default class PokemonHerd extends View {
           .children(["revive", "max-revive"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
             pill(`box-revive-${id}-${slot}`, `💊 ${ITEMS[id].name} ×${bag().items[id]}`, () => useOn(slot, id))))
           // An Ability Capsule (its other ability) or Patch (its hidden one).
-          .children(["ability-capsule", "ability-patch"].filter((id) => bag().items[id] && itemUse(pick, slot, id) === "ability").map((id) =>
+          .children(["ability-capsule", "ability-patch", ...FORM_ITEM_IDS].filter((id) => bag().items[id] && ["ability", "form"].includes(itemUse(pick, slot, id))).map((id) =>
             pill(`box-use-${id}-${slot}`, `${ITEMS[id].icon} ${ITEMS[id].name} ×${bag().items[id]}`, () => useOn(slot, id))))
           // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
           .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>

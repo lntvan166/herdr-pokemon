@@ -8,6 +8,7 @@
 import { slotsOf, abilSlot, BATTLE_ITEMS } from "./abilities.js";
 import { WALKABLE, isWalkable, hasShiny, hasForm, formsOf, evolutionsOf, waysOf, fullName } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
+import { formWith, mapEvolution, REGION_MAPS } from "./form-items.js";
 import { NATURES, BALLS } from "./trainer.js";
 import { validGender, genderFrom, evolvesAs } from "./gender.js";
 
@@ -235,6 +236,9 @@ export function itemUse(pick, slot, id, how = {}) {
   // The Scroll of Waters: Kubfu into Rapid Strike Urshifu now (the games' Tower of Waters;
   // levelling up, it becomes Single Strike). An Everstone stops it.
   if (id === SCROLL) return pick.dex === 891 && !pick.stay ? "evolve" : null;
+  // A form item (form-items.js: the Rotom Catalog, Reveal Glass, a Nectar…): "form"; a region's Map: "evolve".
+  if (formWith(pick, id, hasForm) !== null) return "form";
+  if (REGION_MAPS[id]) return mapEvolution(pick, id, evolutionsOf, formsOf) ? "evolve" : null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   return stone && evolveTarget(pick, slot, { stone }) ? "evolve" : null;
 }
@@ -244,6 +248,8 @@ export const SCROLL = "scroll-of-waters";
 // item to hold hands back what it held (`back`, for the Bag).
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
+  // Its form changed, all else kept (its shiny if that form has one).
+  if (use === "form") { const form = formWith(pick, id, hasForm); const { form: _f, ...rest } = pick; return { pick: { ...rest, ...(form ? { form } : {}), shiny: !!pick.shiny && hasShiny(pick.dex, form || undefined) }, evolved: false, form: true }; }
   if (use === "ability") return { pick: { ...pick, abil: id === "ability-patch" ? (abilSlot(pick, slot) === 2 ? 0 : 2) : 1 - abilSlot(pick, slot) }, evolved: false };
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
   if (use === "revive") return { pick, evolved: false, revive: REVIVE[id] };
@@ -259,6 +265,7 @@ export function useItem(pick, slot, id, how = {}, at = 0) {
     return dex ? { pick: evolveInto(fed, dex, at), evolved: true } : { pick: fed, evolved: false };
   }
   if (use !== "evolve") return null;
+  if (REGION_MAPS[id]) { const to = mapEvolution(pick, id, evolutionsOf, formsOf); const u = evolveInto(pick, to.dex, at); return { pick: { ...u, form: to.form, shiny: !!pick.shiny && hasShiny(to.dex, to.form) }, evolved: true }; }
   if (id === SCROLL) { const u = evolveInto(pick, 892, at); return { pick: { ...u, form: "0001", shiny: !!pick.shiny && hasShiny(892, "0001") }, evolved: true }; }
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   const dex = evolveTarget(pick, slot, { stone });

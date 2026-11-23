@@ -4,6 +4,7 @@ import { nameOf, evolutionsOf } from "./dex.js";
 import { isPhysicalKey, fighterKey } from "./trainer.js";
 import { itemUse, useItem, HELD_IDS, CARE_HELD, BATTLE_HELD, MAX_HEARTS } from "./picks.js";
 import { BATTLE_ITEMS } from "./abilities.js";
+import { FORM_TOOLS, NECTARS, REGION_MAPS } from "./form-items.js";
 const BATTLE_ICON = {"life-orb": "🔮", "choice-band": "🎗️", "choice-specs": "👓", "choice-scarf": "🧣", "focus-sash": "🎀", "expert-belt": "🥋", "muscle-band": "💪", "wise-glasses": "🤓", "assault-vest": "🦺", "eviolite": "💎", "rocky-helmet": "⛑️", "shell-bell": "🐚", "quick-claw": "🦅", "scope-lens": "🔭", "weakness-policy": "📜", "air-balloon": "🎈", "flame-orb": "🔥", "toxic-orb": "☠️"};
 // What each does in a battle (itemAbout).
 const BATTLE_ABOUT = {"life-orb": "Its moves hit ×1.3, and each one that lands costs it a tenth of its health.", "choice-band": "Its physical moves hit ×1.5, but it uses only the move it chose first while it stays in.", "choice-specs": "Its special moves hit ×1.5, but it uses only the move it chose first while it stays in.", "choice-scarf": "It's ×1.5 faster, but it uses only the move it chose first while it stays in.", "focus-sash": "At full health, a hit that would knock it out leaves it hanging on, once a battle.", "expert-belt": "Its super-effective moves hit ×1.2.", "muscle-band": "Its physical moves hit ×1.1.", "wise-glasses": "Its special moves hit ×1.1.", "assault-vest": "It takes special moves as if its Sp. Def were ×1.5.", "eviolite": "One that can still evolve takes every hit as if its Defense and Sp. Def were ×1.5.", "rocky-helmet": "One that hits it with a move that touches loses a sixth of its health.", "shell-bell": "It gets back an eighth of the damage it deals.", "quick-claw": "One time in five it moves first (after quick moves).", "scope-lens": "Its moves land critical hits more often (1 in 8).", "weakness-policy": "Hit super-effectively and still up: its Attack and Sp. Atk two stages up, once a battle.", "air-balloon": "Ground moves miss it till a hit pops the balloon (back for the next battle).", "flame-orb": "Burns its holder at the end of its first exchange (for Guts, Quick Feet, Marvel Scale: stronger burned).", "toxic-orb": "Poisons its holder at the end of its first exchange (for Poison Heal: it heals instead; Guts, Quick Feet)."};
@@ -31,6 +32,9 @@ export const ITEMS = {
   "ability-patch": { name: "Ability Patch", icon: "🩹", art: "items/ability-patch" },
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, { name: `${k[0].toUpperCase()}${k.slice(1)} Stone`, icon: STONE_ICON[k], art: `items/${k}-stone` }])),
   "scroll-of-waters": { name: "Scroll of Waters", icon: "📜", art: "items/scroll-of-waters" }, // (Kubfu → Rapid Strike Urshifu)
+  // Forms (form-items.js): the games' items that change one's form; Maps for a region's evolution.
+  ...Object.fromEntries(Object.entries({ ...FORM_TOOLS, ...NECTARS }).map(([id, f]) => [id, { name: f.name, icon: f.icon, art: `items/${id}` }])),
+  ...Object.fromEntries(Object.entries(REGION_MAPS).map(([id, m]) => [id, { name: m.name, icon: m.icon, art: "items/town-map" }])),
   "lucky-egg": { name: "Lucky Egg", icon: "🥚", art: "items/lucky-egg", kind: "held" },
   "soothe-bell": { name: "Soothe Bell", icon: "🔔", art: "items/soothe-bell", kind: "held" },
   "amulet-coin": { name: "Amulet Coin", icon: "🪙", art: "items/amulet-coin", kind: "held" },
@@ -65,6 +69,8 @@ export const PRICE = {
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "quick-ball": 200, "dusk-ball": 120, "timer-ball": 120, "master-ball": 25000,
   honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800, "ability-capsule": 1500, "ability-patch": 10000, // (a Patch also the Battle Tower's 28th floor)
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])), "scroll-of-waters": 3000,
+  ...Object.fromEntries(Object.keys(FORM_TOOLS).map((id) => [id, 2000])), ...Object.fromEntries(Object.keys(NECTARS).map((id) => [id, 300])),
+  ...Object.fromEntries(Object.keys(REGION_MAPS).map((id) => [id, 3000])),
   ...Object.fromEntries(CARE_HELD.map((id) => [id, 2000])),
   // For battles: the strongest dearest (as the games' Battle Points: Life Orb, Choice, Focus Sash 48 BP, the rest 32).
   ...Object.fromEntries(BATTLE_HELD.map((id) => [id, ["life-orb", "choice-band", "choice-specs", "choice-scarf", "focus-sash", "assault-vest", "weakness-policy"].includes(id) ? 4000 : 2500])),
@@ -108,7 +114,8 @@ export const GROUPS = [
   ["Balls", (id) => ITEMS[id].kind === "ball"],
   ["Berries", (id) => id === "berry" || id.endsWith("-berry")],
   ["Medicine", (id) => id === "revive" || id === "max-revive"],
-  ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone") || id === "scroll-of-waters"],
+  ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone") || id === "scroll-of-waters" || !!REGION_MAPS[id]],
+  ["Forms", (id) => !!(FORM_TOOLS[id] || NECTARS[id])],
   ["Abilities", (id) => id.startsWith("ability-")],
   ["To hold", (id) => ITEMS[id].kind === "held" && !ITEMS[id].battle],
   ["For battle", (id) => !!ITEMS[id].battle],
@@ -185,6 +192,7 @@ export function itemAbout(id) {
   if (id === "master-ball") return "Never fails. Kept for legendary Pokémon: only one of those gets it.";
   if (id === "ability-capsule") return "Swaps its ability for its species' other one (not the hidden one). Use it on a Pokémon in the Box or from its menu.";
   if (id === "ability-patch") return "Gives it its species' hidden ability, or takes one that has it back to its first. The Battle Tower's 28th floor gives one too.";
+  if (FORM_TOOLS[id] || NECTARS[id] || REGION_MAPS[id]) return `${(FORM_TOOLS[id] ?? NECTARS[id] ?? REGION_MAPS[id]).about}${FORM_TOOLS[id] || REGION_MAPS[id] ? " Kept: use it again and again." : ""}`;
   if (id === "scroll-of-waters") return "Read by Kubfu: it evolves now into Rapid Strike Urshifu (Fighting/Water, Surging Strikes). Levelling up, Kubfu becomes Single Strike.";
   if (id === "rare-candy") return "A level's worth: 5 jobs towards evolving (15 for a first evolution, 30 for a second); evolves it if that's enough.";
   const names = stoneTakers(id.replace(/-stone$/, ""));

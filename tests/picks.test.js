@@ -574,3 +574,22 @@ test("the Scroll of Waters: Kubfu into Rapid Strike Urshifu", () => {
   assert.deepEqual([r.evolved, r.pick.dex, r.pick.form, r.pick.pastJobs, r.pick.hearts], [true, 892, "0001", 4, 3]);
   assert.match(needs(kubfu), /Scroll of Waters/);
 });
+
+// Form items (form-items.js): the games' tools cycle or set its form, all else kept; a Map evolves
+// one into its next stage's regional form.
+test("form items: Rotom Catalog, DNA Splicers, Nectars, Masks; a region's Map", () => {
+  const rotom = { dex: 479, hearts: 2, jobs: 3, shiny: false, mega: "auto" };
+  const heat = useOn(rotom, "p1", "rotom-catalog");
+  assert.deepEqual([heat.pick.form, heat.pick.hearts, heat.pick.jobs, heat.evolved], ["0001", 2, 3, false]);
+  assert.equal(useOn({ ...rotom, form: "0005" }, "p1", "rotom-catalog").pick.form, undefined, "back to itself");
+  assert.equal(useOn({ dex: 646 }, "p1", "dna-splicers").pick.form, "0001");
+  assert.equal(useOn({ dex: 741 }, "p1", "pink-nectar").pick.form, "0003");
+  assert.equal(useOf({ dex: 741 }, "p1", "red-nectar"), null, "already Baile");
+  assert.equal(useOn({ dex: 1017 }, "p1", "hearthflame-mask").pick.form, "0006");
+  assert.equal(useOf({ dex: 25 }, "p1", "rotom-catalog"), null);
+  const raichu = useOn({ dex: 25, jobs: 2 }, "p1", "alola-map", {}, 1);
+  assert.deepEqual([raichu.evolved, raichu.pick.dex, raichu.pick.form], [true, 26, "0001"]);
+  assert.equal(useOn({ dex: 156 }, "p1", "hisui-map").pick.dex, 157);
+  assert.equal(useOf({ dex: 27 }, "p1", "alola-map"), null, "Sandshrew: its own Alolan form evolves so");
+  assert.equal(useOf({ dex: 1 }, "p1", "galar-map"), null);
+});
