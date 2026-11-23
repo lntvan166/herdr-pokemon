@@ -1710,6 +1710,13 @@ export default class PokemonHerd extends View {
       this.want(pick, cx);
     }
     if (!v) return false;
+    // The one of yours fighting a trainer's Pokémon stays where it is, facing it, between blows and
+    // while its next one comes out, till the battle's over or you drag it away (then it waits for
+    // another dropped on it): it wandered off after each blow, and as the next one came out.
+    if (v.trainer?.fighter && !v.trainer.beaten && !v.trainer.leaving && this.drag?.addr !== v.trainer.fighter) {
+      const fm = this.mons[v.trainer.fighter];
+      if (fm && !(fm.restUntil > now)) { fm.pauseUntil = Math.max(fm.pauseUntil ?? 0, now + 2500); fm.battleUntil = Math.max(fm.battleUntil ?? 0, now + 2500); fm.dir = v.x > fm.x ? "r" : "l"; }
+    }
     // Attacked by one of yours: it stands and takes the hit (its health drops halfway through),
     // then walks on from there; at 0 it faints, and is gone in a moment.
     if (v.fight) {
@@ -1882,13 +1889,6 @@ export default class PokemonHerd extends View {
     // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
     // there and up (as if dropped on it again).
     const trv = v.trainer;
-    // The one of yours fighting its Pokémon stays where it is, facing it, between blows, till the
-    // battle's over or you drag it away (then it waits for another dropped on it): it wandered off
-    // after each blow and came back for the next.
-    if (trv?.fighter && !trv.beaten && !trv.leaving) {
-      const fm = this.mons[trv.fighter];
-      if (fm && !(fm.restUntil > now)) { fm.pauseUntil = Math.max(fm.pauseUntil ?? 0, now + 2500); fm.battleUntil = Math.max(fm.battleUntil ?? 0, now + 2500); fm.dir = v.x > fm.x ? "r" : "l"; }
-    }
     // Choose moves: picked, or time's up (the AI's then): the exchange with it.
     if (trv?.choosing && (trv.choosing.chosen || now >= trv.choosing.until) && !v.fight) {
       const ch = trv.choosing; trv.choosing = null;
