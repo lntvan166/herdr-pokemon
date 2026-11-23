@@ -225,3 +225,16 @@ test("battle items: damage, speed, Focus Sash, Air Balloon, Weakness Policy, cos
   // Leftovers: a sixteenth.
   assert.equal(A.leftovers({ ...A.newSide("", 0.5, { item: "leftovers" }) }), 1 / 16);
 });
+
+// A Mega's own ability, as the games': Mega Charizard X Tough Claws, Y Drought; none for others.
+test("Mega abilities", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  assert.equal(A.megaAbility("6mX"), "tough-claws");
+  assert.equal(A.megaAbility("6mY"), "drought");
+  assert.equal(A.megaAbility("94m"), "shadow-tag");
+  assert.equal(A.megaAbility("6"), null);
+  // Tough Claws works: a contact move ×1.3.
+  const plain = A.onHit(A.newSide(""), A.newSide(""), { name: "Dragon Claw", type: "dragon", physical: true, mul: 1, eff: 1 }).mul;
+  const claws = A.onHit(A.newSide(A.megaAbility("6mX")), A.newSide(""), { name: "Dragon Claw", type: "dragon", physical: true, mul: 1, eff: 1 }).mul;
+  assert.ok(Math.abs(claws / plain - 1.3) < 1e-9);
+});

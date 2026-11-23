@@ -62,7 +62,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -988,11 +988,14 @@ const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * L
 // Its ability in a line ("Ability: Guts: …"), as the Box says it: hidden marked, and if it does
 // nothing here. `slot`: its save slot (which of its species' it has).
 const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ? `Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}` : ""; };
+// Its Megas' own abilities ([{ label: "As Mega X", ab }]), for one with Megas (not a form).
+const megaAbils = (pick) => (pick?.form ? [] : megaForms(pick?.dex)).map(({ kind }) => ({ kind, ab: megaAbility(fighterKey(pick.dex, { mega: kind })) }))
+  .filter((x) => x.ab).map(({ kind, ab }) => ({ label: `As Mega${kind ? ` ${kind}` : ""}`, ab }));
 // A species' abilities, all it can have ("Blaze · Solar Power (hidden)"), those that work here first.
 const speciesAbils = (dex) => {
   const out = [];
   for (const i of [0, 1, 2]) { const k = abilityOf({ dex, abil: i }); if (k && slotsOf(dex)[i] && !out.some((x) => x.k === k)) out.push({ k, hidden: i === 2 }); }
-  return out.map((x) => `${abilityName(x.k)}${x.hidden ? " (hidden)" : ""}`).join(" · ");
+  return [...out.map((x) => `${abilityName(x.k)}${x.hidden ? " (hidden)" : ""}`), ...megaAbils({ dex }).map((x) => `${x.label.replace("As ", "")}: ${abilityName(x.ab)}`)].join(" · ");
 };
 
 // ---- the view -------------------------------------------------------------------
@@ -3491,7 +3494,7 @@ export default class PokemonHerd extends View {
       }
       // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
       if (k1 && k2) {
-        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves, ab: abilityOf(p, a.pane || a.address), held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
+        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves, ab: megaAbility(k) ?? abilityOf(p, a.pane || a.address), held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
         const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv), this.boostNow().id);
         for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) tn.move.abil = tn.abil.map(sayName).filter(Boolean); } // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
         // Their abilities as they meet (Intimidate…): over each one's head first, on their own,
@@ -3701,7 +3704,8 @@ export default class PokemonHerd extends View {
         const weather = this.boostNow().id;
         const slotOf = list[dj].pane || list[dj].address;
         this.wildAbil(v);
-        const ownAb = abilityOf(pk, slotOf), wildAb = abilityOf(v.pick, v.id);
+        // (Mega Evolved: its Mega's own, Mega Charizard X's Tough Claws.)
+        const ownAb = megaAbility(ownKey) ?? abilityOf(pk, slotOf), wildAb = megaAbility(wildKey) ?? abilityOf(v.pick, v.id);
         // What each holds (abilities.js BATTLE_ITEMS; Leftovers): yours its own, a trainer's its team's.
         // Eviolite: one that can still evolve, not Mega Evolved.
         const ownGear = { item: pk.held, nfe: !mega && evolutionsOf(pk.dex).length > 0 }, wildGear = { item: v.pick.held, nfe: v.pick.mega !== "on" && evolutionsOf(v.pick.dex).length > 0 };
@@ -4616,8 +4620,9 @@ export default class PokemonHerd extends View {
           .child(div().text_size(13.5).font_semibold().text_color(t.foreground).truncate().child(sparkled(`${pick.shiny ? "✨ " : ""}${megaNow != null ? `Mega ${pick.nick ?? nameOf(pick.dex)}${megaNow ? ` ${megaNow}` : ""}` : nameFor(pick)}${p.tag ? ` · ${p.tag}` : ""}`)))
           .child(typeBadges(megaNow != null ? { ...pick, megaNow } : pick, 14, 9))
           // (Its ability too: the whole of it on hover.)
-          .child(div().id("mon-info").text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate().tooltip(abilLine(pick, p.slot))
-            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, abilityName(abilityOf(pick, p.slot)), pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
+          // (Mega Evolved now: its Mega's own.)
+          .child(div().id("mon-info").text_size(11).text_color(hp === null ? t.blocked : t.muted).truncate().tooltip(megaNow != null && megaAbility(fighterKey(pick.dex, { mega: megaNow })) ? ((ab) => `Ability (Mega): ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`)(megaAbility(fighterKey(pick.dex, { mega: megaNow }))) : abilLine(pick, p.slot))
+            .child([`♥ ${heartsText(friendOf(pick))}`, `${pick.jobs ?? 0} jobs`, state, abilityName((megaNow != null && megaAbility(fighterKey(pick.dex, { mega: megaNow }))) || abilityOf(pick, p.slot)), pick.held ? `holds ${ITEMS[pick.held].name}` : ""].filter(Boolean).join(" · "))))
         // Its four moves (as it is), two by two, in their types' colours.
         .child((() => {
           const ms = movesFor(pick, megaNow != null ? fighterKey(pick.dex, { mega: megaNow }) : fighterKey(pick.dex, pick.form ? { form: pick.form } : {})); // (Mega now: its Mega's four)
@@ -6193,7 +6198,10 @@ export default class PokemonHerd extends View {
             // Its ability (abilities.js): its name, hidden or not, what it does in the games; one
             // the mod has nothing for (status, switching…) says so.
             .child(((ab) => div().id(`box-abil-${slot}`).text_size(11.5).text_color(t.muted)
-              .child(`Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))(abilityOf(pick, slot))))) // all of it, wrapped: the Box is where the details are
+              .child(`Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))(abilityOf(pick, slot)))
+            // Its Megas' own (Mega Charizard X: Tough Claws), which it has while Mega Evolved.
+            .children(megaAbils(pick).map(({ label, ab }) => div().text_size(11.5).text_color(t.muted)
+              .child(`${label}: ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))))) // all of it, wrapped: the Box is where the details are
         .child(this.moveRow(pick, t, slot, false))
         // Its actions, in two rows: what you do with it (bring it out, feed it, bring it back up,
         // take what it holds, purify it), then keeping the Box (lock, rename, release).

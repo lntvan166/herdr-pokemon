@@ -13,6 +13,7 @@
 // needs what the mod has none of (status, switching mid-battle, held items in battle, terrain)
 // does nothing here (`works`).
 import { SELF_STAGES, RECOIL } from "./move-stages.js";
+import { MEGA_ABILITIES } from "./mega-abilities.js";
 import { SPECIES_ABILITIES, ABILITY_KEYS, ABILITY_NAMES, ABILITY_TEXTS, MOVE_FLAGS } from "./ability-data.js";
 
 const INDEX = new Map(ABILITY_KEYS.map((k, i) => [k, i]));
@@ -32,6 +33,9 @@ export function abilityOf(pick, slotKey = "") {
   const s = slotsOf(pick?.dex);
   return ABILITY_KEYS[s[abilSlot(pick, slotKey)] || s[0]] ?? "";
 }
+// A Mega's own ability (mega-abilities.js: Mega Charizard X's Tough Claws), by its fighter key
+// ("6mX"); null for one that isn't a Mega. In a battle it has it while Mega Evolved.
+export const megaAbility = (key) => MEGA_ABILITIES[key] ?? null;
 export const abilityName = (key) => ABILITY_NAMES[INDEX.get(key)] ?? "";
 export const abilityText = (key) => ABILITY_TEXTS[INDEX.get(key)] ?? "";
 export const isHidden = (pick, slotKey = "") => abilSlot(pick, slotKey) === 2;
