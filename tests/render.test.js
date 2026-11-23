@@ -1353,3 +1353,15 @@ test("the moves it can learn: filtered by type and kind", async () => {
   v.render(cx);
   assert.ok(learned().every((m) => m.type === "fire" && m.physical));
 });
+
+// Opened on one's card (Its card in the Box): ✕ Close card there, and its actions before its moves.
+test("the Box opened on a card: Close card, its actions first", () => {
+  seed();
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  const v = view({ bag: true, tab: "box", sel: "p0" });
+  v.render(cx);
+  assert.ok(K.handlers["box-close:on_click"], "✕ Close card");
+  assert.ok(K.handlers["box-lock-p0:on_click"]);
+  click("box-close:on_click");
+  assert.equal(v.boxSel, null);
+});

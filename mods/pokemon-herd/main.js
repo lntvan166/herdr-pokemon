@@ -6362,8 +6362,7 @@ export default class PokemonHerd extends View {
             .children(megaAbils(pick).map(({ label, ab }) => div().text_size(11.5).text_color(t.muted)
               .child(`${label}: ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))))
 ) // all of it, wrapped: the Box is where the details are
-        .child(this.movesPanel(pick, t, slot, false, false))
-        // Its actions, in two rows: what you do with it (bring it out, feed it, bring it back up,
+        // Its actions, in two rows (first, under its name: they sat under its moves, out of sight): what you do with it (bring it out, feed it, bring it back up,
         // take what it holds, purify it), then keeping the Box (lock, rename, release).
         .child(h_flex().gap(6).flex_wrap().items_center()
           .when(!tag && herd.length > 0, (el) => el.child(pill(`box-bring-${slot}`, this.bringing === slot ? "✕ Cancel" : "📤 Bring out to an agent…", () => { this.bringing = this.bringing === slot ? null : slot; this.releasing = null; }, false, true)))
@@ -6417,7 +6416,10 @@ export default class PokemonHerd extends View {
             .text_size(11.5).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; this.boxSel = null; cx.notify(); })
             .child(icon(x.pick, 20))
-            .child(div().min_w(0).truncate().child(sparkled(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`)))))));
+            .child(div().min_w(0).truncate().child(sparkled(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`)))))))
+        // Its moves, after what you do with it.
+        .child(div().h(1).bg(t.border))
+        .child(this.movesPanel(pick, t, slot, false, false));
     };
     return v_flex().id("bag-box").flex_none().h(h).gap(8)
       .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
@@ -6484,7 +6486,7 @@ export default class PokemonHerd extends View {
       // it can learn: it ran over the badges, the grid squeezed to nothing).
       // (Scrolling only with one chosen: a scrolling box takes all the room there is, and the empty
       // card squeezed the grid to one row.)
-      .child(div().id("box-detail").when(!!sel && !picking, (el) => el.flex_1().min_h(0).overflow_y_scrollbar()).when(!sel || !!picking, (el) => el.flex_none().min_h(96)).p(12).rounded(10).bg(t.raised).child(picking
+      .child(div().id(`box-detail-${sel?.slot ?? "none"}`).when(!!sel && !picking, (el) => el.flex_1().min_h(0).overflow_y_scrollbar()).when(!sel || !!picking, (el) => el.flex_none().min_h(96)).p(12).rounded(10).bg(t.raised).child(picking
         ? div().text_size(12).text_color(t.dim).child("Click Pokémon to pick them, then Release (twice). Ones with agents and 🔒 locked ones stay. Duplicates picks every one but the best of each species, never a shiny, an Alpha or a legendary. Each pays ₽10; a shiny or an Alpha ₽50, a legendary ₽100.")
         : detail()));
   }
