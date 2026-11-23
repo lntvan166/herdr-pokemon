@@ -71,7 +71,7 @@ import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { statsFull, damage, moveHow, OWN_TAKE, hpRatio, effectOn } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
+import { statsFull, damage, moveHow, OWN_TAKE, hpRatio, effectOn, sixStats } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
 import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OVERKILL, OVERKILL_GREEN, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR, SIDE_EFFECTS } from "./spar.js";
@@ -699,6 +699,23 @@ const eggArt = (h, frac = 0, now = Date.now()) => image(`mods/${MOD}/art/egg/${f
 const withAbil = (word, names = []) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), ABIL_COLOR]);
 const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
 // A status's tag beside a health bar (BRN, PAR, PSN, FRZ), in its colour.
+// Its six stats (trainer.js sixStats): each its base as a bar (coloured by how high, as the games'
+// summary), the number, and what it is at level 50 with its nature (▲ ×1.1, ▼ ×0.9) and hearts.
+// `w`: the bar's full width (a base of 180).
+const STAT_BAR = (b) => (b < 50 ? "#f34444" : b < 80 ? "#ff7f0f" : b < 100 ? "#ffdd57" : b < 120 ? "#a0e515" : b < 150 ? "#23cd5e" : "#00c2b8");
+function statsBlock(k, pick, t, w = 150) {
+  const rows = sixStats(k, { nature: pick?.nature, effort: effortOf(pick) });
+  const total = rows.reduce((n, r) => n + r.base, 0);
+  return v_flex().gap(1)
+    .children(rows.map((r) => h_flex().h(12).gap(5).items_center()
+      .child(div().w(24).flex_none().text_size(9.5).font_semibold().text_color(t.dim).child(r.name))
+      .child(div().w(22).flex_none().text_size(10).text_color(t.foreground).child(String(r.base)))
+      .child(div().w(w).h(5).flex_none().rounded(3).bg(t.border)
+        .child(div().h(5).rounded(3).w(Math.max(2, Math.round(Math.min(1, r.base / 180) * w))).bg(STAT_BAR(r.base))))
+      .child(div().text_size(9.5).text_color(r.nat > 0 ? "#ff6b6b" : r.nat < 0 ? "#6ba8ff" : t.dim)
+        .child(`${r.value}${r.nat > 0 ? " ▲" : r.nat < 0 ? " ▼" : ""}`))))
+    .child(div().text_size(9.5).text_color(t.dim).child(`Total ${total} · at Lv. 50: the right-hand numbers`));
+}
 const statusTag = (x, top, st) => div().absolute().left(x + 20).top(Math.max(0, top - 3)).h(10).px(2).rounded(2).flex().items_center()
   .bg(STATUS_COLOR[st] ?? "#888888").text_size(7.5).font_bold().text_color("#1d1d1f").child(STATUS_NAMES_SHORT[st] ?? st);
 const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
@@ -3188,6 +3205,7 @@ export default class PokemonHerd extends View {
         .children(typesOf(k).map((ty) => div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty))))
         .child(div().text_size(10.5).text_color(t.dim).child(`${phys ? "Physical" : "Special"} side: Atk ${st[1]} · Sp. Atk ${st[3]}`)))
       .child(div().text_size(11).text_color(t.muted).child(slot ? abilLine(p, slot) : `Abilities: ${speciesAbils(p.dex, p.form ?? null)}`))
+      .child(statsBlock(k, slot ? p : null, t, 170))
       .child(h_flex().gap(3).flex_wrap().children(set.map(chip)))
       .when(!!(slot && p.held), (el) => el.child(h_flex().gap(4).items_center().text_size(10.5).text_color(t.muted).child("Holds").child(this.itemMark(p.held, 14)).child(ITEMS[p.held]?.name ?? "")));
   }
@@ -6614,7 +6632,9 @@ export default class PokemonHerd extends View {
             .on_click((_e, cx) => { bringOut(slot, x.slot); this.bringing = null; this.boxSel = null; cx.notify(); })
             .child(icon(x.pick, 20))
             .child(div().min_w(0).truncate().child(sparkled(`${x.tag}: ${x.pick.shiny ? "✨ " : ""}${nameFor(x.pick)}`)))))))
-        // Its moves, after what you do with it.
+        // Its stats, then its moves, after what you do with it.
+        .child(div().h(1).bg(t.border))
+        .child(statsBlock(fighterKey(pick.dex, pick.form ? { form: pick.form } : {}), pick, t, 200))
         .child(div().h(1).bg(t.border))
         .child(this.movesPanel(pick, t, slot, false, false));
     };
@@ -6949,6 +6969,7 @@ export default class PokemonHerd extends View {
               .map((el2) => this.hovers(el2, "cur", e))),
           ])),
       ))
+      .child(statsBlock(fighterKey(cur.dex, cur.form ? { form: cur.form } : {}), props()?.slot ? cur : null, t, 200))
       .child(this.movesPanel(cur, t, props()?.slot, true, false)) // (its table on Change: the Items below it took a long scroll)
       .child(div().h(1).bg(t.border))
       .child(div().text_size(12).font_semibold().text_color(t.foreground).child("Items"))

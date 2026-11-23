@@ -190,6 +190,13 @@ export const hpRatio = (a, b) => hpAt(statsFull(a)[0] ?? 70) / hpAt(statsFull(b)
 // +1% to its stats (not HP) a heart, +5% at most. One with no pick: 1.
 export const EFFORT_PER_HEART = 0.01;
 export const effortOf = (pick) => 1 + EFFORT_PER_HEART * Math.min(5, Math.max(0, pick?.hearts ?? 0));
+// Its six stats at level 50 (sixStats), as a battle has them: [{ name, base, value, nat (+1 its nature's ×1.1,
+// −1 its ×0.9, 0) }]: HP, Attack, Defense, Sp. Atk, Sp. Def, Speed (`who`: { nature, effort }).
+export const STAT_NAMES = ["HP", "Atk", "Def", "SpA", "SpD", "Spe"];
+export const sixStats = (k, who = {}) => statsFull(k).slice(0, 6).map((b, i) => {
+  const nk = i ? natureK(who.nature, i) : 1;
+  return { name: STAT_NAMES[i], base: b, value: i ? statAt(b, nk * (who.effort ?? 1)) : hpAt(b), nat: nk > 1 ? 1 : nk < 1 ? -1 : 0 };
+});
 // Its Speed in a battle (`who`: { nature, effort }): the faster moves first, as in the games.
 export const speedOf = (k, who = {}) => statAt(statsFull(k)[5] ?? 70, natureK(who.nature, 5) * (who.effort ?? 1));
 // `ctx`: { na, nb (natures), ea, eb (efforts) } of the attacker and the target; none, 1.

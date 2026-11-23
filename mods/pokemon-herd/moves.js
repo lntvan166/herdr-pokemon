@@ -126,6 +126,7 @@ export const exclusiveOf = (attacker) => {
 // those). (Grassy Glide: only in Grassy Terrain, which there isn't here.)
 export const PRIORITY = { "Ice Shard": 1, "Sucker Punch": 1, "Quick Attack": 1, "Mach Punch": 1, "Bullet Punch": 1, "Aqua Jet": 1, "Shadow Sneak": 1,
   "Vacuum Wave": 1, "Accelerock": 1, "Water Shuriken": 1, "Thunderclap": 1, "Extreme Speed": 2 }; // (first whatever the Speed)
+export const DRAIN_AT = 0.5; // (its health at or below: a draining move preferred, pickMove)
 export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75, "Oblivion Wing": 0.75, ...SIG_DRAIN };
 export const ULTIMATE = 1 / 8;
 export const MAX_MOVES = 4; // a signature move (its power: Blast Burn 150)
@@ -307,6 +308,9 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
       if (e < 1 && rnd() < 0.75) sc -= 1;
       if ((m.name === "Sucker Punch" || m.name === "Thunderclap") && !ko && rnd() < 0.8) sc -= 2;
       if (quick && how.slower && how.threatened) sc += 5;
+      // A draining move (Drain Punch, Giga Drain) at half its health or less, not much weaker than
+      // its best (60%): +2, as the newer games' AI (pokeemerald-expansion) heals as it hits.
+      if (DRAIN[m.name] && (how.selfHp ?? 1) <= DRAIN_AT && dmg[i] >= best * 0.6) sc += 2;
       return sc;
     });
     const top = Math.max(...score);

@@ -308,3 +308,11 @@ test("signature moves of Gen 5-9: by form, with their rules", async () => {
   const plain = pickMove(1007, 6, () => 0.5, { moves: ["Collision Course"] });
   assert.ok(Math.abs(cc.mul / plain.mul - 4 / 3) < 1e-9, `${cc.mul} ${plain.mul}`);
 });
+
+// Drain Punch on Urshifu (with Wicked Blow, stronger): at half its health or less it heals as it hits.
+test("the AI drains at half its health or less, if not much weaker", async () => {
+  const how = (selfHp) => ({ ai: true, moves: ["Wicked Blow", "Drain Punch"], dmgOf: (m) => (m.name === "Wicked Blow" ? 0.3 : 0.24), targetHp: 1, selfHp, stages: {}, first: false, foeBest: 0.2 });
+  const used = (hp) => pickMove("892", 6, () => 0.99, how(hp)).name;
+  assert.equal(used(1), "Wicked Blow");
+  assert.equal(used(0.4), "Drain Punch");
+});
