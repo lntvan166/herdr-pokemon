@@ -61,8 +61,11 @@ import { ITEMS, STONES, loadBag, addItem, mark, PRICE, money, sell, sellPrice, v
 import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
-import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune } from "./abilities.js";
+import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY, DRAIN, EXCLUSIVE } from "./moves.js";
+import { MULTI_POWER } from "./more-moves.js";
+import { SELF_STAGES, RECOIL } from "./move-stages.js";
+import { MOVE_FLAGS } from "./ability-data.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -988,6 +991,42 @@ const rowHeight = (scale) => Math.round(88 * scale) + FEET + (TAG_LINES - 1) * L
 // Its ability in a line ("Ability: Guts: …"), as the Box says it: hidden marked, and if it does
 // nothing here. `slot`: its save slot (which of its species' it has).
 const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ? `Ability: ${abilityName(ab)}${isHidden(pick, slot) ? " (hidden)" : ""}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}` : ""; };
+// A move's facts, as the games' move info shows them, for `key` (the one that'd use it): its kind
+// and power, accuracy, priority, what it does besides and what it costs, what it rises to (1 in 8),
+// and how well it suits this one (its own type ×1.5, its stronger side). Lines.
+const STAT_NAME = { atk: "Attack", def: "Defense", spa: "Sp. Atk", spd: "Sp. Def", spe: "Speed" };
+const AILMENT = { par: "paralyse", brn: "burn", psn: "poison", frz: "freeze", flinch: "make it flinch" };
+function moveFacts(m, key) {
+  const out = [];
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  if (m.status) {
+    out.push(`Setup move: raises its own ${m.stages.filter(([, n]) => n > 0).map(([st, n]) => `${STAT_NAME[st]} ${"+".repeat(n)}${n}`).join(", ")}${m.stages.some(([, n]) => n < 0) ? `, lowers ${m.stages.filter(([, n]) => n < 0).map(([st, n]) => `${STAT_NAME[st]} ${n}`).join(", ")}` : ""}. No damage; kept while it stays in.`);
+    return out;
+  }
+  const acc = 1 - missOf(m.name), pr = PRIORITY[m.name] ?? 0;
+  out.push(`${m.physical ? "Physical" : "Special"} · power ${powerOf(m.name)}${MULTI_POWER[m.name] ? " (all its hits)" : ""} · accuracy ${acc >= 1 ? "never misses" : pct(acc)}${pr ? ` · priority +${pr} (moves first)` : ""}`);
+  const fl = MOVE_FLAGS[m.name] ?? "";
+  const tags = [fl.includes("c") && "contact", fl.includes("p") && "punch", fl.includes("b") && "bite", fl.includes("s") && "sound", fl.includes("u") && "pulse"].filter(Boolean);
+  if (tags.length) out.push(`Makes ${tags.join(", ")} (abilities like Tough Claws, Iron Fist go by it)`);
+  const [what, chance] = SIDE_EFFECTS[m.name] ?? [];
+  if (what) out.push(`Effect: ${pct(chance)} to ${AILMENT[what] ?? `lower its ${STAT_NAME[what]} a stage`}`);
+  if (DRAIN[m.name]) out.push(`Heals it ${pct(DRAIN[m.name])} of what it deals`);
+  const self = SELF_STAGES[m.name];
+  if (self) out.push(`${self[0] < 1 ? `${pct(self[0])}: ` : ""}its own ${self[1].map(([st, n]) => `${STAT_NAME[st]} ${n > 0 ? "+" : ""}${n}`).join(", ")}`);
+  if (RECOIL[m.name]) out.push(`Recoil: it takes ${pct(RECOIL[m.name])} of what it deals (Rock Head: none)`);
+  if (CRASH.has(m.name)) out.push("Missed: it crashes, half its health");
+  if (IGNORE_STAGES.has(m.name)) out.push("Ignores the target's stat changes");
+  if (m.name === "Sucker Punch") out.push("Fails unless the target is about to attack");
+  if (["Thunder", "Hurricane"].includes(m.name)) out.push("Never misses in rain; 50% in sun");
+  if (m.name === "Blizzard") out.push("Never misses in snow");
+  if (EXCLUSIVE[m.name]) out.push(`Its own move${EXCLUSIVE[m.name].crit === "always" ? " · always a critical hit" : EXCLUSIVE[m.name].crit === "high" ? " · critical hits often" : ""}`);
+  else if (TOP_MOVE[m.type] && TOP_MOVE[m.type] !== m.name) out.push(`1 in 8: rises to ${TOP_MOVE[m.type]} (${powerOf(TOP_MOVE[m.type])}, never misses)`);
+  if (key) {
+    const st = statsFull(key), side = m.physical ? st[1] : st[3], other = m.physical ? st[3] : st[1];
+    out.push(`For it: ${typesOf(key).includes(m.type) ? "its own type ×1.5" : "not its type"} · ${side >= other ? `its stronger side (${m.physical ? "Atk" : "Sp. Atk"} ${side})` : `its weaker side (${m.physical ? "Atk" : "Sp. Atk"} ${side} < ${other})`}`);
+  }
+  return out;
+}
 // Its Megas' own abilities ([{ label: "As Mega X", ab }]), for one with Megas (not a form).
 const megaAbils = (pick) => (pick?.form ? [] : megaForms(pick?.dex)).map(({ kind }) => ({ kind, ab: megaAbility(fighterKey(pick.dex, { mega: kind })) }))
   .filter((x) => x.ab).map(({ kind, ab }) => ({ label: `As Mega${kind ? ` ${kind}` : ""}`, ab }));
@@ -3015,6 +3054,25 @@ export default class PokemonHerd extends View {
       else if (this.hoverInfo?.key === key) this.hoverInfo = null;
       cx.notify();
     });
+  }
+  // A move hovered (its chip, where moves are chosen): its facts, as the games' move info.
+  hoversMove(el, zone, m, key) {
+    const id = `${zone}|${m.name}`;
+    return el.on_hover((h, cx) => {
+      if (h) this.moveHover = { id, zone, m, key };
+      else if (this.moveHover?.id === id) this.moveHover = null;
+      cx.notify();
+    });
+  }
+  movePanel(zone, t) {
+    const mh = this.moveHover;
+    if (!mh || mh.zone !== zone) return null;
+    const lines = moveFacts(mh.m, mh.key);
+    return v_flex().id(`movefacts-${zone}`).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover).flex_none()
+      .child(h_flex().gap(6).items_center()
+        .child(div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[mh.m.type]).text_size(9.5).font_bold().text_color(typeText(mh.m.type)).child(typeLabel(mh.m.type)))
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(mh.m.name)))
+      .children(lines.map((l) => div().text_size(11).text_color(t.muted).child(l)));
   }
   infoPanel(zone, t) {
     const hi = this.hoverInfo;
@@ -6726,12 +6784,14 @@ export default class PokemonHerd extends View {
       const isGood = (m) => m.physical === physicalSide && ownTypes.has(m.type);
       const row = h_flex().gap(4).flex_wrap().items_center()
         .child(div().text_size(11).text_color(t.muted).mr(2).child(label))
-        .children(set.map((m) => chip(m)))
+        .children(set.map((m, i) => div().id(`mvi-${editId}-${i}`).child(chip(m)).map((el) => this.hoversMove(el, editId, m, k))))
         .child(div().ml(4).text_size(10.5).text_color(t.dim).child(sideText))
         .when(sigs.length > 0 && !editing && mega === null, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
         .when(mega !== null && !chosen && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child("its own four")))
         .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}-${mega ?? "base"}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : editId; })));
-      if (!editing) return row;
+      // A move hovered: its facts under the row (moveFacts).
+      const facts = this.movePanel(editId, t);
+      if (!editing) return facts ? v_flex().gap(4).child(row).child(facts) : row;
       const names = set.map((m) => m.name);
       const all = learnableOf(k);
       // Filters, as the games' TM machine: its kind (PHY, SPE) and a type (those it learns, each
@@ -6765,8 +6825,9 @@ export default class PokemonHerd extends View {
               const next = on ? (cur.length > 1 ? cur.filter((n) => n !== m.name) : cur) : cur.length < MAX_MOVES ? [...cur, m.name] : cur;
               save(next);
               cx.notify();
-            }).child(chip(m, on, isGood(m)));
+            }).child(chip(m, on, isGood(m))).map((el) => this.hoversMove(el, editId, m, k));
           })))
+        .when(!!facts, (el) => el.child(facts))
         .when(chosen, (el) => el.child(h_flex().child(pill(`moves-default-${slot}-${mega ?? "base"}`, "Default: its own four", () => save(null)))));
     };
     // Its Megas (Charizard: X and Y), each a row of its own: their moves are their own to choose.

@@ -1336,3 +1336,18 @@ test("the picker: a hover in the line shows its card's facts", () => {
   K.handlers[key](false, cx);
   assert.equal(v.hoverInfo, null);
 });
+
+// A move hovered where moves are chosen: its facts (kind, power, accuracy, effects, what it suits).
+test("the picker: a move hovered shows its facts", () => {
+  seed();
+  const v = picker();
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  const key = Object.keys(K.handlers).find((k) => k.startsWith("mvi-") && k.includes("on_hover"));
+  assert.ok(key, Object.keys(K.handlers).filter((k) => k.startsWith("mv")).join());
+  K.handlers[key](true, cx);
+  assert.ok(v.moveHover?.m?.name);
+  v.render(cx);
+  K.handlers[key](false, cx);
+  assert.equal(v.moveHover, null);
+});
