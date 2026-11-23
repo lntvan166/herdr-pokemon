@@ -205,7 +205,8 @@ export const risenDash = (name) => (MOVE_FLAGS[name] ?? "").includes("c");
 function setupScore(m, how, set, rnd, canKO = false) {
   const st = how.stages ?? {}, hp = how.selfHp ?? 1;
   const ups = m.stages.filter(([, n]) => n > 0);
-  if (canKO || how.catching || how.threatened || ups.every(([s]) => (st[s] ?? 0) >= 6)) return 80;
+  // (`how.foeBest`: the other's strongest hit on it: two of them would knock it out, no time to use it.)
+  if (canKO || how.catching || how.threatened || (how.foeBest ?? 0) * 2 >= hp || ups.every(([s]) => (st[s] ?? 0) >= 6)) return 80;
   const hits = set.filter((x) => !x.status);
   const useful = ups.some(([s]) => (s === "atk" ? hits.some((x) => x.physical) : s === "spa" ? hits.some((x) => !x.physical) : true));
   if (!useful) return 80;

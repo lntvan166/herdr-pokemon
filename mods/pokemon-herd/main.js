@@ -3746,10 +3746,10 @@ export default class PokemonHerd extends View {
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
         const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: chosenFor(pk, ownKey), weather, lock: lockOf(so),
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
-          stages: so.st, selfHp: ownHpNow, first: !so.turns,
+          stages: so.st, selfHp: ownHpNow, first: !so.turns, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
         const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves,
-          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns } : { random: true }) });
+          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
         so.turns = (so.turns ?? 0) + 1; sw.turns = (sw.turns ?? 0) + 1;
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
