@@ -6706,9 +6706,9 @@ export default class PokemonHerd extends View {
       // What it holds: click to take it back into the Bag.
       .when(!!cur.held, (el) => el.child(div()
         .id("take-held").h(24).px(8).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
-        .border_color(t.accent).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+        .border_color(t.accent).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover)).gap(4)
         .on_click((_e, cx) => { if (takeFrom(slot)) cx.notify(); })
-        .child(`Holds ${ITEMS[cur.held].icon} ${ITEMS[cur.held].name} · take`)))
+        .child("Holds").child(this.itemMark(cur.held, 16)).child(`${ITEMS[cur.held].name} · take`)))
       .child(div().text_size(11.5).text_color(t.muted).mr(2).child("Bag"))
       .when(!ids.length, (el) => el.child(div().text_size(11).text_color(t.dim)
         .child("Nothing for it yet. Idle Pokémon find Berries and stones; a long job earns a Rare Candy.")))
@@ -6722,7 +6722,7 @@ export default class PokemonHerd extends View {
             this.fetchIcons(cx);
             cx.notify();
           }))
-          .child(`${ITEMS[id].icon} ${ITEMS[id].name} ×${b.items[id]}`);
+          .child(this.itemMark(id, 16)).child(`${ITEMS[id].name} ×${b.items[id]}`); // (its art, as the Shop's: the emoji read poorly)
       }));
   }
 
