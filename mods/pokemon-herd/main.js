@@ -3016,7 +3016,9 @@ export default class PokemonHerd extends View {
     if (!dm || !pk || now < (dm.restUntil ?? 0)) return false;
     const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
     if (before && (v.abil.o?.hp ?? 1) > 0.001 && (ownHp(before, now) ?? 0) > 0.001) return false;
-    const key = fighterKey(pk.dex, { form: pk.form }), wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
+    // (Mega Evolved for the fight, as the exchange reckons it: its Mega's moves.)
+    const mega = megaShown(pk, "working");
+    const key = fighterKey(pk.dex, { form: pk.form, mega: mega ? (megaForm(pk.dex, pk.megaKind)?.kind ?? "") : null }), wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
     const lock = v.abil?.own === drop.addr ? lockOf(v.abil.o) : null;
     const set = movesetOf(key, chosenFor(pk, key)).filter((m) => !lock || m.name === lock);
     tr.choosing = { addr: drop.addr, at: now, until: now + CHOOSE_MS, drop: { ...drop }, moves: set.map((m) => ({ name: m.name, type: m.type, physical: m.physical, status: !!m.status, eff: m.status ? 1 : v.abil?.w && knownImmune(v.abil.w, m, slotsOf(v.pick.dex, v.pick.form)) ? 0 : effectOn(m.type, wildKey) })) }; // (×0 too for an ability it's shown: Levitate)
@@ -3601,7 +3603,7 @@ export default class PokemonHerd extends View {
       }
       // A real battle (spar.js): turns of named moves, health, a winner (react.js duel plays it).
       if (k1 && k2) {
-        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: p.moves, ab: abilityOf(p, a.pane || a.address), megaAb: megaAbility(k) /* its own first, then its Mega's: spar.js */, held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
+        const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: chosenFor(p, k) /* its Mega's own when it fights as one (its base four drew Solar Beam on Mega X) */, ab: abilityOf(p, a.pane || a.address), megaAb: megaAbility(k) /* its own first, then its Mega's: spar.js */, held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
         const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv), this.boostNow().id);
         for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) tn.move.abil = tn.abil.map(sayName).filter(Boolean); } // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
         // Their abilities as they meet (Intimidate…): over each one's head first, on their own,
