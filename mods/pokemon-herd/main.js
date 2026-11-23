@@ -5928,10 +5928,16 @@ export default class PokemonHerd extends View {
       .when(tab === "today", (el) => el.child(this.renderToday(daily, LIST_H, t, art)))
       .when(tab === "dex", (el) => el.child(this.renderDex(LIST_H, t, art)))
       .when(tab === "care", (el) => el.child(this.renderCare(boxed, LIST_H, t, icon)))
-      .when(tab === "items", (el) => el.child(h_flex().flex_none().h(LIST_H).gap(12).items_stretch()
+      // The Bag's kinds, as the Shop's: All, or one (Balls, Berries, For battle…), those it has any of.
+      .when(tab === "items", (el) => el.child(h_flex().gap(5).flex_wrap().flex_none()
+        .children([null, ...GROUPS.map(([g]) => g).filter((g) => ids.some((id) => groupOf(id) === g && (b.items[id] ?? 0) > 0))].map((g) => div().id(`bag-cat-${g ?? "all"}`).h(22).px(8).rounded_full().flex().items_center().flex_none().text_size(11.5).border_1()
+          .border_color((this.bagCat ?? null) === g ? t.accent : t.border).bg((this.bagCat ?? null) === g ? t.selected : "#00000000").text_color((this.bagCat ?? null) === g ? t.foreground : t.muted)
+          .cursor_pointer().hover((st) => st.bg(t.hover)).on_click((_e, cx) => { this.bagCat = g; const first = g && grouped(ids).find((id) => groupOf(id) === g && (b.items[id] ?? 0) > 0); if (first) this.sel = first; cx.notify(); })
+          .child(g ?? "All")))))
+      .when(tab === "items", (el) => el.child(h_flex().flex_none().h(LIST_H - 30).gap(12).items_stretch()
         // Items: every one, in the Bag's order.
         .child(v_flex().id("bag-items").w(218).flex_none().min_h(0).overflow_y_scrollbar().p(4).gap(0).rounded(10).bg(t.raised)
-          .children(grouped(ids).flatMap((id, i, all) => {
+          .children(grouped(this.bagCat ? ids.filter((id) => groupOf(id) === this.bagCat) : ids).flatMap((id, i, all) => {
             const n = b.items[id] ?? 0;
             const on = id === sel;
             // A quiet heading where each group starts (Balls, Berries, Evolution…).
