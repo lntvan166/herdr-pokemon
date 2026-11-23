@@ -1164,3 +1164,23 @@ test("the Rival sends the best-suited one next", () => {
   assert.equal(tr.team[1].dex, 9, tr.team.map((m) => m.dex).join(","));
   assert.equal(tr.team[3].dex, 6, "its ace still last");
 });
+
+// Pokémon Sidebar's card: its held item clicked asks for its card in the Box (shared
+// "agent-card-open"): the counting strip opens it, once; an old ask doesn't.
+test("the sidebar's held item opens its Box card", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  st.tick(cx);
+  H.log.opened.length = 0;
+  H.store.set("agent-card-open", { address: "t0", at: Date.now() });
+  st.cardAsked();
+  assert.equal(H.log.opened.at(-1)?.props?.tab, "box");
+  assert.equal(H.log.opened.at(-1)?.props?.sel, "p0");
+  st.cardAsked();
+  assert.equal(H.log.opened.length, 1, "once");
+  H.store.set("agent-card-open", { address: "t0", at: Date.now() - 60000 + 1 });
+  st.cardSeen = 0;
+  st.cardAsked();
+  assert.equal(H.log.opened.length, 1, "an old ask: nothing");
+});

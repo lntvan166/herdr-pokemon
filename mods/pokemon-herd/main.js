@@ -95,6 +95,7 @@ const FEET = 24; // ground line, px above the strip's bottom
 const SPEED = { working: 70, idle: 32 }; // px per second
 const SEASON_CHANCE = 0.3;
 const MOVED_KEY = `${MOD}-sidebar-moved`; // when cards in the sidebar were moved onto Pokémon Sidebar, once
+const CARD_OPEN_KEY = "agent-card-open"; // Pokémon Sidebar asks for one's Box card: { address, at }
 const CARDS_KEY = `${MOD}-cards-default`; // when a new player's agents were first put as cards
 const SHIPPED = ["main", "terminals", "win98"];
 // Whether Pokémon Sidebar (this repo's mods/pokemon-sidebar) is installed next to this mod.
@@ -1036,7 +1037,7 @@ export default class PokemonHerd extends View {
         const t0 = dev?.slow ? Date.now() : 0;
         climbFrom = towerNow().run?.at ?? null; // (health stays as it is while a climb is on)
         readOnce(() => this.tick(cx)); // (each save reads them again)
-        if (this.leader) this.keepVisitor();
+        if (this.leader) { this.keepVisitor(); this.cardAsked(); }
         if (t0) dev.slow("tick", Date.now() - t0);
       } catch (e) {
         logOnce(e, console.log, Date.now(), this.errSeen);
@@ -2917,6 +2918,16 @@ export default class PokemonHerd extends View {
   }
 
   // An item's look on the strip: its sprite once it's in, else its emoji (size px).
+  // The sidebar's card asked for one (Pokémon Sidebar: its held item clicked, shared
+  // CARD_OPEN_KEY { address, at }): the Bag on the Box, its card open. Once, by the counting strip.
+  cardAsked() {
+    const ask = shared(CARD_OPEN_KEY);
+    if (!ask?.at || ask.at <= (this.cardSeen ?? 0)) return;
+    this.cardSeen = ask.at;
+    if (Date.now() - ask.at > 10000) return; // (an old one, from before a reload)
+    const pane = herdAgents().find((x) => x.address === ask.address)?.pane;
+    if (pane) openBag("box", pane);
+  }
   itemMark(id, size) {
     const art = ITEMS[id]?.art;
     if (art && !ART_READY.has(art) && !ART_ASKED.has(art)) {

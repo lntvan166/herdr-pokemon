@@ -781,7 +781,10 @@ export class Agents {
               .when(!!card.shiny, (el) => el.child(div().flex_none().text_color("#ffd23f").child("✨")))
               .child(div().flex_shrink_1().min_w(0).truncate().text_color(t.muted).child(card.name ?? ""))
               // What it holds (Pokerdr's card: the item's art, its name on hover), right after the name.
-              .when(Boolean(card.held), (el) => el.child(div().id(`held-${a.address}`).flex_none().tooltip(card.heldName ?? "").child(image(card.held).size(16))))
+              // Clicked: Pokerdr opens its card in the Box (shared "agent-card-open"), where it's changed.
+              .when(Boolean(card.held), (el) => el.child(div().id(`held-${a.address}`).flex_none().cursor_pointer().tooltip(`${card.heldName ?? ""} · click: its card in the Box`)
+                .on_click((_e, cx) => { cx.stop_propagation(); setShared("agent-card-open", { address: a.address, at: Date.now() }); }) // (not the card's: it'd focus the pane)
+                .child(image(card.held).size(16))))
               .child(div().flex_1())
               .when(Boolean(card.warn), (el) => el.child(
                 div().id(`warn-${a.address}`).flex_none().text_color(t.working).tooltip(card.warn).child("⚔"),
