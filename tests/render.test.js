@@ -1383,3 +1383,25 @@ test("a Pokémon's menu: swap with another agent's", () => {
   assert.equal(after[other].dex, before.p0.dex);
   assert.equal(H.store.get(`${ids.MOD}-hp`)[other]?.hp, 0.4, "its health went with it");
 });
+
+// A Choice item locks it in its first move, a setup move too (Bulk Up first: Bulk Up on).
+test("a Choice item locks it in a setup move too", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 475, jobs: 3, held: "choice-scarf", moves: ["Bulk Up", "Sacred Sword"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "trcs", pick: { dex: 143, hp: 1, abil: 0, trainer: true, moves: ["Body Slam"] }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143, moves: ["Body Slam"] }], idx: 0, waited: true } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  st.dropAt = { addr: "t1", dizzy: false, manual: true, move: "Bulk Up" };
+  st.tick(cx);
+  assert.equal(st.visitor.fight?.ownMove?.name, "Bulk Up");
+  assert.equal(st.visitor.abil.o.locked, "Bulk Up");
+});

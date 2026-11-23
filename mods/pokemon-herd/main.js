@@ -65,7 +65,7 @@ import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE,
 import { MULTI_POWER } from "./more-moves.js";
 import { SELF_STAGES, RECOIL } from "./move-stages.js";
 import { MOVE_FLAGS } from "./ability-data.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -1874,6 +1874,13 @@ export default class PokemonHerd extends View {
     // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
     // there and up (as if dropped on it again).
     const trv = v.trainer;
+    // The one of yours fighting its Pokémon stays where it is, facing it, between blows, till the
+    // battle's over or you drag it away (then it waits for another dropped on it): it wandered off
+    // after each blow and came back for the next.
+    if (trv?.fighter && !trv.beaten && !trv.leaving) {
+      const fm = this.mons[trv.fighter];
+      if (fm && !(fm.restUntil > now)) { fm.pauseUntil = Math.max(fm.pauseUntil ?? 0, now + 2500); fm.battleUntil = Math.max(fm.battleUntil ?? 0, now + 2500); fm.dir = v.x > fm.x ? "r" : "l"; }
+    }
     // Choose moves: picked, or time's up (the AI's then): the exchange with it.
     if (trv?.choosing && (trv.choosing.chosen || now >= trv.choosing.until) && !v.fight) {
       const ch = trv.choosing; trv.choosing = null;
@@ -3982,7 +3989,12 @@ export default class PokemonHerd extends View {
         };
         // A setup move (Swords Dance): no blow, its stages up, said over its head (`setupSaid`).
         const setupSaid = { own: "", wild: "" };
-        const setUp = (m, side, k) => { const out = []; for (const [st, n] of m.stages) stageBy(side, st, n, out); setupSaid[k] = `${m.name}! ${out.length ? stageWords(out) : "Nothing more"}`; };
+        const setUp = (m, side, k) => {
+          const out = [];
+          for (const [st, n] of m.stages) stageBy(side, st, n, out);
+          if (CHOICE.has(side.item) && !side.locked) side.locked = m.name; // (a Choice item locks it in this one too: Bulk Up first, Bulk Up on)
+          setupSaid[k] = `${m.name}! ${out.length ? stageWords(out) : "Nothing more"}`;
+        };
         // Sucker Punch failing (abilities.js suckerFails): no blow, "But it failed!".
         let wmFailed = false;
         const mine = () => {
