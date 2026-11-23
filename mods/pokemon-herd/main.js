@@ -2930,7 +2930,7 @@ export default class PokemonHerd extends View {
       const what = v.trainer ? `${v.trainer.title} ${v.trainer.name}'s ${fullName(v.pick.dex, v.pick.form)}` : `${v.pick.legend ? "A legendary" : v.pick.alpha ? (v.pick.shadow ? "A Shadow Alpha" : "An Alpha") : "A wild"} ${v.pick.shiny ? "✨ " : ""}${fullName(v.pick.dex, v.pick.form)}${v.pick.gender ? ` ${genderMark(v.pick.gender)}` : ""}`;
       const rec = v.trainer?.rival ? loadRival(shared(RIVAL_KEY)) : null;
       const tail = rec ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length} · you ${rec.wins}–${rec.losses} · ${v.trainer.lives} of yours to go down before it wins · a switch costs a free hit · ${v.trainer.potions ?? 0} Potion${v.trainer.potions === 1 ? "" : "s"}`
-        : v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle${v.trainer.tower ? "" : " · a switch costs a free hit"}`
+        : v.trainer ? ` · ${v.trainer.idx + 1} of ${v.trainer.team.length}: drag one of yours onto it to battle · a switch or an item costs a free hit`
         : broke ? " broke free!"
         : !v.gift ? `: click it${v.purse ? ` (${money(v.purse)} and a gift)` : ""}`
         : now - v.giftAt < 2500 ? ` left you ${(v.giftN ?? 1) > 1 ? `${v.giftN} ${ITEMS[v.gift].name}s` : `${/^[AEIOU]/.test(ITEMS[v.gift].name) ? "an" : "a"} ${ITEMS[v.gift].name}`}${v.paid ? ` and ${money(v.paid)}` : ""}`
@@ -2958,7 +2958,7 @@ export default class PokemonHerd extends View {
     const dm = this.mons[drop.addr], pk = ids[drop.addr];
     if (!dm || !pk || now < (dm.restUntil ?? 0)) return false;
     const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
-    if (before && !tr.tower && (v.abil.o?.hp ?? 1) > 0.001 && (ownHp(before, now) ?? 0) > 0.001) return false;
+    if (before && (v.abil.o?.hp ?? 1) > 0.001 && (ownHp(before, now) ?? 0) > 0.001) return false;
     const key = fighterKey(pk.dex, { form: pk.form }), wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
     const lock = v.abil?.own === drop.addr ? lockOf(v.abil.o) : null;
     const set = movesetOf(key, chosenFor(pk, key)).filter((m) => !lock || m.name === lock);
@@ -3722,7 +3722,7 @@ export default class PokemonHerd extends View {
         // Each ability tagged by whose it is ("o:" yours, "w:" theirs): said once for each side
         // (both with Intimidate: one list, and the second was never said).
         const O = (ks) => ks.map((k) => `o:${k}`), W = (ks) => ks.map((k) => `w:${k}`);
-        // A trainer (not the Tower's: swapping on the strip is free there, from the Box costs 10%):
+        // A trainer (the Tower's too; one from the Box there also comes in 10% down):
         // one of yours swapped in while the one before is still up costs a free hit (the games':
         // switching takes your turn): it strikes, yours doesn't.
         // (Down already, as the games': its replacement comes in free. Its health as the last blow
@@ -3730,7 +3730,7 @@ export default class PokemonHerd extends View {
         // dropped in while it was still fainting counted as a switch.)
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
         const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && ownDown(v.fight)) || (ownHp(before, now) ?? 0) <= 0.001;
-        const swapIn = !!v.trainer && !v.trainer.tower && !beforeDown;
+        const swapIn = !!v.trainer && !beforeDown; // (the Tower's too, as the games': it was free there)
         const itemTurn = !!v.trainer && !!drop.item; // (an item used: its turn, as a switch)
         const switched = swapIn || itemTurn;
         const idxNow = v.trainer?.idx ?? -1;

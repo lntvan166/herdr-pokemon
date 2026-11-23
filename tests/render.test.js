@@ -981,8 +981,9 @@ test("a trainer: an item takes your turn", () => {
   assert.equal(st.visitor.trainer.itemTurn, false, "once");
 });
 
-// An ordinary trainer too: a switch with the one before still up costs a free hit; not in the Tower.
-test("a trainer: a switch costs a free hit (not in the Tower)", () => {
+// An ordinary trainer too, and the Tower's (as the games'): a switch with the one before still up
+// costs a free hit.
+test("a trainer: a switch costs a free hit (the Tower's too)", () => {
   seed();
   const st = view({ rows: 1, scale: 0.75 });
   st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
@@ -1003,8 +1004,7 @@ test("a trainer: a switch costs a free hit (not in the Tower)", () => {
     st.tick(cx);
     const fx = st.visitor.fight;
     const switchedNote = (st.mons.t1.sparNotes ?? []).some((n) => /Switched/.test(n.text));
-    if (tower) assert.ok(fx && !switchedNote, "in the Tower: free");
-    else assert.ok(fx.back && fx.blow === null && switchedNote, "a trainer: it struck, yours didn't");
+    assert.ok(fx.back && fx.blow === null && switchedNote, `${tower ? "the Tower's" : "a trainer"}: it struck, yours didn't`);
   }
 });
 
