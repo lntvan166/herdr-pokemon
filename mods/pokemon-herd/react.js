@@ -238,6 +238,16 @@ export function duel(a, b, A, B, now, fight, at = null) {
       leftNotes();
       continue;
     }
+    // A setup move (Swords Dance): it gathers power, and its stages rise over it; no blow.
+    if (tn.move.status) {
+      const sa = reactionAnim("special", S.has) ?? reactionAnim("spar", S.has);
+      const sd = len(S, sa, 700);
+      seq[k].push({ at: t, until: t + sd, anim: sa });
+      seq[k].push({ at: t + Math.round(sd * 0.4), until: t + Math.round(sd * 0.4) + NOTE_MS, anim: null, note: ["setup", `${tn.move.name}|${tn.setup ?? ""}`] });
+      t += Math.max(sd, Math.round(sd * 0.4) + NOTE_MS) + 200;
+      leftNotes();
+      continue;
+    }
     const anim = reactionAnim(tn.move.physical ? "spar" : "special", S.has) ?? reactionAnim("spar", S.has);
     const d = len(S, anim, 700);
     seq[k].push({ at: t, until: t + d, anim });

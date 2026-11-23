@@ -9,6 +9,7 @@
 import { WALKABLE, evolutionsOf } from "./dex.js";
 import { EVOLVES_FROM } from "./species.js";
 import { isLegendary, typesOf, NATURES, effectOn, isPhysicalKey, fighterKey } from "./trainer.js";
+import { movesetOf, setupOf } from "./moves.js";
 
 export const TRAINER_ODDS = 10; // 1 visitor in 10 is a trainer (not in an outbreak or a raid)
 export const WAIT_MS = 3 * 60000; // how long it waits for a battle, then walks on
@@ -185,6 +186,21 @@ export function gearFor(dex, rnd = Math.random) {
   const pool = rnd() < 0.6 ? own : GEAR_ANY;
   return pool[Math.floor(rnd() * pool.length)];
 }
+// A setup move in place of its last (weakest-placed) one, half the time, if its species learns one
+// for its stronger side (Swords Dance, Dragon Dance on one that hits physically; Nasty Plot, Calm
+// Mind, Quiver Dance on a special one): as the games' Battle Tower sets. `moves`: names.
+const PHYS_UP = ["Swords Dance", "Dragon Dance", "Shift Gear", "Victory Dance", "Bulk Up", "Tidy Up", "Coil", "Shell Smash"];
+const SPEC_UP = ["Nasty Plot", "Quiver Dance", "Tail Glow", "Calm Mind", "Shell Smash"];
+export function withSetup(team, rnd = Math.random) {
+  return team.map((m) => {
+    const k = fighterKey(m.dex, {});
+    const want = isPhysicalKey(k) ? PHYS_UP : SPEC_UP;
+    const ups = setupOf(k).map((x) => x.name).filter((n) => want.includes(n)).sort((a, b) => want.indexOf(a) - want.indexOf(b));
+    if (!ups.length || rnd() >= 0.5) return m;
+    const four = movesetOf(k).map((x) => x.name); // (its own move first: Kowtow Cleave stays)
+    return { ...m, moves: [...four.slice(0, 3), ups[0]] };
+  });
+}
 // Each holds a different one (the games' Item Clause).
 export function withGear(team, rnd = Math.random) {
   const used = new Set();
@@ -192,7 +208,7 @@ export function withGear(team, rnd = Math.random) {
 }
 export function towerTrainer(rnd, now, n, how = {}) {
   const tr = newTrainer(rnd, now, { ...how, size: 3, odds: towerOdds(n - 1), force: undefined });
-  return { ...tr, team: withGear(tr.team, rnd), tower: n, effort: towerEffort(n - 1) };
+  return { ...tr, team: withSetup(withGear(tr.team, rnd), rnd), tower: n, effort: towerEffort(n - 1) };
 }
 // The `n`th win: { money, items: [[id, count]] }.
 // Every floor a small gift too (balls, Berries, in turn; better ones from floor 8), and every 7th
@@ -291,7 +307,7 @@ export function rivalTrainer(rnd, now, r, how = {}) {
   const team = [...others.map((dex) => ({ dex, nature: nature() })), { dex: lead, nature: nature() }]; // its starter last, as the games'
   if (r.meets >= 3 && how.megaOf?.(lead) != null) team[2] = { ...team[2], mega: how.megaOf(lead) };
   // Its team holds items from its third visit, as a rival's grows (abilities.js BATTLE_ITEMS).
-  return { cls: "rival", title: RIVAL.title, name: r.name, team: r.meets >= RIVAL_GEAR_FROM ? withGear(team, rnd) : team, at: now, effort: rivalEffort(r.meets), rival: true, meets: r.meets };
+  return { cls: "rival", title: RIVAL.title, name: r.name, team: r.meets >= RIVAL_GEAR_FROM ? withSetup(withGear(team, rnd), rnd) : team, at: now, effort: rivalEffort(r.meets), rival: true, meets: r.meets };
 }
 // Beating it: ₽600, ₽100 more each time it came (₽1,500 at most), a Rare Candy; the first win an
 // Ability Patch, after that an Ability Capsule one time in three.

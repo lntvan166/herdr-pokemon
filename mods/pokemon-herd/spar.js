@@ -7,7 +7,7 @@
 import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -42,7 +42,9 @@ export const DRAIN_TEXT = { drain: "Its energy was drained!" };
 // Its own stages a move changed (turn.self "def:-1,spd:-1"): "Self: Def↓ SpD↓".
 const SELF_TEXT = new Proxy({}, { get: (_, k) => `Self: ${stageWords(String(k).split(",").map((x) => { const [s, n] = x.split(":"); return [s, Number(n)]; }))}` });
 export const RECOIL_TEXT = { "Recoil!": "Hurt by recoil!", "Crashed!": "It kept going and crashed!", "Life Orb": "Hurt by its Life Orb!", "Rocky Helmet": "Hurt by the Rocky Helmet!", "Shell Bell": "Its Shell Bell healed it!", Leftovers: "Its Leftovers healed it!" };
-export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT, recoil: RECOIL_TEXT };
+// A setup move's words ("Swords Dance|atk:2" → "Swords Dance! Atk↑↑").
+const SETUP_TEXT = new Proxy({}, { get: (_, k) => { const [name, st = ""] = String(k).split("|"); const l = st ? st.split(",").map((x) => { const [a, n] = x.split(":"); return [a, Number(n)]; }) : []; return `${name}! ${l.length ? stageWords(l) : "Nothing more"}`; } });
+export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT, recoil: RECOIL_TEXT, setup: SETUP_TEXT };
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
 export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
 
@@ -76,8 +78,8 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
     // (As the games' trainers: a move that knocks the other out now; a quick one first when slower.)
     const by = (to) => (to === "a" ? "b" : "a");
     const dmgOf = (X, Y) => (m) => damage(X.key, Y.key, () => 0.5, { mul: typesOfKey(X.key).includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), ctx: { na: X.nature, nb: Y.nature, ea: X.effort, eb: Y.effort } }).dmg * SPAR_HIT;
-    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), ai: true, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
-      threatened: movesetOf(Y.key, Y.moves).some((m) => dmgOf(Y, X)(m) >= hp[by(to)]) });
+    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), ai: true, stages: ab[by(to)].st, selfHp: hp[by(to)], first: round === 0, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
+      threatened: movesetOf(Y.key, Y.moves).some((m) => !m.status && dmgOf(Y, X)(m) >= hp[by(to)]) });
     const pick = (X, Y, to) => { let m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); for (let n = 0; n < 2 && immuneTo(ab[to], m); n++) m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); return m; };
     const moves = { a: pick(A, B, "b"), b: pick(B, A, "a") };
     const pa = (PRIORITY[moves.a.name] ?? 0) + quickClaw(ab.a, rnd), pb = (PRIORITY[moves.b.name] ?? 0) + quickClaw(ab.b, rnd), sa = speed("a"), sb = speed("b"); // (Quick Claw)
@@ -90,6 +92,13 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       if (me.status === "frz") { if (rnd() < 0.2) me.status = null; else { turns.push({ by, skip: "frz" }); continue; } }
       if (me.status === "par" && rnd() < 0.25) { turns.push({ by, skip: "par" }); continue; }
       const att = side[by], def = side[to];
+      // A setup move (Swords Dance): no blow, its own stages up (abilities.js stageBy), said over it.
+      if (moves[by].status) {
+        const out = [];
+        for (const [stat, n] of moves[by].stages) stageBy(ab[by], stat, n, out);
+        turns.push({ by, move: { ...moves[by] }, dmg: 0, hp: hp[to], setup: out.map(([s2, n]) => `${s2}:${n}`).join(",") });
+        continue;
+      }
       // Hex: twice as strong on one with a status.
       const move0 = moves[by].name === "Hex" && st[to].status ? { ...moves[by], power: moves[by].power * 2 } : moves[by];
       // Their abilities on this hit (abilities.js onHit): its type, a miss or not, ×, or nothing.

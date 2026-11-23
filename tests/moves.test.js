@@ -226,3 +226,25 @@ test("a risen move dashes in by its own contact", async () => {
   for (let i = 0; i < 400; i++) { const m = pickMove("6", "1", Math.random, { moves: ["Air Slash"] }); if (m.risen) { assert.equal(m.name, "Brave Bird"); assert.equal(m.dash, true); assert.equal(m.physical, false); return; } }
   assert.fail("no rise in 400");
 });
+
+// Setup moves, as the games' trainer AI: Swords Dance on the first turn at full health (mostly),
+// never when the other can knock it out now, when catching, at +6, or low.
+test("setup moves: the AI's Swords Dance", async () => {
+  const { learnableOf, isSetup } = await import("../mods/pokemon-herd/moves.js");
+  assert.ok(isSetup("Swords Dance"));
+  assert.ok(learnableOf("983").some((m) => m.name === "Swords Dance" && m.status));
+  const moves = ["Kowtow Cleave", "Iron Head", "Sucker Punch", "Swords Dance"];
+  const ai = (more) => ({ moves, ai: true, dmgOf: (m) => (m.name === "Kowtow Cleave" ? 0.4 : 0.25), targetHp: 1, stages: {}, selfHp: 1, first: true, ...more });
+  const count = (more) => { let n = 0; for (let i = 0; i < 300; i++) if (pickMove("983", "94", Math.random, ai(more)).name === "Swords Dance") n++; return n; };
+  assert.ok(count({}) > 180, "first turn, full health: mostly");
+  assert.equal(count({ threatened: true }), 0, "it'd be knocked out: never");
+  assert.equal(count({ catching: true }), 0);
+  assert.equal(count({ stages: { atk: 6 } }), 0, "at +6: never");
+  assert.ok(count({ selfHp: 0.3, first: false }) < 10, "low: hardly");
+  assert.equal(count({ targetHp: 0.3 }), 0, "it can finish it: it does");
+  const m = pickMove("983", "94", () => 0.99, ai({}));
+  assert.equal(m.name, "Swords Dance");
+  assert.ok(m.status && m.stages.some(([s, n]) => s === "atk" && n === 2));
+  // Not the AI's (a wild one by damage): never a setup move.
+  for (let i = 0; i < 100; i++) assert.notEqual(pickMove("983", "94", Math.random, { moves }).name, "Swords Dance");
+});

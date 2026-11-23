@@ -1199,3 +1199,28 @@ test("the sidebar's card menu opens its Pokémon's menu, or the picker", () => {
   st.cardAsked();
   assert.ok(H.log.opened.at(-1)?.props?.picker);
 });
+
+// A setup move on the strip (vs a trainer): no blow on it, yours' Attack up, its words over yours.
+test("a trainer's battle: Swords Dance raises yours, no blow", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 983, jobs: 3, moves: ["Swords Dance"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "trsd", pick: { dex: 143, hp: 1, abil: 0, trainer: true }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143 }], idx: 0, waited: true } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  st.dropAt = { addr: "t1", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx, "a fight");
+  assert.equal(fx.blow, null, "no blow on it");
+  assert.equal(st.visitor.abil.o.st.atk, 2);
+  assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Swords Dance! Atk↑↑/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
+});

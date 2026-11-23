@@ -11,6 +11,7 @@ import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./ba
 import { effectOn, typesOf, gameDamage, isPhysicalKey } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
 import { MOVE_FLAGS } from "./ability-data.js";
+import { SETUP, SETUP_NAMES, SETUP_LEARNS } from "./move-stages.js";
 
 export const MOVES = {
   normal: ["Body Slam", "Hyper Voice", "Giga Impact"],
@@ -123,7 +124,7 @@ export const CRIT_HIT = 1.5;
 // A move misses as in the games: 1 − its accuracy (base-stats.js MOVE_ACC: Thunder 70%, Hydro Pump
 // 80%, Fire Blast 85%; Swift and Aura Sphere never miss). One without a known accuracy: MISS.
 export const MISS = 0.05;
-export const missOf = (name) => { const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
+export const missOf = (name) => { if (SETUP[name]) return 0; const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
 // The weather, as the main games have it (main.js boostNow().id: "rain", "storm", "sunny",
 // "snow"…): in rain Thunder and Hurricane never miss, in the sun they hit half the time; in snow
 // Blizzard never misses; Solar Beam is half as strong in rain or snow.
@@ -138,7 +139,7 @@ export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
-export const powerOf = (name) => EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
+export const powerOf = (name) => SETUP[name] ? 0 : EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
 // Each type's strongest move by its power in the games (MOVES and MORE_MOVES; a tie, its own list's
 // first): what a move rises to, 1 in 8 (pickMove), sure to hit. Zap Cannon, High Jump Kick, Brave
 // Bird, Foul Play, Double Iron Bash where those beat the type's own (Thunder, Close Combat…).
@@ -152,8 +153,14 @@ export const isPhysical = isPhysicalKey; // its stronger side (Attack ≥ Sp. At
 const entryOf = (i) => ({ type: MOVE_LIST[i][0], name: MOVE_LIST[i][1], physical: MOVE_LIST[i][2], ...(i >= SIG_FROM ? { sig: true } : {}) });
 export function learnableOf(attacker) {
   const l = LEARNS[attacker] ?? LEARNS[String(parseInt(attacker, 10))];
-  return [...exclusiveOf(attacker), ...(l ? l.map(entryOf) : movesetOf(attacker).filter((m) => !m.exclusive))];
+  return [...exclusiveOf(attacker), ...(l ? l.map(entryOf) : movesetOf(attacker).filter((m) => !m.exclusive)), ...setupOf(attacker)];
 }
+// Setup moves (move-stages.js SETUP: Swords Dance, Dragon Dance…): no damage, its own stats up, kept
+// while it stays in. Those its species learns, as entries ({ status: true, stages }); one taught
+// only (never in its own four: you choose it, or a Tower or Rival trainer gives it one).
+export const isSetup = (name) => !!SETUP[name];
+const setupEntry = (name) => ({ type: SETUP[name][0], name, physical: false, status: true, stages: SETUP[name][1] });
+export const setupOf = (attacker) => (SETUP_LEARNS[parseInt(attacker, 10)] ?? []).map((i) => setupEntry(SETUP_NAMES[i]));
 // The moves chosen for it (a pick's `moves`: names), kept to those it can really learn, at most
 // four; null when none of them is (it then knows its own four).
 export function chosenOf(attacker, names) {
@@ -186,6 +193,31 @@ export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t
 // Smash, Foul Play, High Jump Kick), else fires from where it stands, whatever it rose from (its
 // damage still its own kind's). `dash` on the move: fx.js travelOf.
 export const risenDash = (name) => (MOVE_FLAGS[name] ?? "").includes("c");
+// A setup move's score, as the games' trainer AI (pokeemerald's AI_CV_AttackUp and the like,
+// AI_SetupFirstTurn; pokeemerald-expansion's checks): from 100; a stat it raises already +3 or more
+// −1 (61%); at full health +2 (50%); between 40% and 70% −2 (84%), under 40% −2; its first turn
+// facing this one +2 (69%); Dragon Dance and the like (Speed) +1 when the other is faster (50%).
+// Never (−10): all it raises at +6, the other able to knock it out this turn (`how.threatened`) or
+// it able to knock the other out now,
+// catching a wild one (`how.catching`), an Attack or Sp. Atk rise with no move of that kind to use
+// it (Swords Dance on a special one). `how.stages` its stages now, `how.selfHp` its health,
+// `how.first` its first turn facing this one, `how.slower` the other faster.
+function setupScore(m, how, set, rnd, canKO = false) {
+  const st = how.stages ?? {}, hp = how.selfHp ?? 1;
+  const ups = m.stages.filter(([, n]) => n > 0);
+  if (canKO || how.catching || how.threatened || ups.every(([s]) => (st[s] ?? 0) >= 6)) return 80;
+  const hits = set.filter((x) => !x.status);
+  const useful = ups.some(([s]) => (s === "atk" ? hits.some((x) => x.physical) : s === "spa" ? hits.some((x) => !x.physical) : true));
+  if (!useful) return 80;
+  let sc = 100;
+  if (ups.some(([s]) => (st[s] ?? 0) >= 3)) { if (rnd() >= 100 / 256) sc -= 1; }
+  else if (hp >= 0.999 && rnd() >= 0.5) sc += 2;
+  if (hp < 0.4) sc -= 2;
+  else if (hp <= 0.7 && rnd() >= 40 / 256) sc -= 2;
+  if (how.first && rnd() >= 80 / 256) sc += 2;
+  if (ups.some(([s]) => s === "spe") && how.slower && rnd() >= 0.5) sc += 1;
+  return sc;
+}
 // A best damage roll against the average (trainer.js gameDamage: 0.85–1.0, 0.925 on average).
 const BEST_ROLL = 1 / 0.925;
 export function pickMove(attacker, target, rnd = Math.random, how = {}) {
@@ -213,11 +245,13 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const exp = (m) => gameDamage(attacker, target, powerOf(m.name), m.physical, effOf(m), 0.5) * (EXCLUSIVE[m.name]?.judgment ? STAB : stabOf(typeOf(m))) * (EXCLUSIVE[m.name]?.crit === "always" ? CRIT_HIT : 1) * (1 - weatherMiss(m.name, how.weather)) * weatherPower(m.name, how.weather);
   let weights;
   if (how.ai && how.dmgOf) {
-    const dmg = set.map((m) => how.dmgOf(m) * (1 - weatherMiss(m.name, how.weather)));
+    const dmg = set.map((m) => (m.status ? 0 : how.dmgOf(m) * (1 - weatherMiss(m.name, how.weather))));
     const over = (m) => !!how.catching && how.dmgOf(m) >= (how.koAt ?? Infinity);
     const best = Math.max(...dmg.filter((d, i) => !over(set[i])), 0); // (catching: the strongest that leaves it standing)
     const keep = [];
+    const canKO = set.some((m) => !m.status && effOf(m) > 0 && how.dmgOf(m) >= (how.targetHp ?? 1)); // (then no setting up: expansion's)
     const score = set.map((m, i) => {
+      if (m.status) { keep[i] = true; return setupScore(m, how, set, rnd, canKO); }
       const e = effOf(m), quick = (PRIORITY[m.name] ?? 0) > 0;
       const ko = e > 0 && how.dmgOf(m) * (quick && how.slower ? BEST_ROLL : 1) >= (how.targetHp ?? 1);
       keep[i] = ko || quick; // (one to finish it, or a quick one: kept as it is, not turned signature)
@@ -236,11 +270,13 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
     weights = score.map((sc) => (sc === top ? 1 : 0));
     how = { ...how, keep };
   } else if (how.random) weights = set.map(() => 1);
-  else weights = set.map((m) => exp(m) ** PICK_SHARP); // what it'd do, times how sure it is to hit
+  else weights = set.map((m) => (m.status ? 0 : exp(m) ** PICK_SHARP)); // what it'd do, times how sure it is to hit (no setup: that's the AI's)
   const total = weights.reduce((x, y) => x + y, 0);
   let r = rnd() * total, k = 0;
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
   const base = set[k];
+  // A setup move: no damage, its stats up (main.js, spar.js).
+  if (base.status) return { type: base.type, name: base.name, status: true, stages: base.stages, physical: false, ultimate: false, crit: false, miss: false, stab: false, power: 0, mul: 0, eff: 1, missRate: 0 };
   const ex = base.exclusive ? EXCLUSIVE[base.name] : null;
   const roll = rnd();
   // Its own move: itself (drawn as a signature move, but as sure to hit as any, and as physical as

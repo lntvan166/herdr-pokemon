@@ -106,3 +106,15 @@ test("Ice Shard goes first whatever the Speed; a draining move heals the one usi
   for (let i = 0; i < 500; i++) for (const x of sparTurns({ key: 286, moves: ["Drain Punch"] }, { key: 9 }).turns) if (x.drain) drained++; // Breloom taught Drain Punch
   assert.ok(drained > 0);
 });
+
+// A setup move in a spar: no blow, its Attack up, and its next hits harder.
+test("a spar: Swords Dance first, then harder hits", async () => {
+  const S = await import("../mods/pokemon-herd/spar.js");
+  let saw = false;
+  for (let i = 0; i < 40 && !saw; i++) {
+    const r = S.sparTurns({ key: "983", moves: ["Kowtow Cleave", "Swords Dance"], ab: "" }, { key: "143", moves: ["Body Slam"], ab: "" });
+    const sd = r.turns.find((t) => t.move?.name === "Swords Dance");
+    if (sd) { saw = true; assert.equal(sd.dmg, 0); assert.equal(sd.setup, "atk:2"); }
+  }
+  assert.ok(saw, "Swords Dance used at least once");
+});
