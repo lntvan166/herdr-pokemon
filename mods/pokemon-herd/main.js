@@ -6795,7 +6795,7 @@ export default class PokemonHerd extends View {
       .when(!!slot && set.length > 1, (el) => el.child(div().id(`mslot-x-${editId}-${i}`).size(20).rounded(4).flex().items_center().justify_center().flex_none()
         .text_size(11).text_color(t.muted).cursor_pointer().hover((st2) => st2.bg(t.hover).text_color(t.foreground))
         .on_click((_e, cx) => { save(current().filter((n) => n !== m.name)); cx.notify(); }).child("✕")))
-      .map((el) => this.hoversMove(el, editId, m, k));
+      .map((el) => this.hoversMove(el, editId, m, k).flex_1().min_w(0)); // (the hover card is the row's item: it takes the half)
     const empty = (i) => div().h(46).flex_1().rounded(8).border_1().border_color(t.border).flex().items_center().justify_center().text_size(11).text_color(t.dim).child(`empty · pick one below`);
     const slots = Array.from({ length: MAX_MOVES }, (_, i) => (set[i] ? card(set[i], i) : empty(i)));
     // Every move it can learn, filtered (this.moveFilter, as the Box's).
