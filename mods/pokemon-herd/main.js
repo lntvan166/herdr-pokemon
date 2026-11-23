@@ -3854,7 +3854,9 @@ export default class PokemonHerd extends View {
           const [what, chance] = SIDE_EFFECTS[m.name] ?? [];
           if (STAGE_STATS.includes(what) && !res.fainted && (res.eff ?? 1) > 0 && Math.random() < chance) stageBy(target, what, -1, foe);
           if (foe.length) stageSaid[k].push(stageWords(foe));
-          if (a.stages?.att.length) stageSaid[k].push(`Self: ${stageWords(a.stages.att)}`);
+          // Its own (Superpower's Atk and Def down): over it, with what else it cost (costSaid), not
+          // with its blow over the other.
+          if (a.stages?.att.length) costSaid[k === "hit" ? "own" : "wild"].push(stageWords(a.stages.att));
         };
         // A setup move (Swords Dance): no blow, its stages up, said over its head (`setupSaid`).
         const setupSaid = { own: "", wild: "" };
@@ -3880,7 +3882,7 @@ export default class PokemonHerd extends View {
           // Its recoil or crash (abilities.js selfHurt: Brave Bird, High Jump Kick missed).
           const c1 = selfHurt(so, om, r1, dealt1, hpRatio(wildKey, ownKey), sw); // (and Life Orb, Rocky Helmet, Shell Bell)
           // (Said over it, the one it costs, not with its blow over the other: `costSaid`.)
-          costSaid.own = [c1.word, ...c1.said.map(sayName)].filter(Boolean);
+          costSaid.own.push(...[c1.word, ...c1.said.map(sayName)].filter(Boolean));
           if (c1.hurt !== 0) { so.hp = Math.min(1, Math.max(0, so.hp - c1.hurt)); ownRecoil = { hp: so.hp, fainted: so.hp <= 0.001 }; }
         };
         const theirs = () => {
@@ -3901,7 +3903,7 @@ export default class PokemonHerd extends View {
           const dealt2 = Math.max(0, ownBefore - back.hp);
           so.hp = back.hp;
           const c2 = selfHurt(sw, wm, r2, dealt2, hpRatio(ownKey, wildKey), so);
-          costSaid.wild = [c2.word, ...c2.said.map(sayName)].filter(Boolean);
+          costSaid.wild.push(...[c2.word, ...c2.said.map(sayName)].filter(Boolean));
           if (c2.hurt !== 0) { sw.hp = Math.min(1, Math.max(0, sw.hp - c2.hurt)); wildRecoil = { hp: sw.hp, fainted: sw.hp <= 0.001 }; }
         };
         let omHit = { ...om };
