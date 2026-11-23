@@ -263,6 +263,14 @@ export const RESIDUE = {
 };
 export const residueOf = (type) => RESIDUE[type] ?? null;
 export const RESIDUE_FROM = 150, RESIDUE_MS = 1300, RESIDUE_FADE = 260;
+// A status, as it's given and as it hurts (burn, poison) or costs a turn (paralysed, frozen):
+// its residue over the one it's on, for `ms`, in its type's colours. (A moment only: no motion
+// left on it after; frozen, it stays tinted, still.)
+export const STATUS_FX = { brn: "burn", par: "shock", psn: "poison", frz: "freeze" };
+export const STATUS_TYPE = { brn: "fire", par: "electric", psn: "poison", frz: "ice" };
+export const AURA_GIVEN = 1300, AURA_TICK = 800, AURA_SKIP = 900, AURA_THAW = 700;
+// [{ at, kind, ms, type, jolt? }] for a status: given, its exchange's hurt, a turn it lost, thawing.
+export const statusAura = (what, at, ms, more = {}) => (STATUS_FX[what] ? { at, kind: STATUS_FX[what], ms, type: STATUS_TYPE[what], ...more } : null);
 
 // ---- signature moves: each its own look, as in the games ------------------------------------
 // A signature move (moves.js, names[2]) is drawn its own way instead of its type's shot. Each

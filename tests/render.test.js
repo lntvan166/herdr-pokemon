@@ -1462,13 +1462,20 @@ test("a trainer's battle: Will-O-Wisp burns; frozen, a turn lost", () => {
   }
   assert.ok(burned, "Will-O-Wisp (85%) burned it in six tries");
   assert.equal(st.visitor.fight.blow, null, "no blow: a status move");
+  // Drawn: flames over it as the move lands (fx.js statusAura).
+  const burnAura = (st.visitor.fight.auras ?? []).find((a) => a.kind === "burn");
+  assert.ok(burnAura, JSON.stringify(st.visitor.fight.auras));
   st.render(cx);
+  const later = Date.now; Date.now = () => burnAura.at + 200;
+  try { st.render(cx); assert.ok(st.fxSeen?.has(`aura-wild-trwow-${burnAura.at}-burn`), "its flames drawn"); } finally { Date.now = later; }
   // Frozen: its turn lost.
   st.visitor.fight = null; st.visitor.statuses = { t1: "frz" };
   const rnd = Math.random; Math.random = () => 0.9; // (no thaw)
   try { st.dropAt = { addr: "t1", dizzy: false }; st.tick(cx); } finally { Math.random = rnd; }
   assert.equal(st.visitor.fight.blow, null, "frozen: no move");
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Frozen solid!/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
+  assert.ok((st.mons.t1.auras ?? []).some((a) => a.kind === "freeze"), "frozen solid: drawn");
+  assert.deepEqual([st.mons.t1.ice?.from, st.mons.t1.ice?.to], [0, Infinity], "tinted till it thaws");
 });
 
 // None of yours able to fight a trainer's (all resting after fainting): it wins and goes (it

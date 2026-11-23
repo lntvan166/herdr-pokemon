@@ -76,7 +76,7 @@ import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR, SIDE_E
 const STAGE_STATS = ["atk", "def", "spa", "spd", "spe"];
 import { duel } from "./react.js";
 import { reactionAnim, focusEdge, onFocus, onStatus, onSeason, onFidget, onCelebrate, battle, battleSpots, reactIcon, sparPair, teasePair, attackPair, teaseSpot, onPoke, TEASE_GAP, shaken, dropTarget, onDizzy, SPAR_GAP, onCombo, COMBO_GAP, onStir, sleepAfter, effectiveMood, pose, megaShown } from "./react.js";
-import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
+import { blowWord, MAX_GAP, EVOLVE_MS, EVOLVE_BURST, EVOLVE_WHITE, EVOLVE_SWAPS, evolveShape, MEGA_MS, MEGA_BURST, HATCH_SHAKE, HATCH_MS, RAINBOW, MEGA_STYLE, GOLD_STYLE, residueOf, RESIDUE_FROM, RESIDUE_MS, RESIDUE_FADE, statusAura, AURA_GIVEN, AURA_TICK, AURA_SKIP, AURA_THAW, VOLLEY, ARC_PEAK, dashAt, HITSTOP, MEGA_SHORT, megaTiming, megaParts, megaTimes, fightGap, specialParts, specialTimes, stopOf, stopOfMove, physicalParts, physicalTimes, signatureParts, signatureTimes, MISS_WORD, MISS_KNOCK, slashParts, speedLines, CHARGE_MS, travelOf, chargeParts, damageText, launchSound, hitSound, moveStyle, shotParts, power, burstParts, knockOf, effectWord, wildSpot, KNOCK_OUT, KNOCK_BACK, SHAKE_MS, THROW_UP, THROW_DOWN, INTO_BALL, SHAKE_FROM, SHAKE_EVERY, WOBBLE, wobbling, throwEnd, MOVE } from "./fx.js";
 import { rollGender, genderMark, femaleSprite, GENDER_COLOR } from "./gender.js";
 import { loadCare, careWork, hatchPick, canBreed, whyNot, LAY_MIN, LAY, hatchMinutes, groupsOf, BORN_KEPT } from "./breed.js";
 import { weatherNow, boosts, WEATHER_HIT, WEATHER_SHARE, weatherText, rollSize, sizeClass, drawSize, withRecord, sizeText, knockMul, recordSize } from "./weather.js";
@@ -595,8 +595,8 @@ const fxNumber = (id, [text, color], x, top, first) => div().id(id).absolute().l
 // What a move leaves on its target (fx.js RESIDUE), over its body (cx; headY to ground), `t` ms
 // in: flames flickering, sparks crackling, frost, rising bubbles, dots circling its head, drips,
 // leaves, dust, sparkles; faded out at the end.
-function fxResidue(id, kind, style, cx, headY, ground, t, first) {
-  const mid = (headY + ground) / 2, fading = t >= RESIDUE_MS - RESIDUE_FADE;
+function fxResidue(id, kind, style, cx, headY, ground, t, first, ms = RESIDUE_MS) {
+  const mid = (headY + ground) / 2, fading = t >= ms - RESIDUE_FADE;
   const dot = (k, x, y, w, h, color, round = true) => div().id(`${id}-${k}`).absolute().left(x - w / 2).top(y - h / 2).w(w).h(h).bg(color).when(round, (el) => el.rounded_full());
   const flick = (el, p) => el.loop("opacity", { from: 0.25, to: 1, period: Math.max(100, p) });
   const bob = (el, y, dy, p) => el.loop("top", { from: y, to: y + dy, period: Math.max(100, p) });
@@ -616,6 +616,9 @@ function fxResidue(id, kind, style, cx, headY, ground, t, first) {
         .transition("width", { duration: 700, easing: "ease-out" }).transition("height", { duration: 700, easing: "ease-out" })
         .transition("left", { duration: 700, easing: "ease-out" }).transition("top", { duration: 700, easing: "ease-out" }).transition("opacity", { duration: 800 });
     }),
+    // Thawing: its ice breaking, bits flying off.
+    thaw: () => [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1.4]].map(([sx, sy], k) => fxOnce(`${id}-${k}`, first,
+      { x: cx + sx * 7, y: mid + sy * 7, w: 6, h: 5, o: 0.95 }, { x: cx + sx * 24, y: mid + sy * 18 + 6, w: 3, h: 3, o: 0 }, 600, (el) => el.bg("#d8f6ff"))),
     sparkle: () => [[-12, -8], [11, -2], [-6, 9], [8, 12]].map(([dx, dy], k) => flick(dot(k, cx + dx, mid + dy, 3, 3, k % 2 ? style.hot : style.mid, false), 260 + k * 70)),
   }[kind];
   return div().id(id).absolute().left(0).top(0).opacity(fading ? 0 : 1).transition("opacity", { duration: RESIDUE_FADE })
@@ -2019,7 +2022,10 @@ export default class PokemonHerd extends View {
   // [{ at, dir, p, style, word? }], fx.js): knocked back `dir` and back, shaking for a big one;
   // the burst where it's hit; the word over its head.
   // `lunge`: { px, ms } while it rushes in to strike (a dash, fx.js dashAt) and back.
-  withBlows(key, blows, body, cx, headY, ground, now, lunge = null) {
+  // `st`: { auras (a status given, hurting, a turn lost: fx.js statusAura), frozen (tinted, still) }.
+  withBlows(key, blows, body, cx, headY, ground, now, lunge = null, st = {}) {
+    const auras = (st.auras ?? []).filter((a) => now >= a.at && now < a.at + a.ms);
+    const jolt = auras.some((a) => a.jolt);
     const b = (blows ?? []).filter((x) => now >= x.at && now < x.at + 1300).at(-1);
     const k0 = b && (b.miss ? MISS_KNOCK : knockOf(b.p));
     const k = k0 && { ...k0, px: Math.round(k0.px * (b.kb ?? 1)) }; // a heavy one flies less (weather.js knockMul)
@@ -2028,7 +2034,16 @@ export default class PokemonHerd extends View {
     const wrap = div().absolute().left((out ? b.dir * k.px : 0) + (lunge?.px ?? 0)).top(0).w(SLOT).h(ground + 10)
       .transition("left", { duration: lunge ? lunge.ms : out ? 70 : KNOCK_BACK, easing: lunge ? (lunge.px ? "ease-in" : "ease-out") : "ease-out" })
       .when(!!b && k.shake && now >= b.at + stop && now < b.at + stop + SHAKE_MS, (el) => el.loop("top", { from: -2, to: 2, period: 100 }))
+      .when(jolt && !(b && k.shake), (el) => el.loop("top", { from: -1, to: 1, period: 60 })) // (fully paralysed: a jolt)
       .child(body);
+    // Frozen: an ice block over it, still, till it thaws.
+    if (st.frozen) wrap.child(div().absolute().left(cx - 19).top(headY - 2).w(38).h(Math.max(14, ground - headY + 2)).rounded(7)
+      .bg("#bfefff").border_1().border_color("#e8fbff").opacity(0.3));
+    // A status: given, hurting, a turn lost, thawing (fx.js statusAura), over it a moment.
+    for (const a of auras) {
+      const id = `aura-${key}-${a.at}-${a.kind}`;
+      wrap.child(fxResidue(id, a.kind, moveStyle(a.type), cx, headY, ground, now - a.at, this.fxFirst(id), a.ms));
+    }
     // Rushing in: streaks trailing behind it, carried with it.
     if (lunge?.px && lunge.style) {
       const sid = `sl-${key}-${lunge.at}`;
@@ -2190,6 +2205,7 @@ export default class PokemonHerd extends View {
         b.at + RESIDUE_FROM, b.at + RESIDUE_FROM + 40, b.at + RESIDUE_FROM + RESIDUE_MS - RESIDUE_FADE, b.at + RESIDUE_FROM + RESIDUE_MS);
       if (!b.miss) sounds.push([`${key}-hit-${b.at}`, b.at, hitSound(b.p)]);
     };
+    const auraTimes = (a) => times.push(a.at, a.at + 40, a.at + a.ms - RESIDUE_FADE, a.at + a.ms);
     // A move: it gathers (a frame as it starts, one to set it moving), fires, lands.
     const moveTimes = (key, type, launch, land, physical = false, ultimate = false, name = null) => {
       times.push(launch - CHARGE_MS, launch - CHARGE_MS + 40, launch, launch + 40, launch + 280, launch + 560, land, land + 70, land + 290);
@@ -2202,6 +2218,7 @@ export default class PokemonHerd extends View {
       for (const n of m.sparNotes ?? []) times.push(n.at, n.at + 40, n.until - 300, n.until);
       if (m.sparHp) times.push(m.sparHp.until);
       for (const b of m.blows ?? []) blowTimes(b, addr);
+      for (const a of m.auras ?? []) auraTimes(a);
       if (m.react && now < m.react.until + 400) for (const sh of shotsOf(m)) moveTimes(`shot-${addr}-${sh.at}`, sh.move?.type, sh.at, sh.until, sh.move?.physical, sh.move?.ultimate, sh.move?.name);
     }
     const v = this.visitor;
@@ -2211,6 +2228,7 @@ export default class PokemonHerd extends View {
     if (v?.trainer?.introAt) { const a = v.trainer.introAt; times.push(a, a + 40, a + 250, a + 900, a + RIVAL_INTRO_MS - 300, a + RIVAL_INTRO_MS, a + RIVAL_INTRO_MS + 4500); }
     if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
     if (v?.trainer?.choosing) { const c = v.trainer.choosing; times.push(c.at, c.at + 40, c.until); for (let k = c.at + 250; k < c.until; k += 250) times.push(k); } // (its bar and seconds running down)
+    for (const a of v?.fight?.auras ?? []) auraTimes(a);
     if (v?.fight?.wildStatus) times.push(v.fight.wildStatus.at, v.fight.wildStatus.at + 40, v.fight.wildStatus.until - 260, v.fight.wildStatus.until);
     if (v?.fight?.wildCost) times.push(v.fight.wildCost.at, v.fight.wildCost.at + 40, v.fight.wildCost.until - 260, v.fight.wildCost.until);
     if (v?.fight?.wildNote) times.push(v.fight.wildNote.at, v.fight.wildNote.at + 40, v.fight.wildNote.until - 260, v.fight.wildNote.until);
@@ -2267,6 +2285,7 @@ export default class PokemonHerd extends View {
     }
     // Forget old ones: blows, effects drawn, sounds played.
     for (const m of Object.values(this.mons ?? {})) if (m.blows?.length) m.blows = m.blows.filter((b) => now < b.at + 3000);
+    for (const m of Object.values(this.mons ?? {})) if (m.auras?.length) m.auras = m.auras.filter((a) => now < a.at + a.ms + 1000);
     if (this.bossBlows?.length) this.bossBlows = this.bossBlows.filter((b) => now < b.at + 3000);
     if (this.fxSeen) for (const [id, at] of this.fxSeen) if (now - at > 15000) this.fxSeen.delete(id);
     if (this.sounded) for (const [k, t] of this.sounded) if (now - t > 15000) this.sounded.delete(k);
@@ -2747,7 +2766,7 @@ export default class PokemonHerd extends View {
         .top(fainting && !ff ? 8 : 0).opacity(fainting && !ff ? 0 : 1)
         .transition("top", { duration: 700, easing: "ease-in" }).transition("opacity", { duration: 900, delay: 150 })
         .child(this.withBlows(`wild-${v.id}`, fx.blow ? [fx.blow] : [], wildBody, mid, headY, ground, now,
-          fx.back && !fx.back.setup && travelOf(fx.wildMove?.type, fx.wildMove?.dash ?? fx.wildMove?.physical) === "dash" ? lungeOf(dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now, stopOfMove(fx.wildMove)), fx.wildMove, fx.backLaunch) : null)));
+          fx.back && !fx.back.setup && travelOf(fx.wildMove?.type, fx.wildMove?.dash ?? fx.wildMove?.physical) === "dash" ? lungeOf(dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now, stopOfMove(fx.wildMove)), fx.wildMove, fx.backLaunch) : null, { auras: fx.auras, frozen: !v.fainted && !!fx.ice && now >= fx.ice.from && now < fx.ice.to })));
       // Its move, flying back at yours (fx.js: its type's look).
       // A setup move (Swords Dance): its words over its head, no move flying.
       const wsn = fx.wildStatus;
@@ -4070,8 +4089,12 @@ export default class PokemonHerd extends View {
           if (canStatus(target, m.inflict, types)) { target.status = m.inflict; statusSaid[k] = STATUS_SAY[m.inflict]; }
           else statusSaid[k] = "It doesn't affect it!";
         };
+        const skipped = { own: null, wild: null }; // (a turn lost, or thawed: drawn, statusAura)
+        const given = { own: null, wild: null }; // (a status given by a move: drawn as it lands)
+        const st0 = { own: so.status ?? null, wild: sw.status ?? null };
         const mine = () => {
           const sk = statusSkip(so);
+          skipped.own = sk;
           if (sk === "thaw") costSaid.own.push(SKIP_SAY.thaw);
           else if (sk) { ownIdle = true; setupSaid.own = SKIP_SAY[sk]; return; }
           if (ownFlinched) { ownIdle = true; setupSaid.own = "It flinched!"; return; }
@@ -4100,6 +4123,7 @@ export default class PokemonHerd extends View {
         const theirs = () => {
           if (potion) return; // (its turn the Potion)
           const sk = statusSkip(sw);
+          skipped.wild = sk;
           if (sk === "thaw") costSaid.wild.push(SKIP_SAY.thaw);
           else if (sk || wildFlinched) { wildIdle = true; setupSaid.wild = sk ? SKIP_SAY[sk] : "It flinched!"; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
           if (wm.status && wm.inflict) { wildIdle = true; setupSaid.wild = `${wm.name}!`; inflictOn(wm, so, ownTypesSt, "own"); back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
@@ -4127,6 +4151,8 @@ export default class PokemonHerd extends View {
         const costSaid = { own: [], wild: [] }; // (Recoil!, Life Orb, Rocky Helmet, Shell Bell: over the one it touched)
         if (wildFirst) { theirs(); if (!switched && !back?.fainted && !wildRecoil?.fainted) mine(); }
         else { if (!switched) mine(); if (!hit.fainted && !ownRecoil?.fainted) theirs(); }
+        if ((sw.status ?? null) !== st0.wild) given.wild = sw.status;
+        if ((so.status ?? null) !== st0.own) given.own = so.status;
         // Speed Boost and the like, with the last hit's words (none: the first's).
         (back ? words.back : words.hit).push(...O(endTurn(so)), ...W(endTurn(sw)));
         // Leftovers: a sixteenth back as the exchange ends (each still up), shown then (fx `left`).
@@ -4136,9 +4162,9 @@ export default class PokemonHerd extends View {
         // Its burn or poison as the exchange ends (abilities.js statusEnd), each still up; then a
         // Flame or Toxic Orb's (its holder burned or poisoned). Health as the exchange ends (fx `left`).
         const ownUp = !(back?.fainted || ownRecoil?.fainted), wildUp = !(hit.fainted || wildRecoil?.fainted);
-        let endO = 0, endW = 0;
-        if (ownUp) { const e = statusEnd(so); if (e.delta) { endO = e.delta; so.hp = clamp(so.hp + e.delta, 0, 1); costSaid.own.push(e.word); } const o = orbStatus(so, ownTypesSt); if (o) { so.status = o; costSaid.own.push(STATUS_SAY[o]); } }
-        if (wildUp) { const e = statusEnd(sw); if (e.delta) { endW = e.delta; sw.hp = clamp(sw.hp + e.delta, 0, 1); costSaid.wild.push(e.word); } const o = orbStatus(sw, wildTypesSt); if (o) { sw.status = o; costSaid.wild.push(STATUS_SAY[o]); } }
+        let endO = 0, endW = 0, orbO = null, orbW = null;
+        if (ownUp) { const e = statusEnd(so); if (e.delta) { endO = e.delta; so.hp = clamp(so.hp + e.delta, 0, 1); costSaid.own.push(e.word); } const o = orbStatus(so, ownTypesSt); if (o) { so.status = orbO = o; costSaid.own.push(STATUS_SAY[o]); } }
+        if (wildUp) { const e = statusEnd(sw); if (e.delta) { endW = e.delta; sw.hp = clamp(sw.hp + e.delta, 0, 1); costSaid.wild.push(e.word); } const o = orbStatus(sw, wildTypesSt); if (o) { sw.status = orbW = o; costSaid.wild.push(STATUS_SAY[o]); } }
         // (Written back: kept for the next exchange, and for a ball's odds, statusCatch.)
         v.statuses[drop.addr] = so.status ?? null; v.pick.status = sw.status ?? null;
         // It struck first and yours fainted: yours never got its move off.
@@ -4200,6 +4226,20 @@ export default class PokemonHerd extends View {
         // What its move cost each (Recoil!, Life Orb), over it as it lands.
         const ownCostAt = (ownStrikes ? hitAt : backHit ?? at) + 120, wildCostAt = (back ? backHit : hitAt) + 120; // (its burn, its turn lost: when it would have moved)
         if (costSaid.own.length) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownCostAt, until: ownCostAt + SETUP_NOTE_MS, text: costSaid.own.join(" · "), color: STATUS_COLOR.brn }];
+        // Its status, drawn (fx.js statusAura): given as the move lands, burn and poison hurting
+        // and an Orb's as the exchange ends, a turn lost (a jolt, frozen solid) or thawed as it'd move.
+        const skipAura = (sk, at) => sk === "thaw" ? { at, kind: "thaw", ms: AURA_THAW, type: "ice" } : sk ? statusAura(sk, at, AURA_SKIP, sk === "par" ? { jolt: true } : {}) : null;
+        const wAuras = [given.wild && statusAura(given.wild, hitAt, AURA_GIVEN), endW < 0 && statusAura(sw.status, wildCostAt, AURA_TICK), orbW && statusAura(orbW, wildCostAt, AURA_GIVEN),
+          skipAura(skipped.wild, backLaunch ?? wildCostAt)].filter(Boolean);
+        const oAuras = [given.own && statusAura(given.own, backHit ?? ownCostAt, AURA_GIVEN), endO < 0 && statusAura(so.status, ownCostAt, AURA_TICK), orbO && statusAura(orbO, ownCostAt, AURA_GIVEN),
+          skipAura(skipped.own, ownLaunch)].filter(Boolean);
+        if (wAuras.length) v.fight.auras = wAuras;
+        // Frozen: tinted from when it's frozen (before: from the start) till it thaws.
+        const iceOf = (was, gave, sk, now0, landAt, moveAt, frozen) => (was === "frz" || gave === "frz")
+          ? { from: was === "frz" ? 0 : landAt, to: sk === "thaw" ? moveAt : frozen ? Infinity : landAt } : null;
+        v.fight.ice = iceOf(st0.wild, given.wild, skipped.wild, now, hitAt, backLaunch ?? wildCostAt, sw.status === "frz");
+        dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
+        if (oAuras.length) dm.auras = [...(dm.auras ?? []).filter((a) => now < a.at + a.ms), ...oAuras];
         if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
         const named = { hit: [...said(words.hit), ...stageSaid.hit], back: [...said(words.back), ...stageSaid.back] };
@@ -5291,7 +5331,8 @@ export default class PokemonHerd extends View {
           .transition("left", { duration: gap ? 1 : Math.max(1, Math.round(m.moving ? m.start + m.dur - now : m.dur || 150)), easing: "linear" })
           .child(this.withBlows(`mon-${a.address}`, m.blows,
             m.evolveFx && now - m.evolveFx.at >= EVOLVE_WHITE && now - m.evolveFx.at < EVOLVE_BURST && m.evolveFx.from ? body.opacity(0) : body, SLOT_MID, headY, ground, now,
-            ((sh) => sh && travelOf(sh.move?.type, sh.move?.dash ?? sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
+            ((sh) => sh && travelOf(sh.move?.type, sh.move?.dash ?? sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP)),
+            { auras: m.auras, frozen: !!m.ice && !(now < (m.restUntil ?? 0)) && now >= m.ice.from && now < m.ice.to && !!this.visitor?.statuses && a.address in this.visitor.statuses }))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
             el.child(h_flex().absolute().left(faceR ? BALLOON_AHEAD : -BALLOON_AHEAD).w(sw).top(Math.round(Math.max(2, headY - 24))).justify_center().text_size(12.5).child(bubble)))
