@@ -84,6 +84,7 @@ export const WORKS = new Set([
   "purifying-salt", "intimidate", "guard-dog", "defiant", "competitive", "rattled", "moxie", "chilling-neigh", "grim-neigh", "beast-boost",
   "speed-boost", "justified", "stamina", "weak-armor", "steam-engine", "water-compaction", "anger-point", "sturdy", "no-guard",
   "compound-eyes", "sniper", "super-luck", "battle-armor", "shell-armor", "inner-focus", "oblivious", "own-tempo", "scrappy", "rock-head", "magic-guard", "supreme-overlord",
+  "guts", "quick-feet", "marvel-scale", "poison-heal", "heatproof", "limber", "water-veil", "immunity", "magma-armor",
   // out of battle (main.js): finding things, eggs, who walks by, a wild one's nature
   "pickup", "honey-gather", "flame-body", "magma-armor", "static", "magnet-pull", "harvest", "synchronize",
 ]);
@@ -104,6 +105,7 @@ export const BATTLE_ITEMS = {
   "focus-sash": "Focus Sash", "expert-belt": "Expert Belt", "muscle-band": "Muscle Band", "wise-glasses": "Wise Glasses",
   "assault-vest": "Assault Vest", eviolite: "Eviolite", "rocky-helmet": "Rocky Helmet", "shell-bell": "Shell Bell",
   "quick-claw": "Quick Claw", "scope-lens": "Scope Lens", "weakness-policy": "Weakness Policy", "air-balloon": "Air Balloon",
+  "flame-orb": "Flame Orb", "toxic-orb": "Toxic Orb",
 };
 export const CHOICE = new Set(["choice-band", "choice-specs", "choice-scarf"]);
 // What's said of an ability or an item by its key (an item's words in a battle: "Life Orb").
@@ -163,7 +165,8 @@ export function megaEvolve(side, other, megaAb) {
 }
 // Its Speed: its stage, its ability in the weather (×2).
 export function speedMul(side, weather) {
-  return stageMul(side.st.spe) * (WEATHER_SPEED[side.ab]?.includes(weather) ? 2 : 1) * (side.item === "choice-scarf" ? 1.5 : 1);
+  return stageMul(side.st.spe) * (WEATHER_SPEED[side.ab]?.includes(weather) ? 2 : 1) * (side.item === "choice-scarf" ? 1.5 : 1)
+    * (side.ab === "quick-feet" && side.status ? 1.5 : side.status === "par" ? 0.5 : 1); // (paralysed: half; Quick Feet: ×1.5 instead)
 }
 export const fastInWeather = (side, weather) => !!WEATHER_SPEED[side.ab]?.includes(weather);
 // Whether `def`'s ability makes it immune to `move` (the attacker picks another, as the games' AI
@@ -242,6 +245,7 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     case "supreme-overlord": if ((att.fallen ?? 0) > 0) atk("supreme-overlord", 1 + 0.1 * Math.min(5, att.fallen)); break;
     case "sharpness": if (/Slash|Cut|Blade|Sword|Scissor|Aerial Ace|Air Cutter|Kowtow Cleave|Ceaseless Edge|Razor|Cleave|Leaf Blade|Night Slash|Psycho Cut|Fury Cutter|Stone Axe/.test(move.name ?? "")) atk("sharpness", 1.5); break;
     case "huge-power": case "pure-power": if (physical) atk(att.ab, 2); break;
+    case "guts": if (att.status && physical) atk("guts", 1.5); break; // (and its burn doesn't halve it: below)
     case "hustle": case "gorilla-tactics": if (physical) atk(att.ab, 1.5); break;
     case "solar-power": if (!physical && how.weather === "sunny") atk("solar-power", 1.5); break;
     case "steelworker": if (type === "steel") atk("steelworker", 1.5); break;
@@ -266,6 +270,9 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     case "purifying-salt": if (type === "ghost") def_("purifying-salt", 0.5); break;
     case "dry-skin": if (type === "fire") def_("dry-skin", 1.25); break;
   }
+  // Burned: its physical moves halved (Guts: not).
+  if (att.status === "brn" && physical && att.ab !== "guts") base *= 0.5;
+  if (def.ab === "marvel-scale" && def.status && physical) def_("marvel-scale", 1 / 1.5);
   // Items: the attacker's (Life Orb ×1.3, a Choice Band or Specs ×1.5 on its side, Expert Belt ×1.2
   // super-effective, Muscle Band or Wise Glasses ×1.1), the target's (Assault Vest: Sp. Def ×1.5;
   // Eviolite, one that can still evolve: both ×1.5).
@@ -311,6 +318,43 @@ export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
   if (landed && dealt > 0 && att.item === "shell-bell") { out.hurt -= (dealt * ratio) / 8; out.said.push("shell-bell"); }
   out.word = words.join(" ");
   return out;
+}
+// Statuses in a battle with a wild or trainer's Pokémon, as the games': burned (its physical moves
+// halved, a sixteenth of its health each exchange), paralysed (a turn lost one time in four, its
+// Speed halved), poisoned (an eighth each exchange), frozen (no move till it thaws, one time in
+// five). One at a time; none on a type immune (Fire burns not, Electric isn't paralysed, Poison
+// and Steel aren't poisoned, Ice doesn't freeze) or an ability that keeps it off (Limber, Water
+// Veil, Immunity, Magma Armor…). `side.status`: "brn" | "par" | "psn" | "frz" | null.
+const STATUS_TYPE_IMMUNE = { brn: ["fire"], par: ["electric"], psn: ["poison", "steel"], frz: ["ice"] };
+const STATUS_ABIL_IMMUNE = { brn: ["water-veil", "water-bubble", "thermal-exchange"], par: ["limber"], psn: ["immunity", "pastel-veil"], frz: ["magma-armor"] };
+export const STATUS_NAMES_SHORT = { brn: "BRN", par: "PAR", psn: "PSN", frz: "FRZ" };
+export const STATUS_SAY = { brn: "It's burned!", par: "It's paralyzed!", psn: "It's poisoned!", frz: "It's frozen solid!" };
+export function canStatus(side, what, types = []) {
+  if (!what || side.status) return false;
+  if (STATUS_TYPE_IMMUNE[what]?.some((t) => types.includes(t))) return false;
+  if (STATUS_ABIL_IMMUNE[what]?.includes(side.ab) || side.ab === "comatose" || side.ab === "purifying-salt") return false;
+  return true;
+}
+// Its turn, if a status takes it: "frz" (still frozen), "par" (fully paralysed), "thaw" (it thawed:
+// it moves), or null.
+export function statusSkip(side, rnd = Math.random) {
+  if (side.status === "frz") { if (rnd() < 0.2) { side.status = null; return "thaw"; } return "frz"; }
+  if (side.status === "par" && rnd() < 0.25) return "par";
+  return null;
+}
+export const SKIP_SAY = { frz: "Frozen solid!", par: "Fully paralyzed!", thaw: "It thawed out!" };
+// The end of an exchange: its burn or poison (Poison Heal: an eighth back instead; Heatproof: a
+// burn's halved; Magic Guard: none), as a health change (negative: hurt) and its words.
+export function statusEnd(side) {
+  if (side.ab === "magic-guard") return { delta: 0, word: "" };
+  if (side.status === "psn") return side.ab === "poison-heal" ? { delta: 1 / 8, word: "Poison Heal" } : { delta: -1 / 8, word: "Hurt by poison!" };
+  if (side.status === "brn") return { delta: side.ab === "heatproof" ? -1 / 32 : -1 / 16, word: "Hurt by its burn!" };
+  return { delta: 0, word: "" };
+}
+// A Flame Orb or Toxic Orb: it burns or poisons its holder at an exchange's end, if it can be.
+export function orbStatus(side, types = []) {
+  const what = side.item === "flame-orb" ? "brn" : side.item === "toxic-orb" ? "psn" : null;
+  return what && canStatus(side, what, types) ? what : null;
 }
 // Sucker Punch: it fails unless the other is about to attack (it moved already, or uses a setup move,
 // an item, a switch), as the games'. `other`: the other's move this turn; `otherFirst`: it moved first.

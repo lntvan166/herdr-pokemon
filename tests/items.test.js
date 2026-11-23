@@ -23,7 +23,7 @@ test("addItem counts up and down within limits", () => {
 
 test("pickup always finds a real item, mostly balls and berries", () => {
   assert.equal(pickup(() => 0), "berry");
-  assert.equal(pickup(() => 0.9999), "air-balloon"); // the last, and among the rarest
+  assert.equal(pickup(() => 0.9999), "toxic-orb"); // the last, and among the rarest
   const seen = new Set(Array.from({ length: 2000 }, (_, i) => pickup(() => (i + 0.5) / 2000)));
   for (const id of seen) assert.ok(ITEMS[id], id);
   assert.ok(seen.has("thunder-stone"));

@@ -8,10 +8,11 @@
 // as often as its accuracy in the games says (missOf: Thunder 3 in 10, Swift never). Pure.
 import { EXTRA_MOVES, MULTI_POWER } from "./more-moves.js";
 import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./base-stats.js";
-import { effectOn, typesOf, gameDamage, isPhysicalKey } from "./trainer.js";
+import { effectOn, typesOf, gameDamage, isPhysicalKey, statsFull } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
 import { MOVE_FLAGS } from "./ability-data.js";
-import { SETUP, SETUP_NAMES, SETUP_LEARNS } from "./move-stages.js";
+import { SETUP, SETUP_NAMES, SETUP_LEARNS, STATUS_MOVES, STATUS_NAMES, STATUS_LEARNS } from "./move-stages.js";
+import { canStatus } from "./abilities.js";
 
 export const MOVES = {
   normal: ["Body Slam", "Hyper Voice", "Giga Impact"],
@@ -124,7 +125,7 @@ export const CRIT_HIT = 1.5;
 // A move misses as in the games: 1 − its accuracy (base-stats.js MOVE_ACC: Thunder 70%, Hydro Pump
 // 80%, Fire Blast 85%; Swift and Aura Sphere never miss). One without a known accuracy: MISS.
 export const MISS = 0.05;
-export const missOf = (name) => { if (SETUP[name]) return 0; const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
+export const missOf = (name) => { if (SETUP[name]) return 0; if (STATUS_MOVES[name]) return 1 - STATUS_MOVES[name][2] / 100; const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
 // The weather, as the main games have it (main.js boostNow().id: "rain", "storm", "sunny",
 // "snow"…): in rain Thunder and Hurricane never miss, in the sun they hit half the time; in snow
 // Blizzard never misses; Solar Beam is half as strong in rain or snow.
@@ -139,7 +140,7 @@ export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
-export const powerOf = (name) => name === "Struggle" ? 50 : SETUP[name] ? 0 : EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
+export const powerOf = (name) => name === "Struggle" ? 50 : SETUP[name] || STATUS_MOVES[name] ? 0 : EXCLUSIVE[name]?.power ?? MULTI_POWER[name] ?? MOVE_POWER[name] ?? 80; // (a multi-hit one: all its hits)
 // Each type's strongest move by its power in the games (MOVES and MORE_MOVES; a tie, its own list's
 // first): what a move rises to, 1 in 8 (pickMove), sure to hit. Zap Cannon, High Jump Kick, Brave
 // Bird, Foul Play, Double Iron Bash where those beat the type's own (Thunder, Close Combat…).
@@ -160,7 +161,10 @@ export function learnableOf(attacker) {
 // only (never in its own four: you choose it, or a Tower or Rival trainer gives it one).
 export const isSetup = (name) => !!SETUP[name];
 const setupEntry = (name) => ({ type: SETUP[name][0], name, physical: false, status: true, stages: SETUP[name][1] });
-export const setupOf = (attacker) => (SETUP_LEARNS[parseInt(attacker, 10)] ?? []).map((i) => setupEntry(SETUP_NAMES[i]));
+export const setupOf = (attacker) => [...(SETUP_LEARNS[parseInt(attacker, 10)] ?? []).map((i) => setupEntry(SETUP_NAMES[i])), ...(STATUS_LEARNS[parseInt(attacker, 10)] ?? []).map((i) => statusEntry(STATUS_NAMES[i]))];
+// Status moves that give the other a status (Will-O-Wisp, Thunder Wave, Toxic: move-stages.js
+// STATUS_MOVES), as entries ({ status: true, inflict }); taught, as setup moves are.
+const statusEntry = (name) => ({ type: STATUS_MOVES[name][0], name, physical: false, status: true, inflict: STATUS_MOVES[name][1], stages: [] });
 // The moves chosen for it (a pick's `moves`: names), kept to those it can really learn, at most
 // four; null when none of them is (it then knows its own four).
 export function chosenOf(attacker, names) {
@@ -193,6 +197,22 @@ export const judgedType = (target) => TYPE_ORDER.reduce((best, t) => (effectOn(t
 // Smash, Foul Play, High Jump Kick), else fires from where it stands, whatever it rose from (its
 // damage still its own kind's). `dash` on the move: fx.js travelOf.
 export const risenDash = (name) => (MOVE_FLAGS[name] ?? "").includes("c");
+// A status move's score (Will-O-Wisp, Thunder Wave, Toxic), as the games' trainer AI: never (80)
+// on one that has a status already or can't have this one (its type: a Fire type burns not), or
+// when it can finish it now; from 100, Will-O-Wisp +2 on one that hits physically, Thunder Wave
+// +2 on one faster (or a wild one to be caught: easier, paralysed), Toxic +1 on one well, −2 when
+// it's low itself. `how.targetStatus`: the other's status now.
+function inflictScore(m, how, target, rnd, canKO) {
+  if (canKO || !canStatus({ status: how.targetStatus ?? null, ab: "" }, m.inflict, typesOf(target))) return 80;
+  if (how.catching && m.inflict !== "par") return 80;
+  let sc = 100;
+  const st = statsFull(target);
+  if (m.inflict === "brn" && st[1] > st[3]) sc += 2;
+  if (m.inflict === "par" && (how.slower || how.catching)) sc += 2;
+  if (m.inflict === "psn" && (how.targetHp ?? 1) > 0.5) sc += 1;
+  if ((how.selfHp ?? 1) < 0.4) sc -= 2;
+  return sc;
+}
 // A setup move's score, as the games' trainer AI (pokeemerald's AI_CV_AttackUp and the like,
 // AI_SetupFirstTurn; pokeemerald-expansion's checks): from 100; a stat it raises already +3 or more
 // −1 (61%); at full health +2 (50%); between 40% and 70% −2 (84%), under 40% −2; its first turn
@@ -248,7 +268,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // typeless (it hits anything), 50, a quarter of its own health back on it (abilities.js
   // selfHurt). (Two such, neither able to hurt the other, fought on for ever.)
   const touches = (m) => !m.status && effOf(m) > 0 && !how.immune?.({ ...m, eff: effOf(m) });
-  const setupLeft = (m) => m.status && m.stages.some(([st, n]) => n > 0 && (how.stages?.[st] ?? 0) < 6);
+  const setupLeft = (m) => m.status && (m.inflict ? canStatus({ status: how.targetStatus ?? null, ab: "" }, m.inflict, typesOf(target)) : m.stages.some(([st, n]) => n > 0 && (how.stages?.[st] ?? 0) < 6));
   if (set.length && !set.some(touches) && !set.some(setupLeft)) {
     const crit = rnd() < CRIT;
     return { type: "typeless", name: "Struggle", physical: true, ultimate: false, crit, miss: false, stab: false, power: 50, mul: crit ? CRIT_HIT : 1, eff: 1, missRate: 0, struggle: true };
@@ -262,7 +282,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
     const keep = [];
     const canKO = set.some((m) => !m.status && effOf(m) > 0 && how.dmgOf(m) >= (how.targetHp ?? 1)); // (then no setting up: expansion's)
     const score = set.map((m, i) => {
-      if (m.status) { keep[i] = true; return setupScore(m, how, set, rnd, canKO); }
+      if (m.status) { keep[i] = true; return m.inflict ? inflictScore(m, how, target, rnd, canKO) : setupScore(m, how, set, rnd, canKO); }
       // Its target's ability making nothing of it (Levitate on a Ground move, Water Absorb…:
       // `how.immune`): as the games' AI (pokeemerald's AI_CheckBadMove), −10 like a type immunity.
       const e = how.immune?.({ ...m, eff: effOf(m) }) ? 0 : effOf(m), quick = (PRIORITY[m.name] ?? 0) > 0;
@@ -289,7 +309,10 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   if (total > 0) { while (k < set.length - 1 && r >= weights[k]) { r -= weights[k]; k++; } } else k = 0;
   const base = set[k];
   // A setup move: no damage, its stats up (main.js, spar.js).
-  if (base.status) return { type: base.type, name: base.name, status: true, stages: base.stages, physical: false, ultimate: false, crit: false, miss: false, stab: false, power: 0, mul: 0, eff: 1, missRate: 0 };
+  if (base.status) {
+    const missRate = base.inflict ? missOf(base.name) : 0;
+    return { type: base.type, name: base.name, status: true, stages: base.stages, ...(base.inflict ? { inflict: base.inflict } : {}), physical: false, ultimate: false, crit: false, miss: !!missRate && rnd() < missRate, stab: false, power: 0, mul: 0, eff: 1, missRate };
+  }
   const ex = base.exclusive ? EXCLUSIVE[base.name] : null;
   const roll = rnd();
   // Its own move: itself (drawn as a signature move, but as sure to hit as any, and as physical as

@@ -65,7 +65,7 @@ import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE,
 import { MULTI_POWER } from "./more-moves.js";
 import { SELF_STAGES, RECOIL } from "./move-stages.js";
 import { MOVE_FLAGS } from "./ability-data.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE, canStatus, statusSkip, statusEnd, orbStatus, STATUS_SAY, SKIP_SAY, STATUS_NAMES_SHORT } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -399,7 +399,7 @@ const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
 // "none": a reload then lost the whole trainer, the Rival too.)
 const KEEP_AS_IS = "keep";
 // Yours down in a fight with a wild one or a trainer's: its blow, or its own move's recoil.
-const ownDown = (fx) => !!(fx?.back?.fainted || fx?.ownRecoil?.fainted);
+const ownDown = (fx) => !!(fx?.back?.fainted || fx?.ownRecoil?.fainted || fx?.endDown);
 const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.trainer.leaving ? KEEP_AS_IS
   : !v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
   : JSON.stringify([v.id, v.pick?.hp, v.pick?.dex, v.throws, v.gift, v.paid, v.start, v.halt?.kind, v.halt?.until, v.trainer?.idx, v.trainer?.fighter]));
@@ -693,6 +693,9 @@ const eggArt = (h, frac = 0, now = Date.now()) => image(`mods/${MOD}/art/egg/${f
 // A hit's words with the abilities that touched it: "Super effective! · Levitate" (alone: theirs).
 const withAbil = (word, names = []) => (!names.length ? word : word ? [`${word[0]} · ${names.join(" · ")}`, word[1]] : [names.join(" · "), ABIL_COLOR]);
 const wordTop = (headY, h, below = 0) => { const bar = Math.max(1, headY - 6); return bar - 8 - h >= 2 ? bar - 8 - h : bar + 7 + below; };
+// A status's tag beside a health bar (BRN, PAR, PSN, FRZ), in its colour.
+const statusTag = (x, top, st) => div().absolute().left(x + 20).top(Math.max(0, top - 3)).h(10).px(2).rounded(2).flex().items_center()
+  .bg(STATUS_COLOR[st] ?? "#888888").text_size(7.5).font_bold().text_color("#1d1d1f").child(STATUS_NAMES_SHORT[st] ?? st);
 const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
   .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
   .when(!!lost, (el) => el.child(div().id(lost.id).absolute().left(0).top(0).h_full().w(Math.round(36 * (lost.first ? lost.prev : hp))).bg("#ffffff").opacity(0.85)
@@ -1757,8 +1760,17 @@ export default class PokemonHerd extends View {
       if (fx.left && !fx.leftDone) {
         fx.leftDone = true;
         const lo = fx.left.own && this.mons[fx.own];
-        if (lo && !(lo.restUntil > now)) { lo.hp = Math.min(1, ownHp(lo, now) + fx.left.own); lo.hpAt = now; keepHp(agents().find((x) => x.address === fx.own)?.pane, { hp: lo.hp, at: now }); }
-        if (fx.left.wild && !fx.fainted) fx.hp = v.pick.hp = Math.min(1, (Number.isFinite(v.pick.hp) ? v.pick.hp : 1) + fx.left.wild);
+        if (lo && !(lo.restUntil > now)) {
+          lo.hpLost = { prev: ownHp(lo, now), at: now };
+          lo.hp = clamp(ownHp(lo, now) + fx.left.own, 0, 1); lo.hpAt = now;
+          // Down to its burn or poison: it faints as from a blow (fx.endDown: ownDown).
+          if (lo.hp <= 0.001) { fx.endDown = true; lo.restUntil = now + OWN_REST; lo.faintAt = now; lo.react = { anim: null, until: now + 3000, icon: "💫" }; }
+          keepHp(agents().find((x) => x.address === fx.own)?.pane, { hp: lo.hp, at: now, ...(fx.endDown ? { rest: lo.restUntil } : {}) });
+        }
+        if (fx.left.wild && !fx.fainted) {
+          fx.hp = v.pick.hp = clamp((Number.isFinite(v.pick.hp) ? v.pick.hp : 1) + fx.left.wild, 0, 1);
+          if (fx.hp <= 0.001) fx.fainted = true; // (down to its burn or poison: it faints)
+        }
       }
       if (fx.fainted) {
         v.fainted ??= now;
@@ -2178,6 +2190,7 @@ export default class PokemonHerd extends View {
     if (v?.trainer?.introAt) { const a = v.trainer.introAt; times.push(a, a + 40, a + 250, a + 900, a + RIVAL_INTRO_MS - 300, a + RIVAL_INTRO_MS, a + RIVAL_INTRO_MS + 4500); }
     if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
     if (v?.trainer?.choosing) { const c = v.trainer.choosing; times.push(c.at, c.at + 40, c.until); for (let k = c.at + 250; k < c.until; k += 250) times.push(k); } // (its bar and seconds running down)
+    if (v?.fight?.wildStatus) times.push(v.fight.wildStatus.at, v.fight.wildStatus.at + 40, v.fight.wildStatus.until - 260, v.fight.wildStatus.until);
     if (v?.fight?.wildCost) times.push(v.fight.wildCost.at, v.fight.wildCost.at + 40, v.fight.wildCost.until - 260, v.fight.wildCost.until);
     if (v?.fight?.wildNote) times.push(v.fight.wildNote.at, v.fight.wildNote.at + 40, v.fight.wildNote.until - 260, v.fight.wildNote.until);
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
@@ -2716,6 +2729,8 @@ export default class PokemonHerd extends View {
           fx.back && !fx.back.setup && travelOf(fx.wildMove?.type, fx.wildMove?.dash ?? fx.wildMove?.physical) === "dash" ? lungeOf(dashAt(x, fx.ownX, fx.backLaunch, fx.backHit, now, stopOfMove(fx.wildMove)), fx.wildMove, fx.backLaunch) : null)));
       // Its move, flying back at yours (fx.js: its type's look).
       // A setup move (Swords Dance): its words over its head, no move flying.
+      const wsn = fx.wildStatus;
+      if (wsn && now >= wsn.at && now < wsn.until) root.child(fxWord(`wstat-${v.id}-${wsn.at}`, [wsn.text, wsn.color], x, wordTop(headY, 16), this.fxFirst(`wstat-${v.id}-${wsn.at}`) ? 0 : now < wsn.until - 260 ? 1 : 2));
       const wc = fx.wildCost;
       if (wc && now >= wc.at && now < wc.until) root.child(fxWord(`wcost-${v.id}-${wc.at}`, [wc.text, STATUS_COLOR.brn], x, wordTop(headY, 16), this.fxFirst(`wcost-${v.id}-${wc.at}`) ? 0 : now < wc.until - 260 ? 1 : 2));
       const wn = fx.wildNote;
@@ -2729,6 +2744,7 @@ export default class PokemonHerd extends View {
       }
       // Its health bar, while it stands (fainted, it goes with it: it stayed, empty, as it sank).
       if (!v.fainted || now - v.fainted < 600) root.child(hpBar(x));
+      if (v.pick.status && !v.fainted) root.child(statusTag(x, headY - 6, v.pick.status)); // (burned, paralysed…: its tag)
       // Its ability as they met (Intimidate…), over its head before the moves.
       const en = fx.entry;
       if (en && now >= en.at && now < en.until) root.child(fxWord(`entry-${v.id}-${en.at}`, [en.text, ABIL_COLOR], x, wordTop(headY, 16), this.fxFirst(`entry-${v.id}-${en.at}`) ? 0 : now < en.until - 260 ? 1 : 2));
@@ -3928,6 +3944,11 @@ export default class PokemonHerd extends View {
           (mine ? meetStages.wild : meetStages.own).push(...(m1.stages?.b ?? []));
         }
         const so = v.abil.o, sw = v.abil.w;
+        // Their statuses (burned, paralysed…), kept on each for this whole encounter, whoever's in:
+        // yours by its strip spot (v.statuses), its on it (v.pick.status). Written back at the end.
+        v.statuses ??= {};
+        so.status = v.statuses[drop.addr] ?? null; sw.status = v.pick.status ?? null;
+        const ownTypesSt = typesOf(ownKey), wildTypesSt = typesOf(wildKey);
         // Supreme Overlord's count: yours down in this trainer's battle; the trainer's, those before.
         so.fallen = v.trainer?.fallen ?? 0; sw.fallen = v.trainer?.idx ?? 0;
         // Each ability said once while these two face each other (v.abil.shown). One as they meet
@@ -3968,10 +3989,10 @@ export default class PokemonHerd extends View {
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
         const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => knownImmune(sw, m, slotsOf(v.pick.dex, v.pick.form)), // (Choose moves: the one you picked)
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
-          stages: so.st, selfHp: ownHpNow, first: !so.turns, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
+          stages: so.st, selfHp: ownHpNow, first: !so.turns, targetStatus: sw.status, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
         const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
-          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
+          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, targetStatus: so.status, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
         so.turns = (so.turns ?? 0) + 1; sw.turns = (sw.turns ?? 0) + 1;
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).
@@ -3999,6 +4020,12 @@ export default class PokemonHerd extends View {
           const [what, chance] = SIDE_EFFECTS[m.name] ?? [];
           if (STAGE_STATS.includes(what) && !res.fainted && (res.eff ?? 1) > 0 && Math.random() < chance) stageBy(target, what, -1, foe);
           if (foe.length) stageSaid[k].push(stageWords(foe));
+          // A status by chance (Flamethrower's burn, Body Slam's paralysis), as the games'; a flinch,
+          // only for the one that moved first (the other loses its move).
+          if (["par", "brn", "psn", "frz"].includes(what) && !res.fainted && !r.miss && (res.eff ?? 1) > 0 && Math.random() < chance && canStatus(target, what, k === "hit" ? wildTypesSt : ownTypesSt)) {
+            target.status = what; stageSaid[k].push(STATUS_SAY[what]);
+          }
+          if (what === "flinch" && !res.fainted && !r.miss && Math.random() < chance) { if (k === "hit" && !wildFirst) wildFlinched = true; if (k === "back" && wildFirst) ownFlinched = true; }
           // Its own (Superpower's Atk and Def down): over it, with what else it cost (costSaid), not
           // with its blow over the other.
           if (a.stages?.att.length) costSaid[k === "hit" ? "own" : "wild"].push(stageWords(a.stages.att));
@@ -4013,7 +4040,21 @@ export default class PokemonHerd extends View {
         };
         // Sucker Punch failing (abilities.js suckerFails): no blow, "But it failed!".
         let wmFailed = false;
+        // Its turn lost (fully paralysed, frozen, flinched) or spent on a status move (Will-O-Wisp):
+        // no blow; what happened said over it (setupSaid) and over the other (statusSaid).
+        let ownIdle = false, wildIdle = false, ownFlinched = false, wildFlinched = false;
+        const statusSaid = { own: "", wild: "" }; // (said over yours, over its: "It's burned!")
+        const inflictOn = (m, target, types, k) => {
+          if (m.miss) { statusSaid[k] = `${m.name} missed!`; return; }
+          if (canStatus(target, m.inflict, types)) { target.status = m.inflict; statusSaid[k] = STATUS_SAY[m.inflict]; }
+          else statusSaid[k] = "It doesn't affect it!";
+        };
         const mine = () => {
+          const sk = statusSkip(so);
+          if (sk === "thaw") costSaid.own.push(SKIP_SAY.thaw);
+          else if (sk) { ownIdle = true; setupSaid.own = SKIP_SAY[sk]; return; }
+          if (ownFlinched) { ownIdle = true; setupSaid.own = "It flinched!"; return; }
+          if (om.status && om.inflict) { ownIdle = true; setupSaid.own = `${om.name}!`; inflictOn(om, sw, wildTypesSt, "wild"); return; }
           if (om.status) { setUp(om, so, "own"); return; }
           if (suckerFails(om, potion ? null : wm, wildFirst)) { omHit = { ...om, miss: true }; hit = { ...hit, text: "But it failed!" }; return; }
           const r1 = onHit(so, sw, om, { weather, missRate: om.missRate ?? missOf(om.name) });
@@ -4037,6 +4078,10 @@ export default class PokemonHerd extends View {
         };
         const theirs = () => {
           if (potion) return; // (its turn the Potion)
+          const sk = statusSkip(sw);
+          if (sk === "thaw") costSaid.wild.push(SKIP_SAY.thaw);
+          else if (sk || wildFlinched) { wildIdle = true; setupSaid.wild = sk ? SKIP_SAY[sk] : "It flinched!"; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
+          if (wm.status && wm.inflict) { wildIdle = true; setupSaid.wild = `${wm.name}!`; inflictOn(wm, so, ownTypesSt, "own"); back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
           if (wm.status) { setUp(wm, sw, "wild"); back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
           if (suckerFails(wm, switched ? null : om, !wildFirst)) { wmFailed = true; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "But it failed!", fainted: false }; return; }
           const ownBefore = so.hp;
@@ -4067,6 +4112,14 @@ export default class PokemonHerd extends View {
         const leftO = !(back?.fainted || ownRecoil?.fainted) ? leftovers(so) : 0, leftW = !(hit.fainted || wildRecoil?.fainted) ? leftovers(sw) : 0;
         if (leftO) { so.hp += leftO; (back ? words.back : words.hit).push("o:leftovers"); }
         if (leftW) { sw.hp += leftW; (back ? words.back : words.hit).push("w:leftovers"); }
+        // Its burn or poison as the exchange ends (abilities.js statusEnd), each still up; then a
+        // Flame or Toxic Orb's (its holder burned or poisoned). Health as the exchange ends (fx `left`).
+        const ownUp = !(back?.fainted || ownRecoil?.fainted), wildUp = !(hit.fainted || wildRecoil?.fainted);
+        let endO = 0, endW = 0;
+        if (ownUp) { const e = statusEnd(so); if (e.delta) { endO = e.delta; so.hp = clamp(so.hp + e.delta, 0, 1); costSaid.own.push(e.word); } const o = orbStatus(so, ownTypesSt); if (o) { so.status = o; costSaid.own.push(STATUS_SAY[o]); } }
+        if (wildUp) { const e = statusEnd(sw); if (e.delta) { endW = e.delta; sw.hp = clamp(sw.hp + e.delta, 0, 1); costSaid.wild.push(e.word); } const o = orbStatus(sw, wildTypesSt); if (o) { sw.status = o; costSaid.wild.push(STATUS_SAY[o]); } }
+        // (Written back: kept for the next exchange, and for a ball's odds, statusCatch.)
+        v.statuses[drop.addr] = so.status ?? null; v.pick.status = sw.status ?? null;
         // It struck first and yours fainted: yours never got its move off.
         const ownStrikes = !switched && !(wildFirst && (back?.fainted || wildRecoil?.fainted));
         if (!ownStrikes) hit = { hp: wildRecoil ? wildRecoil.hp : Number.isFinite(v.pick.hp) ? v.pick.hp : 1, dmg: 0, strong: false, eff: 1, text: "", fainted: !!wildRecoil?.fainted };
@@ -4113,16 +4166,20 @@ export default class PokemonHerd extends View {
         dm.awakeUntil = Math.max(dm.awakeUntil ?? 0, now + 20000); // awake through the fight, its agent idle or not (it slept between blows)
         v.fight = {
           at, hitAt, backAt, backLaunch, backHit, wildFirst, until: wildFirst ? (ownStrikes ? hitAt + 1100 : backHit + 900) : back ? backHit + 900 : hitAt + 1100,
-          x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit, ...(ownRecoil ? { ownRecoil } : {}), ...(wildRecoil && back ? { wildRecoil: { hp: wildRecoil.hp, final: !wildFirst } } : {}), ...(leftO || leftW ? { left: { own: leftO, wild: leftW } } : {}),
+          x: v.x, own: drop.addr, ownX: spot, ownName: fullName(pk.dex, pk.form), back, ownMove, wildMove, ...hit, ...(ownRecoil ? { ownRecoil } : {}), ...(wildRecoil && back ? { wildRecoil: { hp: wildRecoil.hp, final: !wildFirst } } : {}), ...(leftO || leftW || endO || endW ? { left: { own: leftO + endO, wild: leftW + endW } } : {}),
           blow: { at: hitAt, dir: away, p: hit.fainted ? 1 : om.ultimate || omHit.crit ? Math.max(0.85, power(hit.eff)) : power(hit.eff), style: moveStyle(ownMove.type, ownMove.blue), word: blowWord(hit.eff, omHit.crit), miss: omHit.miss, physical: om.physical, kb: knockMul(pk.size, v.pick.size), num: damageText(hit.dmg, hit.eff), type: ownMove.type, name: om.name },
         };
-        if (!ownStrikes || om.status) v.fight.blow = null; // (fainted first: no move of its own; a setup move: no blow)
+        if (!ownStrikes || om.status || ownIdle) v.fight.blow = null; // (fainted first: no move of its own; a setup or status move, its turn lost: no blow)
         // A setup move: its words over the one that used it, as it moves (`wildNote` over theirs).
-        if (ownStrikes && om.status) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownLaunch, until: ownLaunch + SETUP_NOTE_MS, text: setupSaid.own, color: STATUS_COLOR.atk }];
+        if (ownStrikes && (om.status || ownIdle) && setupSaid.own) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownLaunch, until: ownLaunch + SETUP_NOTE_MS, text: setupSaid.own, color: STATUS_COLOR.atk }];
+        // A status given (Will-O-Wisp, Thunder Wave): over the one it fell on, as the move lands.
+        if (statusSaid.own) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: backHit, until: backHit + SETUP_NOTE_MS, text: statusSaid.own, color: STATUS_COLOR[so.status] ?? "#ffffff" }];
+        if (statusSaid.wild) v.fight.wildStatus = { text: statusSaid.wild, at: hitAt, until: hitAt + SETUP_NOTE_MS, color: STATUS_COLOR[sw.status] ?? "#ffffff" };
         if (back?.setup) v.fight.wildNote = { text: setupSaid.wild, at: backLaunch, until: backLaunch + SETUP_NOTE_MS };
         // What its move cost each (Recoil!, Life Orb), over it as it lands.
-        if (costSaid.own.length && ownStrikes) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: hitAt + 120, until: hitAt + 120 + SETUP_NOTE_MS, text: costSaid.own.join(" · "), color: STATUS_COLOR.brn }];
-        if (costSaid.wild.length && back) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: backHit + 120, until: backHit + 120 + SETUP_NOTE_MS };
+        const ownCostAt = (ownStrikes ? hitAt : backHit ?? at) + 120, wildCostAt = (back ? backHit : hitAt) + 120; // (its burn, its turn lost: when it would have moved)
+        if (costSaid.own.length) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownCostAt, until: ownCostAt + SETUP_NOTE_MS, text: costSaid.own.join(" · "), color: STATUS_COLOR.brn }];
+        if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
         const named = { hit: [...said(words.hit), ...stageSaid.hit], back: [...said(words.back), ...stageSaid.back] };
         // As they meet: over each one's head now, before the moves.
@@ -4135,7 +4192,7 @@ export default class PokemonHerd extends View {
         const seq = ownStrikes ? [{ at: ownAt, until: ownAt + ms, anim: sp }] : [];
         if (back && !back.setup) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
         const reactEnd = Math.max(back ? backHit + 700 : 0, ownStrikes ? ownAt + ms + 300 : 0);
-        dm.react = { seq, until: reactEnd, face: dm.dir, ...(ownStrikes && !om.status ? { shot: { at: ownLaunch, until: hitAt, from: spot, to: v.x, move: ownMove } } : {}) };
+        dm.react = { seq, until: reactEnd, face: dm.dir, ...(ownStrikes && !om.status && !ownIdle ? { shot: { at: ownLaunch, until: hitAt, from: spot, to: v.x, move: ownMove } } : {}) };
         if (back && !back.setup) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: withAbil(blowWord(back.eff, wm.crit), named.back), miss: wm.miss || wmFailed, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
@@ -5130,6 +5187,8 @@ export default class PokemonHerd extends View {
           })
           // Hurt by a wild one: its health, till it's back (resting after fainting: 💫 too).
           .when(ownHp(m, now) < 1 && !(m.sparHp && now < m.sparHp.until), (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))))
+          // Its status in this encounter (burned, paralysed…: its tag by its bar).
+          .when(!!this.visitor?.statuses?.[a.address] && !(now < (m.restUntil ?? 0)), (el) => el.child(statusTag(SLOT_MID, headY - 6, this.visitor.statuses[a.address])))
           // Sparring: its health in the battle (full, then what each blow leaves it), drained white.
           .when(!!m.sparHp && now < m.sparHp.until, (el) => {
             const done = m.sparHp.steps.filter((st) => now >= st.at);

@@ -96,7 +96,9 @@ export function catchChance(ball, pick, bait = null, how = {}) {
   if (mul === Infinity) return 1;
   const hp = Number.isFinite(pick.hp) ? Math.max(0, Math.min(1, pick.hp)) : 1;
   // (`how.catchMul`: the Cascade Badge's little help, ×1.05.)
-  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (2 - hp) * (pick.asleep ? NAP_CATCH : 1) * (pick.friendly ? FRIEND_CATCH : 1) * (how.catchMul ?? 1));
+  // (A status on it, as the games': frozen ×2.5; paralysed, burned, poisoned ×1.5.)
+  const statusCatch = pick.status === "frz" ? 2.5 : pick.status ? 1.5 : 1;
+  const base = Math.min(0.95, baseRate(pick.dex) * (pick.alpha ? 0.5 : 1) * (2 - hp) * (pick.asleep ? NAP_CATCH : 1) * (pick.friendly ? FRIEND_CATCH : 1) * statusCatch * (how.catchMul ?? 1));
   return 1 - (1 - base) ** (mul * (BAIT[bait]?.rate ?? 1));
 }
 

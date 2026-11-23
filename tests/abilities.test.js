@@ -307,3 +307,33 @@ test("Ability Patch: to its hidden one and back", async () => {
   const back = P.useItem(hidden, "s", "ability-patch", {}).pick;
   assert.equal(A.abilityOf(back, "s"), "defiant");
 });
+
+// Statuses in a battle, as the games': who can have which, a turn lost, burn and poison at the
+// end, Guts, a burn halving physical moves, an Orb, a ball's odds.
+test("statuses: immunities, turns lost, burn, poison, Guts, Orbs", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const T = await import("../mods/pokemon-herd/trainer.js");
+  assert.equal(A.canStatus(A.newSide(""), "brn", ["fire"]), false, "a Fire type burns not");
+  assert.equal(A.canStatus(A.newSide(""), "par", ["electric"]), false);
+  assert.equal(A.canStatus(A.newSide(""), "psn", ["steel"]), false);
+  assert.equal(A.canStatus(A.newSide("limber"), "par", ["normal"]), false);
+  assert.equal(A.canStatus({ ...A.newSide(""), status: "brn" }, "par", ["normal"]), false, "one at a time");
+  assert.equal(A.canStatus(A.newSide(""), "brn", ["normal"]), true);
+  const frozen = { ...A.newSide(""), status: "frz" };
+  assert.equal(A.statusSkip(frozen, () => 0.9), "frz");
+  assert.equal(A.statusSkip(frozen, () => 0.1), "thaw");
+  assert.equal(frozen.status, null);
+  assert.equal(A.statusSkip({ ...A.newSide(""), status: "par" }, () => 0.1), "par");
+  assert.equal(A.statusEnd({ ...A.newSide(""), status: "brn" }).delta, -1 / 16);
+  assert.equal(A.statusEnd({ ...A.newSide(""), status: "psn" }).delta, -1 / 8);
+  assert.equal(A.statusEnd({ ...A.newSide("poison-heal"), status: "psn" }).delta, 1 / 8);
+  const m = { name: "Tackle", type: "normal", physical: true, mul: 1, eff: 1 };
+  const plain = A.onHit(A.newSide(""), A.newSide(""), m).mul;
+  assert.equal(A.onHit({ ...A.newSide(""), status: "brn" }, A.newSide(""), m).mul / plain, 0.5);
+  assert.equal(A.onHit({ ...A.newSide("guts"), status: "brn" }, A.newSide(""), m).mul / plain, 1.5);
+  assert.equal(A.speedMul({ ...A.newSide(""), status: "par" }, "clear"), 0.5);
+  assert.equal(A.orbStatus(A.newSide("", 1, { item: "flame-orb" }), ["normal"]), "brn");
+  assert.equal(A.orbStatus(A.newSide("", 1, { item: "flame-orb" }), ["fire"]), null);
+  const c0 = T.catchChance("poke-ball", { dex: 16, hp: 0.5 }), c1 = T.catchChance("poke-ball", { dex: 16, hp: 0.5, status: "par" });
+  assert.ok(c1 > c0);
+});

@@ -1435,3 +1435,38 @@ test("swap: all it is goes with it", () => {
   assert.equal(moved.abil, 2, "its ability's slot (hidden)");
   assert.ok(others.length > 0);
 });
+
+// Statuses on the strip: Will-O-Wisp burns the trainer's Snorlax (kept on it, its tag); a frozen
+// one of yours loses its turn.
+test("a trainer's battle: Will-O-Wisp burns; frozen, a turn lost", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 609, jobs: 3, moves: ["Will-O-Wisp"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "trwow", pick: { dex: 143, hp: 1, abil: 0, trainer: true, moves: ["Body Slam"] }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143, moves: ["Body Slam"] }], idx: 0, waited: true } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  let burned = false;
+  for (let i = 0; i < 6 && !burned; i++) {
+    st.visitor.fight = null; st.visitor.pick.status = null;
+    st.dropAt = { addr: "t1", dizzy: false };
+    st.tick(cx);
+    burned = st.visitor.pick.status === "brn";
+  }
+  assert.ok(burned, "Will-O-Wisp (85%) burned it in six tries");
+  assert.equal(st.visitor.fight.blow, null, "no blow: a status move");
+  st.render(cx);
+  // Frozen: its turn lost.
+  st.visitor.fight = null; st.visitor.statuses = { t1: "frz" };
+  const rnd = Math.random; Math.random = () => 0.9; // (no thaw)
+  try { st.dropAt = { addr: "t1", dizzy: false }; st.tick(cx); } finally { Math.random = rnd; }
+  assert.equal(st.visitor.fight.blow, null, "frozen: no move");
+  assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Frozen solid!/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
+});
