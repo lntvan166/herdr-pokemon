@@ -992,9 +992,9 @@ const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ?
 const megaAbils = (pick) => (pick?.form ? [] : megaForms(pick?.dex)).map(({ kind }) => ({ kind, ab: megaAbility(fighterKey(pick.dex, { mega: kind })) }))
   .filter((x) => x.ab).map(({ kind, ab }) => ({ label: `As Mega${kind ? ` ${kind}` : ""}`, ab }));
 // A species' abilities, all it can have ("Blaze · Solar Power (hidden)"), those that work here first.
-const speciesAbils = (dex) => {
+const speciesAbils = (dex, form = null) => { // (a regional form's own: Hisuian Arcanine's Rock Head)
   const out = [];
-  for (const i of [0, 1, 2]) { const k = abilityOf({ dex, abil: i }); if (k && slotsOf(dex)[i] && !out.some((x) => x.k === k)) out.push({ k, hidden: i === 2 }); }
+  for (const i of [0, 1, 2]) { const k = abilityOf({ dex, form, abil: i }); if (k && slotsOf(dex, form)[i] && !out.some((x) => x.k === k)) out.push({ k, hidden: i === 2 }); }
   return [...out.map((x) => `${abilityName(x.k)}${x.hidden ? " (hidden)" : ""}`), ...megaAbils({ dex }).map((x) => `${x.label.replace("As ", "")}: ${abilityName(x.ab)}`)].join(" · ");
 };
 
@@ -2482,7 +2482,7 @@ export default class PokemonHerd extends View {
   // hidden one, an Alpha's half the time (as Max Raids gave them). A trainer's Pokémon, each its own.
   wildAbil(v) {
     if (v.pick.abil === 0 || v.pick.abil === 1 || v.pick.abil === 2) return v.pick.abil;
-    v.pick.abil = rollAbil(v.pick.dex, Math.random, !!v.raid || (!!v.pick.alpha && Math.random() < 0.5));
+    v.pick.abil = rollAbil(v.pick.dex, Math.random, !!v.raid || (!!v.pick.alpha && Math.random() < 0.5), v.pick.form);
     return v.pick.abil;
   }
 
@@ -6771,7 +6771,7 @@ export default class PokemonHerd extends View {
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
             : "Preview: click another to see it, or Replace to take this one"))
           // The abilities it may have (which one, by its save slot: an Ability Capsule or Patch changes it).
-          .child(div().text_size(11).text_color(t.dim).truncate().child(`Abilities: ${speciesAbils(pv.dex)}`)))
+          .child(div().text_size(11).text_color(t.dim).truncate().child(`Abilities: ${speciesAbils(pv.dex, pv.form)}`)))
         // Favourites are starred here (or on the card, for the one it is).
         .child((() => {
           const on = isFavorite(favs(), pv);

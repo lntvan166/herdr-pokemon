@@ -273,3 +273,11 @@ test("Sucker Punch fails; Supreme Overlord", async () => {
   assert.ok(Math.abs(two / base - 1.2) < 1e-9);
   assert.ok(Math.abs(nine / base - 1.5) < 1e-9, "five at most");
 });
+
+// A regional form's own abilities: Hisuian Arcanine Rock Head (hidden), not Justified.
+test("regional forms' own abilities", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  assert.equal(A.abilityOf({ dex: 59, form: "0001", abil: 2 }), "rock-head");
+  assert.equal(A.abilityOf({ dex: 59, abil: 2 }), "justified");
+  assert.equal(A.abilityOf({ dex: 59, form: "0001", abil: 0 }), "intimidate");
+});

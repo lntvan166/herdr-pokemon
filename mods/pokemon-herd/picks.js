@@ -210,8 +210,8 @@ export function itemUse(pick, slot, id, how = {}) {
   if (HELD_IDS.includes(id)) return pick.held === id ? null : "hold";
   // An Ability Capsule: its other ability (one with two, not on its hidden one); an Ability
   // Patch: its hidden one (abilities.js).
-  if (id === "ability-capsule") return slotsOf(pick.dex)[1] && abilSlot(pick, slot) !== 2 ? "ability" : null;
-  if (id === "ability-patch") return slotsOf(pick.dex)[2] && abilSlot(pick, slot) !== 2 ? "ability" : null;
+  if (id === "ability-capsule") return slotsOf(pick.dex, pick.form)[1] && abilSlot(pick, slot) !== 2 ? "ability" : null;
+  if (id === "ability-patch") return slotsOf(pick.dex, pick.form)[2] && abilSlot(pick, slot) !== 2 ? "ability" : null;
   if (REVIVE[id]) return how.hpOf && how.hpOf(slot) === null ? "revive" : null;
   if (id === "berry" || id === "sitrus-berry") {
     if (friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX) return "hearts";

@@ -13,24 +13,29 @@
 // needs what the mod has none of (status, switching mid-battle, held items in battle, terrain)
 // does nothing here (`works`).
 import { SELF_STAGES, RECOIL } from "./move-stages.js";
-import { MEGA_ABILITIES } from "./mega-abilities.js";
+import { MEGA_ABILITIES, FORM_ABILITIES } from "./mega-abilities.js";
 import { SPECIES_ABILITIES, ABILITY_KEYS, ABILITY_NAMES, ABILITY_TEXTS, MOVE_FLAGS } from "./ability-data.js";
 
 const INDEX = new Map(ABILITY_KEYS.map((k, i) => [k, i]));
 const strHash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
-export const slotsOf = (dex) => SPECIES_ABILITIES[parseInt(dex, 10)] ?? [0, 0, 0];
-export const hasHidden = (dex) => slotsOf(dex)[2] > 0;
+// A regional form its own (`form`: Hisuian Arcanine's Rock Head, not Justified: mega-abilities.js
+// FORM_ABILITIES), else its species'.
+export const slotsOf = (dex, form = null) => {
+  const f = form && FORM_ABILITIES[`${parseInt(dex, 10)}f${form}`];
+  return f ? f.map((k) => (k ? INDEX.get(k) ?? 0 : 0)) : SPECIES_ABILITIES[parseInt(dex, 10)] ?? [0, 0, 0];
+};
+export const hasHidden = (dex, form = null) => slotsOf(dex, form)[2] > 0;
 
 // Its slot (0, 1, 2): its own if its species has one there, else one by `slotKey` (its save slot).
 export function abilSlot(pick, slotKey = "") {
-  const s = slotsOf(pick?.dex);
+  const s = slotsOf(pick?.dex, pick?.form);
   if ((pick?.abil === 0 || pick?.abil === 1 || pick?.abil === 2) && s[pick.abil]) return pick.abil;
   if (pick?.abil === 1 && !s[1]) return 0; // (one with one ability only: its first)
   return s[1] ? strHash(`${slotKey}:ability`) % 2 : 0;
 }
 // Its ability's id ("blaze"), or "" for one with none known.
 export function abilityOf(pick, slotKey = "") {
-  const s = slotsOf(pick?.dex);
+  const s = slotsOf(pick?.dex, pick?.form);
   return ABILITY_KEYS[s[abilSlot(pick, slotKey)] || s[0]] ?? "";
 }
 // A Mega's own ability (mega-abilities.js: Mega Charizard X's Tough Claws), by its fighter key
@@ -41,8 +46,8 @@ export const abilityText = (key) => ABILITY_TEXTS[INDEX.get(key)] ?? "";
 export const isHidden = (pick, slotKey = "") => abilSlot(pick, slotKey) === 2;
 
 // A wild one's slot: one of its two (`hidden`: its hidden one, if it has one).
-export function rollAbil(dex, rnd = Math.random, hidden = false) {
-  const s = slotsOf(dex);
+export function rollAbil(dex, rnd = Math.random, hidden = false, form = null) {
+  const s = slotsOf(dex, form);
   if (hidden && s[2]) return 2;
   return s[1] && rnd() < 0.5 ? 1 : 0;
 }
