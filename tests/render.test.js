@@ -194,42 +194,7 @@ test("the Bag's Box tab: a card's actions", () => {
   assert.equal(picks()["box-1-133"].locked, true);
 });
 
-// A Mega's moves are its own to choose: Change on its row saves them apart (`megaMoves`), and
-// the one as it is keeps its own; none chosen for the Mega, it fights with its own four.
-test("a Mega's moves: a Change of their own", async () => {
-  seed();
-  const v = view({ bag: true, tab: "box", sel: "p0" });
-  v.render(cx);
-  assert.ok(K.handlers["moves-edit-p0-base:on_click"], "Change for Charizard");
-  click("moves-edit-p0-X:on_click");
-  v.render(cx);
-  const { learnableOf } = await import("../mods/pokemon-herd/moves.js");
-  const i = learnableOf("6mX").findIndex((m) => m.name === "Flare Blitz");
-  click(`learn-p0-X-${i}:on_click`); // Flare Blitz, one of Mega X's own four: dropped
-  const p0 = picks().p0;
-  assert.equal(p0.megaMoves?.X?.length, 3);
-  assert.ok(!p0.megaMoves.X.includes("Flare Blitz"));
-  assert.equal(p0.moves, undefined, "Charizard's own four untouched");
-  v.render(cx);
-  click("moves-default-p0-X:on_click");
-  assert.equal(picks().p0.megaMoves, undefined, "back to Mega X's own four");
-});
 
-// One Mega only (Gallade, kind ""): Change on one row opens that row only.
-test("one Mega only: each row's Change opens its own", () => {
-  seed();
-  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 475, jobs: 70 } });
-  const v = view({ bag: true, tab: "box", sel: "p1" });
-  v.render(cx);
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
-  v.render(cx);
-  assert.ok(K.handlers["moves-edit-p1-:on_click"], "As Mega has its Change");
-  click("moves-edit-p1-base:on_click");
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
-  v.render(cx);
-  assert.ok(K.handlers["learn-p1-base-0:on_click"], "its own list open");
-  assert.equal(K.handlers["learn-p1--0:on_click"], undefined, "the Mega's list shut");
-});
 
 // Every Pokémon saved, read once per render: each read checks them all (loadPicks), and a
 // preview read them a dozen times; with ~250 in the Box that went past Herdr's time for a
@@ -1093,26 +1058,6 @@ test("a quick move (Sucker Punch) goes first, whatever the Speed", () => {
   if (fx.ownMove.name === "Sucker Punch") assert.equal(fx.wildFirst, false, "Sucker Punch first");
 });
 
-// Changing moves: a type picked, only its moves listed (Charizard learns 75); its kind too.
-test("the moves it can learn: filtered by type and kind", async () => {
-  seed();
-  const { learnableOf } = await import("../mods/pokemon-herd/moves.js");
-  const v = view({ bag: true, tab: "box", sel: "p0" });
-  v.render(cx);
-  click("moves-edit-p0-base:on_click");
-  v.render(cx);
-  const learned = () => Object.keys(K.handlers).filter((k) => /^learn-p0-base-\d+:on_click$/.test(k)).map((k) => learnableOf("6")[Number(k.split("-")[3].split(":")[0])]);
-  assert.ok(learned().length > 30, String(learned().length));
-  for (const k of Object.keys(K.handlers)) if (k.startsWith("learn-")) delete K.handlers[k];
-  click("mf-type-p0|base-fire:on_click");
-  v.render(cx);
-  const fire = learned();
-  assert.ok(fire.length > 3 && fire.every((m) => m.type === "fire"), fire.map((m) => m.name).join(","));
-  for (const k of Object.keys(K.handlers)) if (k.startsWith("learn-")) delete K.handlers[k];
-  click("mf-kind-p0|base-phy:on_click");
-  v.render(cx);
-  assert.ok(learned().every((m) => m.type === "fire" && m.physical));
-});
 
 // The Rival's next one out: the one that suits the fight against yours (your Charizard: its
 // Blastoise before its Venusaur), its ace kept for last.
@@ -1342,3 +1287,69 @@ function learnableOfFor(name) {
   return { "Sucker Punch": { name, type: "dark", physical: true }, "Close Combat": { name, type: "fighting", physical: true }, "Flare Blitz": { name, type: "fire", physical: true },
     "Swords Dance": { name, type: "normal", physical: false, status: true, stages: [["atk", 2]] } }[name];
 }
+
+// The picker's This one tab: its moves as cards and a table; a row clicked takes it, ✕ drops one.
+test("the picker's This one tab: moves as cards and a table", () => {
+  seed();
+  const v = view({ picker: true, slot: "p1", current: { dex: 983 }, tag: "web", tab: "cur" });
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  assert.ok(!Object.keys(K.handlers).some((k) => k.startsWith("lrn-")), "the table shut till Change");
+  click("moves-change-p1|base:on_click");
+  v.render(cx);
+  const row = Object.keys(K.handlers).find((k) => k.startsWith("lrn-") && k.endsWith(":on_click"));
+  assert.ok(row, Object.keys(K.handlers).filter((k) => k.startsWith("m")).slice(0, 10).join());
+  K.handlers[row]({}, cx);
+  assert.ok(picks().p1.moves?.length, "a choice saved");
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  const x = Object.keys(K.handlers).find((k) => k.startsWith("mslot-x-") && k.endsWith(":on_click"));
+  assert.ok(x);
+  const before = picks().p1.moves.length;
+  K.handlers[x]({}, cx);
+  assert.equal(picks().p1.moves.length, before - 1);
+});
+
+// The Box card's moves (movesPanel): a tab for each form; Change opens the table; a Mega's moves
+// saved apart (megaMoves), the one as it is untouched; Reset back to its own four.
+test("the Box card's moves: a Mega's of its own, Change, Reset", async () => {
+  seed();
+  const { learnableOf } = await import("../mods/pokemon-herd/moves.js");
+  const v = view({ bag: true, tab: "box", sel: "p0" });
+  v.render(cx);
+  click("mform-X:on_click");
+  v.render(cx);
+  click("moves-change-p0|megaX:on_click");
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  const i = learnableOf("6mX").findIndex((m) => m.name === "Flare Blitz");
+  click(`lrn-p0|megaX-${i}:on_click`); // Flare Blitz, one of Mega X's own four: dropped
+  const p0 = picks().p0;
+  assert.equal(p0.megaMoves?.X?.length, 3);
+  assert.ok(!p0.megaMoves.X.includes("Flare Blitz"));
+  assert.equal(p0.moves, undefined, "Charizard's own four untouched");
+  v.render(cx);
+  click("moves-default-p0|megaX:on_click");
+  assert.equal(picks().p0.megaMoves, undefined, "back to Mega X's own four");
+});
+
+// Changing moves: a type picked, only its moves listed; its kind too.
+test("the moves it can learn: filtered by type and kind", async () => {
+  seed();
+  const { learnableOf } = await import("../mods/pokemon-herd/moves.js");
+  const v = view({ bag: true, tab: "box", sel: "p0" });
+  v.render(cx);
+  click("moves-change-p0|base:on_click");
+  v.render(cx);
+  const learned = () => Object.keys(K.handlers).filter((k) => /^lrn-p0\|base-\d+:on_click$/.test(k)).map((k) => learnableOf("6")[Number(k.split("-").at(-1).split(":")[0])]);
+  assert.ok(learned().length > 30, String(learned().length));
+  for (const k of Object.keys(K.handlers)) if (k.startsWith("lrn-")) delete K.handlers[k];
+  click("mf2-type-p0|base-fire:on_click");
+  v.render(cx);
+  const fire = learned();
+  assert.ok(fire.length > 3 && fire.every((m) => m.type === "fire"), fire.map((m) => m.name).join(","));
+  for (const k of Object.keys(K.handlers)) if (k.startsWith("lrn-")) delete K.handlers[k];
+  click("mf2-kind-p0|base-phy:on_click");
+  v.render(cx);
+  assert.ok(learned().every((m) => m.type === "fire" && m.physical));
+});

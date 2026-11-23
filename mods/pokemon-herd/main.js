@@ -1052,6 +1052,7 @@ export default class PokemonHerd extends View {
     this.toastView = !!props() && "title" in props() && !props().view;
     if (this.toastView) return this.initToast(cx);
     this.picker = !!props()?.picker;
+    this.pickTab = props()?.tab === "cur" ? "cur" : null; // (the picker opened on This one)
     this.menu = !!props()?.menu;
     this.monView = !!props()?.mon; // one of yours, right-clicked: its menu
     this.allHold = !!props()?.allHold; // its menu: every item to hold, not the best few
@@ -6342,7 +6343,7 @@ export default class PokemonHerd extends View {
             // Its Megas' own (Mega Charizard X: Tough Claws), which it has while Mega Evolved.
             .children(megaAbils(pick).map(({ label, ab }) => div().text_size(11.5).text_color(t.muted)
               .child(`${label}: ${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`))))) // all of it, wrapped: the Box is where the details are
-        .child(this.moveRow(pick, t, slot, false))
+        .child(this.movesPanel(pick, t, slot, false, false))
         // Its actions, in two rows: what you do with it (bring it out, feed it, bring it back up,
         // take what it holds, purify it), then keeping the Box (lock, rename, release).
         .child(h_flex().gap(6).flex_wrap().items_center()
@@ -6722,7 +6723,9 @@ export default class PokemonHerd extends View {
               .map((el2) => this.hovers(el2, "cur", e))),
           ])),
       ))
-      .child(this.moveRow(cur, t, props()?.slot))
+      .child(this.movesPanel(cur, t, props()?.slot, true, false)) // (its table on Change: the Items below it took a long scroll)
+      .child(div().h(1).bg(t.border))
+      .child(div().text_size(12).font_semibold().text_color(t.foreground).child("Items"))
       .child(this.renderBagRow(cur, t));
   }
 
@@ -6745,6 +6748,105 @@ export default class PokemonHerd extends View {
   // it may turn them into now and then. For one of yours (`slot`), "Change": every move it can
   // really learn (moves.js learnableOf: weak ones and signature moves too), click to take or drop
   // one, four at most; "Default" goes back to its own four. Saved on its pick (`moves`).
+  // Its moves with room (the picker's This one tab): a tab for each form (it, its Megas), its four
+  // as cards two by two (type, kind, power, accuracy; ✕ drops one), and every move it can learn as a
+  // table (✓ those it knows; filters by kind and type; its four first, then the best fits, then by
+  // power), a click taking or dropping one. Each hovered: its facts (moveCard).
+  // `abil`: its ability said here (the Box card says it above); `always`: the table always (the
+  // picker's tab), else on Change (the Box card, with less room).
+  movesPanel(e, t, slot, abil = true, always = true) {
+    const base = fighterKey(e.dex, e.form ? { form: e.form } : {});
+    const megas = e.form ? [] : megaForms(e.dex).map(({ kind }) => kind).filter((kind) => fighterKey(e.dex, { mega: kind }) !== base);
+    const mega = megas.includes(this.moveForm) ? this.moveForm : null;
+    const k = mega === null ? base : fighterKey(e.dex, { mega });
+    const set = movesFor(e, k);
+    const own = mega === null ? e.moves : e.megaMoves?.[megaSlot(mega)];
+    const chosen = !!chosenOf(k, own);
+    const editId = `${slot}|${mega === null ? "base" : `mega${mega}`}`;
+    const table = always || this.editingMoves === editId;
+    const save = (moves) => {
+      const live = savedPicks()[slot];
+      if (!live) return;
+      if (mega === null) { const { moves: _m, ...rest } = live; savePicks({ [slot]: moves?.length ? { ...rest, moves } : rest }); return; }
+      const { [megaSlot(mega)]: _o, ...others } = live.megaMoves ?? {};
+      const next = moves?.length ? { ...others, [megaSlot(mega)]: moves } : others;
+      const { megaMoves: _mm, ...rest } = live;
+      savePicks({ [slot]: Object.keys(next).length ? { ...rest, megaMoves: next } : rest });
+    };
+    const names = set.map((m) => m.name);
+    const current = () => { const live = savedPicks()[slot]; return live ? movesFor(live, k).map((x) => x.name) : names; };
+    const toggle = (name) => { const cur = current(); const on = cur.includes(name); save(on ? (cur.length > 1 ? cur.filter((n) => n !== name) : cur) : cur.length < MAX_MOVES ? [...cur, name] : cur); };
+    const st = statsFull(k), phys = st[1] >= st[3], ownTypes = typesOf(k);
+    const isGood = (m) => !m.status && m.physical === phys && ownTypes.includes(m.type);
+    const accOf = (m) => (m.status ? "—" : missOf(m.name) <= 0 ? "100%" : `${Math.round((1 - missOf(m.name)) * 100)}%`);
+    const kindBadge = (m) => div().px(3).h(13).rounded(3).flex().items_center().flex_none().bg("#00000047").text_size(8.5).font_bold().text_color("#ffffff").child(m.status ? "UP" : m.physical ? "PHY" : "SPE");
+    const typeBadge = (ty) => div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty));
+    const btn = (id, label, on, click) => div().id(id).h(24).px(10).rounded(6).flex().items_center().flex_none().text_size(11.5).border_1()
+      .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000").text_color(t.foreground).cursor_pointer().hover((st2) => st2.bg(t.hover))
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+    // A card for one of its four.
+    const card = (m, i) => h_flex().id(`mslot-${editId}-${i}`).h(46).flex_1().min_w(0).gap(8).px(8).rounded(8).items_center().bg(t.raised)
+      .border_1().border_color(isGood(m) ? "#7dffa0" : m.exclusive ? "#ffffff" : t.border)
+      .child(div().w(4).h(30).rounded(2).flex_none().bg(TYPE_COLOR[m.type]))
+      .child(v_flex().flex_1().min_w(0).gap(2)
+        .child(h_flex().gap(5).items_center().min_w(0).child(kindBadge(m)).child(div().min_w(0).truncate().text_size(12.5).font_semibold().text_color(t.foreground).child(m.name)))
+        .child(h_flex().gap(6).items_center().child(typeBadge(m.type))
+          .child(div().text_size(10.5).text_color(t.muted).child(m.status ? m.stages.map(([s2, n]) => `${s2}${n > 0 ? "+" : ""}${n}`).join(" ") : `${powerOf(m.name)} · ${accOf(m)}${ownTypes.includes(m.type) ? " · ×1.5" : ""}`))))
+      .when(!!slot && set.length > 1, (el) => el.child(div().id(`mslot-x-${editId}-${i}`).size(20).rounded(4).flex().items_center().justify_center().flex_none()
+        .text_size(11).text_color(t.muted).cursor_pointer().hover((st2) => st2.bg(t.hover).text_color(t.foreground))
+        .on_click((_e, cx) => { save(current().filter((n) => n !== m.name)); cx.notify(); }).child("✕")))
+      .map((el) => this.hoversMove(el, editId, m, k));
+    const empty = (i) => div().h(46).flex_1().rounded(8).border_1().border_color(t.border).flex().items_center().justify_center().text_size(11).text_color(t.dim).child(`empty · pick one below`);
+    const slots = Array.from({ length: MAX_MOVES }, (_, i) => (set[i] ? card(set[i], i) : empty(i)));
+    // Every move it can learn, filtered (this.moveFilter, as the Box's).
+    const all = learnableOf(k);
+    const mf = this.moveFilter?.id === editId ? this.moveFilter : { id: editId, kind: "all", type: null };
+    const setF = (more) => { this.moveFilter = { ...mf, ...more }; };
+    const typeCount = {};
+    for (const m of all) typeCount[m.type] = (typeCount[m.type] ?? 0) + 1;
+    const shown = all.map((m, i) => [m, i])
+      .filter(([m]) => (mf.kind === "all" || (mf.kind === "up" ? !!m.status : !m.status && (mf.kind === "phy") === !!m.physical)) && (!mf.type || m.type === mf.type))
+      .sort(([a], [b]) => (names.includes(b.name) - names.includes(a.name)) || (isGood(b) - isGood(a)) || (powerOf(b.name) - powerOf(a.name)));
+    const fchip = (id, label, on, click, bg = null) => div().id(id).h(20).px(7).rounded(4).flex().items_center().flex_none().text_size(10.5).font_semibold().cursor_pointer()
+      .border_1().border_color(on ? t.foreground : "#00000000").bg(bg ?? (on ? t.selected : t.raised)).text_color(bg ? typeText(Object.keys(TYPE_COLOR).find((x) => TYPE_COLOR[x] === bg) ?? "normal") : t.foreground).opacity(on || !bg ? 1 : 0.7)
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
+    const sigs = [...new Set(set.filter((m) => !m.status && !m.exclusive).map((m) => TOP_MOVE[m.type]).filter((n) => n && !names.includes(n)))];
+    const row = (m, i) => {
+      const on = names.includes(m.name);
+      return h_flex().id(`lrn-${editId}-${i}`).h(26).gap(8).px(8).rounded(6).items_center().cursor_pointer()
+        .bg(on ? t.selected : "#00000000").hover((st2) => st2.bg(t.hover))
+        .on_click((_e, cx) => { toggle(m.name); cx.notify(); })
+        .child(div().w(14).flex_none().text_size(12).text_color(on ? t.accent : t.dim).child(on ? "✓" : ""))
+        .child(h_flex().w(62).flex_none().child(typeBadge(m.type)))
+        .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).font_weight(isGood(m) ? 600 : 400).child(`${m.name}${isGood(m) ? " ★" : ""}`))
+        .child(h_flex().w(34).flex_none().child(kindBadge(m)))
+        .child(div().w(34).flex_none().text_size(11.5).text_color(t.muted).text_right().child(m.status ? "—" : String(powerOf(m.name))))
+        .child(div().w(42).flex_none().text_size(11.5).text_color(t.muted).text_right().child(accOf(m)))
+        .map((el) => this.hoversMove(el, editId, m, k));
+    };
+    return v_flex().w_full().gap(8)
+      .child(h_flex().gap(6).items_center()
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).mr(4).child("Moves"))
+        .when(megas.length > 0, (el) => el.children([null, ...megas].map((f) => btn(`mform-${f ?? "base"}`, f === null ? nameOf(e.dex) : `Mega${f ? ` ${f}` : ""}`, f === mega, () => { this.moveForm = f; }))))
+        .child(div().flex_1())
+        .when(chosen && !!slot, (el) => el.child(btn(`moves-default-${editId}`, "Reset: its own four", false, () => save(null))))
+        .when(!always && !!slot, (el) => el.child(btn(`moves-change-${editId}`, table ? "Done" : "Change", table, () => { this.editingMoves = table ? null : editId; }))))
+      .child(div().text_size(11).text_color(t.dim).child(`${phys ? "Physical" : "Special"} side: ${phys ? `Atk ${st[1]} · Sp. Atk ${st[3]}` : `Sp. Atk ${st[3]} · Atk ${st[1]}`}${sigs.length ? ` · 1 in 8 rises to ${sigs.join(", ")}` : ""}`))
+      .child(h_flex().w_full().gap(6).child(slots[0]).child(slots[1]))
+      .child(h_flex().w_full().gap(6).child(slots[2]).child(slots[3]))
+      .when(!!slot && table, (el) => el
+        .when(abil, (e2) => e2.child(div().text_size(11).text_color(t.muted).child(abilLine(savedPicks()[slot] ?? e, slot))))
+        .child(h_flex().gap(4).items_center().flex_wrap()
+          .child(div().text_size(11.5).font_semibold().text_color(t.foreground).mr(4).child(`Can learn ${all.length}`))
+          .children([["all", "All"], ["phy", "PHY"], ["spe", "SPE"], ...(all.some((m) => m.status) ? [["up", "UP"]] : [])].map(([kd, label]) => fchip(`mf2-kind-${editId}-${kd}`, label, mf.kind === kd, () => setF({ kind: kd }))))
+          .child(div().w(6))
+          .children(Object.keys(typeCount).sort((x, y) => typeCount[y] - typeCount[x]).map((ty) => fchip(`mf2-type-${editId}-${ty}`, `${typeLabel(ty)} ${typeCount[ty]}`, mf.type === ty, () => setF({ type: mf.type === ty ? null : ty }), TYPE_COLOR[ty]))))
+        .child(h_flex().gap(8).px(8).text_size(10).text_color(t.dim)
+          .child(div().w(14)).child(div().w(62).child("Type")).child(div().flex_1().child(`Move (★ its kind and its own type; ${MAX_MOVES} at most, click to take or drop)`))
+          .child(div().w(34).child("Kind")).child(div().w(34).text_right().child("Power")).child(div().w(42).text_right().child("Acc.")))
+        .child(v_flex().gap(1).children(shown.map(([m, i]) => row(m, i)))));
+  }
+
   moveRow(e, t, slot = null, abil = true) { // (`abil`: its ability said while changing moves; the Box card says it above)
     const key = fighterKey(e.dex, e.form ? { form: e.form } : {});
     // Each move's kind, as the games show it: PHY (physical: its Attack against their Defense) or
