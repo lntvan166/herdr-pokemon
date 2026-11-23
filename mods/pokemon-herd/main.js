@@ -62,7 +62,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -1730,7 +1730,7 @@ export default class PokemonHerd extends View {
         v.fight = null;
         v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
         // (Yours fainted: it stops, unless another was switched in meanwhile.)
-        if (ownDown(fx)) v.trainer.gloat = now; // it won that one: its Pokémon cheers, it says so
+        if (ownDown(fx)) { v.trainer.gloat = now; v.trainer.fallen = (v.trainer.fallen ?? 0) + 1; } // it won that one: its Pokémon cheers, it says so (yours down: Supreme Overlord counts it)
         if (ownDown(fx) && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
         // The Rival: three of yours down and it wins (its record), and goes, gloating.
         if (ownDown(fx) && v.trainer.rival && !v.trainer.leaving && --v.trainer.lives <= 0) {
@@ -3767,6 +3767,8 @@ export default class PokemonHerd extends View {
           (mine ? words.meetWild : words.meetOwn).push(...T2(m1.b));
         }
         const so = v.abil.o, sw = v.abil.w;
+        // Supreme Overlord's count: yours down in this trainer's battle; the trainer's, those before.
+        so.fallen = v.trainer?.fallen ?? 0; sw.fallen = v.trainer?.idx ?? 0;
         // Each ability said once while these two face each other (v.abil.shown). One as they meet
         // (Intimidate…): over its owner's head at once, on its own, ENTRY_MS before any move (as
         // the games' banner), the fight held back that long.
@@ -3840,8 +3842,11 @@ export default class PokemonHerd extends View {
         // A setup move (Swords Dance): no blow, its stages up, said over its head (`setupSaid`).
         const setupSaid = { own: "", wild: "" };
         const setUp = (m, side, k) => { const out = []; for (const [st, n] of m.stages) stageBy(side, st, n, out); setupSaid[k] = `${m.name}! ${out.length ? stageWords(out) : "Nothing more"}`; };
+        // Sucker Punch failing (abilities.js suckerFails): no blow, "But it failed!".
+        let wmFailed = false;
         const mine = () => {
           if (om.status) { setUp(om, so, "own"); return; }
+          if (suckerFails(om, potion ? null : wm, wildFirst)) { omHit = { ...om, miss: true }; hit = { ...hit, text: "But it failed!" }; return; }
           const r1 = onHit(so, sw, om, { weather, missRate: om.missRate ?? missOf(om.name) });
           omHit = { ...om, miss: r1.miss, crit: r1.crit };
           hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
@@ -3863,6 +3868,7 @@ export default class PokemonHerd extends View {
         const theirs = () => {
           if (potion) return; // (its turn the Potion)
           if (wm.status) { setUp(wm, sw, "wild"); back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
+          if (suckerFails(wm, switched ? null : om, !wildFirst)) { wmFailed = true; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "But it failed!", fainted: false }; return; }
           const ownBefore = so.hp;
           const r2 = onHit(sw, so, wm, { weather, missRate: wm.missRate ?? missOf(wm.name) });
           back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
@@ -3955,7 +3961,7 @@ export default class PokemonHerd extends View {
         if (back && !back.setup) seq.push({ at: backHit, until: backHit + 600, anim: reactionAnim("startle", hasOf(dMeta)) });
         const reactEnd = Math.max(back ? backHit + 700 : 0, ownStrikes ? ownAt + ms + 300 : 0);
         dm.react = { seq, until: reactEnd, face: dm.dir, ...(ownStrikes && !om.status ? { shot: { at: ownLaunch, until: hitAt, from: spot, to: v.x, move: ownMove } } : {}) };
-        if (back && !back.setup) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: withAbil(blowWord(back.eff, wm.crit), named.back), miss: wm.miss, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
+        if (back && !back.setup) (dm.blows ??= []).push({ at: backHit, dir: -away, p: back.fainted ? 1 : wm.ultimate || wm.crit ? Math.max(0.85, power(back.eff)) : power(back.eff), style: moveStyle(wildMove.type), word: withAbil(blowWord(back.eff, wm.crit), named.back), miss: wm.miss || wmFailed, physical: wm.physical, kb: knockMul(v.pick.size, pk.size), num: damageText(back.dmg, back.eff, true), type: wildMove.type, name: wm.name });
         dm.pauseUntil = v.fight.until + 1500;
         dm.battleUntil = v.fight.until + 3000; // it Mega Evolves for the fight (megaStatus)
       }

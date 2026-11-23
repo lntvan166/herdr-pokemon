@@ -7,7 +7,7 @@
 import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve, suckerFails } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -104,6 +104,8 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
         turns.push({ by, move: { ...moves[by] }, dmg: 0, hp: hp[to], setup: out.map(([s2, n]) => `${s2}:${n}`).join(",") });
         continue;
       }
+      // Sucker Punch: it fails unless the other's about to attack (abilities.js suckerFails).
+      if (suckerFails(moves[by], moves[to], by !== first)) { turns.push({ by, move: { ...moves[by], miss: true, eff: 1 }, dmg: 0, hp: hp[to] }); continue; }
       // Hex: twice as strong on one with a status.
       const move0 = moves[by].name === "Hex" && st[to].status ? { ...moves[by], power: moves[by].power * 2 } : moves[by];
       // Their abilities on this hit (abilities.js onHit): its type, a miss or not, ×, or nothing.

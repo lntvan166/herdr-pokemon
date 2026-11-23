@@ -1257,3 +1257,29 @@ test("Choose moves: chips first, then the exchange with the one picked", () => {
   assert.equal(st.visitor.fight.ownMove.name, "Swords Dance");
   H.store.set(`${ids.MOD}-settings`, {});
 });
+
+// Sucker Punch into a Swords Dance fails (the games'): no damage on it, "But it failed!".
+test("a trainer's battle: Sucker Punch fails on a setup move", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 983, jobs: 3, moves: ["Sucker Punch"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "trsp", pick: { dex: 983, hp: 1, abil: 0, trainer: true, moves: ["Swords Dance"] }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 983, moves: ["Swords Dance"] }], idx: 0, waited: true } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  st.dropAt = { addr: "t1", dizzy: false };
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx, "a fight");
+  assert.equal(fx.ownMove.name, "Sucker Punch");
+  assert.equal(fx.hp, 1, "no damage");
+  assert.equal(fx.text, "But it failed!");
+  assert.equal(st.visitor.abil.w.st.atk, 2, "its Swords Dance");
+});

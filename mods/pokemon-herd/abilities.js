@@ -78,7 +78,7 @@ export const WORKS = new Set([
   "thick-fat", "heatproof", "filter", "solid-rock", "prism-armor", "multiscale", "shadow-shield", "fur-coat", "fluffy", "ice-scales",
   "purifying-salt", "intimidate", "guard-dog", "defiant", "competitive", "rattled", "moxie", "chilling-neigh", "grim-neigh", "beast-boost",
   "speed-boost", "justified", "stamina", "weak-armor", "steam-engine", "water-compaction", "anger-point", "sturdy", "no-guard",
-  "compound-eyes", "sniper", "super-luck", "battle-armor", "shell-armor", "inner-focus", "oblivious", "own-tempo", "scrappy", "rock-head", "magic-guard",
+  "compound-eyes", "sniper", "super-luck", "battle-armor", "shell-armor", "inner-focus", "oblivious", "own-tempo", "scrappy", "rock-head", "magic-guard", "supreme-overlord",
   // out of battle (main.js): finding things, eggs, who walks by, a wild one's nature
   "pickup", "honey-gather", "flame-body", "magma-armor", "static", "magnet-pull", "harvest", "synchronize",
 ]);
@@ -213,6 +213,9 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     case "punk-rock": if (flag(move, "s")) atk("punk-rock", 1.3); break;
     case "sheer-force": if (flag(move, "e")) atk("sheer-force", 1.3); break;
     case "reckless": if (flag(move, "r")) atk("reckless", 1.2); break;
+    // Supreme Overlord: ×1.1 for each of its side's fallen (`att.fallen`: yours down in this
+    // trainer's battle, or the trainer's before it), five at most, as the games'.
+    case "supreme-overlord": if ((att.fallen ?? 0) > 0) atk("supreme-overlord", 1 + 0.1 * Math.min(5, att.fallen)); break;
     case "sharpness": if (/Slash|Cut|Blade|Sword|Scissor|Aerial Ace|Air Cutter|Kowtow Cleave|Ceaseless Edge|Razor|Cleave|Leaf Blade|Night Slash|Psycho Cut|Fury Cutter|Stone Axe/.test(move.name ?? "")) atk("sharpness", 1.5); break;
     case "huge-power": case "pure-power": if (physical) atk(att.ab, 2); break;
     case "hustle": case "gorilla-tactics": if (physical) atk(att.ab, 1.5); break;
@@ -284,6 +287,9 @@ export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
   out.word = words.join(" ");
   return out;
 }
+// Sucker Punch: it fails unless the other is about to attack (it moved already, or uses a setup move,
+// an item, a switch), as the games'. `other`: the other's move this turn; `otherFirst`: it moved first.
+export const suckerFails = (move, other, otherFirst) => move?.name === "Sucker Punch" && (!other || !!other.status || otherFirst);
 // Moves that ignore the target's stat stages, as the games' (Sacred Sword, Darkest Lariat, Chip Away).
 export const IGNORE_STAGES = new Set(["Sacred Sword", "Darkest Lariat", "Chip Away"]);
 // A stage changed by a move, not an ability (nothing said by name): `n` stages of `stat`, kept in

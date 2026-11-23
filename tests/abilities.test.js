@@ -255,3 +255,21 @@ test("Mega Evolving: its own ability first, then its Mega's", async () => {
   A.megaEvolve(man, foe2, "intimidate");
   assert.equal(foe2.st.atk, -1, "its Mega's Intimidate as it evolves");
 });
+
+// Sucker Punch fails on one not about to attack (a setup move, or it moved first); Supreme Overlord
+// ×1.1 for each fallen, five at most.
+test("Sucker Punch fails; Supreme Overlord", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const sp = { name: "Sucker Punch" };
+  assert.equal(A.suckerFails(sp, { name: "Swords Dance", status: true }, false), true);
+  assert.equal(A.suckerFails(sp, { name: "Shadow Ball" }, true), true, "it moved first");
+  assert.equal(A.suckerFails(sp, { name: "Shadow Ball" }, false), false);
+  assert.equal(A.suckerFails(sp, null, false), true, "an item, a switch");
+  assert.equal(A.suckerFails({ name: "Kowtow Cleave" }, { status: true }, false), false);
+  const m = { name: "Kowtow Cleave", type: "dark", physical: true, mul: 1, eff: 1 };
+  const base = A.onHit(A.newSide("supreme-overlord"), A.newSide(""), m).mul;
+  const two = A.onHit({ ...A.newSide("supreme-overlord"), fallen: 2 }, A.newSide(""), m).mul;
+  const nine = A.onHit({ ...A.newSide("supreme-overlord"), fallen: 9 }, A.newSide(""), m).mul;
+  assert.ok(Math.abs(two / base - 1.2) < 1e-9);
+  assert.ok(Math.abs(nine / base - 1.5) < 1e-9, "five at most");
+});
