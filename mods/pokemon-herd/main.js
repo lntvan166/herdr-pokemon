@@ -6218,17 +6218,29 @@ export default class PokemonHerd extends View {
     const active = herd.filter((x) => raised(x.pick)).map((x) => ({ slot: x.slot, pick: x.pick, tag: x.tag }));
     const everyone = [...active, ...boxed];
     const q = fold((this.boxQuery ?? "").trim()); // accents folded: "flabebe" finds Flabébé
-    const FILTERS = [
+    // Where they are (one of: All, Waiting, With agents), and what they are (any of these at once:
+    // a shiny Alpha, a locked Mega…; each with how many there are where it looks).
+    const WHERE = [
       ["all", "All", () => true],
       ["waiting", "Waiting", (x) => !x.tag],
       ["agents", "With agents", (x) => !!x.tag],
+    ];
+    const favKeys = favs();
+    const ONLY = [
       ["caught", "Caught", (x) => !!x.pick.caught],
       ["shiny", "✨ Shiny", (x) => !!x.pick.shiny],
-      ["legend", "Legendary", (x) => isLegendary(x.pick.dex)],
       ["alpha", "Alpha", (x) => !!x.pick.alpha],
       ["shadow", "Shadow", (x) => !!x.pick.shadow],
+      ["legend", "Legendary", (x) => isLegendary(x.pick.dex)],
+      ["locked", "🔒 Locked", (x) => !!x.pick.locked],
+      ["mega", "◆ Mega", (x) => !x.pick.form && megaForms(x.pick.dex).length > 0],
+      ["held", "🎒 Holds", (x) => !!x.pick.held],
+      ["hidden", "Hidden ability", (x) => isHidden(x.pick, x.slot)],
+      ["fav", "★ Favorite", (x) => isFavorite(favKeys, x.pick.form ? { dex: x.pick.dex, form: x.pick.form } : { dex: x.pick.dex })],
     ];
-    const filter = FILTERS.find((f) => f[0] === this.boxFilter) ?? FILTERS[0];
+    const where = WHERE.find((f) => f[0] === this.boxFilter) ?? WHERE[0];
+    const only = (this.boxOnly ?? []).map((k) => ONLY.find((o) => o[0] === k)).filter(Boolean);
+    const filter = [where[0], where[1], (x) => where[2](x) && only.every((o) => o[2](x))];
     // The Day Care (breed.js): the two left there (still in the Box), and its egg.
     const care = loadCare(shared(CARE_KEY));
     const inCare = new Set(care.pair.filter((k) => boxed.some((x) => x.slot === k)));
@@ -6404,7 +6416,13 @@ export default class PokemonHerd extends View {
     return v_flex().id("bag-box").flex_none().h(h).gap(8)
       .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
         .child(Input.new(this.boxInput).w(150).h(26).px(8).rounded(6).border_1().border_color(t.border).bg(t.background).text_size(12).text_color(t.foreground))
-        .children(FILTERS.map(([k, label, f]) => chip(`box-f-${k}`, `${label} ${everyone.filter(f).length}`, filter[0] === k, () => { this.boxFilter = k; }))))
+        .children(WHERE.map(([k, label, f]) => chip(`box-f-${k}`, `${label} ${everyone.filter(f).length}`, where[0] === k, () => { this.boxFilter = k; }))))
+      .child(h_flex().flex_wrap().gap(6).items_center().flex_none()
+        .children(ONLY.map(([k, label, f]) => {
+          const on = (this.boxOnly ?? []).includes(k);
+          return chip(`box-o-${k}`, `${label} ${everyone.filter((x) => where[2](x) && f(x)).length}`, on, () => { this.boxOnly = on ? (this.boxOnly ?? []).filter((x) => x !== k) : [...(this.boxOnly ?? []), k]; });
+        }))
+        .when(only.length > 0, (el) => el.child(chip("box-o-clear", "Clear", false, () => { this.boxOnly = []; }))))
       // Its order, and Select: pick many to release at once.
       .child(h_flex().gap(6).items_center().flex_none()
         .child(div().text_size(11).text_color(t.muted).child("Sort"))
