@@ -211,7 +211,9 @@ export function itemUse(pick, slot, id, how = {}) {
   // An Ability Capsule: its other ability (one with two, not on its hidden one); an Ability
   // Patch: its hidden one (abilities.js).
   if (id === "ability-capsule") return slotsOf(pick.dex, pick.form)[1] && abilSlot(pick, slot) !== 2 ? "ability" : null;
-  if (id === "ability-patch") return slotsOf(pick.dex, pick.form)[2] && abilSlot(pick, slot) !== 2 ? "ability" : null;
+  // A Patch both ways, as Scarlet and Violet's: to its hidden one, or from it back to its first
+  // (a hidden one Patched by mistake: Kingambit's Pressure, not its Defiant).
+  if (id === "ability-patch") return slotsOf(pick.dex, pick.form)[2] ? "ability" : null;
   if (REVIVE[id]) return how.hpOf && how.hpOf(slot) === null ? "revive" : null;
   if (id === "berry" || id === "sitrus-berry") {
     if (friendOf(pick) < FRIEND_MAX && fedOn(pick, how.day) < FED_MAX) return "hearts";
@@ -233,7 +235,7 @@ export function itemUse(pick, slot, id, how = {}) {
 // item to hold hands back what it held (`back`, for the Bag).
 export function useItem(pick, slot, id, how = {}, at = 0) {
   const use = itemUse(pick, slot, id, how);
-  if (use === "ability") return { pick: { ...pick, abil: id === "ability-patch" ? 2 : 1 - abilSlot(pick, slot) }, evolved: false };
+  if (use === "ability") return { pick: { ...pick, abil: id === "ability-patch" ? (abilSlot(pick, slot) === 2 ? 0 : 2) : 1 - abilSlot(pick, slot) }, evolved: false };
   if (use === "hold") return { pick: { ...pick, held: id }, evolved: false, ...(pick.held ? { back: pick.held } : {}) };
   if (use === "revive") return { pick, evolved: false, revive: REVIVE[id] };
   if (use === "hearts" || use === "heal") {

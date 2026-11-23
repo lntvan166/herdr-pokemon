@@ -183,7 +183,7 @@ export function itemAbout(id) {
   if (id === "timer-ball") return "Better the more balls you've thrown at it: a Poké Ball at first, up to four times as likely. For a legendary's long chase.";
   if (id === "master-ball") return "Never fails. Kept for legendary Pokémon: only one of those gets it.";
   if (id === "ability-capsule") return "Swaps its ability for its species' other one (not the hidden one). Use it on a Pokémon in the Box or from its menu.";
-  if (id === "ability-patch") return "Gives it its species' hidden ability. The Battle Tower's 28th floor gives one too.";
+  if (id === "ability-patch") return "Gives it its species' hidden ability, or takes one that has it back to its first. The Battle Tower's 28th floor gives one too.";
   if (id === "rare-candy") return "A level's worth: 5 jobs towards evolving (15 for a first evolution, 30 for a second); evolves it if that's enough.";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");

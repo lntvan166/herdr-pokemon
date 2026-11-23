@@ -94,7 +94,7 @@ test("an Ability Capsule swaps its two, an Ability Patch gives the hidden one; k
   assert.equal(useItem(kang, "p1", "ability-capsule").pick.abil, 1);
   assert.equal(itemUse({ dex: 6, abil: 0 }, "p1", "ability-capsule"), null); // Charizard: one only
   assert.equal(useItem({ dex: 6, abil: 0 }, "p1", "ability-patch").pick.abil, 2);
-  assert.equal(itemUse({ dex: 6, abil: 2 }, "p1", "ability-patch"), null);
+  assert.equal(useItem({ dex: 6, abil: 2 }, "p1", "ability-patch").pick.abil, 0); // (and back, as Scarlet and Violet's)
   assert.equal(itemUse({ dex: 94 }, "p1", "ability-patch"), null); // Gengar: none hidden
   assert.equal(loadPicks({ v: 2, panes: { p: { dex: 6, abil: 2 } } }).panes.p.abil, 2);
   // An egg: its mother's slot 4 in 5 (her hidden one 3 in 5).
@@ -294,4 +294,16 @@ test("known immunities: shown, or the only one", async () => {
   assert.equal(A.knownImmune(lev, eq, two), true, "shown: Earthquake missed it");
   assert.equal(A.knownImmune(A.newSide("levitate"), eq, [26, 0, 0]), true, "its kind's only one");
   assert.equal(A.knownImmune(A.newSide("", 1, { item: "air-balloon" }), eq, two), true);
+});
+
+// An Ability Patch both ways (Scarlet and Violet's): to its hidden one, and back to its first.
+test("Ability Patch: to its hidden one and back", async () => {
+  const P = await import("../mods/pokemon-herd/picks.js");
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const k = { dex: 983, abil: 0 };
+  const hidden = P.useItem(k, "s", "ability-patch", {}).pick;
+  assert.equal(A.abilityOf(hidden, "s"), "pressure");
+  assert.equal(P.itemUse(hidden, "s", "ability-capsule"), null, "a Capsule: not on a hidden one");
+  const back = P.useItem(hidden, "s", "ability-patch", {}).pick;
+  assert.equal(A.abilityOf(back, "s"), "defiant");
 });
