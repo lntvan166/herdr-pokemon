@@ -1320,50 +1320,25 @@ test("its own stages (Superpower): said over the attacker", () => {
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Atk↓ Def↓/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
 });
 
-// A hover over one in the preview's line says what it is, as its card does (a panel: tooltips take one line).
-test("the picker: a hover in the line shows its card's facts", () => {
-  seed();
-  const v = picker();
-  v.showPreview({ dex: 6 }, cx);
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
-  v.render(cx);
-  const key = Object.keys(K.handlers).find((k) => k.startsWith("pv-evo-") && k.includes("on_hover"));
-  assert.ok(key, Object.keys(K.handlers).filter((k) => k.startsWith("pv-")).join());
-  K.handlers[key](true, cx);
-  assert.equal(v.hoverInfo?.zone, "pv");
-  assert.ok(v.infoPanel("pv", { accent: "#fff", popover: "#000", foreground: "#fff", muted: "#aaa", dim: "#888" }));
-  v.render(cx);
-  K.handlers[key](false, cx);
-  assert.equal(v.hoverInfo, null);
-});
 
-// A move hovered where moves are chosen: its facts (kind, power, accuracy, effects, what it suits).
-test("the picker: a move hovered shows its facts", () => {
-  seed();
-  const v = picker();
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
-  v.render(cx);
-  const key = Object.keys(K.handlers).find((k) => k.startsWith("mvi-") && k.includes("on_hover"));
-  assert.ok(key, Object.keys(K.handlers).filter((k) => k.startsWith("mv")).join());
-  K.handlers[key](true, cx);
-  assert.ok(v.moveHover?.m?.name);
-  v.render(cx);
-  K.handlers[key](false, cx);
-  assert.equal(v.moveHover, null);
-});
 
-// The preview's abilities, each hovered: what it does.
-test("the picker's preview: an ability hovered says what it does", () => {
+
+// Hover cards (HoverCard: over the rest, the layout untouched): a kind's facts, a move's, an
+// ability's; drawn wherever they hang (the picker's lines, its waiting row, moves, abilities).
+test("hover cards: a Pokémon's facts, a move's, an ability's", () => {
   seed();
   const v = picker();
   v.showPreview({ dex: 983 }, cx);
-  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
   v.render(cx);
-  const key = Object.keys(K.handlers).find((k) => k.startsWith("pv-abil-0") && k.includes("on_hover"));
-  assert.ok(key);
-  K.handlers[key](true, cx);
-  assert.equal(v.abilHover, "defiant");
-  v.render(cx);
-  K.handlers[key](false, cx);
-  assert.equal(v.abilHover, null);
+  const t = { accent: "#fff", popover: "#000", foreground: "#fff", muted: "#aaa", dim: "#888" };
+  assert.ok(v.infoCard({ dex: 983 }, null, t));
+  assert.ok(v.infoCard({ dex: 6, held: "life-orb" }, "p0", t));
+  for (const name of ["Sucker Punch", "Close Combat", "Flare Blitz", "Swords Dance"]) {
+    const m = learnableOfFor(name);
+    assert.ok(v.moveCard(m, "983", t), name);
+  }
 });
+function learnableOfFor(name) {
+  return { "Sucker Punch": { name, type: "dark", physical: true }, "Close Combat": { name, type: "fighting", physical: true }, "Flare Blitz": { name, type: "fire", physical: true },
+    "Swords Dance": { name, type: "normal", physical: false, status: true, stages: [["atk", 2]] } }[name];
+}

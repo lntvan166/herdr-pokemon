@@ -3,7 +3,7 @@
 // react when their agent changes or you focus it. Click one to go to its agent; right-click to
 // choose which Pokémon it is.
 import { View, div, image } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar } from "gpui-base";
+import { h_flex, v_flex, InputState, Input, v_virtual_list, Scrollbar, HoverCard } from "gpui-base";
 import { agents, spaces, theme, settings, run, props, shared, setShared, openOverlay, closeOverlay, nextCommand, layout, playSound, terminals, setAgentOrder, readTextFile, appHome, window as herdrWindow } from "herdr";
 import { placesIn, placeOf, placeBlock, rowsOf, blockProps, hiddenAlong, setRows, setBlockProps, partyPlace, placeParty, swapAgents, unswapAgents, agentsSwapped, hasAgentsList, usesMod, toastMod, setToast, usesPokemonSidebar, toPokemonSidebar, fromPokemonSidebar, SIDEBAR_MOD } from "./place.js";
 import { nightness, palette, features, isLight, treeParts, overHead, seasonAt, snowAt, weatherOf, rainAt, lightning, sunAt, rainbowArcs, rainbowFade, RAINBOW_MS } from "./scene.js";
@@ -390,7 +390,8 @@ const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.tr
 // shared, so the Bag, a menu or the Box anywhere count alike), else null.
 const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
 const CHOOSE_MS = 6000; // Choose moves: this long to pick, then it picks itself
-const SETUP_NOTE_MS = 1400; // a setup move's words (Swords Dance! Atk↑↑), this long
+const SETUP_NOTE_MS = 1400;
+const HOVER_OPEN = 350, HOVER_CLOSE = 120; // a hover card: after resting this long; gone this long after leaving // a setup move's words (Swords Dance! Atk↑↑), this long
 const ITEM_TURN_MS = 700, ITEM_TURN_FRESH = 30000; // its turn after an item: this soon; an item this old, none
 function trainerFight() {
   const v = shared(VISITOR_KEY)?.v;
@@ -3054,53 +3055,50 @@ export default class PokemonHerd extends View {
     else if (ask.kind === "pick") this.openPicker(a, pick, tag);
     else openBag("box", a.pane);
   }
-  // A hover over one (its line, one waiting in the Box…) says what it is, as its card does, in a
-  // panel of its own (`infoPanel`, where `zone` is drawn: tooltips take one line only).
-  // `slot`: a saved one's (its own ability, its chosen moves); none: its kind's.
+  // A hover over one (its line, one waiting in the Box…) says what it is, as its card does: a card
+  // over the rest (HoverCard: drawn in a layer above, the layout untouched; an inline panel grew the
+  // card under the pointer, and scrolling jittered). `slot`: a saved one's (its own ability, its
+  // chosen moves); none: its kind's.
   hovers(el, zone, pick, slot = null) {
-    const key = `${zone}|${slot ?? entryKey(pick)}`;
-    return el.on_hover((h, cx) => {
-      if (h) this.hoverInfo = { key, zone, pick, slot };
-      else if (this.hoverInfo?.key === key) this.hoverInfo = null;
-      cx.notify();
-    });
+    return HoverCard.new(`hc-${zone}-${slot ?? entryKey(pick)}`).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE)
+      .trigger(el).content(this.infoCard(pick, slot, theme()));
   }
-  // A move hovered (its chip, where moves are chosen): its facts, as the games' move info.
-  hoversMove(el, zone, m, key) {
-    const id = `${zone}|${m.name}`;
-    return el.on_hover((h, cx) => {
-      if (h) this.moveHover = { id, zone, m, key };
-      else if (this.moveHover?.id === id) this.moveHover = null;
-      cx.notify();
-    });
-  }
-  movePanel(zone, t) {
-    const mh = this.moveHover;
-    if (!mh || mh.zone !== zone) return null;
-    const lines = moveFacts(mh.m, mh.key);
-    return v_flex().id(`movefacts-${zone}`).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover).flex_none()
-      .child(h_flex().gap(6).items_center()
-        .child(div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[mh.m.type]).text_size(9.5).font_bold().text_color(typeText(mh.m.type)).child(typeLabel(mh.m.type)))
-        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(mh.m.name)))
-      .children(lines.map((l) => div().text_size(11).text_color(t.muted).child(l)));
-  }
-  infoPanel(zone, t) {
-    const hi = this.hoverInfo;
-    if (!hi || hi.zone !== zone) return null;
-    const p = hi.pick, k = fighterKey(p.dex, p.form ? { form: p.form } : {});
+  infoCard(p, slot, t) {
+    const k = fighterKey(p.dex, p.form ? { form: p.form } : {});
     const st = statsFull(k), phys = st[1] >= st[3];
-    const set = movesetOf(k, hi.slot ? chosenFor(p, k) : null);
+    const set = movesetOf(k, slot ? chosenFor(p, k) : null);
     const chip = (m) => h_flex().h(17).px(5).gap(3).rounded(4).items_center().flex_none().bg(TYPE_COLOR[m.type])
       .child(div().text_size(7.5).font_bold().px(2).bg("#00000047").rounded(2).text_color("#ffffff").child(m.status ? "UP" : m.physical ? "PHY" : "SPE"))
       .child(div().text_size(10).font_semibold().text_color(typeText(m.type)).child(`${m.name}${m.status ? "" : ` ${powerOf(m.name)}`}`));
-    return v_flex().id(`info-${zone}`).gap(4).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover).flex_none()
+    return v_flex().w(340).gap(4).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover)
       .child(h_flex().gap(6).items_center().flex_wrap()
-        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(sparkled(`${p.shiny ? "✨ " : ""}${hi.slot ? nameFor(p) : fullName(p.dex, p.form)}`)))
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(sparkled(`${p.shiny ? "✨ " : ""}${slot ? nameFor(p) : fullName(p.dex, p.form)}`)))
         .children(typesOf(k).map((ty) => div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty))))
         .child(div().text_size(10.5).text_color(t.dim).child(`${phys ? "Physical" : "Special"} side: Atk ${st[1]} · Sp. Atk ${st[3]}`)))
-      .child(div().text_size(11).text_color(t.muted).child(hi.slot ? abilLine(p, hi.slot) : `Abilities: ${speciesAbils(p.dex, p.form ?? null)}`))
+      .child(div().text_size(11).text_color(t.muted).child(slot ? abilLine(p, slot) : `Abilities: ${speciesAbils(p.dex, p.form ?? null)}`))
       .child(h_flex().gap(3).flex_wrap().children(set.map(chip)))
-      .when(!!(hi.slot && p.held), (el) => el.child(h_flex().gap(4).items_center().text_size(10.5).text_color(t.muted).child("Holds").child(this.itemMark(p.held, 14)).child(ITEMS[p.held]?.name ?? "")));
+      .when(!!(slot && p.held), (el) => el.child(h_flex().gap(4).items_center().text_size(10.5).text_color(t.muted).child("Holds").child(this.itemMark(p.held, 14)).child(ITEMS[p.held]?.name ?? "")));
+  }
+  // A move hovered (its chip, where moves are chosen): its facts, as the games' move info, a card
+  // over the rest (as `hovers`).
+  hoversMove(el, zone, m, key) {
+    return HoverCard.new(`hm-${zone}-${m.name}`).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE)
+      .trigger(el).content(this.moveCard(m, key, theme()));
+  }
+  moveCard(m, key, t) {
+    return v_flex().w(360).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover)
+      .child(h_flex().gap(6).items_center()
+        .child(div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[m.type]).text_size(9.5).font_bold().text_color(typeText(m.type)).child(typeLabel(m.type)))
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(m.name)))
+      .children(moveFacts(m, key).map((l) => div().text_size(11).text_color(t.muted).child(l)));
+  }
+  // An ability hovered: what it does (and if it does anything here), a card over the rest.
+  hoversAbil(el, id, k) {
+    const t = theme();
+    return HoverCard.new(`ha-${id}`).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE).trigger(el)
+      .content(v_flex().w(320).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover)
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(abilityName(k)))
+        .child(div().text_size(11).text_color(t.muted).child(`${abilityText(k)}${works(k) ? "" : " (No effect here.)"}`)));
   }
   itemMark(id, size) {
     const art = ITEMS[id]?.art;
@@ -4804,9 +4802,7 @@ export default class PokemonHerd extends View {
       .child(div().h(1).bg(t.border))
       .child(row("mon-pick", "🔄 Choose another Pokémon…", "every kind", () => openPick(slot, pick, p.tag)))
       .child(row("mon-box", "📦 Its card in the Box", "rename, moves, lock", () => openBag("box", slot)));
-    // One waiting in the Box, hovered: what it is, over the top of the menu (no room below it).
-    const info = this.infoPanel("monwait", t);
-    return info ? div().relative().size_full().child(menu).child(div().absolute().top(8).left(8).right(8).child(info)) : menu;
+    return menu;
   }
 
   render(cx) {
@@ -6210,7 +6206,6 @@ export default class PokemonHerd extends View {
           .child(fit.length ? `${one ? `Partners for ${nameFor(one.pick)}` : "Ones that can have eggs"}: ${fitAll.length}${more ? ` (the first ${fit.length} shown: search for the rest)` : ""}`
             : q ? "None of those match." : one ? `None in the Box can have an egg with ${nameFor(one.pick)}.` : "None in the Box can have eggs yet."))))
       .when(fit.length > 0, (el) => el.child(div().id("care-fit").flex_1().min_h(0).overflow_y_scrollbar().child(h_flex().flex_wrap().gap(4).children(fit.map(cand)))))
-      .when(!!this.infoPanel("care", t), (el) => el.child(this.infoPanel("care", t)))
       .when(born.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
         .child(div().text_size(11.5).text_color(t.muted).child(`Hatched here: ${care.hatched}`))
         .child(h_flex().gap(6).flex_wrap().children(born.map((b) => div().id(`care-born-${b.slot}`).h(26).px(8).gap(6).rounded(6).flex().items_center().border_1().border_color(t.border)
@@ -6727,7 +6722,6 @@ export default class PokemonHerd extends View {
               .map((el2) => this.hovers(el2, "cur", e))),
           ])),
       ))
-      .when(!!this.infoPanel("cur", t), (el) => el.child(this.infoPanel("cur", t)))
       .child(this.moveRow(cur, t, props()?.slot))
       .child(this.renderBagRow(cur, t));
   }
@@ -6737,7 +6731,6 @@ export default class PokemonHerd extends View {
   // through a line no longer starts a set of sprites for each one passed.
   showPreview(e, cx, shiny = false) {
     const pv = this.preview = { dex: e.dex, ...(e.form ? { form: e.form } : {}), shiny: shiny && hasShiny(e.dex, e.form) };
-    this.abilHover = null; // (another one: its abilities)
     cx.spawn(async (cx) => {
       await cx.sleep(PREVIEW_WAIT);
       if (this.preview !== pv) return; // another one by now
@@ -6802,9 +6795,7 @@ export default class PokemonHerd extends View {
         .when(sigs.length > 0 && !editing && mega === null, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child(`now and then ${sigs.join(" or ")}`)))
         .when(mega !== null && !chosen && !editing, (el) => el.child(div().ml(4).text_size(10.5).text_color(t.dim).child("its own four")))
         .when(!!slot, (el) => el.child(pill(`moves-edit-${slot}-${mega ?? "base"}`, editing ? "Done" : "Change", () => { this.editingMoves = editing ? null : editId; })));
-      // A move hovered: its facts under the row (moveFacts).
-      const facts = this.movePanel(editId, t);
-      if (!editing) return facts ? v_flex().gap(4).child(row).child(facts) : row;
+      if (!editing) return row;
       const names = set.map((m) => m.name);
       const all = learnableOf(k);
       // Filters, as the games' TM machine: its kind (PHY, SPE) and a type (those it learns, each
@@ -6840,7 +6831,6 @@ export default class PokemonHerd extends View {
               cx.notify();
             }).child(chip(m, on, isGood(m))).map((el) => this.hoversMove(el, editId, m, k));
           })))
-        .when(!!facts, (el) => el.child(facts))
         .when(chosen, (el) => el.child(h_flex().child(pill(`moves-default-${slot}-${mega ?? "base"}`, "Default: its own four", () => save(null)))));
     };
     // Its Megas (Charizard: X and Y), each a row of its own: their moves are their own to choose.
@@ -6905,7 +6895,7 @@ export default class PokemonHerd extends View {
             .child(div().child("Abilities:"))
             .children(speciesAbilList(pv.dex, pv.form ?? null).map((x, i) => div().id(`pv-abil-${i}`).cursor_pointer().hover((st) => st.text_color(t.foreground))
               .child(`${x.label}${i < speciesAbilList(pv.dex, pv.form ?? null).length - 1 ? " ·" : ""}`)
-              .map((el2) => el2.on_hover((h, cx) => { if (h) this.abilHover = x.k; else if (this.abilHover === x.k) this.abilHover = null; cx.notify(); }))))))
+              .map((el2) => this.hoversAbil(el2, `pv-${i}`, x.k))))))
         // Favourites are starred here (or on the card, for the one it is).
         .child((() => {
           const on = isFavorite(favs(), pv);
@@ -6950,10 +6940,6 @@ export default class PokemonHerd extends View {
           .when(!!b.held, (el) => el.child(this.itemMark(b.held, 18)))
           .when(!!b.caught, (el) => el.child(this.itemMark(b.ball ?? "poke-ball", 16)))
           .child(button(`bring-${slot}`, "Bring out", false, () => { this.preview = null; this.choose(pv, { slot }); }))))))
-      // An ability hovered (its name above): what it does, and whether it does anything here.
-      .when(!!this.abilHover, (el) => el.child(v_flex().id("pv-abil-info").gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover).flex_none()
-        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(abilityName(this.abilHover)))
-        .child(div().text_size(11).text_color(t.muted).child(`${abilityText(this.abilHover)}${works(this.abilHover) ? "" : " (No effect here.)"}`))))
       .child(h_flex().gap(8).items_start()
         .child(stage("idleD", "Standing"))
         .child(stage("walkR", "Walking"))
@@ -6976,8 +6962,7 @@ export default class PokemonHerd extends View {
               .child(icon(e, 30))
               .map((el2) => this.hovers(el2, "pv", e))),
           ])),
-      ))
-      .when(!!this.infoPanel("pv", t), (el) => el.child(this.infoPanel("pv", t)));
+      ));
   }
 
   // The Bag, for this Pokémon: Berries (a heart), Rare Candy (evolve now) and the stones it can
@@ -7087,8 +7072,7 @@ export default class PokemonHerd extends View {
           .when(waiting.length > WAIT_ROW, (e2) => e2.child(div().id("pk-box-more").h(66).px(10).flex().items_center().flex_none().rounded(8).border_1().border_color(t.border)
             .text_size(11.5).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
             .on_click(() => { closeOverlay(p.overlay); openBag("box"); })
-            .child(`+${waiting.length - WAIT_ROW} · Box →`))))
-        .when(!!this.infoPanel("wait", t), (e2) => e2.child(this.infoPanel("wait", t)))))
+            .child(`+${waiting.length - WAIT_ROW} · Box →`))))))
       // Mega: Off / On / Auto (Mega while its agent works), for a Pokémon that has one.
       .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
