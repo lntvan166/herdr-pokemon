@@ -1470,3 +1470,23 @@ test("a trainer's battle: Will-O-Wisp burns; frozen, a turn lost", () => {
   assert.equal(st.visitor.fight.blow, null, "frozen: no move");
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Frozen solid!/.test(n.text)), JSON.stringify(st.mons.t1.sparNotes));
 });
+
+// None of yours able to fight a trainer's (all resting after fainting): it wins and goes (it
+// waited for ever).
+test("a trainer's battle: none of yours left, it wins and goes", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  st.visitor = { id: "trnone", pick: { dex: 143, hp: 1, abil: 0, trainer: true }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143 }], idx: 0, waited: true, fought: true } };
+  for (const m of Object.values(st.mons)) m.restUntil = now + 600000;
+  st.tick(cx);
+  assert.ok(st.visitor === null || st.visitor.trainer.won || st.visitor.trainer.leaving, "it won, going");
+});

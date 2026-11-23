@@ -1496,6 +1496,24 @@ export default class PokemonHerd extends View {
 
   // The Battle Tower: one of yours fainted in a climb (it's out of it); TOWER_LIVES of them and the
   // climb is over.
+  // Yours down in a trainer's battle (once an exchange: fx.ownCounted): it cheers; Supreme
+  // Overlord counts it; a climb's life; the Rival's lives (none left: it wins and goes). True if
+  // the battle's over.
+  ownFell(v, fx, now) {
+    if (!ownDown(fx) || fx.ownCounted) return false;
+    fx.ownCounted = true;
+    v.trainer.gloat = now; v.trainer.fallen = (v.trainer.fallen ?? 0) + 1;
+    if (v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
+    if (v.trainer.rival && !v.trainer.leaving && --v.trainer.lives <= 0) { this.trainerWins(v, now); return true; }
+    return !this.visitor || !!v.trainer.leaving;
+  }
+  // The trainer wins (the Rival's record a loss of yours) and goes, gloating; a climb ends.
+  trainerWins(v, now) {
+    if (v.trainer.rival && this.leader) { const r = loadRival(shared(RIVAL_KEY), now); setShared(RIVAL_KEY, { ...r, losses: r.losses + 1, nextAt: rivalNext(now) }); }
+    v.trainer.won = now;
+    if (v.trainer.tower) { this.towerEnd(now, "no one left"); return; }
+    this.trainerLeave(v, now);
+  }
   towerFaint(addr, now) {
     const t = towerNow();
     if (!t.run) return;
@@ -1773,6 +1791,10 @@ export default class PokemonHerd extends View {
         }
       }
       if (fx.fainted) {
+        // Yours down in the same exchange (its recoil, its burn, both at once): counted too (the
+        // Tower's lives, the Rival's, Supreme Overlord's), once (it was missed: a climb went on
+        // with none of yours left and nothing healing).
+        if (v.trainer && !v.trainer.beaten && this.ownFell(v, fx, now)) return true;
         v.fainted ??= now;
         const tr = v.trainer;
         if (tr && now >= v.fainted + 2200 && !tr.beaten) {
@@ -1827,15 +1849,7 @@ export default class PokemonHerd extends View {
         v.fight = null;
         v.halt = { kind: "trainer", x: fx.x, at: now, until: Math.max(now + 60000, v.trainer.at + WAIT_MS), icon: "❗", face: "L" };
         // (Yours fainted: it stops, unless another was switched in meanwhile.)
-        if (ownDown(fx)) { v.trainer.gloat = now; v.trainer.fallen = (v.trainer.fallen ?? 0) + 1; } // it won that one: its Pokémon cheers, it says so (yours down: Supreme Overlord counts it)
-        if (ownDown(fx) && v.trainer.tower && this.leader) this.towerFaint(fx.own, now);
-        // The Rival: three of yours down and it wins (its record), and goes, gloating.
-        if (ownDown(fx) && v.trainer.rival && !v.trainer.leaving && --v.trainer.lives <= 0) {
-          if (this.leader) { const r = loadRival(shared(RIVAL_KEY), now); setShared(RIVAL_KEY, { ...r, losses: r.losses + 1, nextAt: rivalNext(now) }); }
-          v.trainer.won = now;
-          this.trainerLeave(v, now);
-          return true;
-        }
+        if (this.ownFell(v, fx, now)) return true;
         if (!this.visitor || v.trainer.leaving) return true; // (the climb is over: it's going)
         if (ownDown(fx) && v.trainer.fighter === fx.own) v.trainer.fighter = null;
         else if (v.trainer.fighter) v.trainer.nextAt = now + 500;
@@ -1901,6 +1915,13 @@ export default class PokemonHerd extends View {
     // The trainer's battle going on: the next exchange, with the same one of yours, if it's still
     // there and up (as if dropped on it again).
     const trv = v.trainer;
+    // None of yours left able to fight it (all resting after fainting, or out of the climb): it
+    // wins, as the games' (it waited for ever: a player with three, all down, stuck with it).
+    if (trv?.fought && !trv.beaten && !trv.leaving && !trv.won && !v.fight && !trv.choosing && this.leader) {
+      const out = new Set(trv.tower ? (towerNow().run?.out ?? []) : []);
+      const able = agents().filter((a) => this.mons[a.address] && !(this.mons[a.address].restUntil > now) && !out.has(a.pane));
+      if (!able.length) { this.trainerWins(v, now); return true; }
+    }
     // Choose moves: picked, or time's up (the AI's then): the exchange with it.
     if (trv?.choosing && (trv.choosing.chosen || now >= trv.choosing.until) && !v.fight) {
       const ch = trv.choosing; trv.choosing = null;
