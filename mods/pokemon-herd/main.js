@@ -1331,6 +1331,10 @@ export default class PokemonHerd extends View {
     const m = d && this.mons[d.addr];
     if (!m) return;
     if (!d.moved && Math.hypot(e.position.x - d.start.x, e.position.y - d.start.y) < 5) return;
+    // Picked up while its move waits on you (Choose moves): no chips, no countdown; the battle
+    // waits on you. Dropped back on the trainer's Pokémon (it or another of yours): a fresh one.
+    const tr = this.visitor?.trainer;
+    if (!d.moved && tr?.choosing?.addr === d.addr) { tr.choosing = null; tr.nextAt = null; }
     d.moved = true;
     this.dropped = d.addr; // whichever comes first, the click that ends this drag is ignored
     const z = zoom();

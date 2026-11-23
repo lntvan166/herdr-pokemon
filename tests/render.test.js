@@ -1166,6 +1166,15 @@ test("Choose moves: chips first, then the exchange with the one picked", async (
   assert.ok(ch && !st.visitor.fight, "its chips, no exchange yet");
   assert.equal(st.visitor.trainer.fighter, "t1", "it's the one fighting: held while you choose");
   assert.ok(st.mons.t1.pauseUntil > Date.now() + 5000, "it stays put");
+  // Picked up: no chips, no countdown; dropped back on its Pokémon: a fresh countdown.
+  const at0 = st.visitor.trainer.choosing.at;
+  st.drag = { addr: "t1", start: { x: 0, y: 0 }, moved: false };
+  st.dragTo({ position: { x: 30, y: 0 }, local_position: { x: 700, y: 40 } }, null, cx);
+  assert.equal(st.visitor.trainer.choosing, null, "picked up: the battle waits");
+  st.dragTo({ position: { x: 90, y: 0 }, local_position: { x: 760, y: 40 } }, null, cx);
+  st.dragEnd(cx);
+  st.tick(cx);
+  assert.ok(st.visitor.trainer.choosing && st.visitor.trainer.choosing.at >= at0, "dropped back: chips again, counting afresh");
   assert.deepEqual(ch.moves.map((m) => m.name), ["Kowtow Cleave", "Iron Head", "Swords Dance"]);
   for (const k of Object.keys(K.handlers)) delete K.handlers[k];
   st.render(cx);
