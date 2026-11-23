@@ -2177,7 +2177,7 @@ export default class PokemonHerd extends View {
     if (v) for (const t of [v.sentOut ? v.sentOut.at + 2500 : null, v.fleeUntil, v.start && v.act?.kind === "dash" ? v.start + 2500 : null, v.blink ? v.blink.at + 40 : null, v.blink ? v.blink.at + 600 : null]) if (Number.isFinite(t)) times.push(t);
     if (v?.trainer?.introAt) { const a = v.trainer.introAt; times.push(a, a + 40, a + 250, a + 900, a + RIVAL_INTRO_MS - 300, a + RIVAL_INTRO_MS, a + RIVAL_INTRO_MS + 4500); }
     if (v?.fight?.entry) times.push(v.fight.entry.at, v.fight.entry.at + 40, v.fight.entry.until - 260, v.fight.entry.until);
-    if (v?.trainer?.choosing) { const c = v.trainer.choosing; times.push(c.at, c.at + 40, c.until); for (let k = c.at + 1000; k < c.until; k += 1000) times.push(k); } // (its seconds counting down)
+    if (v?.trainer?.choosing) { const c = v.trainer.choosing; times.push(c.at, c.at + 40, c.until); for (let k = c.at + 250; k < c.until; k += 250) times.push(k); } // (its bar and seconds running down)
     if (v?.fight?.wildCost) times.push(v.fight.wildCost.at, v.fight.wildCost.at + 40, v.fight.wildCost.until - 260, v.fight.wildCost.until);
     if (v?.fight?.wildNote) times.push(v.fight.wildNote.at, v.fight.wildNote.at + 40, v.fight.wildNote.until - 260, v.fight.wildNote.until);
     if (v?.fainted) { times.push(v.fainted + 40, v.fainted + 620); sounds.push([`faint-${v.id}`, v.fainted, "faint"]); }
@@ -3070,7 +3070,6 @@ export default class PokemonHerd extends View {
     const W = 470, H = 24;
     const tag = (e) => (e >= 4 ? "×4" : e >= 2 ? "×2" : e === 0 ? "×0" : e < 1 ? "×½" : "");
     const tagColor = (e) => (e >= 2 ? "#7dffa0" : e === 0 ? "#ff6b6b" : e < 1 ? "#ffb86b" : "#ffffff");
-    const first = this.fxFirst(`choose-${ch.at}`);
     const left = clamp(x - W / 2, 4, Math.max(4, this.width - W - 60)); // (clear of ☰ and 🔊 at the right)
     const btn = (m, i) => h_flex().id(`choose-move-${i}`).h(20).gap(4).px(5).rounded(5).items_center().flex_none()
       .bg(TYPE_COLOR[m.type] ?? "#888888").cursor_pointer().border_1().border_color(ch.chosen === m.name ? "#ffffff" : "#00000066")
@@ -3084,7 +3083,9 @@ export default class PokemonHerd extends View {
         .children(ch.moves.map((m, i) => btn(m, i)))
         .child(div().flex_1())
         .child(div().flex_none().text_size(9.5).text_color("#bbbbbb").child(`${Math.max(0, Math.ceil((ch.until - now) / 1000))}s`)))
-      .child(div().h(2).rounded(1).bg("#ffd23f").w(first ? W : 0).transition("width", { duration: Math.max(1, ch.until - now), easing: "linear" }));
+      // (Its length as time is left, drawn each quarter second: a transition set on its first frame
+      // never ran when the bar came back, dropped again on its Pokémon.)
+      .child(div().h(2).rounded(1).bg("#ffd23f").w(Math.round(W * clamp((ch.until - now) / CHOOSE_MS, 0, 1))));
   }
 
 
