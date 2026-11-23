@@ -7021,6 +7021,12 @@ export default class PokemonHerd extends View {
     const cur = this.livePick();
     const onScreen = new Set(agents().map((a) => a.pane).filter(Boolean));
     const waiting = waitingNow().filter((x) => x.slot !== p.slot);
+    // Two tabs: Choose (the search, its filters, the grid, a preview, the Box's row) and This one
+    // (its card, moves, Bag, Mega), each with the room (its card grew and pushed the grid out).
+    const tab = this.preview || !cur?.dex ? "choose" : this.pickTab ?? "choose";
+    const tabChip = (id, label, on, click) => div().id(id).h(26).px(12).rounded(6).flex().items_center().text_size(12).border_1()
+      .border_color(on ? t.accent : t.border).bg(on ? t.selected : "#00000000").text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+      .on_click((_e, cx) => { click(); cx.notify(); }).child(label);
     return v_flex()
       .id("pokemon-picker")
       .size_full()
@@ -7047,17 +7053,20 @@ export default class PokemonHerd extends View {
               .child(div().text_size(11).text_color(t.dim).child("Esc")),
           ),
       )
+      .when(!!cur?.dex, (el) => el.child(h_flex().gap(6).items_center().flex_none()
+        .child(tabChip("pick-tab-choose", "Choose", tab === "choose", () => { this.pickTab = "choose"; }))
+        .child(tabChip("pick-tab-cur", `This one: ${nameFor(cur)}`, tab === "cur", () => { this.pickTab = "cur"; this.preview = null; }))))
       .when(!!this.preview, (el) => el.child(this.renderPreview(t, cx)))
       // (While the filters are open, the card shrinks to one line and the Box row goes, for the
       // list's room; the Box row goes while a search or a filter narrows it too: then you're
       // looking for a kind.)
       // (Its moves being changed: the card takes half the room and scrolls, as the Box's: their
       // whole list squeezed the grid to nothing and ran the search off the dialog.)
-      .when(!this.preview && !!cur?.dex, (el) => el.child(this.filtersOpen ? this.renderCurrentLine(cur, t)
-        : this.editingMoves ? div().id("pick-current").flex_1().min_h(0).overflow_y_scrollbar().child(this.renderCurrent(cur, t)) : this.renderCurrent(cur, t)))
+      // This one: its whole card, scrolling; Choose: it in a line.
+      .when(!this.preview && !!cur?.dex, (el) => el.child(tab === "cur" ? div().id("pick-current").flex_1().min_h(0).overflow_y_scrollbar().child(this.renderCurrent(cur, t)) : this.renderCurrentLine(cur, t)))
       // Waiting in the Box (raised, their agents gone), latest first: one click brings one out
       // here, whatever its kind (else only found by its species' preview).
-      .when(!this.preview && !this.boxing && !narrowed && !this.filtersOpen && !this.editingMoves && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
+      .when(tab === "choose" && !this.preview && !this.boxing && !narrowed && !this.filtersOpen && waiting.length > 0, (el) => el.child(v_flex().gap(4).flex_none()
         .child(div().text_size(11.5).text_color(t.muted).child(`📤 Waiting in your Box (${waiting.length}), ★ favourites first: click one to bring it out`))
         .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
           .children(waiting.slice(0, WAIT_ROW).map(({ slot, pick: b }) => v_flex().id(`pk-box-${slot}`).w(62).h(66).flex_none().items_center().justify_center().gap(1)
@@ -7074,7 +7083,7 @@ export default class PokemonHerd extends View {
             .on_click(() => { closeOverlay(p.overlay); openBag("box"); })
             .child(`+${waiting.length - WAIT_ROW} · Box →`))))))
       // Mega: Off / On / Auto (Mega while its agent works), for a Pokémon that has one.
-      .when(!!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
+      .when(tab === "cur" && !!megaForm(p.current?.dex) && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
           .child(div().text_size(11.5).text_color(t.muted).mr(4).child("Mega"))
           .children([["off", "Off"], ["on", "Always"], ["auto", "Auto: working & battles"]].map(([mode, txt]) => div()
@@ -7090,7 +7099,7 @@ export default class PokemonHerd extends View {
             .child(txt))),
       ))
       // Mega X or Y, for a species with both drawn (Charizard, Mewtwo, Raichu as SpriteCollab adds them).
-      .when(megaForms(p.current?.dex).length > 1 && !p.current?.form, (el) => el.child(
+      .when(tab === "cur" && megaForms(p.current?.dex).length > 1 && !p.current?.form, (el) => el.child(
         h_flex().gap(6).items_center()
           .child(div().text_size(11.5).text_color(t.muted).mr(4).child("Form"))
           .children(megaForms(p.current?.dex).map(({ kind }) => {
@@ -7108,19 +7117,19 @@ export default class PokemonHerd extends View {
               .child(`Mega ${kind}`);
           })),
       ))
-      .child(
+      .when(tab === "choose", (el) => el.child(
         Input.new(this.input).h(34).flex_none().px(10).rounded(8).border_1().border_color(t.accent)
           .bg(t.background).text_size(12.5).text_color(t.foreground),
-      )
+      ))
       // Filters: one button (how many are on), opening a panel with them all: ★, Mega, Legendary,
       // a region, and up to two types (both: Fire + Flying; a third replaces the first picked).
-      .child(h_flex().gap(6).items_center().flex_none()
+      .when(tab === "choose", (el) => el.child(h_flex().gap(6).items_center().flex_none()
         .child(chip("filters", `Filters${activeFilters ? ` · ${activeFilters}` : ""} ${this.filtersOpen ? "▴" : "▾"}`, this.filtersOpen || activeFilters > 0, () => { this.filtersOpen = !this.filtersOpen; }))
         .when(activeFilters > 0, (el) => el.child(chip("filters-clear", "Clear", false, () => { this.only = {}; })))
         // What's on, at a glance, when the panel is shut.
         .when(!this.filtersOpen, (el) => el.child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child([
-          this.only.fav && "★", this.only.box && "Box", this.only.mega && "Mega", this.only.legend && "Legendary", this.only.region, ...(this.only.types ?? []).map(typeLabel)].filter(Boolean).join(" · ")))))
-      .when(!!this.filtersOpen, (el) => el.child(v_flex().gap(6).p(8).rounded(8).bg(t.raised).flex_none()
+          this.only.fav && "★", this.only.box && "Box", this.only.mega && "Mega", this.only.legend && "Legendary", this.only.region, ...(this.only.types ?? []).map(typeLabel)].filter(Boolean).join(" · "))))))
+      .when(tab === "choose" && !!this.filtersOpen, (el) => el.child(v_flex().gap(6).p(8).rounded(8).bg(t.raised).flex_none()
         .child(h_flex().flex_wrap().gap(4).items_center()
           .child(chip("only-fav", favKeys.length ? `★ ${favKeys.length}` : "★", !!this.only.fav, () => { this.only = { ...this.only, fav: !this.only.fav }; }))
           .child(chip("only-box", `📦 Box ${boxKinds().length}`, !!this.only.box, () => { this.only = { ...this.only, box: !this.only.box }; }))
@@ -7144,7 +7153,7 @@ export default class PokemonHerd extends View {
         })))))
       // A virtual list of grid rows: only what's on screen is drawn, so all ~974 scroll smoothly.
       // It reports only the row clicked; the pointer's x says which cell.
-      .child(
+      .when(tab === "choose", (el) => el.child(
         div().flex_1().min_h(0).relative()
           .on_mouse_move((e) => { this.pickX = e.local_position.x / zoom(); })
           .child(v_virtual_list("picks", Math.ceil(all.length / PICK_COLS), PICK_ROW, (i) => `r${i}`, (range) => {
@@ -7190,7 +7199,7 @@ export default class PokemonHerd extends View {
             this.showPreview(e, cx); // a click previews it; Replace there chooses it
           }))
           .child(Scrollbar.vertical("picks").absolute().inset_0()),
-      )
-      .when(all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.box && !boxKinds().length ? "None waiting in your Box." : this.only.region || this.only.mega || this.only.legend || this.only.box || this.only.types ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
+      ))
+      .when(tab === "choose" && all.length === 0, (el) => el.child(div().text_size(11.5).text_color(t.muted).child(this.only.box && !boxKinds().length ? "None waiting in your Box." : this.only.region || this.only.mega || this.only.legend || this.only.box || this.only.types ? "No Pokémon matches the search and filters." : settingsNow().trainer ? "None you caught by that name. Catch wild ones as they walk by (Trainer mode, Settings)." : "No Pokémon by that name or number.")));
   }
 }
