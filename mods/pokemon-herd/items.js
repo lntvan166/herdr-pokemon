@@ -30,6 +30,7 @@ export const ITEMS = {
   "ability-capsule": { name: "Ability Capsule", icon: "💊", art: "items/ability-capsule" },
   "ability-patch": { name: "Ability Patch", icon: "🩹", art: "items/ability-patch" },
   ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, { name: `${k[0].toUpperCase()}${k.slice(1)} Stone`, icon: STONE_ICON[k], art: `items/${k}-stone` }])),
+  "scroll-of-waters": { name: "Scroll of Waters", icon: "📜", art: "items/scroll-of-waters" }, // (Kubfu → Rapid Strike Urshifu)
   "lucky-egg": { name: "Lucky Egg", icon: "🥚", art: "items/lucky-egg", kind: "held" },
   "soothe-bell": { name: "Soothe Bell", icon: "🔔", art: "items/soothe-bell", kind: "held" },
   "amulet-coin": { name: "Amulet Coin", icon: "🪙", art: "items/amulet-coin", kind: "held" },
@@ -63,7 +64,7 @@ export const PRICE = {
   berry: 20, "sitrus-berry": 80, "razz-berry": 40, "pinap-berry": 40, "golden-razz-berry": 300, "silver-pinap-berry": 200,
   "poke-ball": 30, "great-ball": 80, "ultra-ball": 150, "quick-ball": 200, "dusk-ball": 120, "timer-ball": 120, "master-ball": 25000,
   honey: 150, "azure-flute": 1000, "rare-candy": 600, revive: 300, "max-revive": 800, "ability-capsule": 1500, "ability-patch": 10000, // (a Patch also the Battle Tower's 28th floor)
-  ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])),
+  ...Object.fromEntries(STONES.map((k) => [`${k}-stone`, 400])), "scroll-of-waters": 3000,
   ...Object.fromEntries(CARE_HELD.map((id) => [id, 2000])),
   // For battles: the strongest dearest (as the games' Battle Points: Life Orb, Choice, Focus Sash 48 BP, the rest 32).
   ...Object.fromEntries(BATTLE_HELD.map((id) => [id, ["life-orb", "choice-band", "choice-specs", "choice-scarf", "focus-sash", "assault-vest", "weakness-policy"].includes(id) ? 4000 : 2500])),
@@ -107,7 +108,7 @@ export const GROUPS = [
   ["Balls", (id) => ITEMS[id].kind === "ball"],
   ["Berries", (id) => id === "berry" || id.endsWith("-berry")],
   ["Medicine", (id) => id === "revive" || id === "max-revive"],
-  ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone")],
+  ["Evolution", (id) => id === "rare-candy" || id.endsWith("-stone") || id === "scroll-of-waters"],
   ["Abilities", (id) => id.startsWith("ability-")],
   ["To hold", (id) => ITEMS[id].kind === "held" && !ITEMS[id].battle],
   ["For battle", (id) => !!ITEMS[id].battle],
@@ -184,6 +185,7 @@ export function itemAbout(id) {
   if (id === "master-ball") return "Never fails. Kept for legendary Pokémon: only one of those gets it.";
   if (id === "ability-capsule") return "Swaps its ability for its species' other one (not the hidden one). Use it on a Pokémon in the Box or from its menu.";
   if (id === "ability-patch") return "Gives it its species' hidden ability, or takes one that has it back to its first. The Battle Tower's 28th floor gives one too.";
+  if (id === "scroll-of-waters") return "Read by Kubfu: it evolves now into Rapid Strike Urshifu (Fighting/Water, Surging Strikes). Levelling up, Kubfu becomes Single Strike.";
   if (id === "rare-candy") return "A level's worth: 5 jobs towards evolving (15 for a first evolution, 30 for a second); evolves it if that's enough.";
   const names = stoneTakers(id.replace(/-stone$/, ""));
   const list = names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", ");

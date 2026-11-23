@@ -232,9 +232,13 @@ export function itemUse(pick, slot, id, how = {}) {
     if (![...ways].some((w) => /^(jobs|day|night|friend)/.test(w))) return null;
     return evolveTarget(candied(pick), slot, { night: how.night }) ? "evolve" : ways.has("jobs") || ways.has("day") || ways.has("night") ? "jobs" : null;
   }
+  // The Scroll of Waters: Kubfu into Rapid Strike Urshifu now (the games' Tower of Waters;
+  // levelling up, it becomes Single Strike). An Everstone stops it.
+  if (id === SCROLL) return pick.dex === 891 && !pick.stay ? "evolve" : null;
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   return stone && evolveTarget(pick, slot, { stone }) ? "evolve" : null;
 }
+export const SCROLL = "scroll-of-waters";
 
 // Uses an item on it: { pick, evolved, back? } or null when it does nothing now. Giving it an
 // item to hold hands back what it held (`back`, for the Bag).
@@ -255,6 +259,7 @@ export function useItem(pick, slot, id, how = {}, at = 0) {
     return dex ? { pick: evolveInto(fed, dex, at), evolved: true } : { pick: fed, evolved: false };
   }
   if (use !== "evolve") return null;
+  if (id === SCROLL) { const u = evolveInto(pick, 892, at); return { pick: { ...u, form: "0001", shiny: !!pick.shiny && hasShiny(892, "0001") }, evolved: true }; }
   const stone = /^(\w+)-stone$/.exec(id)?.[1];
   const dex = evolveTarget(pick, slot, { stone });
   return { pick: evolveInto(pick, dex, at), evolved: true };
@@ -282,6 +287,7 @@ export function needsText(pick) {
   if (ways.has("friend")) parts.push(`at ${MAX_HEARTS} ♥`);
   if (ways.has("friend:day")) parts.push(`at ${MAX_HEARTS} ♥, by day`);
   if (ways.has("friend:night")) parts.push(`at ${MAX_HEARTS} ♥, at night`);
+  if (pick.dex === 891) parts.push("with the Scroll of Waters: Rapid Strike"); // (by jobs: Single Strike)
   return parts.length > 1 ? `${parts.slice(0, -1).join("; ")}; or ${parts.at(-1)}` : parts[0];
 }
 

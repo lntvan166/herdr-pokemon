@@ -563,3 +563,14 @@ test("evolving keeps the jobs it did before (shown, not counted towards the next
   assert.equal(allJobs(evolveInto({ ...u, jobs: 5 }, 892, 2)), 35);
   assert.equal(loadPicks({ panes: { p1: u } }, null).panes.p1.pastJobs, 30);
 });
+
+// The Scroll of Waters: Kubfu into Rapid Strike Urshifu at once, its jobs kept; nothing for others.
+import { useItem as useOn, itemUse as useOf, needsText as needs } from "../mods/pokemon-herd/picks.js";
+test("the Scroll of Waters: Kubfu into Rapid Strike Urshifu", () => {
+  const kubfu = { dex: 891, jobs: 4, shiny: false, mega: "auto", hearts: 3 };
+  assert.equal(useOf({ dex: 25 }, "p1", "scroll-of-waters"), null);
+  assert.equal(useOf({ ...kubfu, stay: true }, "p1", "scroll-of-waters"), null);
+  const r = useOn(kubfu, "p1", "scroll-of-waters", {}, 1);
+  assert.deepEqual([r.evolved, r.pick.dex, r.pick.form, r.pick.pastJobs, r.pick.hearts], [true, 892, "0001", 4, 3]);
+  assert.match(needs(kubfu), /Scroll of Waters/);
+});

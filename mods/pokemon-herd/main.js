@@ -971,7 +971,7 @@ const PREVIEW_BOX = 3; // a preview's own kind waiting in the Box, at most this 
 const boxKinds = () => [...new Set(waitingNow().map((x) => (x.pick.form ? `${x.pick.dex}-${x.pick.form}` : String(x.pick.dex))))];
 // One of yours, right-clicked: its menu (what it is; items to use on it now; one waiting in the
 // Box to bring out in its place; another kind; its card in the Box). Sized to what it shows.
-const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", "ability-capsule", "ability-patch", ...STONES.map((k) => `${k}-stone`), ...HELD_IDS];
+const MON_ITEMS = ["revive", "max-revive", "berry", "sitrus-berry", "rare-candy", "ability-capsule", "ability-patch", ...STONES.map((k) => `${k}-stone`), "scroll-of-waters", ...HELD_IDS];
 const monUsable = (pick, slot, b = bag()) => {
   const climb = towerNow().run; // (this floor's heal used: no healing item till the next)
   const fight = trainerFight();
