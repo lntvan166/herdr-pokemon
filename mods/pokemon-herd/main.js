@@ -3499,7 +3499,8 @@ export default class PokemonHerd extends View {
         for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) tn.move.abil = tn.abil.map(sayName).filter(Boolean); } // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
         // Their abilities as they meet (Intimidate…): over each one's head first, on their own,
         // the battle held back that long (as with a wild one).
-        const entryNames = { a: result.entry.a.map(sayName).filter(Boolean), b: result.entry.b.map(sayName).filter(Boolean) };
+        const fellOn = (k) => (result.entryStages?.[k]?.length ? [stageWords(result.entryStages[k])] : []); // (Intimidate's "Atk↓" over the one it fell on)
+        const entryNames = { a: [...result.entry.a.map(sayName).filter(Boolean), ...fellOn("a")], b: [...result.entry.b.map(sayName).filter(Boolean), ...fellOn("b")] };
         const entryMs = entryNames.a.length || entryNames.b.length ? ENTRY_MS : 0;
         duel(m1, m2, side(a1, k1, k2), side(a2, k2, k1), now + wait + entryMs, result, back ? { ...spots, back: BACK } : spots);
         for (const m of [m1, m2]) m.awakeUntil = Math.max(m.awakeUntil ?? 0, (m.react?.until ?? now) + 5000); // awake through the spar (as with a wild one)
@@ -3715,6 +3716,7 @@ export default class PokemonHerd extends View {
         // first hit's), each once while these two face each other (Sharpness said every blow
         // was noise over the fight).
         const words = { meetOwn: [], meetWild: [], hit: [], back: [] };
+        const meetStages = { own: [], wild: [] }; // (Intimidate's Atk −1, said over the one it fell on: "Atk↓")
         // Each ability tagged by whose it is ("o:" yours, "w:" theirs): said once for each side
         // (both with Intimidate: one list, and the second was never said).
         const O = (ks) => ks.map((k) => `o:${k}`), W = (ks) => ks.map((k) => `w:${k}`);
@@ -3733,7 +3735,7 @@ export default class PokemonHerd extends View {
         if (!v.abil) {
           v.abil = { own: drop.addr, idx: idxNow, o: newSide(ownAb, 1, ownGear), w: newSide(wildAb, 1, wildGear) };
           const m0 = meet(v.abil.o, v.abil.w);
-          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
+          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b)); meetStages.own.push(...m0.stages.a); meetStages.wild.push(...m0.stages.b);
         } else if (v.abil.own !== drop.addr) {
           // Another of yours in: theirs keeps its stages (Moxie's, Speed Boost's) and its Intimidate
           // doesn't fire again; only yours' as it comes in (both new if theirs is new too). (Each
@@ -3745,7 +3747,7 @@ export default class PokemonHerd extends View {
           if (!fresh && theirs === "intimidate") v.abil.w.ab = "";
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.w.ab = theirs;
-          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
+          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b)); meetStages.own.push(...m0.stages.a); meetStages.wild.push(...m0.stages.b);
         } else if (v.abil.idx !== (v.trainer?.idx ?? -1)) {
           // The trainer's next one out, yours still in: yours keeps its stages (Moxie's); only the
           // newcomer's Intimidate and the like show (yours showed as it came in).
@@ -3755,7 +3757,7 @@ export default class PokemonHerd extends View {
           if (mine === "intimidate") v.abil.o.ab = "";
           const m0 = meet(v.abil.o, v.abil.w);
           v.abil.o.ab = mine;
-          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b));
+          words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b)); meetStages.own.push(...m0.stages.a); meetStages.wild.push(...m0.stages.b);
         }
         // Mega Evolving now (each once while it faces this one): its Mega's ability, an Intimidate
         // of its own again (Mega Manectric), said as they meet.
@@ -3765,6 +3767,8 @@ export default class PokemonHerd extends View {
           const m1 = megaEvolve(side, other, mab);
           (mine ? words.meetOwn : words.meetWild).push(...T1(m1.a));
           (mine ? words.meetWild : words.meetOwn).push(...T2(m1.b));
+          (mine ? meetStages.own : meetStages.wild).push(...(m1.stages?.a ?? []));
+          (mine ? meetStages.wild : meetStages.own).push(...(m1.stages?.b ?? []));
         }
         const so = v.abil.o, sw = v.abil.w;
         // Supreme Overlord's count: yours down in this trainer's battle; the trainer's, those before.
@@ -3781,7 +3785,8 @@ export default class PokemonHerd extends View {
           v.trainer.potions--; v.trainer.potionIdx = v.trainer.idx;
           hp = Math.min(1, hp + RIVAL_POTION); v.pick.hp = hp; wild.hp = hp; sw.hp = hp;
         }
-        const entry = { own: [...(swapIn ? ["Switched in!"] : itemTurn ? ["Item used!"] : []), ...said(words.meetOwn)], wild: [...(potion ? ["Potion! +50%"] : []), ...said(words.meetWild)] };
+        const fell = (l) => (l.length ? [stageWords(l)] : []);
+        const entry = { own: [...(swapIn ? ["Switched in!"] : itemTurn ? ["Item used!"] : []), ...said(words.meetOwn), ...fell(meetStages.own)], wild: [...(potion ? ["Potion! +50%"] : []), ...said(words.meetWild), ...fell(meetStages.wild)] };
         const entryMs = entry.own.length || entry.wild.length ? ENTRY_MS : 0;
         // Each one's move (moves.js), the weather's boost on it; one its target's ability makes
         // nothing of (Levitate, Water Absorb…) picked again, as the games' AI would (twice at most).

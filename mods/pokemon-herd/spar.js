@@ -68,6 +68,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
   for (const [k, o] of [["a", "b"], ["b", "a"]]) {
     const m1 = megaEvolve(ab[k], ab[o], side[k].megaAb);
     met[k].push(...m1.a); met[o].push(...m1.b);
+    met.stages[k].push(...(m1.stages?.a ?? [])); met.stages[o].push(...(m1.stages?.b ?? []));
   }
   // Said once a spar for each side (keys tagged "a:", "b:": both with Intimidate, the second
   // was never said); the ids handed back untagged.
@@ -166,7 +167,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
   }
   const first = speedOf(A.key, A) >= speedOf(B.key, B) ? "a" : "b";
   const winner = hp.a === hp.b ? first : hp.a > hp.b ? "a" : "b";
-  return { turns, winner, hp, entry: { a: met.a, b: met.b } };
+  return { turns, winner, hp, entry: { a: met.a, b: met.b }, entryStages: met.stages }; // (entryStages: Intimidate's Atk −1 on each)
 }
 
 // The record between two, today's only: { day, pairs: { "<who>|<who>": [wins of the first, of the

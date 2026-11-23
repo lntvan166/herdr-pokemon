@@ -1098,8 +1098,9 @@ test("both with Intimidate: said for each", () => {
   Object.assign(st.mons.t0, { x: 560, moving: false, react: null });
   st.dropAt = { addr: "t0", dizzy: false };
   st.tick(cx);
-  assert.equal(st.visitor.fight.entry?.text, "Intimidate");
-  assert.ok((st.mons.t0.sparNotes ?? []).some((n) => n.text === "Intimidate"));
+  // Each said, and the Attack it took off the other: "Atk↓" over the one it fell on.
+  assert.equal(st.visitor.fight.entry?.text, "Intimidate · Atk↓");
+  assert.ok((st.mons.t0.sparNotes ?? []).some((n) => n.text === "Intimidate · Atk↓"));
 });
 
 // A quick move first whatever the Speed: yours a slow Snorlax with Sucker Punch only, the wild

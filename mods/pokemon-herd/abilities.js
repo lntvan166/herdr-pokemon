@@ -117,20 +117,26 @@ function raise(side, stat, n, said, by = side.ab) {
 // Two meet: Intimidate (theirs one stage of Attack down; Inner Focus and the like shrug it off,
 // Defiant and Competitive answer it, Rattled runs faster, Guard Dog's Attack goes up instead).
 // Returns the abilities that showed, each side's: { a: [keys], b: [keys] }.
+// `stages`: { a, b } each side's stages as they changed ([stat, n]: Intimidate's Atk −1, Defiant's
+// +2 after), for the words over it ("Atk↓").
 export function meet(a, b) {
-  const said = { a: [], b: [] };
-  const scare = (x, y, sx, sy) => {
+  const said = { a: [], b: [], stages: { a: [], b: [] } };
+  const scare = (x, y, sx, sy, gy) => {
     if (x.ab !== "intimidate") return;
     sx.push("intimidate");
     if (NO_INTIMIDATE.has(y.ab)) { sy.push(y.ab); return; }
-    if (y.ab === "guard-dog") { raise(y, "atk", 1, sy); return; }
-    y.st.atk = clampStage(y.st.atk - 1);
-    if (y.ab === "defiant") raise(y, "atk", 2, sy);
-    if (y.ab === "competitive") raise(y, "spa", 2, sy);
-    if (y.ab === "rattled") raise(y, "spe", 1, sy);
+    const was = { ...y.st };
+    if (y.ab === "guard-dog") raise(y, "atk", 1, sy);
+    else {
+      y.st.atk = clampStage(y.st.atk - 1);
+      if (y.ab === "defiant") raise(y, "atk", 2, sy);
+      if (y.ab === "competitive") raise(y, "spa", 2, sy);
+      if (y.ab === "rattled") raise(y, "spe", 1, sy);
+    }
+    for (const k of Object.keys(was)) if (y.st[k] !== was[k]) gy.push([k, y.st[k] - was[k]]);
   };
-  scare(a, b, said.a, said.b);
-  scare(b, a, said.b, said.a);
+  scare(a, b, said.a, said.b, said.stages.b);
+  scare(b, a, said.b, said.a, said.stages.a);
   return said;
 }
 // Mega Evolving, as the games': it came in with its own ability (Gyarados' Intimidate, said as they
@@ -146,6 +152,7 @@ export function megaEvolve(side, other, megaAb) {
   other.ab = theirs;
   said.a.push(...(m.a.length ? m.a : [megaAb]));
   said.b.push(...m.b);
+  said.stages = m.stages;
   return said;
 }
 // Its Speed: its stage, its ability in the weather (×2).
