@@ -1292,6 +1292,6 @@ test("recoil: said over the attacker, its health down", () => {
   const fx = st.visitor.fight;
   if (fx.ownMove.name !== "Flare Blitz" || fx.blow?.miss) return; // (risen 1 in 8, or missed: nothing to see)
   assert.ok(fx.ownRecoil && fx.ownRecoil.hp < 1, "its recoil");
-  assert.doesNotMatch(fx.blow.word[0], /Recoil/, "not over Snorlax");
+  assert.doesNotMatch(fx.blow?.word?.[0] ?? "", /Recoil/, "not over Snorlax"); // (a plain hit: no words at all)
   assert.ok((st.mons.t1.sparNotes ?? []).some((n) => /Recoil!/.test(n.text) && n.at >= fx.hitAt), JSON.stringify(st.mons.t1.sparNotes));
 });
