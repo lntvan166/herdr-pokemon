@@ -1384,7 +1384,9 @@ export default class PokemonHerd extends View {
           icons[a.address] = iconPath(p.dex, p.form);
           const rivals = (this.rivals?.[a.address] ?? []).map((x) => list.find((b) => b.address === x)).filter(Boolean);
           const warn = rivals.length ? `⚔ same folder as ${rivals.map((b) => tagOf(b, tabsById())).join(", ")}` : "";
-          if (a.pane) cards[a.address] = { icon: icons[a.address], name: `${nameFor(p)}${p.held ? ` ${ITEMS[p.held].icon}` : ""}`, shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
+          // What it holds: its art beside the name (`held`, a path; the emoji till that's in).
+          const heldArt = p.held && ITEMS[p.held]?.art, heldReady = heldArt && ART_READY.has(heldArt);
+          if (a.pane) cards[a.address] = { icon: icons[a.address], name: `${nameFor(p)}${p.held && !heldReady ? ` ${ITEMS[p.held].icon}` : ""}`, ...(heldReady ? { held: artPath(heldArt), heldName: ITEMS[p.held].name } : {}), shiny: !!p.shiny, ...cardOf(p), ...(warn ? { warn } : {}) };
           continue;
         }
         if (this.portraits[key]) continue;
