@@ -3044,10 +3044,13 @@ export default class PokemonHerd extends View {
     const set = movesetOf(key, chosenFor(pk, key)).filter((m) => !lock || m.name === lock);
     tr.choosing = { addr: drop.addr, at: now, until: now + CHOOSE_MS, drop: { ...drop }, moves: set.map((m) => ({ name: m.name, type: m.type, physical: m.physical, status: !!m.status, eff: m.status ? 1 : v.abil?.w && knownImmune(v.abil.w, m, slotsOf(v.pick.dex, v.pick.form)) ? 0 : effectOn(m.type, wildKey) })) }; // (×0 too for an ability it's shown: Levitate)
     tr.nextAt = null;
-    // It's the one fighting from now: it stays put while you choose (it walked off on the first).
+    // It's the one fighting from now: it steps off to its battle's spot (fightGap: as the exchange
+    // would), and stays there while you choose (it walked off on the first; then it stood on it).
     tr.fighter = drop.addr;
+    const spot = wildSpot(dm.x, v.x, EDGE, Math.max(EDGE, this.width - EDGE), fightGap(this.drawnWidth(pk, "working"), this.drawnWidth(v.pick, "idle")));
+    if (Math.abs(spot - dm.x) >= 1) { clearWalk(dm); dm.from = dm.x; dm.target = spot; dm.start = now; dm.dur = 300; dm.moving = true; dm.backstep = true; }
     dm.pauseUntil = Math.max(dm.pauseUntil ?? 0, now + CHOOSE_MS + 2000);
-    dm.dir = v.x > dm.x ? "r" : "l";
+    dm.dir = v.x > spot ? "r" : "l";
     return true;
   }
   // The chips over yours while it waits on you (Choose moves): each move in its type's colour, how
