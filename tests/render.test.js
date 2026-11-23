@@ -1365,3 +1365,21 @@ test("the Box opened on a card: Close card, its actions first", () => {
   click("box-close:on_click");
   assert.equal(v.boxSel, null);
 });
+
+// Swap with another agent's: the two trade places, with their health.
+test("a Pokémon's menu: swap with another agent's", () => {
+  seed();
+  const before = picks();
+  H.store.set(`${ids.MOD}-hp`, { p0: { hp: 0.4, at: Date.now() } });
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  const v = view({ mon: true, slot: "p0", current: before.p0, tag: "api", overlay: "ov-mon" });
+  v.render(cx);
+  const key = Object.keys(K.handlers).find((k) => k.startsWith("mon-swap-") && k.endsWith(":on_click"));
+  assert.ok(key, Object.keys(K.handlers).filter((k) => k.startsWith("mon-")).join());
+  const other = key.slice("mon-swap-".length, -":on_click".length);
+  click(key);
+  const after = picks();
+  assert.equal(after.p0.dex, before[other].dex);
+  assert.equal(after[other].dex, before.p0.dex);
+  assert.equal(H.store.get(`${ids.MOD}-hp`)[other]?.hp, 0.4, "its health went with it");
+});

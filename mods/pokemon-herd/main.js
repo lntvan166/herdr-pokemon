@@ -359,6 +359,20 @@ function bringOut(boxSlot, pane, mega) {
   return true;
 }
 
+// Two of yours on screen trade places: each goes to the other's agent, with its health, what it
+// holds, its moves and hearts (all it is: its saved pick, its kept health). False if either has none.
+function swapPanes(a, b) {
+  const saved = savedPicks();
+  const pa = saved[a], pb = saved[b];
+  if (!a || !b || a === b || !pa || !pb) return false;
+  savePicks({ [a]: pb, [b]: pa });
+  const hp = { ...(shared(HP_KEY) ?? {}) }, ha = hp[a], hb = hp[b];
+  delete hp[a]; delete hp[b];
+  setShared(HP_KEY, { ...hp, ...(hb ? { [a]: hb } : {}), ...(ha ? { [b]: ha } : {}) });
+  return true;
+}
+// Agents on screen besides `slot`'s, with a Pokémon (a menu's Swap row): [{ pane, pick, tag }].
+const swapMates = (slot) => { const tabs = tabsById(); return herdAgents().filter((a) => a.pane && a.pane !== slot && savedPicks()[a.pane]?.dex).map((a) => ({ pane: a.pane, pick: savedPicks()[a.pane], tag: tagOf(a, tabs) })); };
 // One pane's saved Pokémon, changed by f (null: leave it). Returns the new one.
 function updatePick(slot, f) {
   const cur = slot && savedPicks()[slot];
@@ -943,7 +957,8 @@ function openMon(slot, pick, tag, megaNow = null, allHold = false) {
   const holds = (allHold ? holdN : Math.min(holdN, HOLD_SHOWN)) + (holdN > HOLD_SHOWN ? 1 : 0) + (live?.held ? 1 : 0); // (More: a chip too)
   const waiting = waitingNow().filter((x) => x.slot !== slot).length;
   const section = (n) => (n ? 26 + 30 * Math.ceil(n / 3) : 0);
-  const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + 10 + 2 * 32;
+  const mates = swapMates(slot).length;
+  const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + (mates ? 26 + 74 : 0) + 10 + 2 * 32;
   openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}), ...(allHold ? { allHold } : {}) } });
 } // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
@@ -4783,6 +4798,17 @@ export default class PokemonHerd extends View {
           .when(!!pick.held, (e2) => e2.child(chip("mon-take", this.itemMark(pick.held, 16), `Take ${ITEMS[pick.held].name}`, () => takeFrom(slot))))
           .children((this.allHold ? holdOrder(pick, holds) : holdOrder(pick, holds).slice(0, HOLD_SHOWN)).map((id) => chip(`mon-hold-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id))))
           .when(holds.length > HOLD_SHOWN, (e2) => e2.child(chip("mon-hold-more", div(), this.allHold ? "Fewer" : `More (${holds.length - HOLD_SHOWN})`, () => { this.allHold = !this.allHold; openMon(slot, props()?.current, props()?.tag, props()?.megaNow ?? null, this.allHold); }))))))
+      // Swap with another agent's (both on screen): each goes to the other's agent, all it is with it.
+      .when(swapMates(slot).length > 0, (el) => el.child(v_flex().gap(4)
+        .child(label(`🔁 Swap with another agent's (${swapMates(slot).length})`))
+        .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
+          .children(swapMates(slot).slice(0, 5).map(({ pane, pick: o, tag: otag }) => v_flex().id(`mon-swap-${pane}`).w(58).h(66).flex_none().items_center().justify_center().gap(1)
+            .rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
+            .on_click(() => { if (swapPanes(slot, pane)) close(); })
+            .child(icon(o, 34))
+            .child(div().w_full().px(2).text_center().truncate().text_size(10).text_color(t.foreground).child(sparkled(`${o.shiny ? "✨" : ""}${nameFor(o)}`)))
+            .child(div().w_full().px(2).text_center().truncate().text_size(9).text_color(t.muted).child(otag ?? ""))
+            .map((el2) => this.hovers(el2, "swap", o, pane)))))))
       // One waiting in the Box, in its place (this one goes to the Box).
       .when(waiting.length > 0, (el) => el.child(v_flex().gap(4)
         .child(label(`📤 Bring out from the Box (${waiting.length}), ★ first: this one goes in`))
