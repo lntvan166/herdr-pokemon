@@ -405,6 +405,7 @@ const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.tr
 const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
 const CHOOSE_MS = 6000; // Choose moves: this long to pick, then it picks itself
 const SETUP_NOTE_MS = 1400;
+const SWAP_ROW = 6; // a Pokémon menu's Swap row: this many a line (58 + 4 px each, 400 wide)
 const HOVER_OPEN = 350, HOVER_CLOSE = 120; // a hover card: after resting this long; gone this long after leaving // a setup move's words (Swords Dance! Atk↑↑), this long
 const ITEM_TURN_MS = 700, ITEM_TURN_FRESH = 30000; // its turn after an item: this soon; an item this old, none
 function trainerFight() {
@@ -958,7 +959,7 @@ function openMon(slot, pick, tag, megaNow = null, allHold = false) {
   const waiting = waitingNow().filter((x) => x.slot !== slot).length;
   const section = (n) => (n ? 26 + 30 * Math.ceil(n / 3) : 0);
   const mates = swapMates(slot).length;
-  const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + (mates ? 26 + 74 : 0) + 10 + 2 * 32;
+  const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + (mates ? 26 + 70 * Math.ceil(mates / SWAP_ROW) + 4 : 0) + 10 + 2 * 32;
   openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}), ...(allHold ? { allHold } : {}) } });
 } // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
@@ -4831,8 +4832,9 @@ export default class PokemonHerd extends View {
       // Swap with another agent's (both on screen): each goes to the other's agent, all it is with it.
       .when(swapMates(slot).length > 0, (el) => el.child(v_flex().gap(4)
         .child(label(`🔁 Swap with another agent's (${swapMates(slot).length})`))
-        .child(h_flex().h(66).flex_none().gap(4).items_center().overflow_hidden()
-          .children(swapMates(slot).slice(0, 5).map(({ pane, pick: o, tag: otag }) => v_flex().id(`mon-swap-${pane}`).w(58).h(66).flex_none().items_center().justify_center().gap(1)
+        // All of them (it showed five of eight: the rest out of reach), SWAP_ROW a line.
+        .child(h_flex().flex_wrap().flex_none().gap(4).items_center()
+          .children(swapMates(slot).map(({ pane, pick: o, tag: otag }) => v_flex().id(`mon-swap-${pane}`).w(58).h(66).flex_none().items_center().justify_center().gap(1)
             .rounded(8).border_1().border_color(t.border).cursor_pointer().hover((st) => st.bg(t.hover).border_color(t.accent))
             .on_click(() => { if (swapPanes(slot, pane)) close(); })
             .child(icon(o, 34))
