@@ -662,6 +662,10 @@ const EMOTE_OF = { "!": "bang", "✓": "check", zZ: "zz", "❓": "question", "�
 // the file; at 16 or 19 px, or half a pixel off, they blurred together.)
 const EMOTE_PX = 20;
 const emote = (name) => image(`mods/${MOD}/art/emotes/${name}.png`).w(EMOTE_PX).h(EMOTE_PX).flex_none();
+// A balloon facing the way its Pokémon faces, as the games': its body ahead of its head, its tail
+// back down to it (the art's tail is down-left: facing right as drawn; left, mirrored, *-r).
+const balloon = (name, faceR) => emote(faceR ? name : `${name}-r`);
+const BALLOON_AHEAD = 5; // px its body sits ahead of the head's middle
 const iconOrEmote = (icon, size) => (EMOTE_OF[icon] ? emote(EMOTE_OF[icon]) : div().text_size(size).child(icon));
 // The egg: still; near hatching (80%) wobbling, by the second; nearly out (95%), cracked.
 // (24 px is its own size, crisp; smaller ones are blended, as small as they are.)
@@ -2873,10 +2877,12 @@ export default class PokemonHerd extends View {
           ? (() => {
             const pill = !v.leg && !v.trainer?.rival && now - (v.start ?? 0) < APPEAR_MS;
             const over = Math.round(ground - pose.box.h * scale - 24), floor = pill ? 22 : 2;
+            // Facing the way it faces (stopped: its face; walking: its way), ahead of its head; no room
+            // over it, beside it on that side, its tail pointing back at it.
+            const faceR = halt?.face ? halt.face === "R" : v.dir === "r";
             return over >= floor
-              ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(over).child(emote(EMOTE_OF[actIcon]))
-              // (Beside it, on its left: the balloon turned so its tail points at it, art/emotes/*-r.)
-              : div().absolute().left(Math.round(mid - (pose.box.w / 2) * scale - EMOTE_PX + 4)).top(Math.round(Math.max(floor, ground - pose.box.h * scale - 4))).child(emote(`${EMOTE_OF[actIcon]}-r`));
+              ? div().absolute().left(Math.round(mid - EMOTE_PX / 2 + (faceR ? BALLOON_AHEAD : -BALLOON_AHEAD))).top(over).child(balloon(EMOTE_OF[actIcon], faceR))
+              : div().absolute().left(Math.round(faceR ? mid + (pose.box.w / 2) * scale - 4 : mid - (pose.box.w / 2) * scale - EMOTE_PX + 4)).top(Math.round(Math.max(floor, ground - pose.box.h * scale - 4))).child(balloon(EMOTE_OF[actIcon], faceR));
           })()
           : div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 14))).text_size(13).font_bold().text_color(t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
@@ -5080,13 +5086,15 @@ export default class PokemonHerd extends View {
       }
 
       // An act's balloon (?, ♥, 💢: reactIcon) takes the place over its head while it shows.
-      const actBalloon = EMOTE_OF[reactIcon(m, now)] ? emote(EMOTE_OF[reactIcon(m, now)]) : null;
+      // (Facing the way it faces: its reaction's face, else its walk's way; `balloon`.)
+      const faceR = m.react && now < m.react.until && m.react.face ? m.react.face === "r" : m.dir !== "l";
+      const actBalloon = EMOTE_OF[reactIcon(m, now)] ? balloon(EMOTE_OF[reactIcon(m, now)], faceR) : null;
       const bubble = actBalloon ? actBalloon
-        : mood === "blocked" ? emote("bang").loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
-        : mood === "done" ? emote("check")
+        : mood === "blocked" ? balloon("bang", faceR).loop("opacity", { from: 0.7, to: 1, period: 900 }) // the games' "!" balloon
+        : mood === "done" ? balloon("check", faceR)
         // Asleep: a dimmed balloon (smaller than ! and ✓); never while it fights (a spar, a wild
         // one, a raid: it showed over one throwing Earthquake).
-        : mood === "sleep" && !(m.react && now < m.react.until) && !(m.battleUntil > now) && !shotAt(m, now) ? emote("zz").opacity(0.45)
+        : mood === "sleep" && !(m.react && now < m.react.until) && !(m.battleUntil > now) && !shotAt(m, now) ? balloon("zz", faceR).opacity(0.45)
         : null;
       const x0 = isAt(a) - sw / 2 + hit.left;
       (heads[g ? rowOf(a) : 0] ??= []).push({ x0, x1: x0 + hit.w, top: bubble ? headY - 24 : headY - 4 });
@@ -5141,7 +5149,7 @@ export default class PokemonHerd extends View {
             ((sh) => sh && travelOf(sh.move?.type, sh.move?.dash ?? sh.move?.physical) === "dash" ? lungeOf(dashAt(sh.from, sh.to, sh.at, sh.until, now, stopOfMove(sh.move)), sh.move, sh.at) : null)(shotsOf(m).find((x) => now >= x.at && now < x.until + 260 + HITSTOP))))
           .child(interact(div().absolute().left(hit.left).top(hit.top).w(hit.w).h(hit.h), `hit-${a.address}`))
           .when(!!bubble, (el) =>
-            el.child(h_flex().absolute().left(0).w(sw).top(Math.round(Math.max(2, headY - 24))).justify_center().text_size(12.5).child(bubble)))
+            el.child(h_flex().absolute().left(faceR ? BALLOON_AHEAD : -BALLOON_AHEAD).w(sw).top(Math.round(Math.max(2, headY - 24))).justify_center().text_size(12.5).child(bubble)))
           // Reacting to the season: its icon (🌸 ☀️ 🍂 ❄️) beside its head.
           .when(!!reactIcon(m, now) && !EMOTE_OF[reactIcon(m, now)], (el) =>
             el.child(div().absolute().left(Math.round(sw / 2 + 8)).top(Math.round(Math.max(2, headY - (EMOTE_OF[reactIcon(m, now)] ? 18 : 12))))
