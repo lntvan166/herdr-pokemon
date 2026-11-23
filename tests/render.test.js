@@ -1184,3 +1184,18 @@ test("the sidebar's held item opens its Box card", () => {
   st.cardAsked();
   assert.equal(H.log.opened.length, 1, "an old ask: nothing");
 });
+
+// The card's right-click menu (Pokémon Sidebar) asks for its menu or the picker too.
+test("the sidebar's card menu opens its Pokémon's menu, or the picker", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  st.tick(cx);
+  H.log.opened.length = 0;
+  H.store.set("agent-card-open", { address: "t0", kind: "mon", at: Date.now() });
+  st.cardAsked();
+  assert.ok(H.log.opened.at(-1)?.props?.mon && H.log.opened.at(-1).props.slot === "p0");
+  H.store.set("agent-card-open", { address: "t0", kind: "pick", at: Date.now() + 1 });
+  st.cardAsked();
+  assert.ok(H.log.opened.at(-1)?.props?.picker);
+});

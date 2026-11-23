@@ -7,8 +7,9 @@ import { Agents } from "./views/agents.js";
 import { Lists } from "./views/lists.js";
 import { Footer } from "./views/footer.js";
 import { PanelToggle } from "./views/panel-toggle.js";
+import { CardMenu } from "./views/card-menu.js";
 
-const PARTS = { lists: Lists, agents: Agents, footer: Footer, "panel-toggle": PanelToggle };
+const PARTS = { lists: Lists, agents: Agents, footer: Footer, "panel-toggle": PanelToggle, "card-menu": CardMenu };
 
 export default class BetterSidebar extends View {
   init(given, cx) {

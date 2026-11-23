@@ -24,10 +24,14 @@ import { findNode } from "./find-node.js";
 
 // Herdr's own right-click menu for an agent's tab: Rename (the name its card and row show), New
 // tab, Close.
+// Right-clicked: one with a Pokémon card (Pokerdr) gets its own menu, its Pokémon's items with the
+// tab's (views/card-menu.js); any other, Herdr's tab menu.
 function tabMenu(a) {
   if (!a?.tab) return;
-  openOverlay({ mod: "menu", kind: "popup", width: 200, height: 140, props: { tab: "tab", target: { id: a.tab, space: a.space } } });
+  if (shared("agent-cards")?.[a.address]) openOverlay({ mod: "pokemon-sidebar", kind: "popup", width: 230, height: CARD_MENU_H, props: { view: "card-menu", address: a.address, tab: a.tab, space: a.space } });
+  else openOverlay({ mod: "menu", kind: "popup", width: 200, height: 140, props: { tab: "tab", target: { id: a.tab, space: a.space } } });
 }
+import { CARD_MENU_H } from "./card-menu.js";
 import { TEXT, Icon, IconButton, GroupHeader, Menu, MenuLabel, MenuOption } from "./ui.js";
 
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.

@@ -2918,15 +2918,21 @@ export default class PokemonHerd extends View {
   }
 
   // An item's look on the strip: its sprite once it's in, else its emoji (size px).
-  // The sidebar's card asked for one (Pokémon Sidebar: its held item clicked, shared
-  // CARD_OPEN_KEY { address, at }): the Bag on the Box, its card open. Once, by the counting strip.
+  // The sidebar's card asked for one (Pokémon Sidebar: its held item clicked, or its right-click
+  // menu; shared CARD_OPEN_KEY { address, kind, at }): its card in the Box, its menu, or the
+  // picker. Once, by the counting strip.
   cardAsked() {
     const ask = shared(CARD_OPEN_KEY);
     if (!ask?.at || ask.at <= (this.cardSeen ?? 0)) return;
     this.cardSeen = ask.at;
     if (Date.now() - ask.at > 10000) return; // (an old one, from before a reload)
-    const pane = herdAgents().find((x) => x.address === ask.address)?.pane;
-    if (pane) openBag("box", pane);
+    const list = herdAgents(), a = list.find((x) => x.address === ask.address);
+    if (!a?.pane) return;
+    // `kind`: "box" (its card in the Box), "mon" (its menu: items, moves…), "pick" (another Pokémon).
+    const pick = assignAll(list).ids[a.address], tag = tagOf(a, tabsById());
+    if (ask.kind === "mon" && pick) openMon(a.pane, pick, tag);
+    else if (ask.kind === "pick") this.openPicker(a, pick, tag);
+    else openBag("box", a.pane);
   }
   itemMark(id, size) {
     const art = ITEMS[id]?.art;
