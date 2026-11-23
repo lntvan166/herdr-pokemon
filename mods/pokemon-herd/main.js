@@ -62,7 +62,7 @@ import { forEachSafe, logOnce } from "./safe.js";
 import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY } from "./moves.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails } from "./abilities.js";
+import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -2972,7 +2972,7 @@ export default class PokemonHerd extends View {
     const key = fighterKey(pk.dex, { form: pk.form }), wildKey = fighterKey(v.pick.dex, { form: v.pick.form });
     const lock = v.abil?.own === drop.addr ? lockOf(v.abil.o) : null;
     const set = movesetOf(key, chosenFor(pk, key)).filter((m) => !lock || m.name === lock);
-    tr.choosing = { addr: drop.addr, at: now, until: now + CHOOSE_MS, drop: { ...drop }, moves: set.map((m) => ({ name: m.name, type: m.type, physical: m.physical, status: !!m.status, eff: m.status ? 1 : effectOn(m.type, wildKey) })) };
+    tr.choosing = { addr: drop.addr, at: now, until: now + CHOOSE_MS, drop: { ...drop }, moves: set.map((m) => ({ name: m.name, type: m.type, physical: m.physical, status: !!m.status, eff: m.status ? 1 : v.abil?.w && knownImmune(v.abil.w, m, slotsOf(v.pick.dex, v.pick.form)) ? 0 : effectOn(m.type, wildKey) })) }; // (×0 too for an ability it's shown: Levitate)
     tr.nextAt = null;
     return true;
   }
@@ -3802,7 +3802,7 @@ export default class PokemonHerd extends View {
         const entryMs = entry.own.length || entry.wild.length ? ENTRY_MS : 0;
         // Each one's move (moves.js), the weather's boost on it; one its target's ability makes
         // nothing of (Levitate, Water Absorb…) picked again, as the games' AI would (twice at most).
-        const moveAt = (k, t, side, how) => { let m = this.boosted(pickMove(k, t, Math.random, how)); for (let n = 0; n < 2 && immuneTo(side, m); n++) m = this.boosted(pickMove(k, t, Math.random, how)); return m; };
+        const moveAt = (k, t, side, how) => { let m = this.boosted(pickMove(k, t, Math.random, how)); for (let n = 0; n < 2 && how.immune?.(m); n++) m = this.boosted(pickMove(k, t, Math.random, how)); return m; }; // (picked again only if it knows: a wild one doesn't)
         // Each picks as the games' trainers do (moves.js pickMove `finishes`, `slower`): a move that
         // knocks the other out now (its health against the move's average damage), a quick one
         // first when slower (Kingambit's Sucker Punch to finish, else its Kowtow Cleave).
@@ -3821,11 +3821,11 @@ export default class PokemonHerd extends View {
         const ownSet = movesetOf(ownKey, chosenFor(pk, ownKey)), wildSet = movesetOf(wildKey, v.pick.moves);
         const ownHpNow = so.hp ?? 1;
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
-        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => immuneTo(sw, m), // (Choose moves: the one you picked)
+        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => knownImmune(sw, m, slotsOf(v.pick.dex, v.pick.form)), // (Choose moves: the one you picked)
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
           stages: so.st, selfHp: ownHpNow, first: !so.turns, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
-        const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => immuneTo(so, m),
+        const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
           ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
         so.turns = (so.turns ?? 0) + 1; sw.turns = (sw.turns ?? 0) + 1;
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften

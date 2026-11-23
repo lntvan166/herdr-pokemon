@@ -281,3 +281,17 @@ test("regional forms' own abilities", async () => {
   assert.equal(A.abilityOf({ dex: 59, abil: 2 }), "justified");
   assert.equal(A.abilityOf({ dex: 59, form: "0001", abil: 0 }), "intimidate");
 });
+
+// What the AI may count on, as a player would: an ability's immunity once it's shown, or when its
+// kind has only the one; an Air Balloon always (in plain sight).
+test("known immunities: shown, or the only one", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const eq = { name: "Earthquake", type: "ground", physical: true, mul: 1, eff: 1 };
+  const two = [26, 30, 0]; // (a kind with Levitate or another)
+  const lev = A.newSide("levitate");
+  assert.equal(A.knownImmune(lev, eq, two), false, "not shown yet (it may have the other)");
+  A.onHit(A.newSide(""), lev, eq);
+  assert.equal(A.knownImmune(lev, eq, two), true, "shown: Earthquake missed it");
+  assert.equal(A.knownImmune(A.newSide("levitate"), eq, [26, 0, 0]), true, "its kind's only one");
+  assert.equal(A.knownImmune(A.newSide("", 1, { item: "air-balloon" }), eq, two), true);
+});

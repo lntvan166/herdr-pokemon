@@ -7,7 +7,7 @@
 import { EXTRA_SIDE } from "./more-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve, suckerFails } from "./abilities.js";
+import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve, suckerFails, knownImmune, slotsOf } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -84,9 +84,9 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
     // (As the games' trainers: a move that knocks the other out now; a quick one first when slower.)
     const by = (to) => (to === "a" ? "b" : "a");
     const dmgOf = (X, Y) => (m) => damage(X.key, Y.key, () => 0.5, { mul: typesOfKey(X.key).includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), ctx: { na: X.nature, nb: Y.nature, ea: X.effort, eb: Y.effort } }).dmg * SPAR_HIT;
-    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), immune: (m) => immuneTo(ab[to], m), ai: true, stages: ab[by(to)].st, selfHp: hp[by(to)], first: round === 0, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
+    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), immune: (m) => knownImmune(ab[to], m, slotsOf(parseInt(side[to].key, 10))), ai: true, stages: ab[by(to)].st, selfHp: hp[by(to)], first: round === 0, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
       threatened: movesetOf(Y.key, Y.moves).some((m) => !m.status && dmgOf(Y, X)(m) >= hp[by(to)]), foeBest: Math.max(0, ...movesetOf(Y.key, Y.moves).filter((m) => !m.status).map(dmgOf(Y, X))) });
-    const pick = (X, Y, to) => { let m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); for (let n = 0; n < 2 && immuneTo(ab[to], m); n++) m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); return m; };
+    const pick = (X, Y, to) => { let m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); for (let n = 0; n < 2 && how(X, Y, to).immune(m); n++) m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); return m; };
     const moves = { a: pick(A, B, "b"), b: pick(B, A, "a") };
     const pa = (PRIORITY[moves.a.name] ?? 0) + quickClaw(ab.a, rnd), pb = (PRIORITY[moves.b.name] ?? 0) + quickClaw(ab.b, rnd), sa = speed("a"), sb = speed("b"); // (Quick Claw)
     const first = pa !== pb ? (pa > pb ? "a" : "b") : sa > sb ? "a" : sb > sa ? "b" : rnd() < 0.5 ? "a" : "b";

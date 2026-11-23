@@ -129,6 +129,7 @@ export function meet(a, b) {
   const scare = (x, y, sx, sy, gy) => {
     if (x.ab !== "intimidate") return;
     sx.push("intimidate");
+    x.revealed = true;
     if (NO_INTIMIDATE.has(y.ab)) { sy.push(y.ab); return; }
     const was = { ...y.st };
     if (y.ab === "guard-dog") raise(y, "atk", 1, sy);
@@ -167,6 +168,15 @@ export function speedMul(side, weather) {
 export const fastInWeather = (side, weather) => !!WEATHER_SPEED[side.ab]?.includes(weather);
 // Whether `def`'s ability makes it immune to `move` (the attacker picks another, as the games' AI
 // would: main.js asks again, twice at most).
+// What the other side may count on (the AI, as a player would): its ability making nothing of a
+// move only once it's shown in this battle (Levitate as Earthquake missed it, Intimidate as they
+// met), or when its kind has only the one (Rotom's Levitate); its Air Balloon is in plain sight.
+// `slots`: its kind's ability slots (slotsOf).
+export function knownImmune(def, move, slots = null) {
+  const only = slots && new Set(slots.filter(Boolean)).size === 1;
+  if (def.item === "air-balloon" && !def.used && move?.type === "ground") return true;
+  return (def.revealed || only) && immuneTo(def, move);
+}
 export function immuneTo(def, move, eff = move?.eff ?? 1) {
   if (IMMUNE[def.ab]?.type === move?.type) return true;
   if (def.item === "air-balloon" && !def.used && move?.type === "ground") return true; // (its balloon up)
@@ -204,13 +214,14 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   const im = IMMUNE[def.ab];
   if (im && im.type === type) {
     said.def.push(def.ab);
+    def.revealed = true; // (now it's known: knownImmune)
     if (im.stage) raise(def, im.stage[0], im.stage[1], [], "");
     if (im.fire) def.fire = true;
     return { mul: 0, type, miss: false, crit, heal: im.heal ?? 0, said };
   }
-  if (def.ab === "wonder-guard" && eff <= 1) { said.def.push("wonder-guard"); return { mul: 0, type, miss: false, crit, heal: 0, said }; }
+  if (def.ab === "wonder-guard" && eff <= 1) { said.def.push("wonder-guard"); def.revealed = true; return { mul: 0, type, miss: false, crit, heal: 0, said }; }
   // Air Balloon: no Ground move touches it till a hit pops it (afterHit).
-  if (def.item === "air-balloon" && !def.used && type === "ground") { said.def.push("air-balloon"); return { mul: 0, type, miss: false, crit, heal: 0, said }; }
+  if (def.item === "air-balloon" && !def.used && type === "ground") { said.def.push("air-balloon"); def.revealed = true; return { mul: 0, type, miss: false, crit, heal: 0, said }; }
   // The attacker's.
   const physical = !!move.physical;
   const atk = (k, x) => { base *= x; said.att.push(k); };
