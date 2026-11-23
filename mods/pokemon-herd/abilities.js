@@ -169,6 +169,7 @@ export const fastInWeather = (side, weather) => !!WEATHER_SPEED[side.ab]?.includ
 // would: main.js asks again, twice at most).
 export function immuneTo(def, move, eff = move?.eff ?? 1) {
   if (IMMUNE[def.ab]?.type === move?.type) return true;
+  if (def.item === "air-balloon" && !def.used && move?.type === "ground") return true; // (its balloon up)
   return def.ab === "wonder-guard" && eff <= 1;
 }
 

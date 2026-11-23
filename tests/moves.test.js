@@ -248,3 +248,12 @@ test("setup moves: the AI's Swords Dance", async () => {
   // Not the AI's (a wild one by damage): never a setup move.
   for (let i = 0; i < 100; i++) assert.notEqual(pickMove("983", "94", Math.random, { moves }).name, "Swords Dance");
 });
+
+// The AI knows its target's ability makes nothing of a move (Levitate on a Ground move): it picks
+// another, as the games' trainers do (it kept on with Earthquake).
+test("the AI doesn't use Ground moves on Levitate", async () => {
+  const A = await import("../mods/pokemon-herd/abilities.js");
+  const lev = A.newSide("levitate");
+  const how = { moves: ["Earthquake", "Stone Edge"], ai: true, dmgOf: (m) => (m.name === "Earthquake" ? 0.6 : 0.3), targetHp: 1, immune: (m) => A.immuneTo(lev, m) };
+  for (let i = 0; i < 100; i++) { const m = pickMove("445", "94", Math.random, how); assert.equal(m.base ?? m.name, "Stone Edge"); } // (risen 1 in 8: Head Smash)
+});

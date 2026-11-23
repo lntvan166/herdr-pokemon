@@ -253,7 +253,9 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
     const canKO = set.some((m) => !m.status && effOf(m) > 0 && how.dmgOf(m) >= (how.targetHp ?? 1)); // (then no setting up: expansion's)
     const score = set.map((m, i) => {
       if (m.status) { keep[i] = true; return setupScore(m, how, set, rnd, canKO); }
-      const e = effOf(m), quick = (PRIORITY[m.name] ?? 0) > 0;
+      // Its target's ability making nothing of it (Levitate on a Ground move, Water Absorb…:
+      // `how.immune`): as the games' AI (pokeemerald's AI_CheckBadMove), −10 like a type immunity.
+      const e = how.immune?.({ ...m, eff: effOf(m) }) ? 0 : effOf(m), quick = (PRIORITY[m.name] ?? 0) > 0;
       const ko = e > 0 && how.dmgOf(m) * (quick && how.slower ? BEST_ROLL : 1) >= (how.targetHp ?? 1);
       keep[i] = ko || quick; // (one to finish it, or a quick one: kept as it is, not turned signature)
       let sc = 100;

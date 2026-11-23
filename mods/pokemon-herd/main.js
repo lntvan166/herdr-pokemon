@@ -3810,11 +3810,11 @@ export default class PokemonHerd extends View {
         const ownSet = movesetOf(ownKey, chosenFor(pk, ownKey)), wildSet = movesetOf(wildKey, v.pick.moves);
         const ownHpNow = so.hp ?? 1;
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
-        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), // (Choose moves: the one you picked)
+        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => immuneTo(sw, m), // (Choose moves: the one you picked)
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
           stages: so.st, selfHp: ownHpNow, first: !so.turns, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
-        const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves,
+        const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => immuneTo(so, m),
           ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
         so.turns = (so.turns ?? 0) + 1; sw.turns = (sw.turns ?? 0) + 1;
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften

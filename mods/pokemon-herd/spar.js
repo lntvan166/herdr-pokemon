@@ -84,7 +84,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
     // (As the games' trainers: a move that knocks the other out now; a quick one first when slower.)
     const by = (to) => (to === "a" ? "b" : "a");
     const dmgOf = (X, Y) => (m) => damage(X.key, Y.key, () => 0.5, { mul: typesOfKey(X.key).includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), ctx: { na: X.nature, nb: Y.nature, ea: X.effort, eb: Y.effort } }).dmg * SPAR_HIT;
-    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), ai: true, stages: ab[by(to)].st, selfHp: hp[by(to)], first: round === 0, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
+    const how = (X, Y, to) => ({ targetSize: Y.size, moves: X.moves, weather, lock: lockOf(ab[by(to)]), immune: (m) => immuneTo(ab[to], m), ai: true, stages: ab[by(to)].st, selfHp: hp[by(to)], first: round === 0, dmgOf: dmgOf(X, Y), targetHp: hp[to], slower: speed(to) > speed(by(to)),
       threatened: movesetOf(Y.key, Y.moves).some((m) => !m.status && dmgOf(Y, X)(m) >= hp[by(to)]), foeBest: Math.max(0, ...movesetOf(Y.key, Y.moves).filter((m) => !m.status).map(dmgOf(Y, X))) });
     const pick = (X, Y, to) => { let m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); for (let n = 0; n < 2 && immuneTo(ab[to], m); n++) m = boost(pickMove(X.key, Y.key, rnd, how(X, Y, to))); return m; };
     const moves = { a: pick(A, B, "b"), b: pick(B, A, "a") };
