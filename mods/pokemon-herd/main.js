@@ -1031,11 +1031,13 @@ function moveFacts(m, key) {
 const megaAbils = (pick) => (pick?.form ? [] : megaForms(pick?.dex)).map(({ kind }) => ({ kind, ab: megaAbility(fighterKey(pick.dex, { mega: kind })) }))
   .filter((x) => x.ab).map(({ kind, ab }) => ({ label: `As Mega${kind ? ` ${kind}` : ""}`, ab }));
 // A species' abilities, all it can have ("Blaze · Solar Power (hidden)"), those that work here first.
-const speciesAbils = (dex, form = null) => { // (a regional form's own: Hisuian Arcanine's Rock Head)
+// Each with its label ([{ k, label }]: "Pressure (hidden)", "Mega X: Tough Claws").
+const speciesAbilList = (dex, form = null) => { // (a regional form's own: Hisuian Arcanine's Rock Head)
   const out = [];
-  for (const i of [0, 1, 2]) { const k = abilityOf({ dex, form, abil: i }); if (k && slotsOf(dex, form)[i] && !out.some((x) => x.k === k)) out.push({ k, hidden: i === 2 }); }
-  return [...out.map((x) => `${abilityName(x.k)}${x.hidden ? " (hidden)" : ""}`), ...megaAbils({ dex }).map((x) => `${x.label.replace("As ", "")}: ${abilityName(x.ab)}`)].join(" · ");
+  for (const i of [0, 1, 2]) { const k = abilityOf({ dex, form, abil: i }); if (k && slotsOf(dex, form)[i] && !out.some((x) => x.k === k)) out.push({ k, label: `${abilityName(k)}${i === 2 ? " (hidden)" : ""}` }); }
+  return [...out, ...(form ? [] : megaAbils({ dex })).map((x) => ({ k: x.ab, label: `${x.label.replace("As ", "")}: ${abilityName(x.ab)}` }))];
 };
+const speciesAbils = (dex, form = null) => speciesAbilList(dex, form).map((x) => x.label).join(" · ");
 
 // ---- the view -------------------------------------------------------------------
 
@@ -6725,6 +6727,7 @@ export default class PokemonHerd extends View {
   // through a line no longer starts a set of sprites for each one passed.
   showPreview(e, cx, shiny = false) {
     const pv = this.preview = { dex: e.dex, ...(e.form ? { form: e.form } : {}), shiny: shiny && hasShiny(e.dex, e.form) };
+    this.abilHover = null; // (another one: its abilities)
     cx.spawn(async (cx) => {
       await cx.sleep(PREVIEW_WAIT);
       if (this.preview !== pv) return; // another one by now
@@ -6887,7 +6890,12 @@ export default class PokemonHerd extends View {
             : hasShiny(pv.dex, pv.form) && !pv.form && shinyUnlocked(pokedex(), pv.dex) ? "You caught a shiny one: ✨ Shiny, then Choose, and it's shiny."
             : "Preview: click another to see it, or Replace to take this one"))
           // The abilities it may have (which one, by its save slot: an Ability Capsule or Patch changes it).
-          .child(div().text_size(11).text_color(t.dim).truncate().child(`Abilities: ${speciesAbils(pv.dex, pv.form)}`)))
+          // Each one hovered: what it does (abilPanel, under the preview's head).
+          .child(h_flex().gap(4).flex_wrap().items_center().text_size(11).text_color(t.dim)
+            .child(div().child("Abilities:"))
+            .children(speciesAbilList(pv.dex, pv.form ?? null).map((x, i) => div().id(`pv-abil-${i}`).cursor_pointer().hover((st) => st.text_color(t.foreground))
+              .child(`${x.label}${i < speciesAbilList(pv.dex, pv.form ?? null).length - 1 ? " ·" : ""}`)
+              .map((el2) => el2.on_hover((h, cx) => { if (h) this.abilHover = x.k; else if (this.abilHover === x.k) this.abilHover = null; cx.notify(); }))))))
         // Favourites are starred here (or on the card, for the one it is).
         .child((() => {
           const on = isFavorite(favs(), pv);
@@ -6932,6 +6940,10 @@ export default class PokemonHerd extends View {
           .when(!!b.held, (el) => el.child(this.itemMark(b.held, 18)))
           .when(!!b.caught, (el) => el.child(this.itemMark(b.ball ?? "poke-ball", 16)))
           .child(button(`bring-${slot}`, "Bring out", false, () => { this.preview = null; this.choose(pv, { slot }); }))))))
+      // An ability hovered (its name above): what it does, and whether it does anything here.
+      .when(!!this.abilHover, (el) => el.child(v_flex().id("pv-abil-info").gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover).flex_none()
+        .child(div().text_size(12).font_semibold().text_color(t.foreground).child(abilityName(this.abilHover)))
+        .child(div().text_size(11).text_color(t.muted).child(`${abilityText(this.abilHover)}${works(this.abilHover) ? "" : " (No effect here.)"}`))))
       .child(h_flex().gap(8).items_start()
         .child(stage("idleD", "Standing"))
         .child(stage("walkR", "Walking"))

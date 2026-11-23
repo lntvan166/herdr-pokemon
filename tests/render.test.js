@@ -1351,3 +1351,19 @@ test("the picker: a move hovered shows its facts", () => {
   K.handlers[key](false, cx);
   assert.equal(v.moveHover, null);
 });
+
+// The preview's abilities, each hovered: what it does.
+test("the picker's preview: an ability hovered says what it does", () => {
+  seed();
+  const v = picker();
+  v.showPreview({ dex: 983 }, cx);
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  const key = Object.keys(K.handlers).find((k) => k.startsWith("pv-abil-0") && k.includes("on_hover"));
+  assert.ok(key);
+  K.handlers[key](true, cx);
+  assert.equal(v.abilHover, "defiant");
+  v.render(cx);
+  K.handlers[key](false, cx);
+  assert.equal(v.abilHover, null);
+});
