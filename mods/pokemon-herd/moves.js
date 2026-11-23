@@ -13,6 +13,7 @@ import { sizeMiss } from "./weather.js";
 import { MOVE_FLAGS } from "./ability-data.js";
 import { SETUP, SETUP_NAMES, SETUP_LEARNS, STATUS_MOVES, STATUS_NAMES, STATUS_LEARNS } from "./move-stages.js";
 import { canStatus } from "./abilities.js";
+import { SIG_MOVES, SIG_DRAIN } from "./sig-moves.js";
 
 export const MOVES = {
   normal: ["Body Slam", "Hyper Voice", "Giga Impact"],
@@ -107,24 +108,25 @@ export const EXCLUSIVE = {
   "Flower Trick": { type: "grass", power: 70, physical: true, dex: [908], crit: "always" },
   "Torch Song": { type: "fire", power: 80, physical: false, dex: [911] },
   "Aqua Step": { type: "water", power: 80, physical: true, dex: [914] },
-  "Headlong Rush": { type: "ground", power: 120, physical: true, dex: [901] },
+  "Headlong Rush": { type: "ground", power: 120, physical: true, dex: [901], form: "" }, // (Ursaluna; Bloodmoon its Blood Moon)
   "Stone Axe": { type: "rock", power: 65, physical: true, dex: [900] },
   // Urshifu's, by its style (`form`: its form's key part, "" its own): Single Strike's Wicked Blow,
   // Rapid Strike's Surging Strikes (three hits of 25), both always a critical hit, as the games'.
-  "Wicked Blow": { type: "dark", power: 75, physical: true, dex: [892], form: "", crit: "always" },
-  "Surging Strikes": { type: "water", power: 75, physical: true, dex: [892], form: "f0001", crit: "always" },
+  "Wicked Blow": { type: "dark", power: 75, physical: true, dex: [892], form: "", crit: "always", acc: 100 },
+  "Surging Strikes": { type: "water", power: 75, physical: true, dex: [892], form: "f0001", crit: "always", acc: 100 },
+  ...SIG_MOVES, // (Gen 5-9's: sig-moves.js)
 };
 // Its own move(s), if it has one: [{ type, name, physical, exclusive }].
 export const exclusiveOf = (attacker) => {
-  const dex = parseInt(attacker, 10), form = String(attacker).match(/f\d+/)?.[0] ?? "";
-  return Object.entries(EXCLUSIVE).filter(([, m]) => m.dex.includes(dex) && (m.form == null || m.form === form)).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
+  const dex = parseInt(attacker, 10), form = String(attacker).match(/f\d+/)?.[0] ?? "", key = `${dex}${form}`;
+  return Object.entries(EXCLUSIVE).filter(([, m]) => (m.keys ? m.keys.includes(key) : m.dex.includes(dex) && (m.form == null || m.form === form))).map(([name, m]) => ({ type: m.type, name, physical: m.physical, exclusive: true }));
 };
 // Moving first whatever the Speed (+1, as the games' Ice Shard); healing by part of the damage done.
 // The games' priority: +1 Quick Attack, Mach Punch, Aqua Jet…; +2 Extreme Speed (first even before
 // those). (Grassy Glide: only in Grassy Terrain, which there isn't here.)
 export const PRIORITY = { "Ice Shard": 1, "Sucker Punch": 1, "Quick Attack": 1, "Mach Punch": 1, "Bullet Punch": 1, "Aqua Jet": 1, "Shadow Sneak": 1,
-  "Vacuum Wave": 1, "Accelerock": 1, "Water Shuriken": 1, "Extreme Speed": 2 }; // (first whatever the Speed)
-export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75, "Oblivion Wing": 0.75 };
+  "Vacuum Wave": 1, "Accelerock": 1, "Water Shuriken": 1, "Thunderclap": 1, "Extreme Speed": 2 }; // (first whatever the Speed)
+export const DRAIN = { "Giga Drain": 0.5, "Drain Punch": 0.5, "Draining Kiss": 0.75, "Oblivion Wing": 0.75, ...SIG_DRAIN };
 export const ULTIMATE = 1 / 8;
 export const MAX_MOVES = 4; // a signature move (its power: Blast Burn 150)
 export const CRIT = 1 / 16; // a critical hit, ×1.5
@@ -132,7 +134,7 @@ export const CRIT_HIT = 1.5;
 // A move misses as in the games: 1 − its accuracy (base-stats.js MOVE_ACC: Thunder 70%, Hydro Pump
 // 80%, Fire Blast 85%; Swift and Aura Sphere never miss). One without a known accuracy: MISS.
 export const MISS = 0.05;
-export const missOf = (name) => { if (SETUP[name]) return 0; if (STATUS_MOVES[name]) return 1 - STATUS_MOVES[name][2] / 100; const a = MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
+export const missOf = (name) => { if (SETUP[name]) return 0; if (STATUS_MOVES[name]) return 1 - STATUS_MOVES[name][2] / 100; const a = EXCLUSIVE[name] && EXCLUSIVE[name].acc !== undefined ? EXCLUSIVE[name].acc : MOVE_ACC[name]; return a === null ? 0 : Number.isFinite(a) ? Math.max(0, 1 - a / 100) : MISS; };
 // The weather, as the main games have it (main.js boostNow().id: "rain", "storm", "sunny",
 // "snow"…): in rain Thunder and Hurricane never miss, in the sun they hit half the time; in snow
 // Blizzard never misses; Solar Beam is half as strong in rain or snow.
@@ -143,7 +145,7 @@ export function weatherMiss(name, weather) {
   if (name === "Blizzard" && weather === "snow") return 0;
   return missOf(name);
 }
-export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.has(weather) || weather === "snow") ? 0.5 : 1);
+export const weatherPower = (name, weather) => (name === "Solar Beam" && (RAINY.has(weather) || weather === "snow") ? 0.5 : EXCLUSIVE[name]?.sun && weather === "sunny" ? 1.5 : 1); // (Hydro Steam: stronger in the sun)
 export const PICK_SHARP = 3; // how strongly it favours its best move: chance ∝ damage^PICK_SHARP
 export const STAB = 1.5; // a move of its own type (same-type attack bonus)
 
@@ -303,7 +305,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
       if (dmg[i] < best) sc -= 1;
       if (e >= 4) { if (rnd() < 0.3125) sc += 2; } else if (e > 1 && rnd() < 0.61) sc += 1;
       if (e < 1 && rnd() < 0.75) sc -= 1;
-      if (m.name === "Sucker Punch" && !ko && rnd() < 0.8) sc -= 2;
+      if ((m.name === "Sucker Punch" || m.name === "Thunderclap") && !ko && rnd() < 0.8) sc -= 2;
       if (quick && how.slower && how.threatened) sc += 5;
       return sc;
     });
@@ -342,5 +344,5 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   let eff = effectOn(type, target);
   if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
   const stab = own.includes(type) || !!ex?.judgment;
-  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true, base: base.name } : {}), ...(rises ? { dash: risenDash(name) } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather), eff };
+  return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true, base: base.name } : {}), ...(rises ? { dash: risenDash(name) } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather) * (ex?.seBoost && eff > 1 ? 4 / 3 : 1) * (ex?.fickle && rnd() < 0.3 ? 2 : 1), eff };
 }

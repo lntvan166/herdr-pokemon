@@ -112,7 +112,7 @@ test("a Pokémon's own move (EXCLUSIVE): always among its four; Judgment takes t
   assert.equal(movesetOf(26).some((m) => m.name === "Volt Tackle"), false); // Raichu doesn't
   assert.ok(movesetOf(493).length <= 4);
   assert.ok(learnableOf(493).some((m) => m.name === "Judgment" && m.exclusive));
-  for (const [name, m] of Object.entries(EXCLUSIVE)) assert.ok(m.type && m.power > 0 && m.dex.length && exclusiveOf(m.form ? `${m.dex[0]}${m.form}` : m.dex[0]).some((x) => x.name === name), name);
+  for (const [name, m] of Object.entries(EXCLUSIVE)) assert.ok(m.type && m.power > 0 && m.dex.length && exclusiveOf(m.keys ? m.keys[0] : m.form ? `${m.dex[0]}${m.form}` : m.dex[0]).some((x) => x.name === name), name);
   // Judgment: ×4 on Charizard (Rock), Dragonite (Ice), Tyranitar (Fighting); ×2 on Gengar (Ground).
   assert.equal(judgedType(6), "rock");
   assert.equal(judgedType(149), "ice");
@@ -285,4 +285,26 @@ test("priority moves, as the games': Aqua Jet, Mach Punch +1; Extreme Speed +2",
   assert.equal(PRIORITY["Aqua Jet"], 1);
   assert.equal(PRIORITY["Mach Punch"], 1);
   assert.equal(PRIORITY["Extreme Speed"], 2);
+});
+
+// The newer ones (sig-moves.js): each form its own (Black Kyurem's Freeze Shock, Kyurem's Glaciate),
+// their rules as the games'.
+test("signature moves of Gen 5-9: by form, with their rules", async () => {
+  const { movesetOf, learnableOf, missOf, weatherPower, PRIORITY, DRAIN, pickMove } = await import("../mods/pokemon-herd/moves.js");
+  const names = (k) => learnableOf(k).map((m) => m.name);
+  assert.ok(names("646f0001").includes("Freeze Shock") && names("646f0001").includes("Fusion Bolt"));
+  assert.ok(!names("646f0001").includes("Glaciate") && names("646").includes("Glaciate") && !names("646").includes("Fusion Bolt"));
+  assert.ok(names("644").includes("Fusion Bolt"));
+  assert.equal(movesetOf("901f0001")[0].name, "Blood Moon");
+  assert.ok(!names("901").includes("Blood Moon"));
+  assert.equal(movesetOf(1000)[0].name, "Make It Rain");
+  assert.equal(missOf("False Surrender"), 0);
+  assert.ok(Math.abs(missOf("Magma Storm") - 0.25) < 1e-9);
+  assert.equal(weatherPower("Hydro Steam", "sunny"), 1.5);
+  assert.equal(PRIORITY.Thunderclap, 1);
+  assert.equal(DRAIN["Bitter Blade"], 0.5);
+  // Collision Course: a third stronger when super effective (on Tyranitar, Rock/Dark: ×4).
+  const cc = pickMove(1007, 248, () => 0.5, { moves: ["Collision Course"] });
+  const plain = pickMove(1007, 6, () => 0.5, { moves: ["Collision Course"] });
+  assert.ok(Math.abs(cc.mul / plain.mul - 4 / 3) < 1e-9, `${cc.mul} ${plain.mul}`);
 });

@@ -12,7 +12,9 @@
 // that last while the two face each other (Intimidate, Moxie, Speed Boost, Justified…). One that
 // needs what the mod has none of (status, switching mid-battle, held items in battle, terrain)
 // does nothing here (`works`).
-import { SELF_STAGES, RECOIL } from "./move-stages.js";
+import { SELF_STAGES as GEN_SELF, RECOIL as GEN_RECOIL } from "./move-stages.js";
+import { SIG_SELF, SIG_RECOIL } from "./sig-moves.js";
+const SELF_STAGES = { ...GEN_SELF, ...SIG_SELF }, RECOIL = { ...GEN_RECOIL, ...SIG_RECOIL }; // (and the newer signature moves')
 import { MEGA_ABILITIES, FORM_ABILITIES } from "./mega-abilities.js";
 import { SPECIES_ABILITIES, ABILITY_KEYS, ABILITY_NAMES, ABILITY_TEXTS, MOVE_FLAGS } from "./ability-data.js";
 
@@ -300,6 +302,7 @@ export const CRASH = new Set(["Jump Kick", "High Jump Kick", "Axe Kick", "Superc
 // Items too (`def`: the target's side): Life Orb a tenth of its health each hit it lands, Rocky
 // Helmet a sixth of the attacker's for a move that touches it, Shell Bell an eighth of what it dealt
 // back (a negative hurt). `hurt` all together; `said` the abilities' and items' keys.
+export const HALF_COST = new Set(["Chloroblast"]);
 export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
   const out = { hurt: 0, word: "", said: [] };
   const words = [];
@@ -312,6 +315,8 @@ export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
     else if (crash) { out.hurt += 0.5; words.push("Crashed!"); }
     else { out.hurt += dealt * recoil * ratio; words.push("Recoil!"); }
   }
+  // Chloroblast: half its health, as it fires (Magic Guard spares it).
+  if (!move.risen && HALF_COST.has(move.name) && !guard) { out.hurt += 0.5; words.push("It lost half its health!"); }
   if (landed && move.name === "Struggle" && !guard) { out.hurt += 0.25; words.push("Recoil!"); } // (a quarter of its health: Rock Head no help)
   if (landed && att.item === "life-orb" && !guard) { out.hurt += 0.1; out.said.push("life-orb"); }
   if (landed && def?.item === "rocky-helmet" && flag(move, "c") && !guard) { out.hurt += 1 / 6; out.said.push("rocky-helmet"); }
@@ -358,7 +363,7 @@ export function orbStatus(side, types = []) {
 }
 // Sucker Punch: it fails unless the other is about to attack (it moved already, or uses a setup move,
 // an item, a switch), as the games'. `other`: the other's move this turn; `otherFirst`: it moved first.
-export const suckerFails = (move, other, otherFirst) => move?.name === "Sucker Punch" && (!other || !!other.status || otherFirst);
+export const suckerFails = (move, other, otherFirst) => (move?.name === "Sucker Punch" || move?.name === "Thunderclap") && (!other || !!other.status || otherFirst);
 // Moves that ignore the target's stat stages, as the games' (Sacred Sword, Darkest Lariat, Chip Away).
 export const IGNORE_STAGES = new Set(["Sacred Sword", "Darkest Lariat", "Chip Away"]);
 // A stage changed by a move, not an ability (nothing said by name): `n` stages of `stat`, kept in

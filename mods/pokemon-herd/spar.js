@@ -5,6 +5,7 @@
 // full health, the faster moving first; the first down loses, or after SPAR_TURNS each, the one with more left wins.
 // Nobody is hurt for real.
 import { EXTRA_SIDE } from "./more-moves.js";
+import { SIG_SIDE } from "./sig-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
 import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve, suckerFails, knownImmune, slotsOf, CHOICE } from "./abilities.js";
@@ -19,6 +20,7 @@ export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
 // (The games' other moves' from PokeAPI too, more-moves.js EXTRA_SIDE; these first.)
 export const SIDE_EFFECTS = {
   ...EXTRA_SIDE,
+  ...SIG_SIDE,
   "Body Slam": ["par", 0.3], "Thunder Punch": ["par", 0.1], "Thunderbolt": ["par", 0.1], "Thunder": ["par", 0.3],
   "Fire Punch": ["brn", 0.1], "Flamethrower": ["brn", 0.1],
   "Ice Punch": ["frz", 0.1], "Ice Beam": ["frz", 0.1], "Blizzard": ["frz", 0.1],

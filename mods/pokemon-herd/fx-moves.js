@@ -4,6 +4,10 @@
 // way the blow goes). SPECIAL[name](c): fired from where it stands (c: x0 → x1 at y, from -FLY).
 // `c` carries the helpers (P, O, ring, puff, flash, fly, steps, fist), its style `st` and `rnd`. Pure.
 
+import { SIGNATURE_A } from "./fx-sig-a.js";
+import { SIGNATURE_B } from "./fx-sig-b.js";
+import { SIGNATURE_C } from "./fx-sig-c.js";
+
 export const PHYSICAL = {
   // A plain body blow: a white smack, a few lines.
   "Tackle": ({ x, y, dir, P, O, ring, st }) => [
@@ -899,4 +903,5 @@ export const SIGNATURE = {
     }
     return out;
   },
+  ...SIGNATURE_A, ...SIGNATURE_B, ...SIGNATURE_C, // (Gen 5-9's own moves: fx-sig-a/b/c.js)
 };

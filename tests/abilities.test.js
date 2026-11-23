@@ -337,3 +337,11 @@ test("statuses: immunities, turns lost, burn, poison, Guts, Orbs", async () => {
   const c0 = T.catchChance("poke-ball", { dex: 16, hp: 0.5 }), c1 = T.catchChance("poke-ball", { dex: 16, hp: 0.5, status: "par" });
   assert.ok(c1 > c0);
 });
+
+test("Chloroblast costs half its health; Thunderclap fails as Sucker Punch does", async () => {
+  const { selfHurt, suckerFails, newSide } = await import("../mods/pokemon-herd/abilities.js");
+  const r = selfHurt(newSide(""), { name: "Chloroblast" }, { miss: false, mul: 1 }, 0.3);
+  assert.equal(r.hurt, 0.5);
+  assert.equal(selfHurt(newSide("magic-guard"), { name: "Chloroblast" }, { miss: false, mul: 1 }, 0.3).hurt, 0);
+  assert.equal(suckerFails({ name: "Thunderclap" }, { status: true }, false), true);
+});
