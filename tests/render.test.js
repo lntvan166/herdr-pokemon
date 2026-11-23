@@ -1284,3 +1284,16 @@ test("a trainer's battle: Sucker Punch fails on a setup move", () => {
   assert.equal(fx.text, "But it failed!");
   assert.equal(st.visitor.abil.w.st.atk, 2, "its Swords Dance");
 });
+
+// The picker's preview: its Megas on asking (Charizard: Mega X, Mega Y), their types and ability.
+test("the picker's preview shows its Megas", () => {
+  seed();
+  const v = picker();
+  v.showPreview({ dex: 6 }, cx);
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  v.render(cx);
+  assert.ok(K.handlers["preview-mega-X:on_click"], Object.keys(K.handlers).filter((k) => k.startsWith("preview")).join());
+  K.handlers["preview-mega-X:on_click"]({}, cx);
+  assert.equal(v.preview.megaView, "X");
+  v.render(cx);
+});

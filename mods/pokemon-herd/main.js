@@ -6743,7 +6743,10 @@ export default class PokemonHerd extends View {
   // to preview it), the shiny look, and Choose (as a left click in the list) or ✕ (back to the card).
   renderPreview(t, cx) {
     const pv = this.preview;
-    const meta = this.sprites[spriteKey(dressed(pv))];
+    // Its Mega shown (Mega, Mega X, Mega Y: `pv.megaView`, its kind): that one's animations.
+    const megas = pv.form ? [] : megaForms(pv.dex);
+    const mv = pv.megaView != null && megas.some((f) => f.kind === pv.megaView) ? pv.megaView : null;
+    const meta = mv != null ? this.sprites[spriteKey(dressed({ ...pv, megaKind: mv }), true)] : this.sprites[spriteKey(dressed(pv))];
     const icon = (e, size) => this.icons[entryKey(e)] === "ready" ? image(iconPath(e.dex, e.form)).size(size).flex_none() : div().size(size).flex_none();
     const isPv = (e) => e.dex === pv.dex && (e.form ?? null) === (pv.form ?? null);
     const line = this.lineOf(pv);
@@ -6775,6 +6778,12 @@ export default class PokemonHerd extends View {
           return button("preview-fav", on ? "★ Favorite" : "☆ Favorite", on, (_e, cx) => { setFavs(toggleFavorite(favs(), pv.form ? { dex: pv.dex, form: pv.form } : { dex: pv.dex })); cx.notify(); });
         })())
         .when(hasShiny(pv.dex, pv.form), (el) => el.child(button("preview-shiny", "✨ Shiny", pv.shiny, (_e, cx) => this.showPreview(pv, cx, !pv.shiny))))
+        // Its Megas: each shown on asking (its animations, types, ability), again for itself.
+        .children(megas.map((f) => button(`preview-mega-${f.kind || "one"}`, `◆ Mega${f.kind ? ` ${f.kind}` : ""}`, mv === f.kind, (_e, cx) => {
+          pv.megaView = mv === f.kind ? null : f.kind;
+          if (pv.megaView != null) this.want({ ...pv, mega: "on", megaKind: f.kind }, cx, true);
+          cx.notify();
+        })))
         .when(this.locked(pv), (el) => el.child(div().h(26).px(10).rounded(6).flex().items_center().flex_none().text_size(12).text_color(t.muted).border_1().border_color(t.border)
           .child("🔒 Catch one to use it")))
         // The one control that changes the agent's Pokémon: ink on paper.
@@ -6811,6 +6820,11 @@ export default class PokemonHerd extends View {
         .child(stage("idleD", "Standing"))
         .child(stage("walkR", "Walking"))
         .child(stage("sleep", "Asleep")))
+      // Its Mega shown: its types and its own ability.
+      .when(mv != null, (el) => el.child(((k) => h_flex().gap(6).items_center().flex_wrap()
+        .child(div().text_size(11.5).font_semibold().text_color(t.foreground).child(`Mega ${nameOf(pv.dex)}${mv ? ` ${mv}` : ""}`))
+        .children(typesOf(k).map((ty) => div().flex_none().h(15).px(5).rounded(4).flex().items_center().bg(TYPE_COLOR[ty]).text_size(9.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty))))
+        .when(!!megaAbility(k), (e2) => e2.child(div().text_size(11).text_color(t.muted).child(((ab) => `${abilityName(ab)}: ${abilityText(ab)}${works(ab) ? "" : " (No effect here.)"}`)(megaAbility(k))))))(fighterKey(pv.dex, { mega: mv }))))
       .child(this.moveRow(pv, t))
       .when(line.length > 1, (el) => el.child(
         h_flex().gap(4).items_center().overflow_hidden()
