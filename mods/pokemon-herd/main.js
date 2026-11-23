@@ -2824,7 +2824,8 @@ export default class PokemonHerd extends View {
             const over = Math.round(ground - pose.box.h * scale - 24), floor = pill ? 22 : 2;
             return over >= floor
               ? div().absolute().left(Math.round(mid - EMOTE_PX / 2)).top(over).child(emote(EMOTE_OF[actIcon]))
-              : div().absolute().left(Math.round(mid - (pose.box.w / 2) * scale - EMOTE_PX + 4)).top(Math.round(Math.max(floor, ground - pose.box.h * scale - 4))).child(emote(EMOTE_OF[actIcon]));
+              // (Beside it, on its left: the balloon turned so its tail points at it, art/emotes/*-r.)
+              : div().absolute().left(Math.round(mid - (pose.box.w / 2) * scale - EMOTE_PX + 4)).top(Math.round(Math.max(floor, ground - pose.box.h * scale - 4))).child(emote(`${EMOTE_OF[actIcon]}-r`));
           })()
           : div().absolute().left(Math.round(mid + (pose.box.w / 2) * scale - 2)).top(Math.round(Math.max(2, ground - pose.box.h * scale - 14))).text_size(13).font_bold().text_color(t.foreground).child(actIcon)))
         // An Alpha: a name tag under its feet as the herd's have: α and its species.
