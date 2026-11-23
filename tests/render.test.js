@@ -1164,6 +1164,8 @@ test("Choose moves: chips first, then the exchange with the one picked", async (
   st.tick(cx);
   const ch = st.visitor.trainer.choosing;
   assert.ok(ch && !st.visitor.fight, "its chips, no exchange yet");
+  assert.equal(st.visitor.trainer.fighter, "t1", "it's the one fighting: held while you choose");
+  assert.ok(st.mons.t1.pauseUntil > Date.now() + 5000, "it stays put");
   assert.deepEqual(ch.moves.map((m) => m.name), ["Kowtow Cleave", "Iron Head", "Swords Dance"]);
   for (const k of Object.keys(K.handlers)) delete K.handlers[k];
   st.render(cx);

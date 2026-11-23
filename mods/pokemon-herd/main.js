@@ -3044,6 +3044,10 @@ export default class PokemonHerd extends View {
     const set = movesetOf(key, chosenFor(pk, key)).filter((m) => !lock || m.name === lock);
     tr.choosing = { addr: drop.addr, at: now, until: now + CHOOSE_MS, drop: { ...drop }, moves: set.map((m) => ({ name: m.name, type: m.type, physical: m.physical, status: !!m.status, eff: m.status ? 1 : v.abil?.w && knownImmune(v.abil.w, m, slotsOf(v.pick.dex, v.pick.form)) ? 0 : effectOn(m.type, wildKey) })) }; // (×0 too for an ability it's shown: Levitate)
     tr.nextAt = null;
+    // It's the one fighting from now: it stays put while you choose (it walked off on the first).
+    tr.fighter = drop.addr;
+    dm.pauseUntil = Math.max(dm.pauseUntil ?? 0, now + CHOOSE_MS + 2000);
+    dm.dir = v.x > dm.x ? "r" : "l";
     return true;
   }
   // The chips over yours while it waits on you (Choose moves): each move in its type's colour, how
