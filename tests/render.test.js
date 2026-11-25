@@ -931,6 +931,37 @@ test("a trainer: an item takes your turn", () => {
   assert.equal(st.visitor.trainer.itemTurn, false, "once");
 });
 
+// Picked up, healed, dropped back on it: the item's turn is still paid (it strikes, yours doesn't);
+// it went unpaid when yours wasn't standing there as the turn came.
+test("a trainer: an item used on one picked up still takes your turn", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  const side = { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } };
+  st.visitor = { id: "trh", pick: { dex: 9, hp: 1, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true, fought: true, fighter: "t1" },
+    abil: { own: "t1", idx: 0, o: { ...side }, w: { ...side } } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  st.drag = { addr: "t1", moved: true, start: { x: 0, y: 0 } }; // (picked up)
+  H.store.set(`${ids.MOD}-trainer-heals`, { id: "trh", n: 1, at: Date.now() });
+  st.tick(cx);
+  st.visitor.trainer.nextAt = Date.now() - 1;
+  st.tick(cx);
+  assert.ok(!st.visitor.fight && st.visitor.trainer.owedTurn, "held: the turn owed");
+  st.dragEnd(cx); // (dropped back on it)
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx?.back && fx.blow === null, "it struck, yours didn't");
+  assert.equal(st.visitor.trainer.owedTurn, false, "paid");
+});
+
 // An ordinary trainer too, and the Tower's (as the games'): a switch with the one before still up
 // costs a free hit.
 test("a trainer: a switch costs a free hit (the Tower's too)", () => {

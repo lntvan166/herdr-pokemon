@@ -1409,7 +1409,7 @@ export default class PokemonHerd extends View {
     const m = this.mons[d.addr];
     if (m) m.pauseUntil = Date.now() + 20000;
     // What it was dropped on (or how hard it was shaken) plays out on the next tick.
-    this.dropAt = { addr: d.addr, dizzy: shaken(d.flips, Date.now()) };
+    this.dropAt = { addr: d.addr, dizzy: shaken(d.flips, Date.now()), ...(this.visitor?.trainer?.owedTurn ? { item: true } : {}) }; // (an item's turn still owed: paid now)
     cx.notify();
   }
 
@@ -1984,8 +1984,14 @@ export default class PokemonHerd extends View {
       const fm = this.mons[trv.fighter];
       trv.nextAt = null;
       const item = !!trv.itemTurn; trv.itemTurn = false;
-      if (fm && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false, item };
-      else trv.fighter = null;
+      const held = this.drag?.addr === trv.fighter;
+      if (fm && !held && !(fm.restUntil > now) && Math.abs(fm.x - v.x) <= MAX_GAP + 30) this.dropAt = { addr: trv.fighter, dizzy: false, item };
+      else {
+        // Not there to take it (picked up to be healed, walked off): the turn the item cost is still
+        // owed, paid by the next one of yours dropped on it (it strikes; yours doesn't).
+        if (item && !(fm?.restUntil > now)) trv.owedTurn = true;
+        trv.fighter = null;
+      }
     }
     // (Its Pokémon placed so the trainer, beyond it, stays inside the strip, however wide it is.)
     const cornerX = () => Math.max(EDGE, this.width - EDGE - 20 * scaleOf() - this.trainerGap(v, scaleOf()));
@@ -3985,6 +3991,7 @@ export default class PokemonHerd extends View {
         const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && ownDown(v.fight)) || (ownHp(before, now) ?? 0) <= 0.001;
         const swapIn = !!v.trainer && !beforeDown; // (the Tower's too, as the games': it was free there)
         const itemTurn = !!v.trainer && !!drop.item; // (an item used: its turn, as a switch)
+        if (v.trainer) v.trainer.owedTurn = false; // (paid, or never owed: this exchange is under way)
         const switched = swapIn || itemTurn;
         const idxNow = v.trainer?.idx ?? -1;
         // Switched in: the one before (its key, side, pick), whom the trainer's move was meant for.
