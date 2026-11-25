@@ -409,6 +409,10 @@ const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.tr
 // A trainer's battle under way (fought, not over): its id and the heals used in it (TRAINER_HEALS:
 // shared, so the Bag, a menu or the Box anywhere count alike), else null.
 const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
+// The one of yours facing a trainer's Pokémon that can strike it now (out, not fainted, the battle
+// not over): { id, pane } or null, kept by the strip that counts (syncFighting). Only its heals go
+// without limit, each its turn (fighterPane); between its Pokémon or once it's beaten, no one is.
+const FIGHTING_KEY = `${MOD}-fighting`;
 const CHOOSE_MS = 6000; // Choose moves: this long to pick, then it picks itself
 const SETUP_NOTE_MS = 1400;
 const SWAP_ROW = 6; // a Pokémon menu's Swap row: this many a line (58 + 4 px each, 400 wide)
@@ -422,9 +426,8 @@ function trainerFight() {
 }
 // The pane of yours fighting a trainer now, or null.
 function fighterPane() {
-  const v = shared(VISITOR_KEY)?.v;
-  const f = v?.trainer?.fought && !v.trainer.beaten && !v.trainer.leaving && v.trainer.fighter;
-  return f ? agents().find((a) => a.address === f)?.pane ?? null : null;
+  const f = shared(FIGHTING_KEY);
+  return f?.pane && f.id === shared(VISITOR_KEY)?.v?.id ? f.pane : null;
 }
 // A climb on: healing one of yours not fighting (hurt, or out of it: a Berry, a Revive) only
 // TOWER_BENCH_HEALS a floor; the one fighting, as often as you like (each takes its turn). A Revive
@@ -1977,7 +1980,7 @@ export default class PokemonHerd extends View {
     // (Healed for free, a Berry a blow kept yours up for ever.)
     const used = trv?.fought && shared(TRAINER_HEALS_KEY);
     // (A moment after: the heal on the strip first. Only a fresh one: after a reload, not again.)
-    if (used?.id === v.id && (used.at ?? 0) > (trv.itemSeen ?? 0) && now - used.at < ITEM_TURN_FRESH && trv.fighter && !v.fight && !v.throw && !trv.beaten && !trv.leaving) {
+    if (used?.id === v.id && (used.at ?? 0) > (trv.itemSeen ?? 0) && (used.at ?? 0) > (trv.itemPaid ?? 0) && now - used.at < ITEM_TURN_FRESH && trv.fighter && !v.fight && !v.throw && !trv.beaten && !trv.leaving) {
       trv.itemSeen = used.at;
       trv.itemTurn = true;
       trv.nextAt = now + ITEM_TURN_MS;
@@ -3142,9 +3145,25 @@ export default class PokemonHerd extends View {
   // Choose moves (Settings): against a trainer, yours' turn waits on you: its moves as chips over it
   // (moveChooser) for CHOOSE_MS, the exchange then with the one picked (`drop.move`), or the AI's.
   // Not when it can't move anyway: switched in with the one before still up, an item's turn, resting.
+  // FIGHTING_KEY, as it stands now (written when it changes).
+  syncFighting(list) {
+    const v = this.visitor, tr = v?.trainer;
+    const addr = tr?.fought && tr.fighter && !v.fainted && !tr.beaten && !tr.leaving && !tr.won ? tr.fighter : null;
+    const pane = addr ? list.find((a) => a.address === addr)?.pane ?? null : null;
+    const sig = pane ? `${v.id}|${pane}` : "";
+    if (sig === this.fightingSig) return;
+    this.fightingSig = sig;
+    setShared(FIGHTING_KEY, pane ? { id: v.id, pane } : null);
+  }
+  // A heal on the one fighting not yet paid for with its turn (TRAINER_HEALS_KEY newer than the
+  // last paid): the next exchange is that turn, however it comes (Choose moves too).
+  healUnpaid(v, now) {
+    const h = v?.trainer ? shared(TRAINER_HEALS_KEY) : null;
+    return !!h && h.id === v.id && (h.at ?? 0) > (v.trainer.itemPaid ?? 0) && now - h.at < ITEM_TURN_FRESH;
+  }
   askMove(drop, ids, now) {
     const v = this.visitor, tr = v?.trainer;
-    if (!tr || tr.beaten || tr.leaving || drop.manual || drop.item || !this.leader || !settingsNow().chooseMoves) return false;
+    if (!tr || tr.beaten || tr.leaving || drop.manual || drop.item || this.healUnpaid(v, now) || !this.leader || !settingsNow().chooseMoves) return false;
     const dm = this.mons[drop.addr], pk = ids[drop.addr];
     if (!dm || !pk || now < (dm.restUntil ?? 0)) return false;
     const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
@@ -3991,7 +4010,9 @@ export default class PokemonHerd extends View {
         const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
         const beforeDown = !before || (v.abil.o?.hp ?? 1) <= 0.001 || (v.fight?.own === v.abil.own && ownDown(v.fight)) || (ownHp(before, now) ?? 0) <= 0.001;
         const swapIn = !!v.trainer && !beforeDown; // (the Tower's too, as the games': it was free there)
-        const itemTurn = !!v.trainer && !!drop.item; // (an item used: its turn, as a switch)
+        // (A heal on it not paid for yet, however this exchange came, Choose moves too: this is that turn.)
+        const itemTurn = !!v.trainer && (!!drop.item || this.healUnpaid(v, now)); // (an item used: its turn, as a switch)
+        if (itemTurn) v.trainer.itemPaid = Math.max(now, shared(TRAINER_HEALS_KEY)?.at ?? 0);
         if (v.trainer) v.trainer.owedTurn = false; // (paid, or never owed: this exchange is under way)
         const switched = swapIn || itemTurn;
         const idxNow = v.trainer?.idx ?? -1;
@@ -4398,6 +4419,7 @@ export default class PokemonHerd extends View {
       }
     }
     if (this.visit(list, ids, g, now, cx)) changed = true;
+    if (this.leader) this.syncFighting(list);
     this.pendingRaid(now); // strikes held for a Mega Evolution
     if (this.raidTick(list, ids, now, cx)) changed = true;
     if (this.leader && now - (this.giftsAt ?? 0) > 30000) { this.giftsAt = now; this.giveBadgeGifts(); }

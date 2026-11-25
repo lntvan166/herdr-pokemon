@@ -328,6 +328,7 @@ test("a trainer's battle and the Tower: heals without limit, each one counted", 
   const KEY = `${ids.MOD}-tower`, VK = `${ids.MOD}-visitor`, HP = `${ids.MOD}-hp`;
   H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now() - 1000, wins: 0, faints: 0, out: [], nextAt: 0 } });
   H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }], fighter: H.agents().find((a) => a.pane === "p0").address } } });
+  H.store.set(`${ids.MOD}-fighting`, { id: 7, pane: "p0" }); // (the strip's: p0 faces it)
   H.store.set(ids.BAG_KEY, { ...H.store.get(ids.BAG_KEY), items: { ...H.store.get(ids.BAG_KEY).items, berry: 5 } });
   const hurt = () => H.store.set(HP, { p0: { hp: 0.2, at: Date.now() } });
   const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
@@ -339,6 +340,7 @@ test("a trainer's battle and the Tower: heals without limit, each one counted", 
   assert.equal(H.store.get(`${ids.MOD}-trainer-heals`).n, 3, "each counted: its turn");
   // One not fighting, in the climb: one heal a floor (TOWER_BENCH_HEALS), then none.
   H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }], fighter: "nobody" } } });
+  H.store.set(`${ids.MOD}-fighting`, null); // (between its Pokémon, or beaten: no one faces it)
   again(); click("mon-use-berry:on_click");
   again();
   assert.ok(!K.handlers["mon-use-berry:on_click"], "not fighting: its floor's one heal used");
@@ -443,6 +445,7 @@ test("the Battle Tower: a Revive brings one back into the climb", () => {
   // the one that fainted fighting too).
   H.store.set(KEY, { ...H.store.get(KEY), run: { ...H.store.get(KEY).run, out: ["p0"] } });
   H.store.set(`${ids.MOD}-visitor`, { at: Date.now(), v: { id: 9, trainer: { fought: true, idx: 0, team: [{ dex: 25 }], fighter: H.agents().find((a) => a.pane === "p0").address } } });
+  H.store.set(`${ids.MOD}-fighting`, { id: 9, pane: "p0" });
   H.store.set(HP, { p0: { hp: 0, at: Date.now() - 500, rest: Date.now() + 600000 } });
   H.store.set(ids.BAG_KEY, { ...H.store.get(ids.BAG_KEY), items: { ...H.store.get(ids.BAG_KEY).items, revive: 2 } });
   for (const k of Object.keys(K.handlers)) delete K.handlers[k];
@@ -961,6 +964,36 @@ test("a trainer: an item used on one picked up still takes your turn", () => {
   const fx = st.visitor.fight;
   assert.ok(fx?.back && fx.blow === null, "it struck, yours didn't");
   assert.equal(st.visitor.trainer.owedTurn, false, "paid");
+});
+
+// A heal on the one fighting is paid with its turn however the next exchange comes (dropped on
+// it at once, Choose moves): it was free when the drop came first. And the one facing it is
+// shared only while its Pokémon can strike (none once it's fainted: heals there are limited).
+test("a trainer: a heal not paid for is the next exchange's turn; no one faces a fainted one", () => {
+  seed();
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  const side = { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } };
+  st.visitor = { id: "trpay", pick: { dex: 9, hp: 1, abil: 0 }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 9 }, { dex: 6 }], idx: 0, waited: true, fought: true, fighter: "t1" },
+    abil: { own: "t1", idx: 0, o: { ...side }, w: { ...side } } };
+  Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  H.store.set(`${ids.MOD}-trainer-heals`, { id: "trpay", n: 1, at: Date.now() });
+  st.dropAt = { addr: "t1", dizzy: false }; // (dropped on it before its turn came)
+  st.tick(cx);
+  const fx = st.visitor.fight;
+  assert.ok(fx?.back && fx.blow === null, "the heal's turn: it struck, yours didn't");
+  assert.equal(H.store.get(`${ids.MOD}-fighting`)?.pane, H.agents().find((a) => a.address === "t1").pane);
+  st.visitor.fight = null; st.visitor.fainted = Date.now();
+  st.tick(cx);
+  assert.equal(H.store.get(`${ids.MOD}-fighting`), null, "its Pokémon fainted: no one faces it");
 });
 
 // An ordinary trainer too, and the Tower's (as the games'): a switch with the one before still up
