@@ -63,16 +63,16 @@ import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY, DRAIN, EXCLUSIVE } from "./moves.js";
 import { MULTI_POWER } from "./more-moves.js";
-import { SELF_STAGES as GEN_SELF, RECOIL as GEN_RECOIL, RECHARGE } from "./move-stages.js";
+import { SELF_STAGES as GEN_SELF, RECOIL as GEN_RECOIL, RECHARGE, CONFUSE } from "./move-stages.js";
 import { SIG_SELF, SIG_RECOIL } from "./sig-moves.js";
 import { FORM_ITEM_IDS, REGION_MAPS, KEPT_ITEMS } from "./form-items.js";
 const SELF_STAGES = { ...GEN_SELF, ...SIG_SELF }, RECOIL = { ...GEN_RECOIL, ...SIG_RECOIL };
 import { MOVE_FLAGS } from "./ability-data.js";
-import { locks, contactStatus, abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE, canStatus, statusSkip, statusEnd, orbStatus, STATUS_SAY, SKIP_SAY, STATUS_NAMES_SHORT } from "./abilities.js";
+import { locks, contactStatus, confuseTurns, confusedTurn, CONFUSE_POWER, abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE, canStatus, statusSkip, statusEnd, orbStatus, STATUS_SAY, SKIP_SAY, STATUS_NAMES_SHORT } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
-import { statsFull, damage, moveHow, OWN_TAKE, hpRatio, effectOn, sixStats } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
+import { statsFull, damage, moveHow, OWN_TAKE, hpRatio, effectOn, sixStats, gameDamage } from "./trainer.js"; // (damage, moveHow: a move's average damage, for picking as the games' trainers)
 import { effortOf, speedOf, healthNow, healed, baitFor, AUTO_BAIT, withEvolved, hitWild, hitBack, typesOf, bestType, bestEffect, fighterKey, isFormKey, RED, OVERKILL, OVERKILL_GREEN, OWN_REST, ALPHA_SIZE, dayOf, LEGENDARY, BALLS, BAIT, LEGEND_THROWS, purse, PURSE_CHANCE, TIP, allowance, isLegendary, isLocked, wildPick, throwBall, ballFor, catchChance, natureOf, natureMul, caughtPick, loadDex, withSeen, withCaught, shinyUnlocked, dueGoals, nextGoal, goalText, dexByRegion, DEX_TOTAL, DEX_GOALS, trainerEntries, trainerKeys, openEntries, loadDaily, progress, taskText, taskPay, payText, recapText, BONUS, NATURES } from "./trainer.js";
 import { wrapRow, exitX, entryX, wrapOk, clearWalk } from "./wrap.js";
 import { sparTurns, withResult, recordOf, whoOf, NOTE_TEXT, STATUS_COLOR, SIDE_EFFECTS } from "./spar.js";
@@ -1081,10 +1081,11 @@ const abilLine = (pick, slot) => { const ab = abilityOf(pick, slot); return ab ?
 // and power, accuracy, priority, what it does besides and what it costs, what it rises to (1 in 8),
 // and how well it suits this one (its own type ×1.5, its stronger side). Lines.
 const STAT_NAME = { atk: "Attack", def: "Defense", spa: "Sp. Atk", spd: "Sp. Def", spe: "Speed" };
-const AILMENT = { par: "paralyse", brn: "burn", psn: "poison", frz: "freeze", flinch: "make it flinch" };
+const AILMENT = { par: "paralyse", brn: "burn", psn: "poison", frz: "freeze", flinch: "make it flinch", cnf: "confuse" };
 function moveFacts(m, key) {
   const out = [];
   const pct = (x) => `${Math.round(x * 100)}%`;
+  if (m.status && m.inflict) return [`Status move: may ${AILMENT[m.inflict] ?? m.inflict} it (${Math.round(100 * (1 - missOf(m.name)))}% accuracy)${m.inflict === "cnf" ? ": 2 to 5 turns, 1 in 3 it hits itself" : ""}`];
   if (m.status) {
     out.push(`Setup move: raises its own ${m.stages.filter(([, n]) => n > 0).map(([st, n]) => `${STAT_NAME[st]} ${"+".repeat(n)}${n}`).join(", ")}${m.stages.some(([, n]) => n < 0) ? `, lowers ${m.stages.filter(([, n]) => n < 0).map(([st, n]) => `${STAT_NAME[st]} ${n}`).join(", ")}` : ""}. No damage; kept while it stays in.`);
     return out;
@@ -4046,6 +4047,18 @@ export default class PokemonHerd extends View {
           // doesn't fire again; only yours' as it comes in (both new if theirs is new too). (Each
           // swap made theirs anew: its boosts gone, its Intimidate again.)
           const fresh = v.abil.idx !== idxNow;
+          // The one switched out (still up): Regenerator, a third of its health back; Natural Cure, its status gone.
+          const outAddr = v.abil.own, outM = this.mons[outAddr], outAb = v.abil.o?.ab;
+          if (outM && !(outM.restUntil > now) && (outAb === "regenerator" || outAb === "natural-cure")) {
+            const pane = list.find((a) => a.address === outAddr)?.pane;
+            const hp0 = ownHp(outM, now) ?? 1;
+            if (outAb === "regenerator" && hp0 > 0.001 && hp0 < 1) {
+              outM.hpLost = { prev: hp0, at: now }; outM.hp = Math.min(1, hp0 + 1 / 3); outM.hpAt = now;
+              keepHp(pane, { hp: outM.hp, at: now });
+              this.note(outM, "Regenerator! +33%", now, 2500);
+            }
+            if (outAb === "natural-cure" && v.statuses?.[outAddr]) { v.statuses[outAddr] = null; this.note(outM, "Natural Cure!", now, 2500); }
+          }
           v.abil.own = drop.addr; v.abil.o = newSide(ownAb, 1, ownGear);
           if (fresh) { v.abil.idx = idxNow; v.abil.w = newSide(wildAb, 1, wildGear); }
           const theirs = v.abil.w.ab;
@@ -4124,10 +4137,10 @@ export default class PokemonHerd extends View {
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
         const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => knownImmune(sw, m, slotsOf(v.pick.dex, v.pick.form)), // (Choose moves: the one you picked)
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
-          stages: so.st, selfHp: ownHpNow, first: !so.turns, targetStatus: sw.status, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
+          stages: so.st, selfHp: ownHpNow, first: !so.turns, targetStatus: sw.status, targetConfused: sw.confused ?? 0, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
         let wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
-          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, targetStatus: so.status, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
+          ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, targetStatus: so.status, targetConfused: so.confused ?? 0, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
         // Switched in, as the games': the trainer chose its move against the one that was in (it
         // couldn't know), and it lands on this one: a Ground move on one that flies, a super-effective
         // one on one that resists it. (Its pick and its use, the newcomer's: power, type, ability.)
@@ -4178,6 +4191,9 @@ export default class PokemonHerd extends View {
           if (["par", "brn", "psn", "frz"].includes(what) && !res.fainted && !r.miss && (res.eff ?? 1) > 0 && Math.random() < chance && canStatus(target, what, k === "hit" ? wildTypesSt : ownTypesSt)) {
             target.status = what; stageSaid[k].push(STATUS_SAY[what]);
           }
+          // Confused by chance (Hurricane 3 in 10, Dynamic Punch always: move-stages.js CONFUSE).
+          const cc = sheer ? 0 : CONFUSE[m.name] ?? 0;
+          if (cc && !res.fainted && !r.miss && (res.eff ?? 1) > 0 && Math.random() < cc && canStatus(target, "cnf")) { target.confused = confuseTurns(); stageSaid[k].push(STATUS_SAY.cnf); }
           if (what === "flinch" && !res.fainted && !r.miss && target.ab !== "inner-focus" /* (never flinches) */ && Math.random() < chance) { if (k === "hit" && !wildFirst) wildFlinched = true; if (k === "back" && wildFirst) ownFlinched = true; }
           // Its own (Superpower's Atk and Def down): over it, with what else it cost (costSaid), not
           // with its blow over the other.
@@ -4199,13 +4215,17 @@ export default class PokemonHerd extends View {
         const statusSaid = { own: "", wild: "" }; // (said over yours, over its: "It's burned!")
         const inflictOn = (m, target, types, k) => {
           if (m.miss) { statusSaid[k] = `${m.name} missed!`; return; }
-          if (canStatus(target, m.inflict, types)) { target.status = m.inflict; statusSaid[k] = STATUS_SAY[m.inflict]; }
+          if (canStatus(target, m.inflict, types)) { if (m.inflict === "cnf") target.confused = confuseTurns(); else target.status = m.inflict; statusSaid[k] = STATUS_SAY[m.inflict]; }
           else statusSaid[k] = "It doesn't affect it!";
         };
         const skipped = { own: null, wild: null }; // (a turn lost, or thawed: drawn, statusAura)
         const given = { own: null, wild: null }; // (a status given by a move: drawn as it lands)
         const st0 = { own: so.status ?? null, wild: sw.status ?? null };
         const proSaid = { own: "", wild: "" }; // (Protean: its new type, said as it moves)
+        // Confused, it hits itself: a typeless 40, physical, its Attack on its own Defense (its share of its health).
+        const selfHitOf = (key, nature, effort) => gameDamage(key, key, CONFUSE_POWER, true, 1, Math.random(), { na: nature, ea: effort, nb: nature, eb: effort });
+        const cnf0 = { own: !!so.confused, wild: !!sw.confused }; // (confused before: its dizzy look only when newly so)
+        let hurtSelf = { own: false, wild: false };
         const mine = () => {
           // Resting after Giga Impact, Blast Burn (RECHARGE): this turn lost.
           if (so.recharge) { so.recharge = false; ownIdle = true; setupSaid.own = "It must recharge!"; return; }
@@ -4214,6 +4234,13 @@ export default class PokemonHerd extends View {
           if (sk === "thaw") costSaid.own.push(SKIP_SAY.thaw);
           else if (sk) { ownIdle = true; setupSaid.own = SKIP_SAY[sk]; return; }
           if (ownFlinched) { ownIdle = true; setupSaid.own = "It flinched!"; return; }
+          const cf = confusedTurn(so);
+          if (cf === "end") costSaid.own.push("It snapped out of its confusion!");
+          else if (cf === "hurt") {
+            ownIdle = true; hurtSelf.own = true; setupSaid.own = "It hurt itself in its confusion!";
+            so.hp = Math.max(0, so.hp - selfHitOf(ownKey, pk.nature, effortOf(pk))); ownRecoil = { hp: so.hp, fainted: so.hp <= 0.001 };
+            return;
+          }
           if (om.status && om.inflict) { ownIdle = true; setupSaid.own = `${om.name}!`; inflictOn(om, sw, wildTypesSt, "wild"); return; }
           if (om.status) { setUp(om, so, "own"); return; }
           if (suckerFails(om, potion ? null : wm, wildFirst)) { omHit = { ...om, miss: true }; hit = { ...hit, text: "But it failed!" }; return; }
@@ -4251,6 +4278,13 @@ export default class PokemonHerd extends View {
           skipped.wild = sk;
           if (sk === "thaw") costSaid.wild.push(SKIP_SAY.thaw);
           else if (sk || wildFlinched) { wildIdle = true; setupSaid.wild = sk ? SKIP_SAY[sk] : "It flinched!"; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
+          { const cf = confusedTurn(sw);
+            if (cf === "end") costSaid.wild.push("It snapped out of its confusion!");
+            else if (cf === "hurt") {
+              wildIdle = true; hurtSelf.wild = true; setupSaid.wild = "It hurt itself in its confusion!";
+              sw.hp = Math.max(0, sw.hp - selfHitOf(wildKey, v.pick.nature, v.trainer ? v.trainer.effort ?? TEAM_EFFORT : 1)); wildRecoil = { hp: sw.hp, fainted: sw.hp <= 0.001 };
+              back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return;
+            } }
           if (wm.status && wm.inflict) { wildIdle = true; setupSaid.wild = `${wm.name}!`; inflictOn(wm, so, ownTypesSt, "own"); back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
           if (wm.status) { setUp(wm, sw, "wild"); back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
           if (suckerFails(wm, switched ? null : om, !wildFirst)) { wmFailed = true; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "But it failed!", fainted: false }; return; }
@@ -4364,13 +4398,17 @@ export default class PokemonHerd extends View {
           skipAura(skipped.wild, backLaunch ?? wildCostAt)].filter(Boolean);
         const oAuras = [given.own && statusAura(given.own, backHit ?? ownCostAt, AURA_GIVEN), endO < 0 && statusAura(so.status, ownCostAt, AURA_TICK), orbO && statusAura(orbO, ownCostAt, AURA_GIVEN),
           skipAura(skipped.own, ownLaunch)].filter(Boolean);
+        if (sw.confused && !cnf0.wild) wAuras.push({ at: hitAt, kind: "dizzy", ms: AURA_GIVEN, type: "psychic" });
+        if (hurtSelf.wild) wAuras.push({ at: backLaunch ?? wildCostAt, kind: "dizzy", ms: AURA_SKIP, type: "psychic", jolt: true });
+        if (so.confused && !cnf0.own) oAuras.push({ at: backHit ?? ownCostAt, kind: "dizzy", ms: AURA_GIVEN, type: "psychic" });
+        if (hurtSelf.own) oAuras.push({ at: ownLaunch, kind: "dizzy", ms: AURA_SKIP, type: "psychic", jolt: true });
+        if (oAuras.length) dm.auras = [...(dm.auras ?? []).filter((a) => now < a.at + a.ms), ...oAuras];
         if (wAuras.length) v.fight.auras = wAuras;
         // Frozen: tinted from when it's frozen (before: from the start) till it thaws.
         const iceOf = (was, gave, sk, now0, landAt, moveAt, frozen) => (was === "frz" || gave === "frz")
           ? { from: was === "frz" ? 0 : landAt, to: sk === "thaw" ? moveAt : frozen ? Infinity : landAt } : null;
         v.fight.ice = iceOf(st0.wild, given.wild, skipped.wild, now, hitAt, backLaunch ?? wildCostAt, sw.status === "frz");
         dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
-        if (oAuras.length) dm.auras = [...(dm.auras ?? []).filter((a) => now < a.at + a.ms), ...oAuras];
         // Protean: its new type, over it as it sets off (before its first move, once).
         if (proSaid.own) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownLaunch - CHARGE_MS, until: ownLaunch - CHARGE_MS + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR }];
         if (proSaid.wild) v.fight.wildPro = { text: proSaid.wild, at: backLaunch - CHARGE_MS, until: backLaunch - CHARGE_MS + SETUP_NOTE_MS };

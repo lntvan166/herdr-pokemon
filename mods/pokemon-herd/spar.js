@@ -48,7 +48,7 @@ export const RECOIL_TEXT = { "Recoil!": "Hurt by recoil!", "Crashed!": "It kept 
 const SETUP_TEXT = new Proxy({}, { get: (_, k) => { const [name, st = ""] = String(k).split("|"); const l = st ? st.split(",").map((x) => { const [a, n] = x.split(":"); return [a, Number(n)]; }) : []; return `${name}! ${l.length ? stageWords(l) : "Nothing more"}`; } });
 export const NOTE_TEXT = { skip: SKIP_TEXT, effect: STATUS_TEXT, tick: TICK_TEXT, drain: DRAIN_TEXT, self: SELF_TEXT, recoil: RECOIL_TEXT, setup: SETUP_TEXT };
 // The games' status colours (paralysis yellow, burn red, poison purple, ice blue); a stat's fall grey-blue.
-export const STATUS_COLOR = { par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
+export const STATUS_COLOR = { cnf: "#e070b0", par: "#f8d030", brn: "#f08030", psn: "#c060c0", frz: "#98d8d8", flinch: "#ffffff", atk: "#a0b8f0", def: "#a0b8f0", spa: "#a0b8f0", spd: "#a0b8f0", spe: "#a0b8f0", drain: "#78c850" };
 
 // `A`, `B`: { key (fighter key), alpha?, shadow?, size?, nature?, effort? (effortOf), moves? (chosen), ab? (its ability,
 // abilities.js: working as in a battle with a wild one) }; `boost(move)`: the

@@ -383,3 +383,20 @@ test("Static, Flame Body, Poison Point on touching; Gorilla Tactics locks; Sheer
   const sf = newSide("sheer-force"); sf.item = "life-orb";
   assert.equal(selfHurt(sf, { name: "Flamethrower" }, { miss: false, mul: 1 }, 0.3).hurt, 0, "Flamethrower's burn chance: no Life Orb cost");
 });
+
+// Confusion (Gen 7 on): 2 to 5 turns, 1 in 3 it hits itself, then it snaps out; Own Tempo never.
+test("confusion: turns, hitting itself, snapping out; Own Tempo", async () => {
+  const { canStatus, confusedTurn, confuseTurns, newSide } = await import("../mods/pokemon-herd/abilities.js");
+  const { CONFUSE, STATUS_MOVES } = await import("../mods/pokemon-herd/move-stages.js");
+  assert.equal(CONFUSE["Dynamic Punch"], 1);
+  assert.equal(CONFUSE.Hurricane, 0.3);
+  assert.equal(STATUS_MOVES["Confuse Ray"][1], "cnf");
+  const s = newSide(""); s.status = "brn";
+  assert.ok(canStatus(s, "cnf"), "burned and confused both");
+  assert.ok(!canStatus(newSide("own-tempo"), "cnf"));
+  assert.ok([2, 3, 4, 5].includes(confuseTurns(() => 0)) && confuseTurns(() => 0.99) === 5);
+  s.confused = 2;
+  assert.equal(confusedTurn(s, () => 0.1), "hurt");
+  assert.equal(confusedTurn(s, () => 0.1), "end");
+  assert.equal(confusedTurn(s, () => 0.1), null);
+});

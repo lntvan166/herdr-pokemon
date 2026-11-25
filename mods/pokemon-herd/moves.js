@@ -214,7 +214,7 @@ export const risenDash = (name) => (MOVE_FLAGS[name] ?? "").includes("c");
 // +2 on one faster (or a wild one to be caught: easier, paralysed), Toxic +1 on one well, −2 when
 // it's low itself. `how.targetStatus`: the other's status now.
 function inflictScore(m, how, target, rnd, canKO) {
-  if (canKO || !canStatus({ status: how.targetStatus ?? null, ab: "" }, m.inflict, typesOf(target))) return 80;
+  if (canKO || !canStatus({ status: how.targetStatus ?? null, ab: "", confused: how.targetConfused ?? 0 }, m.inflict, typesOf(target))) return 80;
   if (how.catching && m.inflict !== "par") return 80;
   let sc = 100;
   const st = statsFull(target);
@@ -279,7 +279,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // typeless (it hits anything), 50, a quarter of its own health back on it (abilities.js
   // selfHurt). (Two such, neither able to hurt the other, fought on for ever.)
   const touches = (m) => !m.status && effOf(m) > 0 && !how.immune?.({ ...m, eff: effOf(m) });
-  const setupLeft = (m) => m.status && (m.inflict ? canStatus({ status: how.targetStatus ?? null, ab: "" }, m.inflict, typesOf(target)) : m.stages.some(([st, n]) => n > 0 && (how.stages?.[st] ?? 0) < 6));
+  const setupLeft = (m) => m.status && (m.inflict ? canStatus({ status: how.targetStatus ?? null, ab: "", confused: how.targetConfused ?? 0 }, m.inflict, typesOf(target)) : m.stages.some(([st, n]) => n > 0 && (how.stages?.[st] ?? 0) < 6));
   if (set.length && !how.meant && !set.some(touches) && !set.some(setupLeft)) { // (`how.meant`: chosen already, for another: a switch)
     const crit = rnd() < CRIT;
     return { type: "typeless", name: "Struggle", physical: true, ultimate: false, crit, miss: false, stab: false, power: 50, mul: crit ? CRIT_HIT : 1, eff: 1, missRate: 0, struggle: true };

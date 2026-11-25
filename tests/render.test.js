@@ -1026,6 +1026,43 @@ test("a trainer's battle: Giga Impact, then a turn resting", () => {
   assert.ok(rested, "its turn resting");
 });
 
+// Dynamic Punch (always confuses): the trainer's Pokémon confused; Regenerator: switched out, a third back.
+test("a trainer's battle: Dynamic Punch confuses; Regenerator heals one switched out", () => {
+  seed();
+  setPanes({ ...H.store.get(ids.MOD).panes, p1: { dex: 68, jobs: 1, mega: "off", moves: ["Dynamic Punch"] } });
+  const st = view({ rows: 1, scale: 0.75 });
+  st.leader = true; st.sized = true; st.width = 1200; st.height = 112;
+  const box = { x: 4, y: 4, w: 24, h: 30 }, cut = (n) => ({ path: `x/${n}.gif`, w: 64, h: 64, box });
+  const meta = { walkR: cut("wr"), walkL: cut("wl"), idleR: cut("ir"), idleL: cut("il"), idleD: cut("id"), sleep: cut("s"), react: {} };
+  st.sprites = new Proxy({}, { get: () => meta, set: () => true });
+  st.trainerArt = { ace: { custom: true, standL: "a.png", walkL: "a.png", standR: "b.png", walkR: "b.png", w: 30, h: 60 } };
+  st.tick(cx);
+  const now = Date.now();
+  let confused = false;
+  for (let i = 0; i < 12 && !confused; i++) {
+    st.visitor = { id: `trcf${i}`, pick: { dex: 143, hp: 1, abil: 0, moves: ["Body Slam"] }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+      halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+      trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143, moves: ["Body Slam"] }], idx: 0, waited: true } };
+    Object.assign(st.mons.t1, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+    st.dropAt = { addr: "t1", dizzy: false };
+    st.tick(cx);
+    const fx = st.visitor.fight;
+    if (fx?.ownMove?.name === "Dynamic Punch" && !fx.ownMove.miss && !fx.fainted) confused = st.visitor.abil.w.confused > 0;
+  }
+  assert.ok(confused, "Dynamic Punch: confused");
+  // Regenerator: the one in (t1, hurt) switched out for t2: a third back.
+  const side = { ab: "regenerator", hp: 0.4, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } };
+  st.visitor = { id: "trreg", pick: { dex: 143, hp: 1, abil: 0, moves: ["Body Slam"] }, dir: "l", row: 0, from: 800, to: 799, start: now - 9000, dur: 1000, x: 800, purse: 0,
+    halt: { kind: "trainer", x: 800, at: now, until: now + 60000, icon: "❗", face: "L" },
+    trainer: { cls: "ace", title: "Ace Trainer", name: "Mia", team: [{ dex: 143, moves: ["Body Slam"] }], idx: 0, waited: true, fought: true },
+    abil: { own: "t1", okey: 68, idx: 0, o: { ...side }, w: { ab: "", hp: 1, st: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } } } };
+  Object.assign(st.mons.t1, { hp: 0.4, hpAt: Date.now(), restUntil: 0, x: 600 });
+  Object.assign(st.mons.t2, { x: 760, moving: false, react: null, restUntil: 0, battleUntil: 0, sparNotes: [] });
+  st.dropAt = { addr: "t2", dizzy: false };
+  st.tick(cx);
+  assert.ok(st.mons.t1.hp > 0.7, `a third back: ${st.mons.t1.hp}`);
+});
+
 // An ordinary trainer too, and the Tower's (as the games'): a switch with the one before still up
 // costs a free hit.
 test("a trainer: a switch costs a free hit (the Tower's too)", () => {

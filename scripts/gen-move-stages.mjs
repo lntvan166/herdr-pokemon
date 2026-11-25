@@ -31,6 +31,10 @@ for (const [id, mt] of Object.entries(meta)) if (Number(mt.drain) < 0 && known.h
 const recoilSorted = Object.fromEntries(Object.entries(recoil).sort((a, b) => a[0].localeCompare(b[0])));
 // A rest after (PokeAPI's "recharge" flag, 3: Hyper Beam, Giga Impact, Blast Burn, Prismatic Laser):
 // its next turn lost.
+// Confusion by chance (move_meta ailment 6: Dynamic Punch always, Hurricane 3 in 10, Psybeam 1 in
+// 10): its chance by name, the damaging moves the mod knows.
+const confuse = Object.fromEntries(Object.entries(meta).filter(([id, mt]) => mt.meta_ailment_id === "6" && known.has(names[id]) && Number(mt.ailment_chance) > 0)
+  .map(([id, mt]) => [names[id], Number(mt.ailment_chance) / 100]).sort((a, b) => a[0].localeCompare(b[0])));
 const recharge = [...new Set((await csv("move_flag_map.csv")).filter((r) => r.move_flag_id === "3" && known.has(names[r.move_id])).map((r) => names[r.move_id]))].sort();
 // Setup moves (status moves that raise its own stats: Swords Dance, Dragon Dance…), as the games'
 // trainers use them on their first turn: [type, [[stat, stages]…]] by name, and which species learn
@@ -61,8 +65,8 @@ for (const r of await csv("pokemon_moves.csv")) {
 }
 // Status moves that give the other a status, as the games' (no damage): [type, status, accuracy]
 // by name, and which species learn each (STATUS_LEARNS: dex → indices into STATUS_NAMES).
-const STATUS_NAMES = ["Will-O-Wisp", "Thunder Wave", "Toxic"];
-const STATUS_OF = { "Will-O-Wisp": "brn", "Thunder Wave": "par", Toxic: "psn" };
+const STATUS_NAMES = ["Will-O-Wisp", "Thunder Wave", "Toxic", "Confuse Ray", "Supersonic", "Sweet Kiss"];
+const STATUS_OF = { "Will-O-Wisp": "brn", "Thunder Wave": "par", Toxic: "psn", "Confuse Ray": "cnf", Supersonic: "cnf", "Sweet Kiss": "cnf" }; // (cnf: confused)
 const statusMoves = {};
 for (const n of STATUS_NAMES) {
   const id = idOf[n], m = movesCsv.find((x) => x.id === id);
@@ -86,6 +90,8 @@ export const SELF_STAGES = ${JSON.stringify(sorted)};
 export const RECOIL = ${JSON.stringify(recoilSorted)};
 // Its next turn lost, resting (the games' recharge): Hyper Beam, Giga Impact, Blast Burn.
 export const RECHARGE = ${JSON.stringify(recharge)};
+// Confusion by chance, a damaging move's: { name: chance } (Dynamic Punch 1, Hurricane 0.3).
+export const CONFUSE = ${JSON.stringify(confuse)};
 // Setup moves: [type, [[stat, stages]…]] (Swords Dance: ["normal", [["atk", 2]]]); which species learn
 // each (dex → indices into SETUP_NAMES).
 export const SETUP = ${JSON.stringify(setup)};

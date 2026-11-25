@@ -90,6 +90,7 @@ export const WORKS = new Set([
   // out of battle (main.js): finding things, eggs, who walks by, a wild one's nature
   "pickup", "honey-gather", "flame-body", "magma-armor", "static", "magnet-pull", "harvest", "synchronize",
   "poison-point", // (Static, Flame Body too, in battle: a status on touching it, contactStatus)
+  "regenerator", "natural-cure", // switching out (main.js): a third of its health back; its status gone
 ]);
 export const works = (key) => WORKS.has(key);
 
@@ -345,8 +346,22 @@ export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
 const STATUS_TYPE_IMMUNE = { brn: ["fire"], par: ["electric"], psn: ["poison", "steel"], frz: ["ice"] };
 const STATUS_ABIL_IMMUNE = { brn: ["water-veil", "water-bubble", "thermal-exchange"], par: ["limber"], psn: ["immunity", "pastel-veil"], frz: ["magma-armor"] };
 export const STATUS_NAMES_SHORT = { brn: "BRN", par: "PAR", psn: "PSN", frz: "FRZ" };
-export const STATUS_SAY = { brn: "It's burned!", par: "It's paralyzed!", psn: "It's poisoned!", frz: "It's frozen solid!" };
+export const STATUS_SAY = { brn: "It's burned!", par: "It's paralyzed!", psn: "It's poisoned!", frz: "It's frozen solid!", cnf: "It became confused!" };
+// Confusion, as the games' (Gen 7 on): 2 to 5 turns; each, before its move, one time in three it
+// hits itself instead (a typeless 40, physical, its own Attack on its own Defense). Switching out
+// ends it. `side.confused`: its turns left.
+export const confuseTurns = (rnd = Math.random) => 2 + Math.floor(rnd() * 4);
+// Its turn, confused: "end" (it snapped out: it moves), "hurt" (it hit itself: no move), or null.
+export function confusedTurn(side, rnd = Math.random) {
+  if (!side.confused) return null;
+  side.confused--;
+  if (side.confused <= 0) { side.confused = 0; return "end"; }
+  return rnd() < 1 / 3 ? "hurt" : null;
+}
+export const CONFUSE_POWER = 40;
 export function canStatus(side, what, types = []) {
+  // Confused (cnf): apart from the rest (a burned one can be confused too), while it's in; Own Tempo never.
+  if (what === "cnf") return !side.confused && side.ab !== "own-tempo";
   if (!what || side.status) return false;
   if (STATUS_TYPE_IMMUNE[what]?.some((t) => types.includes(t))) return false;
   if (STATUS_ABIL_IMMUNE[what]?.includes(side.ab) || side.ab === "comatose" || side.ab === "purifying-salt") return false;
