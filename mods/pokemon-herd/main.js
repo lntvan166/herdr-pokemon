@@ -68,7 +68,7 @@ import { SIG_SELF, SIG_RECOIL } from "./sig-moves.js";
 import { FORM_ITEM_IDS, REGION_MAPS, KEPT_ITEMS } from "./form-items.js";
 const SELF_STAGES = { ...GEN_SELF, ...SIG_SELF }, RECOIL = { ...GEN_RECOIL, ...SIG_RECOIL };
 import { MOVE_FLAGS } from "./ability-data.js";
-import { abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE, canStatus, statusSkip, statusEnd, orbStatus, STATUS_SAY, SKIP_SAY, STATUS_NAMES_SHORT } from "./abilities.js";
+import { locks, contactStatus, abilityOf, abilityName, abilityText, rollAbil, isHidden, works, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageBy, stageWords, selfHurt, sayName, quickClaw, leftovers, lockOf, slotsOf, megaAbility, megaEvolve, suckerFails, knownImmune, CRASH, IGNORE_STAGES, CHOICE, canStatus, statusSkip, statusEnd, orbStatus, STATUS_SAY, SKIP_SAY, STATUS_NAMES_SHORT } from "./abilities.js";
 import { RAID_REST, RAID_WORK, MAX_EGGS, EGG_MS, eggsOn, outbreakOfDay, outbreakAt, outbreakPick, outbreakPace, newRaid, loadRaid, raidPhase, laysEgg, raidHit, cooldownLeft, raidReward, bossPick, BOSS_SIZE, COUNTER_MS, BOSS_PUSH } from "./events.js";
 import { restSpot, roomAt, campSeats } from "./rest.js";
 import { typeOf, TYPE_ICON, TYPES, TYPE_COLOR, typeText, typeLabel } from "./types.js";
@@ -402,6 +402,21 @@ const movesFor = (pick, key) => movesetOf(key, chosenFor(pick, key));
 // "none": a reload then lost the whole trainer, the Rival too.)
 const KEEP_AS_IS = "keep";
 // Yours down in a fight with a wild one or a trainer's: its blow, or its own move's recoil.
+// Protean's words ("protean:fairy"): said apart, before its move.
+const PRO_KEY = /^(protean|libero):/;
+const PROTEAN = ["protean", "libero"];
+// Sheer Force's moves: those with an extra effect (ability-data.js MOVE_FLAGS "e").
+const SHEER = new Set(Object.entries(MOVE_FLAGS).filter(([, f]) => f.includes("e")).map(([n]) => n));
+// The types its target is hit as (hitWild, hitBack ctx.tt): the one Protean made it; and Scrappy's
+// Normal and Fighting moves hit a Ghost type (as if it weren't one).
+function ttOf(att, def, defKey, type) {
+  let tt = def.typeAs ? [def.typeAs] : null;
+  if (att.ab === "scrappy" && (type === "normal" || type === "fighting")) {
+    const base = tt ?? typesOf(defKey);
+    if (base.includes("ghost")) tt = base.filter((t) => t !== "ghost");
+  }
+  return tt ? { tt } : {};
+}
 const ownDown = (fx) => !!(fx?.back?.fainted || fx?.ownRecoil?.fainted || fx?.endDown);
 const visitorSig = (v) => (v?.trainer && v.fainted && !v.trainer.beaten && !v.trainer.leaving ? KEEP_AS_IS
   : !v || v.raid || v.fainted || v.trainer?.beaten || v.trainer?.leaving ? "none"
@@ -2825,6 +2840,8 @@ export default class PokemonHerd extends View {
       if (wsn && now >= wsn.at && now < wsn.until) root.child(fxWord(`wstat-${v.id}-${wsn.at}`, [wsn.text, wsn.color], x, wordTop(headY, 16), this.fxFirst(`wstat-${v.id}-${wsn.at}`) ? 0 : now < wsn.until - 260 ? 1 : 2));
       const wc = fx.wildCost;
       if (wc && now >= wc.at && now < wc.until) root.child(fxWord(`wcost-${v.id}-${wc.at}`, [wc.text, STATUS_COLOR.brn], x, wordTop(headY, 16), this.fxFirst(`wcost-${v.id}-${wc.at}`) ? 0 : now < wc.until - 260 ? 1 : 2));
+      const wp = fx.wildPro;
+      if (wp && now >= wp.at && now < wp.until) root.child(fxWord(`wpro-${v.id}-${wp.at}`, [wp.text, ABIL_COLOR], x, wordTop(headY, 16), this.fxFirst(`wpro-${v.id}-${wp.at}`) ? 0 : now < wp.until - 260 ? 1 : 2));
       const wn = fx.wildNote;
       if (wn && now >= wn.at && now < wn.until) root.child(fxWord(`wnote-${v.id}-${wn.at}`, [wn.text, STATUS_COLOR.atk], x, wordTop(headY, 16), this.fxFirst(`wnote-${v.id}-${wn.at}`) ? 0 : now < wn.until - 260 ? 1 : 2));
       if (fx.back && !fx.back.setup && fx.wildMove && now >= fx.backLaunch - CHARGE_MS && now < fx.backHit + 280) {
@@ -4094,9 +4111,10 @@ export default class PokemonHerd extends View {
         const ownTy = typesOf(ownKey), wildTy = typesOf(wildKey);
         const avg = () => 0.5;
         // Each move's average damage, a share of the other's health (as hitWild and hitBack reckon it).
-        const PROTEAN = ["protean", "libero"]; // (every move its type: STAB on all)
-        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) || PROTEAN.includes(so.ab) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
-        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) || PROTEAN.includes(sw.ab) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        // STAB as it'll be: Protean's before its first move on any (it becomes it), then its new type's.
+        const stabOn = (side, ty, t) => (side.typeAs ? t === side.typeAs : ty.includes(t) || PROTEAN.includes(side.ab));
+        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: stabOn(so, ownTy, m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (stabOn(sw, wildTy, m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
         // Both sides pick as the games' trainers (moves.js pickMove `ai`), yours on a wild one to
         // weaken it, not knock it out (`catching`: its quick move first when slower and in danger);
         // a wild one any of its moves (the games' wild ones have no AI).
@@ -4145,15 +4163,22 @@ export default class PokemonHerd extends View {
         const stageSaid = { hit: [], back: [] };
         const moveStages = (m, r, res, a, target, k) => {
           const foe = [];
-          const [what, chance] = SIDE_EFFECTS[m.name] ?? [];
+          // Sheer Force: none of its move's extra effects (its power ×1.3 for that, abilities.js onHit).
+          const sheer = (k === "hit" ? so : sw).ab === "sheer-force" && SHEER.has(m.name);
+          const [what, chance] = sheer ? [] : SIDE_EFFECTS[m.name] ?? [];
           if (STAGE_STATS.includes(what) && !res.fainted && (res.eff ?? 1) > 0 && Math.random() < chance) stageBy(target, what, -1, foe);
           if (foe.length) stageSaid[k].push(stageWords(foe));
+          // Defiant, Competitive: a stat of its lowered by the other's move, its Attack (Sp. Atk) +2.
+          if (foe.length && (target.ab === "defiant" || target.ab === "competitive")) {
+            const up = []; stageBy(target, target.ab === "defiant" ? "atk" : "spa", 2, up);
+            if (up.length) stageSaid[k].push(`${abilityName(target.ab)}! ${stageWords(up)}`);
+          }
           // A status by chance (Flamethrower's burn, Body Slam's paralysis), as the games'; a flinch,
           // only for the one that moved first (the other loses its move).
           if (["par", "brn", "psn", "frz"].includes(what) && !res.fainted && !r.miss && (res.eff ?? 1) > 0 && Math.random() < chance && canStatus(target, what, k === "hit" ? wildTypesSt : ownTypesSt)) {
             target.status = what; stageSaid[k].push(STATUS_SAY[what]);
           }
-          if (what === "flinch" && !res.fainted && !r.miss && Math.random() < chance) { if (k === "hit" && !wildFirst) wildFlinched = true; if (k === "back" && wildFirst) ownFlinched = true; }
+          if (what === "flinch" && !res.fainted && !r.miss && target.ab !== "inner-focus" /* (never flinches) */ && Math.random() < chance) { if (k === "hit" && !wildFirst) wildFlinched = true; if (k === "back" && wildFirst) ownFlinched = true; }
           // Its own (Superpower's Atk and Def down): over it, with what else it cost (costSaid), not
           // with its blow over the other.
           if (a.stages?.att.length) costSaid[k === "hit" ? "own" : "wild"].push(stageWords(a.stages.att));
@@ -4163,7 +4188,7 @@ export default class PokemonHerd extends View {
         const setUp = (m, side, k) => {
           const out = [];
           for (const [st, n] of m.stages) stageBy(side, st, n, out);
-          if (CHOICE.has(side.item) && !side.locked) side.locked = m.name; // (a Choice item locks it in this one too: Bulk Up first, Bulk Up on)
+          if (locks(side) && !side.locked) side.locked = m.name; // (a Choice item, Gorilla Tactics: locked in this one too: Bulk Up first, Bulk Up on)
           setupSaid[k] = `${m.name}! ${out.length ? stageWords(out) : "Nothing more"}`;
         };
         // Sucker Punch failing (abilities.js suckerFails): no blow, "But it failed!".
@@ -4180,6 +4205,7 @@ export default class PokemonHerd extends View {
         const skipped = { own: null, wild: null }; // (a turn lost, or thawed: drawn, statusAura)
         const given = { own: null, wild: null }; // (a status given by a move: drawn as it lands)
         const st0 = { own: so.status ?? null, wild: sw.status ?? null };
+        const proSaid = { own: "", wild: "" }; // (Protean: its new type, said as it moves)
         const mine = () => {
           // Resting after Giga Impact, Blast Burn (RECHARGE): this turn lost.
           if (so.recharge) { so.recharge = false; ownIdle = true; setupSaid.own = "It must recharge!"; return; }
@@ -4194,11 +4220,12 @@ export default class PokemonHerd extends View {
           const r1 = onHit(so, sw, om, { weather, missRate: om.missRate ?? missOf(om.name) });
           omHit = { ...om, miss: r1.miss, crit: r1.crit };
           if (RECHARGE.includes(om.name) && !om.risen && !r1.miss) so.recharge = true; // (its next turn: resting; one risen to it, none)
-          hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}), ...(sw.typeAs ? { tt: [sw.typeAs] } : {}) });
+          hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}), ...ttOf(so, sw, wildKey, r1.type) });
           const held1 = hit.fainted && sturdyHolds(sw, sw.hp); // (Sturdy, Focus Sash)
           if (held1) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push(`w:${held1}`); }
           if (r1.heal) hit = { ...hit, hp: Math.min(1, sw.hp + r1.heal) };
-          words.hit.push(...O(r1.said.att), ...W(r1.said.def));
+          proSaid.own = r1.said.att.filter((x) => PRO_KEY.test(x)).map(sayName)[0] ?? ""; // (Protean: before its move, not with its blow)
+          words.hit.push(...O(r1.said.att.filter((x) => !PRO_KEY.test(x))), ...W(r1.said.def));
           const a1 = afterHit(so, sw, om, { ...r1, fainted: hit.fainted }, r1.type);
           words.hit.push(...O(a1.att), ...W(a1.def));
           moveStages(om, r1, hit, a1, sw, "hit");
@@ -4208,6 +4235,9 @@ export default class PokemonHerd extends View {
           // Its recoil or crash (abilities.js selfHurt: Brave Bird, High Jump Kick missed).
           const c1 = selfHurt(so, om, r1, dealt1, hpRatio(wildKey, ownKey), sw); // (and Life Orb, Rocky Helmet, Shell Bell)
           // Drain Punch, Giga Drain: a share of what it dealt back (shown as its move lands, as recoil is).
+          // Static, Flame Body, Poison Point: touching it, a status on yours three times in ten.
+          const cs1 = contactStatus(sw, so, om, !r1.miss && r1.mul > 0 && !hit.fainted, ownTypesSt);
+          if (cs1) costSaid.own.push(`${abilityName(sw.ab)}! ${STATUS_SAY[cs1]}`);
           const drain1 = DRAIN[om.name] && dealt1 > 0 && !r1.miss ? dealt1 * DRAIN[om.name] * hpRatio(wildKey, ownKey) : 0;
           if (drain1) { c1.hurt -= drain1; c1.said.push("drain"); }
           // (Said over it, the one it costs, not with its blow over the other: `costSaid`.)
@@ -4226,12 +4256,13 @@ export default class PokemonHerd extends View {
           if (suckerFails(wm, switched ? null : om, !wildFirst)) { wmFailed = true; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "But it failed!", fainted: false }; return; }
           const ownBefore = so.hp;
           const r2 = onHit(sw, so, wm, { weather, missRate: wm.missRate ?? missOf(wm.name) });
-          back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}), ...(so.typeAs ? { tt: [so.typeAs] } : {}) });
+          back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}), ...ttOf(sw, so, ownKey, r2.type) });
           const held2 = back.fainted && sturdyHolds(so, ownBefore);
           if (held2) { back = { ...back, hp: 0.01, fainted: false }; words.back.push(`o:${held2}`); }
           if (r2.heal) back = { ...back, hp: Math.min(1, ownBefore + r2.heal) };
           if (r2.miss) back.text = "It missed!";
-          words.back.push(...W(r2.said.att), ...O(r2.said.def));
+          proSaid.wild = r2.said.att.filter((x) => PRO_KEY.test(x)).map(sayName)[0] ?? "";
+          words.back.push(...W(r2.said.att.filter((x) => !PRO_KEY.test(x))), ...O(r2.said.def));
           const a2 = afterHit(sw, so, wm, { ...r2, fainted: back.fainted }, r2.type);
           words.back.push(...W(a2.att), ...O(a2.def));
           moveStages(wm, r2, back, a2, so, "back");
@@ -4239,6 +4270,8 @@ export default class PokemonHerd extends View {
           if (RECHARGE.includes(wm.name) && !wm.risen && !r2.miss) sw.recharge = true;
           so.hp = back.hp;
           const c2 = selfHurt(sw, wm, r2, dealt2, hpRatio(ownKey, wildKey), so);
+          const cs2 = contactStatus(so, sw, wm, !r2.miss && r2.mul > 0 && !back.fainted, wildTypesSt);
+          if (cs2) costSaid.wild.push(`${abilityName(so.ab)}! ${STATUS_SAY[cs2]}`);
           const drain2 = DRAIN[wm.name] && dealt2 > 0 && !r2.miss ? dealt2 * DRAIN[wm.name] * hpRatio(ownKey, wildKey) : 0;
           if (drain2) { c2.hurt -= drain2; c2.said.push("drain"); }
           costSaid.wild.push(...[c2.word, ...c2.said.map(sayName)].filter(Boolean));
@@ -4338,6 +4371,9 @@ export default class PokemonHerd extends View {
         v.fight.ice = iceOf(st0.wild, given.wild, skipped.wild, now, hitAt, backLaunch ?? wildCostAt, sw.status === "frz");
         dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
         if (oAuras.length) dm.auras = [...(dm.auras ?? []).filter((a) => now < a.at + a.ms), ...oAuras];
+        // Protean: its new type, over it as it sets off (before its first move, once).
+        if (proSaid.own) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownLaunch - CHARGE_MS, until: ownLaunch - CHARGE_MS + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR }];
+        if (proSaid.wild) v.fight.wildPro = { text: proSaid.wild, at: backLaunch - CHARGE_MS, until: backLaunch - CHARGE_MS + SETUP_NOTE_MS };
         if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
         const named = { hit: [...said(words.hit), ...stageSaid.hit], back: [...said(words.back), ...stageSaid.back] };

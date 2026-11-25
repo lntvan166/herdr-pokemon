@@ -8,7 +8,7 @@ import { EXTRA_SIDE } from "./more-moves.js";
 import { SIG_SIDE } from "./sig-moves.js";
 import { damage, moveHow, DAMAGE_SCALE, speedOf, typesOf as typesOfKey, hpRatio } from "./trainer.js";
 import { pickMove, PRIORITY, DRAIN, missOf, powerOf, movesetOf } from "./moves.js";
-import { newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve, suckerFails, knownImmune, slotsOf, CHOICE } from "./abilities.js";
+import { locks, newSide, meet, speedMul, immuneTo, onHit, afterHit, endTurn, sturdyHolds, stageWords, selfHurt, quickClaw, leftovers, lockOf, BATTLE_ITEMS, stageBy, megaEvolve, suckerFails, knownImmune, slotsOf, CHOICE } from "./abilities.js";
 
 export const SPAR_TURNS = 3; // rounds, each one move apiece, at most
 export const SPAR_HIT = 1 / DAMAGE_SCALE; // the games' own numbers
@@ -104,7 +104,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       if (moves[by].status) {
         const out = [];
         for (const [stat, n] of moves[by].stages) stageBy(ab[by], stat, n, out);
-        if (CHOICE.has(ab[by].item) && !ab[by].locked) ab[by].locked = moves[by].name; // (locked in it, as any move)
+        if (locks(ab[by]) && !ab[by].locked) ab[by].locked = moves[by].name; // (locked in it, as any move)
         turns.push({ by, move: { ...moves[by] }, dmg: 0, hp: hp[to], setup: out.map(([s2, n]) => `${s2}:${n}`).join(",") });
         continue;
       }

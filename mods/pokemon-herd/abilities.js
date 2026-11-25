@@ -89,6 +89,7 @@ export const WORKS = new Set([
   "guts", "quick-feet", "marvel-scale", "poison-heal", "heatproof", "limber", "water-veil", "immunity", "magma-armor",
   // out of battle (main.js): finding things, eggs, who walks by, a wild one's nature
   "pickup", "honey-gather", "flame-body", "magma-armor", "static", "magnet-pull", "harvest", "synchronize",
+  "poison-point", // (Static, Flame Body too, in battle: a status on touching it, contactStatus)
 ]);
 export const works = (key) => WORKS.has(key);
 
@@ -117,7 +118,8 @@ export const quickClaw = (side, rnd = Math.random) => (side.item === "quick-claw
 // Leftovers: a sixteenth of its health back at the end of each exchange.
 export const leftovers = (side) => (side.item === "leftovers" && side.hp > 0 && side.hp < 1 ? Math.min(1 / 16, 1 - side.hp) : 0);
 // Choice items: locked into the move it first used while it stays in (moves.js pickMove `lock`).
-export const lockOf = (side) => (CHOICE.has(side.item) ? side.locked : null);
+export const locks = (side) => CHOICE.has(side.item) || side.ab === "gorilla-tactics"; // (Gorilla Tactics: as a Choice Band)
+export const lockOf = (side) => (locks(side) ? side.locked : null);
 function raise(side, stat, n, said, by = side.ab) {
   side.st[stat] = clampStage(side.st[stat] + n);
   if (by) said.push(by);
@@ -147,6 +149,9 @@ export function meet(a, b) {
   };
   scare(a, b, said.a, said.b, said.stages.b);
   scare(b, a, said.b, said.a, said.stages.a);
+  // Protean, Libero: shown as it comes in (its type changes before its first move).
+  if (/^(protean|libero)$/.test(a.ab) && !a.typeAs) said.a.push(a.ab);
+  if (/^(protean|libero)$/.test(b.ab) && !b.typeAs) said.b.push(b.ab);
   return said;
 }
 // Mega Evolving, as the games': it came in with its own ability (Gyarados' Intimidate, said as they
@@ -233,11 +238,13 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   if (PINCH[att.ab] === type && att.hp <= 1 / 3) atk(att.ab, 1.5);
   switch (att.ab) {
     case "adaptability": if (move.stab) atk("adaptability", 2 / 1.5); break;
-    // Protean, Libero (as Gen 6-8's, each move): it becomes its move's type first: STAB, and that
-    // type till its next move or it leaves (att.typeAs: hit as that type, main.js ctx.tt).
+    // Protean, Libero (as Gen 9's): before its first move after it comes in, it becomes that move's
+    // type, once (said then); STAB is that type's from then on (its own types' no more), and it's
+    // hit as that type till it leaves (att.typeAs; main.js ctx.tt).
     case "protean": case "libero":
-      if (!move.stab) base *= 1.5;
-      if (att.typeAs !== type) { att.typeAs = type; said.att.push(`${att.ab}:${type}`); }
+      if (!att.typeAs) { att.typeAs = type; said.att.push(`${att.ab}:${type}`); }
+      if (type === att.typeAs && !move.stab) base *= 1.5;
+      else if (type !== att.typeAs && move.stab) base /= 1.5;
       break;
     case "technician": if ((move.power ?? 80) <= 60) atk("technician", 1.5); break;
     case "tough-claws": if (flag(move, "c")) atk("tough-claws", 1.3); break;
@@ -323,7 +330,7 @@ export function selfHurt(att, move, r, dealt, ratio = 1, def = null) {
   // Chloroblast: half its health, as it fires (Magic Guard spares it).
   if (!move.risen && HALF_COST.has(move.name) && !guard) { out.hurt += 0.5; words.push("It lost half its health!"); }
   if (landed && move.name === "Struggle" && !guard) { out.hurt += 0.25; words.push("Recoil!"); } // (a quarter of its health: Rock Head no help)
-  if (landed && att.item === "life-orb" && !guard) { out.hurt += 0.1; out.said.push("life-orb"); }
+  if (landed && att.item === "life-orb" && !guard && !(att.ab === "sheer-force" && flag(move, "e"))) { out.hurt += 0.1; out.said.push("life-orb"); } // (Sheer Force: no Life Orb cost on a move it powers)
   if (landed && def?.item === "rocky-helmet" && flag(move, "c") && !guard) { out.hurt += 1 / 6; out.said.push("rocky-helmet"); }
   if (landed && dealt > 0 && att.item === "shell-bell") { out.hurt -= (dealt * ratio) / 8; out.said.push("shell-bell"); }
   out.word = words.join(" ");
@@ -351,6 +358,16 @@ export function statusSkip(side, rnd = Math.random) {
   if (side.status === "frz") { if (rnd() < 0.2) { side.status = null; return "thaw"; } return "frz"; }
   if (side.status === "par" && rnd() < 0.25) return "par";
   return null;
+}
+// Touched (a contact move that lands): Static, Flame Body, Poison Point give the attacker a status
+// three times in ten, as the games'. The status it gave, or null.
+export const CONTACT_STATUS = { static: "par", "flame-body": "brn", "poison-point": "psn" };
+export function contactStatus(def, att, move, landed, attTypes = [], rnd = Math.random) {
+  const what = CONTACT_STATUS[def.ab];
+  if (!what || !landed || !flag(move, "c")) return null;
+  if (rnd() >= 0.3 || !canStatus(att, what, attTypes)) return null;
+  att.status = what;
+  return what;
 }
 export const SKIP_SAY = { frz: "Frozen solid!", par: "Fully paralyzed!", thaw: "It thawed out!" };
 // The end of an exchange: its burn or poison (Poison Heal: an eighth back instead; Heatproof: a
@@ -385,7 +402,7 @@ export function stageBy(side, stat, n, out) {
 // like (it knocked the other out). Returns { att: [keys], def: [keys] }.
 export function afterHit(att, def, move, r, type = move.type, rnd = Math.random) {
   const said = { att: [], def: [], stages: { att: [] } };
-  if (CHOICE.has(att.item) && !att.locked) att.locked = move.base ?? move.name; // (missed or not: it chose)
+  if (locks(att) && !att.locked) att.locked = move.base ?? move.name; // (missed or not: it chose)
   if (r.mul === 0 || r.miss) return said;
   if (def.item === "air-balloon" && !def.used) { def.used = true; said.def.push("air-balloon"); } // popped
   // Weakness Policy: hit super-effectively and still up, its Attack and Sp. Atk two stages up, once.

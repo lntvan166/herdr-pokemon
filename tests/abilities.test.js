@@ -358,3 +358,28 @@ test("Protean: its move's type, STAB, said once a change", async () => {
   assert.equal(sayName("protean:fairy"), "Protean: Fairy type");
   assert.deepEqual(onHit(att, def, { type: "fairy", physical: true, stab: false, mul: 1, eff: 1 }, {}, () => 0.99).said.att, []);
 });
+
+// Protean as Gen 9's: once, before its first move (said then, and as it came in); its own types'
+// STAB gone after (Flower Trick, Grass, once it became Fairy).
+test("Protean: once a time in, then its new type's STAB only", async () => {
+  const { onHit, newSide, meet } = await import("../mods/pokemon-herd/abilities.js");
+  const att = newSide("protean"), def = newSide("");
+  assert.deepEqual(meet(att, def).a, ["protean"], "shown as it comes in");
+  onHit(att, def, { type: "fairy", physical: true, stab: false, mul: 1, eff: 1 }, {}, () => 0.99);
+  const grass = onHit(att, def, { type: "grass", physical: true, stab: true, mul: 1.5, eff: 1 }, {}, () => 0.99);
+  assert.equal(att.typeAs, "fairy", "no second change");
+  assert.deepEqual(grass.said.att, []);
+  assert.ok(Math.abs(grass.mul - 1) < 1e-9, `its Grass STAB gone: ${grass.mul}`);
+});
+
+test("Static, Flame Body, Poison Point on touching; Gorilla Tactics locks; Sheer Force spares the Life Orb", async () => {
+  const { contactStatus, newSide, locks, lockOf, selfHurt } = await import("../mods/pokemon-herd/abilities.js");
+  const att = newSide("");
+  assert.equal(contactStatus(newSide("flame-body"), att, { name: "Close Combat" }, true, ["fighting"], () => 0.1), "brn");
+  assert.equal(contactStatus(newSide("static"), newSide(""), { name: "Flamethrower" }, true, [], () => 0.1), null, "not a contact move");
+  assert.equal(contactStatus(newSide("static"), newSide(""), { name: "Close Combat" }, true, ["electric"], () => 0.1), null, "Electric: never paralysed");
+  const g = newSide("gorilla-tactics"); g.locked = "Close Combat";
+  assert.ok(locks(g)); assert.equal(lockOf(g), "Close Combat");
+  const sf = newSide("sheer-force"); sf.item = "life-orb";
+  assert.equal(selfHurt(sf, { name: "Flamethrower" }, { miss: false, mul: 1 }, 0.3).hurt, 0, "Flamethrower's burn chance: no Life Orb cost");
+});
