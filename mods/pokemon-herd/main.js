@@ -4155,6 +4155,9 @@ export default class PokemonHerd extends View {
           if (r1.miss) hit.text = `${fullName(pk.dex, pk.form)}'s attack missed!`;
           // Its recoil or crash (abilities.js selfHurt: Brave Bird, High Jump Kick missed).
           const c1 = selfHurt(so, om, r1, dealt1, hpRatio(wildKey, ownKey), sw); // (and Life Orb, Rocky Helmet, Shell Bell)
+          // Drain Punch, Giga Drain: a share of what it dealt back (shown as its move lands, as recoil is).
+          const drain1 = DRAIN[om.name] && dealt1 > 0 && !r1.miss ? dealt1 * DRAIN[om.name] * hpRatio(wildKey, ownKey) : 0;
+          if (drain1) { c1.hurt -= drain1; c1.said.push("drain"); }
           // (Said over it, the one it costs, not with its blow over the other: `costSaid`.)
           costSaid.own.push(...[c1.word, ...c1.said.map(sayName)].filter(Boolean));
           if (c1.hurt !== 0) { so.hp = Math.min(1, Math.max(0, so.hp - c1.hurt)); ownRecoil = { hp: so.hp, fainted: so.hp <= 0.001 }; }
@@ -4182,6 +4185,8 @@ export default class PokemonHerd extends View {
           const dealt2 = Math.max(0, ownBefore - back.hp);
           so.hp = back.hp;
           const c2 = selfHurt(sw, wm, r2, dealt2, hpRatio(ownKey, wildKey), so);
+          const drain2 = DRAIN[wm.name] && dealt2 > 0 && !r2.miss ? dealt2 * DRAIN[wm.name] * hpRatio(ownKey, wildKey) : 0;
+          if (drain2) { c2.hurt -= drain2; c2.said.push("drain"); }
           costSaid.wild.push(...[c2.word, ...c2.said.map(sayName)].filter(Boolean));
           if (c2.hurt !== 0) { sw.hp = Math.min(1, Math.max(0, sw.hp - c2.hurt)); wildRecoil = { hp: sw.hp, fainted: sw.hp <= 0.001 }; }
         };
