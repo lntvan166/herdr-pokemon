@@ -3970,6 +3970,8 @@ export default class PokemonHerd extends View {
         const itemTurn = !!v.trainer && !!drop.item; // (an item used: its turn, as a switch)
         const switched = swapIn || itemTurn;
         const idxNow = v.trainer?.idx ?? -1;
+        // Switched in: the one before (its key, side, pick), whom the trainer's move was meant for.
+        const prevIn = swapIn && v.abil?.okey ? { key: v.abil.okey, side: v.abil.o, pick: ids[v.abil.own] } : null;
         if (!v.abil) {
           v.abil = { own: drop.addr, idx: idxNow, o: newSide(ownAb, 1, ownGear), w: newSide(wildAb, 1, wildGear) };
           const m0 = meet(v.abil.o, v.abil.w);
@@ -3997,6 +3999,7 @@ export default class PokemonHerd extends View {
           v.abil.o.ab = mine;
           words.meetOwn.push(...O(m0.a)); words.meetWild.push(...W(m0.b)); meetStages.own.push(...m0.stages.a); meetStages.wild.push(...m0.stages.b);
         }
+        v.abil.okey = ownKey; // (the one in: a switch's move is chosen against it, prevIn)
         // Mega Evolving now (each once while it faces this one): its Mega's ability, an Intimidate
         // of its own again (Mega Manectric), said as they meet.
         for (const [side, other, mab, T1, T2, mine] of [[v.abil.o, v.abil.w, ownMegaAb, O, W, true], [v.abil.w, v.abil.o, wildMegaAb, W, O, false]]) {
@@ -4056,8 +4059,19 @@ export default class PokemonHerd extends View {
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
           stages: so.st, selfHp: ownHpNow, first: !so.turns, targetStatus: sw.status, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
-        const wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
+        let wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
           ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, targetStatus: so.status, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
+        // Switched in, as the games': the trainer chose its move against the one that was in (it
+        // couldn't know), and it lands on this one: a Ground move on one that flies, a super-effective
+        // one on one that resists it. (Its pick and its use, the newcomer's: power, type, ability.)
+        if (prevIn?.pick && v.trainer) {
+          const pp = prevIn.pick, pkKey = prevIn.key, pSide = prevIn.side ?? newSide("", 1);
+          const dmgOnPrev = (m) => damage(wildKey, pkKey, avg, { mul: (wildTy.includes(m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pp.alpha, ctx: { nb: pp.nature, na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } }).dmg;
+          const meant = moveAt(wildKey, pkKey, pSide, { targetSize: pp.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(pSide, m, slotsOf(pp.dex, pp.form)),
+            ai: true, dmgOf: dmgOnPrev, targetHp: pSide.hp ?? 1, slower: speedOf(pkKey, { nature: pp.nature, effort: effortOf(pp) }) > spWild, threatened: false, stages: sw.st, selfHp: hp, first: !sw.turns, targetStatus: pSide.status, foeBest: 0 });
+          wm = meant.struggle ? meant : this.boosted(pickMove(wildKey, ownKey, Math.random, { targetSize: pk.size, weather, moves: [meant.base ?? meant.name], meant: true }));
+          wm.meantFor = pp.dex; // (for its words: it struck the one that came in)
+        }
         so.turns = (so.turns ?? 0) + 1; sw.turns = (sw.turns ?? 0) + 1;
         // Its nature, and how it's been raised (effort: +1% a heart; its hearts already soften
         // what it takes, hitBack).

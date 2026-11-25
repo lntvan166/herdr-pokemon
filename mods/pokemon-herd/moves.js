@@ -280,7 +280,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   // selfHurt). (Two such, neither able to hurt the other, fought on for ever.)
   const touches = (m) => !m.status && effOf(m) > 0 && !how.immune?.({ ...m, eff: effOf(m) });
   const setupLeft = (m) => m.status && (m.inflict ? canStatus({ status: how.targetStatus ?? null, ab: "" }, m.inflict, typesOf(target)) : m.stages.some(([st, n]) => n > 0 && (how.stages?.[st] ?? 0) < 6));
-  if (set.length && !set.some(touches) && !set.some(setupLeft)) {
+  if (set.length && !how.meant && !set.some(touches) && !set.some(setupLeft)) { // (`how.meant`: chosen already, for another: a switch)
     const crit = rnd() < CRIT;
     return { type: "typeless", name: "Struggle", physical: true, ultimate: false, crit, miss: false, stab: false, power: 50, mul: crit ? CRIT_HIT : 1, eff: 1, missRate: 0, struggle: true };
   }
