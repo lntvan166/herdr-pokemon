@@ -11,7 +11,7 @@ import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./ba
 import { effectOn, typesOf, gameDamage, isPhysicalKey, statsFull } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
 import { MOVE_FLAGS } from "./ability-data.js";
-import { SETUP, SETUP_NAMES, SETUP_LEARNS, STATUS_MOVES, STATUS_NAMES, STATUS_LEARNS } from "./move-stages.js";
+import { SETUP, SETUP_NAMES, SETUP_LEARNS, STATUS_MOVES, STATUS_NAMES, STATUS_LEARNS, RECHARGE } from "./move-stages.js";
 import { canStatus } from "./abilities.js";
 import { SIG_MOVES, SIG_DRAIN } from "./sig-moves.js";
 
@@ -308,6 +308,9 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
       if (e < 1 && rnd() < 0.75) sc -= 1;
       if ((m.name === "Sucker Punch" || m.name === "Thunderclap") && !ko && rnd() < 0.8) sc -= 2;
       if (quick && how.slower && how.threatened) sc += 5;
+      // One that costs its next turn (Giga Impact, Hyper Beam: RECHARGE), as the games' AI: to
+      // finish it, not otherwise (−2: another does nearly as much without the rest).
+      if (RECHARGE.includes(m.name) && !ko) sc -= 2;
       // A draining move (Drain Punch, Giga Drain) at half its health or less, not much weaker than
       // its best (60%): +2, as the newer games' AI (pokeemerald-expansion) heals as it hits.
       if (DRAIN[m.name] && (how.selfHp ?? 1) <= DRAIN_AT && dmg[i] >= best * 0.6) sc += 2;

@@ -167,3 +167,11 @@ test("the Rival: a starter against yours, a team growing each visit, its pay, it
   assert.match(T.rivalGreet(r0), /herd/);
   assert.deepEqual(T.loadRival({ v: 1, name: "Blaze", starter: 4, meets: 2, wins: 1, losses: 1, nextAt: 5 }), { v: 1, name: "Blaze", starter: 4, meets: 2, wins: 1, losses: 1, nextAt: 5 });
 });
+
+// Hit as the type it became (Protean): ctx.tt, the types it has now.
+test("damage against the type it became (Protean's)", async () => {
+  const { damage } = await import("../mods/pokemon-herd/trainer.js");
+  const fixed = () => 0.5;
+  assert.equal(damage(25, 908, fixed, { type: "ground", ctx: { tt: ["flying"] } }).eff, 0, "a Meowscarada become Flying: Ground does nothing");
+  assert.equal(damage(25, 908, fixed, { type: "ground" }).eff, 0.5, "as itself, Grass/Dark: resisted");
+});

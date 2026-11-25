@@ -29,6 +29,9 @@ for (const r of await csv("move_meta_stat_changes.csv")) {
 const recoil = {};
 for (const [id, mt] of Object.entries(meta)) if (Number(mt.drain) < 0 && known.has(names[id])) recoil[names[id]] = -Number(mt.drain) / 100;
 const recoilSorted = Object.fromEntries(Object.entries(recoil).sort((a, b) => a[0].localeCompare(b[0])));
+// A rest after (PokeAPI's "recharge" flag, 3: Hyper Beam, Giga Impact, Blast Burn, Prismatic Laser):
+// its next turn lost.
+const recharge = [...new Set((await csv("move_flag_map.csv")).filter((r) => r.move_flag_id === "3" && known.has(names[r.move_id])).map((r) => names[r.move_id]))].sort();
 // Setup moves (status moves that raise its own stats: Swords Dance, Dragon Dance…), as the games'
 // trainers use them on their first turn: [type, [[stat, stages]…]] by name, and which species learn
 // each (SETUP_LEARNS: dex → indices into SETUP_NAMES), any way (level, TM, tutor, egg). Left out:
@@ -81,6 +84,8 @@ writeFileSync(new URL("../mods/pokemon-herd/move-stages.js", import.meta.url), `
 export const SELF_STAGES = ${JSON.stringify(sorted)};
 // The share of the damage it dealt its user takes back (recoil): Brave Bird 0.33, Head Smash 0.5.
 export const RECOIL = ${JSON.stringify(recoilSorted)};
+// Its next turn lost, resting (the games' recharge): Hyper Beam, Giga Impact, Blast Burn.
+export const RECHARGE = ${JSON.stringify(recharge)};
 // Setup moves: [type, [[stat, stages]…]] (Swords Dance: ["normal", [["atk", 2]]]); which species learn
 // each (dex → indices into SETUP_NAMES).
 export const SETUP = ${JSON.stringify(setup)};

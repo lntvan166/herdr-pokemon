@@ -111,7 +111,7 @@ export const BATTLE_ITEMS = {
 };
 export const CHOICE = new Set(["choice-band", "choice-specs", "choice-scarf"]);
 // What's said of an ability or an item by its key (an item's words in a battle: "Life Orb").
-export const sayName = (key) => abilityName(key) || BATTLE_ITEMS[key] || (key === "leftovers" ? "Leftovers" : key === "drain" ? "Health drained!" : "");
+export const sayName = (key) => /^(protean|libero):/.test(key) ? `${abilityName(key.split(":")[0])}: ${key.split(":")[1][0].toUpperCase()}${key.split(":")[1].slice(1)} type` : abilityName(key) || BATTLE_ITEMS[key] || (key === "leftovers" ? "Leftovers" : key === "drain" ? "Health drained!" : "");
 // Quick Claw: one time in five it moves first among moves as quick (a step of priority, half).
 export const quickClaw = (side, rnd = Math.random) => (side.item === "quick-claw" && rnd() < 0.2 ? 0.5 : 0);
 // Leftovers: a sixteenth of its health back at the end of each exchange.
@@ -233,7 +233,12 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   if (PINCH[att.ab] === type && att.hp <= 1 / 3) atk(att.ab, 1.5);
   switch (att.ab) {
     case "adaptability": if (move.stab) atk("adaptability", 2 / 1.5); break;
-    case "protean": case "libero": if (!move.stab) atk(att.ab, 1.5); break; // it becomes its move's type: STAB
+    // Protean, Libero (as Gen 6-8's, each move): it becomes its move's type first: STAB, and that
+    // type till its next move or it leaves (att.typeAs: hit as that type, main.js ctx.tt).
+    case "protean": case "libero":
+      if (!move.stab) base *= 1.5;
+      if (att.typeAs !== type) { att.typeAs = type; said.att.push(`${att.ab}:${type}`); }
+      break;
     case "technician": if ((move.power ?? 80) <= 60) atk("technician", 1.5); break;
     case "tough-claws": if (flag(move, "c")) atk("tough-claws", 1.3); break;
     case "iron-fist": if (flag(move, "p")) atk("iron-fist", 1.2); break;

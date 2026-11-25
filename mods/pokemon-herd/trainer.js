@@ -140,6 +140,11 @@ export function fighterKey(dex, { form = null, mega = null } = {}) {
 export const isFormKey = (k) => typeof k === "string" && !!FORM_BASE[k];
 export const typesOf = (dex) => { const b = baseOf(dex); return b && b.length > 2 ? b.slice(2) : [typeOf(parseInt(dex, 10))]; };
 // How effective a type is on a species: 0, ¼, ½, 1, 2 or 4 (both its types count).
+// As effectOn, against these types (Protean's: the one it became).
+export function effectOnTypes(type, types) {
+  const [sup, not, none] = CHART[type] ?? [[], [], []];
+  return types.reduce((m, t) => m * (none.includes(t) ? 0 : sup.includes(t) ? 2 : not.includes(t) ? 0.5 : 1), 1);
+}
 export function effectOn(type, dex) {
   const [sup, not, none] = CHART[type] ?? [[], [], []];
   return typesOf(dex).reduce((m, t) => m * (none.includes(t) ? 0 : sup.includes(t) ? 2 : not.includes(t) ? 0.5 : 1), 1);
@@ -208,7 +213,7 @@ export function gameDamage(attacker, target, power, physical, eff, roll, ctx = {
   return (base * eff * (0.85 + 0.15 * roll) * DAMAGE_SCALE) / hpAt(d[0]);
 }
 export function damage(attacker, target, rnd = Math.random, how = {}) {
-  const eff = how.type ? effectOn(how.type, target) : bestEffect(attacker, target);
+  const eff = how.type ? (how.ctx?.tt ? effectOnTypes(how.type, how.ctx.tt) : effectOn(how.type, target)) : bestEffect(attacker, target); // (ctx.tt: the types it has now, Protean's)
   const physical = how.physical ?? isPhysicalKey(attacker);
   const dmg = gameDamage(attacker, target, how.power ?? 80, physical, eff, rnd(), how.ctx) * (how.alphaAttacker ? 1.3 : 1) * (how.alphaTarget ? 0.8 : 1)
     * (how.shadowAttacker ? SHADOW_HIT : 1) * (how.shadowTarget ? SHADOW_TAKE : 1) * (how.mul ?? 1);

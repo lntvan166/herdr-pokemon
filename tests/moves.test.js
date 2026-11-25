@@ -322,3 +322,12 @@ test("Triple Axel: three hits, each stronger (120 in all)", () => {
   assert.equal(powerOf("Triple Axel"), 120);
   assert.equal(powerOf("Triple Kick"), 60);
 });
+
+// Giga Impact, Blast Burn (PokeAPI's recharge flag): the AI uses them to finish, not otherwise.
+test("a move that costs its next turn: only to finish", async () => {
+  const { RECHARGE } = await import("../mods/pokemon-herd/move-stages.js");
+  assert.ok(RECHARGE.includes("Giga Impact") && RECHARGE.includes("Blast Burn"));
+  const how = (targetHp) => ({ ai: true, moves: ["Giga Impact", "Body Slam"], dmgOf: (m) => (m.name === "Giga Impact" ? 0.5 : 0.3), targetHp, selfHp: 1, stages: {}, first: false, foeBest: 0 });
+  assert.equal(pickMove(143, 6, () => 0.99, how(1)).name, "Body Slam");
+  assert.equal(pickMove(143, 6, () => 0.99, how(0.4)).name, "Giga Impact");
+});

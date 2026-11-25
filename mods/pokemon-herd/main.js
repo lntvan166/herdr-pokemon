@@ -63,7 +63,7 @@ import { layoutTags } from "./tags.js";
 import { releasePay, releasable, SORTS, sortBox, duplicates } from "./box.js";
 import { pickMove, movesetOf, learnableOf, chosenOf, MAX_MOVES, MOVES, TOP_MOVE, powerOf, missOf, PRIORITY, DRAIN, EXCLUSIVE } from "./moves.js";
 import { MULTI_POWER } from "./more-moves.js";
-import { SELF_STAGES as GEN_SELF, RECOIL as GEN_RECOIL } from "./move-stages.js";
+import { SELF_STAGES as GEN_SELF, RECOIL as GEN_RECOIL, RECHARGE } from "./move-stages.js";
 import { SIG_SELF, SIG_RECOIL } from "./sig-moves.js";
 import { FORM_ITEM_IDS, REGION_MAPS, KEPT_ITEMS } from "./form-items.js";
 const SELF_STAGES = { ...GEN_SELF, ...SIG_SELF }, RECOIL = { ...GEN_RECOIL, ...SIG_RECOIL };
@@ -1092,6 +1092,7 @@ function moveFacts(m, key) {
   if (EXCLUSIVE[m.name]?.fickle) out.push("1 in 3: twice as strong");
   if (EXCLUSIVE[m.name]?.sun) out.push("Stronger in the sun");
   if (m.name === "Chloroblast") out.push("Costs half its health");
+  if (RECHARGE.includes(m.name)) out.push("Must rest its next turn (not when risen 1 in 8)");
   if (["Thunder", "Hurricane"].includes(m.name)) out.push("Never misses in rain; 50% in sun");
   if (m.name === "Blizzard") out.push("Never misses in snow");
   if (EXCLUSIVE[m.name]) out.push(`Its own move${EXCLUSIVE[m.name].crit === "always" ? " · always a critical hit" : EXCLUSIVE[m.name].crit === "high" ? " · critical hits often" : ""}`);
@@ -3164,6 +3165,7 @@ export default class PokemonHerd extends View {
   askMove(drop, ids, now) {
     const v = this.visitor, tr = v?.trainer;
     if (!tr || tr.beaten || tr.leaving || drop.manual || drop.item || this.healUnpaid(v, now) || !this.leader || !settingsNow().chooseMoves) return false;
+    if (v.abil?.own === drop.addr && v.abil.o?.recharge) return false; // (resting after Giga Impact: no move to choose)
     const dm = this.mons[drop.addr], pk = ids[drop.addr];
     if (!dm || !pk || now < (dm.restUntil ?? 0)) return false;
     const before = v.abil && v.abil.own !== drop.addr ? this.mons[v.abil.own] : null;
@@ -4092,8 +4094,9 @@ export default class PokemonHerd extends View {
         const ownTy = typesOf(ownKey), wildTy = typesOf(wildKey);
         const avg = () => 0.5;
         // Each move's average damage, a share of the other's health (as hitWild and hitBack reckon it).
-        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
-        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        const PROTEAN = ["protean", "libero"]; // (every move its type: STAB on all)
+        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: ownTy.includes(m.type) || PROTEAN.includes(so.ab) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (wildTy.includes(m.type) || PROTEAN.includes(sw.ab) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
         // Both sides pick as the games' trainers (moves.js pickMove `ai`), yours on a wild one to
         // weaken it, not knock it out (`catching`: its quick move first when slower and in danger);
         // a wild one any of its moves (the games' wild ones have no AI).
@@ -4178,6 +4181,8 @@ export default class PokemonHerd extends View {
         const given = { own: null, wild: null }; // (a status given by a move: drawn as it lands)
         const st0 = { own: so.status ?? null, wild: sw.status ?? null };
         const mine = () => {
+          // Resting after Giga Impact, Blast Burn (RECHARGE): this turn lost.
+          if (so.recharge) { so.recharge = false; ownIdle = true; setupSaid.own = "It must recharge!"; return; }
           const sk = statusSkip(so);
           skipped.own = sk;
           if (sk === "thaw") costSaid.own.push(SKIP_SAY.thaw);
@@ -4188,7 +4193,8 @@ export default class PokemonHerd extends View {
           if (suckerFails(om, potion ? null : wm, wildFirst)) { omHit = { ...om, miss: true }; hit = { ...hit, text: "But it failed!" }; return; }
           const r1 = onHit(so, sw, om, { weather, missRate: om.missRate ?? missOf(om.name) });
           omHit = { ...om, miss: r1.miss, crit: r1.crit };
-          hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+          if (RECHARGE.includes(om.name) && !om.risen && !r1.miss) so.recharge = true; // (its next turn: resting; one risen to it, none)
+          hit = hitWild({ ...wild, hp: sw.hp }, ownKey, Math.random, !!pk.alpha, bonus, !!pk.shadow, r1.mul, r1.type, omHit, { na: pk.nature, ea: effortOf(pk) * (om.physical ? P.physical : P.special), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}), ...(sw.typeAs ? { tt: [sw.typeAs] } : {}) });
           const held1 = hit.fainted && sturdyHolds(sw, sw.hp); // (Sturdy, Focus Sash)
           if (held1) { hit = { ...hit, hp: 0.01, fainted: false }; words.hit.push(`w:${held1}`); }
           if (r1.heal) hit = { ...hit, hp: Math.min(1, sw.hp + r1.heal) };
@@ -4210,6 +4216,7 @@ export default class PokemonHerd extends View {
         };
         const theirs = () => {
           if (potion) return; // (its turn the Potion)
+          if (sw.recharge) { sw.recharge = false; wildIdle = true; setupSaid.wild = "It must recharge!"; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "", fainted: false, setup: true }; return; }
           const sk = statusSkip(sw);
           skipped.wild = sk;
           if (sk === "thaw") costSaid.wild.push(SKIP_SAY.thaw);
@@ -4219,7 +4226,7 @@ export default class PokemonHerd extends View {
           if (suckerFails(wm, switched ? null : om, !wildFirst)) { wmFailed = true; back = { hp: so.hp, dmg: 0, strong: false, eff: 1, text: "But it failed!", fainted: false }; return; }
           const ownBefore = so.hp;
           const r2 = onHit(sw, so, wm, { weather, missRate: wm.missRate ?? missOf(wm.name) });
-          back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) });
+          back = hitBack({ dex: ownKey, hp: ownBefore, alpha: !!pk.alpha, shadow: !!pk.shadow, hearts: pk.hearts ?? 0, mega: bonus }, wild, Math.random, r2.mul * (v.pick.grumpy ? GRUMPY_HIT : 1) * P.take, r2.type, { ...wm, miss: r2.miss, crit: r2.crit }, { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}), ...(so.typeAs ? { tt: [so.typeAs] } : {}) });
           const held2 = back.fainted && sturdyHolds(so, ownBefore);
           if (held2) { back = { ...back, hp: 0.01, fainted: false }; words.back.push(`o:${held2}`); }
           if (r2.heal) back = { ...back, hp: Math.min(1, ownBefore + r2.heal) };
@@ -4229,6 +4236,7 @@ export default class PokemonHerd extends View {
           words.back.push(...W(a2.att), ...O(a2.def));
           moveStages(wm, r2, back, a2, so, "back");
           const dealt2 = Math.max(0, ownBefore - back.hp);
+          if (RECHARGE.includes(wm.name) && !wm.risen && !r2.miss) sw.recharge = true;
           so.hp = back.hp;
           const c2 = selfHurt(sw, wm, r2, dealt2, hpRatio(ownKey, wildKey), so);
           const drain2 = DRAIN[wm.name] && dealt2 > 0 && !r2.miss ? dealt2 * DRAIN[wm.name] * hpRatio(ownKey, wildKey) : 0;

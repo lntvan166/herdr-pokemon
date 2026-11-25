@@ -345,3 +345,16 @@ test("Chloroblast costs half its health; Thunderclap fails as Sucker Punch does"
   assert.equal(selfHurt(newSide("magic-guard"), { name: "Chloroblast" }, { miss: false, mul: 1 }, 0.3).hurt, 0);
   assert.equal(suckerFails({ name: "Thunderclap" }, { status: true }, false), true);
 });
+
+// Protean (Gen 6-8's): it becomes its move's type, STAB on any, said with the type; again only when
+// the type changes.
+test("Protean: its move's type, STAB, said once a change", async () => {
+  const { onHit, newSide, sayName } = await import("../mods/pokemon-herd/abilities.js");
+  const att = newSide("protean"), def = newSide("");
+  const r = onHit(att, def, { type: "fairy", physical: true, stab: false, mul: 1, eff: 1 }, {}, () => 0.99);
+  assert.ok(Math.abs(r.mul - 1.5) < 1e-9, String(r.mul));
+  assert.equal(att.typeAs, "fairy");
+  assert.deepEqual(r.said.att, ["protean:fairy"]);
+  assert.equal(sayName("protean:fairy"), "Protean: Fairy type");
+  assert.deepEqual(onHit(att, def, { type: "fairy", physical: true, stab: false, mul: 1, eff: 1 }, {}, () => 0.99).said.att, []);
+});
