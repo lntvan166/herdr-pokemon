@@ -450,7 +450,8 @@ function useOn(slot, id) {
   if (!r) return null;
   // (Revived in a climb: back in it, to fight again; the life it cost stays lost.)
   if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1, benchHeals: (climb.run.benchHeals ?? 0) + (bench ? 1 : 0), out: r.revive ? climb.run.out.filter((x) => x !== slot) : climb.run.out } });
-  if (fight && (r.heal || r.revive)) setShared(TRAINER_HEALS_KEY, { id: fight.id, n: fight.used + 1, at: Date.now() }); // (`at`: the strip gives the trainer its turn)
+  // (Only one used on the one fighting takes its turn; one not in the fight, its floor's heal in a climb.)
+  if (fight && (r.heal || r.revive) && slot === fighterPane()) setShared(TRAINER_HEALS_KEY, { id: fight.id, n: fight.used + 1, at: Date.now() }); // (`at`: the strip gives the trainer its turn)
   savePicks({ [slot]: r.pick });
   healBy(slot, r.heal);
   reviveBy(slot, r.revive);
@@ -5012,7 +5013,7 @@ export default class PokemonHerd extends View {
         })()))
       // From the Bag: what does something to it now (a Berry, a Revive, a stone that evolves it).
       .when(items.length > 0, (el) => el.child(v_flex().gap(4)
-        .child(label(((c, f) => (f || c ? "🎒 Use from the Bag · vs a trainer: each takes your turn (it strikes)" : "🎒 Use from the Bag"))(towerNow().run, trainerFight())))
+        .child(label(slot === fighterPane() ? "🎒 Use from the Bag · fighting: each takes your turn (it strikes)" : "🎒 Use from the Bag"))
         // A climb: the floor's one heal for ones not fighting (healBlocked), left or used.
         .when(!!towerNow().run && slot !== fighterPane(), (el) => el.child(div().text_size(11).text_color(t.dim)
           .child(((n) => n > 0 ? `🗼 Not fighting: ${n} heal or Revive left this floor (💊 on the strip)` : "🗼 Not fighting: this floor's heal is used; the next floor brings one")(Math.max(0, TOWER_BENCH_HEALS - (towerNow().run.benchHeals ?? 0))))))

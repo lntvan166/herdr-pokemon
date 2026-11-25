@@ -343,6 +343,7 @@ test("a trainer's battle and the Tower: heals without limit, each one counted", 
   again();
   assert.ok(!K.handlers["mon-use-berry:on_click"], "not fighting: its floor's one heal used");
   assert.equal(H.store.get(KEY).run.benchHeals, 1);
+  assert.equal(H.store.get(`${ids.MOD}-trainer-heals`).n, 3, "not fighting: no turn of the one fighting taken");
 });
 
 // In a climb, switching between yours on the strip is free; one swapped in from the Box comes in
