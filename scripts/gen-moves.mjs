@@ -8,6 +8,7 @@
 // node scripts/gen-stats.mjs and node scripts/gen-abilities.mjs.
 import { writeFileSync } from "node:fs";
 
+import { SIG_MOVES } from "../mods/pokemon-herd/sig-moves.js";
 const BASE = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/";
 const csv = async (name) => {
   const r = await fetch(BASE + name);
@@ -18,7 +19,9 @@ const csv = async (name) => {
 };
 const TYPES = [null, "normal", "fighting", "flying", "poison", "ground", "rock", "bug", "ghost", "steel", "fire", "water", "grass", "electric", "psychic", "ice", "dragon", "dark", "fairy"];
 const { MOVES, MORE_OWN, EXCLUSIVE } = await import("../mods/pokemon-herd/moves.js");
-const have = new Set([...Object.values(MOVES).flat(), ...Object.values(MORE_OWN).flat().map(([n]) => n), ...Object.keys(EXCLUSIVE)]);
+// (The newer signature moves, sig-moves.js, stay among their types' moves here too, as they were:
+// a type's strongest, TOP_MOVE, is one of them: Double Iron Bash, Light of Ruin.)
+const have = new Set([...Object.values(MOVES).flat(), ...Object.values(MORE_OWN).flat().map(([n]) => n), ...Object.keys(EXCLUSIVE).filter((n) => !SIG_MOVES[n])]);
 const names = Object.fromEntries((await csv("move_names.csv")).filter((r) => r.local_language_id === "9").map((r) => [r.move_id, r.name]));
 const meta = Object.fromEntries((await csv("move_meta.csv")).map((r) => [r.move_id, r]));
 const learned = new Set((await csv("pokemon_moves.csv")).filter((r) => Number(r.pokemon_id) <= 1025).map((r) => r.move_id));
@@ -53,7 +56,9 @@ for (const m of await csv("moves.csv")) {
   const type = TYPES[Number(m.type_id)];
   if (!type) continue;
   const lo = Number(mt.min_hits) || 0, hi = Number(mt.max_hits) || 0;
-  const total = hi > 1 ? Math.round(power * (lo === 2 && hi === 5 ? 3 : (lo + hi) / 2)) : power; // 2–5: 3 on average, as the games' odds
+  // PokeAPI's effect 105 (Triple Kick, Triple Axel): three hits, each stronger (power, twice, three
+  // times it): six times its power in all.
+  const total = m.effect_id === "105" ? power * 6 : hi > 1 ? Math.round(power * (lo === 2 && hi === 5 ? 3 : (lo + hi) / 2)) : power; // 2–5: 3 on average, as the games' odds
   if (total < 40) continue; // (40 at least: all its hits together, for a multi-hit one)
   if (hi > 1) multi[name] = total;
   const pct = (v) => (Number(v) || 100) / 100;

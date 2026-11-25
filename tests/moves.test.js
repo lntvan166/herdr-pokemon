@@ -316,3 +316,9 @@ test("the AI drains at half its health or less, if not much weaker", async () =>
   assert.equal(used(1), "Wicked Blow");
   assert.equal(used(0.4), "Drain Punch");
 });
+
+// Triple Axel and Triple Kick (PokeAPI effect 105): three hits, each stronger: 20 + 40 + 60.
+test("Triple Axel: three hits, each stronger (120 in all)", () => {
+  assert.equal(powerOf("Triple Axel"), 120);
+  assert.equal(powerOf("Triple Kick"), 60);
+});
