@@ -438,6 +438,15 @@ test("the Battle Tower: a Revive brings one back into the climb", () => {
   assert.ok(!run.out.includes("p0"), "back in the climb");
   assert.equal(run.faints, 1, "its life stays lost");
   assert.equal(run.heals, 1, "the floor's heal");
+  // Fainted again, a second Revive the same floor: none (one heal a floor for ones not fighting,
+  // the one that fainted fighting too).
+  H.store.set(KEY, { ...H.store.get(KEY), run: { ...H.store.get(KEY).run, out: ["p0"] } });
+  H.store.set(`${ids.MOD}-visitor`, { at: Date.now(), v: { id: 9, trainer: { fought: true, idx: 0, team: [{ dex: 25 }], fighter: H.agents().find((a) => a.pane === "p0").address } } });
+  H.store.set(HP, { p0: { hp: 0, at: Date.now() - 500, rest: Date.now() + 600000 } });
+  H.store.set(ids.BAG_KEY, { ...H.store.get(ids.BAG_KEY), items: { ...H.store.get(ids.BAG_KEY).items, revive: 2 } });
+  for (const k of Object.keys(K.handlers)) delete K.handlers[k];
+  m.render(cx);
+  assert.ok(!K.handlers["mon-use-revive:on_click"], "no second Revive this floor");
 });
 
 // A climb over: each one's health as it stood (no healing in it), healing again from now.

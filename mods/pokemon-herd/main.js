@@ -427,11 +427,12 @@ function fighterPane() {
   return f ? agents().find((a) => a.address === f)?.pane ?? null : null;
 }
 // A climb on: healing one of yours not fighting (hurt, or out of it: a Berry, a Revive) only
-// TOWER_BENCH_HEALS a floor; the one fighting, as often as you like (each takes its turn).
+// TOWER_BENCH_HEALS a floor; the one fighting, as often as you like (each takes its turn). A Revive
+// counts as for one not fighting (the one that fainted in the fight too).
 function healBlocked(slot, id) {
   if (!TOWER_HEAL_IDS.includes(id)) return false;
   const run = towerNow().run;
-  if (!run || slot === fighterPane()) return false;
+  if (!run || (slot === fighterPane() && !REVIVE[id])) return false; // (a Revive: fainted, it's out of the fight, as the games')
   const hp = hpOf(slot);
   return (hp == null || hp < 1) && (run.benchHeals ?? 0) >= TOWER_BENCH_HEALS;
 }
@@ -440,7 +441,7 @@ function healBlocked(slot, id) {
 function useOn(slot, id) {
   const live = slot && savedPicks()[slot];
   if (!live || !hasItem(id) || healBlocked(slot, id)) return null;
-  const bench = slot !== fighterPane();
+  const bench = slot !== fighterPane() || !!REVIVE[id];
   // A Battle Tower climb on: TOWER_HEALS healing items a floor (Berries, Revives).
   const climb = TOWER_HEAL_IDS.includes(id) ? towerNow() : null;
   // (No limit, in a climb or a trainer's battle: each one takes your turn, as the games'.)
