@@ -1005,7 +1005,7 @@ function openMon(slot, pick, tag, megaNow = null, allHold = false) {
   const waiting = waitingNow().filter((x) => x.slot !== slot).length;
   const section = (n) => (n ? 26 + 30 * Math.ceil(n / 3) : 0);
   const mates = swapMates(slot).length;
-  const height = 20 + 60 + section(uses) + section(holds) + (waiting ? 26 + 74 : 0) + (mates ? 26 + 70 * Math.ceil(mates / SWAP_ROW) + 4 : 0) + 10 + 2 * 32;
+  const height = 20 + 60 + section(uses) + (uses && towerNow().run && slot !== fighterPane() ? 18 : 0) + section(holds) + (waiting ? 26 + 74 : 0) + (mates ? 26 + 70 * Math.ceil(mates / SWAP_ROW) + 4 : 0) + 10 + 2 * 32;
   openOverlay({ mod: MOD, kind: "popup", width: 400, height, props: { mon: true, slot, current: pick, tag, ...(megaNow != null ? { megaNow } : {}), ...(allHold ? { allHold } : {}) } });
 } // the picker's and a Pokémon's menu's row of those waiting in the Box
 // `sel`: the Box opened on that slot (its card showing).
@@ -5013,6 +5013,9 @@ export default class PokemonHerd extends View {
       // From the Bag: what does something to it now (a Berry, a Revive, a stone that evolves it).
       .when(items.length > 0, (el) => el.child(v_flex().gap(4)
         .child(label(((c, f) => (f || c ? "🎒 Use from the Bag · vs a trainer: each takes your turn (it strikes)" : "🎒 Use from the Bag"))(towerNow().run, trainerFight())))
+        // A climb: the floor's one heal for ones not fighting (healBlocked), left or used.
+        .when(!!towerNow().run && slot !== fighterPane(), (el) => el.child(div().text_size(11).text_color(t.dim)
+          .child(((n) => n > 0 ? `🗼 Not fighting: ${n} heal or Revive left this floor (💊 on the strip)` : "🗼 Not fighting: this floor's heal is used; the next floor brings one")(Math.max(0, TOWER_BENCH_HEALS - (towerNow().run.benchHeals ?? 0))))))
         .child(h_flex().flex_wrap().gap(4)
           .children(items.map((id) => chip(`mon-use-${id}`, this.itemMark(id, 16), `${ITEMS[id].name} ×${b.items[id]}`, () => useOn(slot, id)))))))
       // What it holds (take it back), and what it could hold instead.
@@ -5610,7 +5613,7 @@ export default class PokemonHerd extends View {
       const waitFor = climb.run && !tv?.trainer?.tower
         ? (["egg", "battle"].includes(raidPhase(loadRaid(shared(RAID_KEY)), now)) ? " · next trainer after the raid"
           : tv && !tv.trainer ? " · a wild one is leaving first" : " · trainer coming…") : "";
-      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(Math.max(0, towerLives(climb.run) - climb.run.faints))}${"♡".repeat(Math.min(climb.run.faints, towerLives(climb.run)))}${climb.best ? ` · best ${climb.best}` : ""}`
+      const text = climb.run ? `🗼 Battle Tower${waitFor} · ${climb.run.wins} win${climb.run.wins === 1 ? "" : "s"} · lives ${"♥".repeat(Math.max(0, towerLives(climb.run) - climb.run.faints))}${"♡".repeat(Math.min(climb.run.faints, towerLives(climb.run)))} · 💊${Math.max(0, TOWER_BENCH_HEALS - (climb.run.benchHeals ?? 0))}${climb.best ? ` · best ${climb.best}` : ""}`
         : `🗼 Climb over (${over.why}): ${over.wins} win${over.wins === 1 ? "" : "s"}${over.best ? ", a new best!" : ""}`;
       // On the left, under the raid's and the outbreak's notes: the trainer stands in the right corner.
       root.child(div().id("pokemon-tower").absolute().left(6).top(this.leftNotes(now) * 18 + 4).h(16).px(6).rounded(8)
