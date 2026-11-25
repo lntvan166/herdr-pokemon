@@ -25,7 +25,7 @@ import { updateNow, updateProgress, sidebarState, patchSidebar } from "./selfupd
 import { PHASE_TEXT } from "./update.js";
 import { actFor, HALT, ICON, wants, NEAR, GRUMPY_HIT, TEASE_PURSE, FLEE_SPEED, DASH_SPEED } from "./wildacts.js";
 import { rivalTrainer, rivalPay, loadRival, rivalNext, rivalStarter, rivalGreet, RIVAL_BEATEN, RIVAL_WON, RIVAL_LIVES, RIVAL_RETRY_MS, RIVAL_POTIONS, RIVAL_POTION_AT, RIVAL_POTION } from "./trainers.js";
-import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH, TRAINER_HEALS } from "./trainers.js";
+import { newTrainer, trainerPay, TRAINER_ODDS, WAIT_MS, TEAM_EFFORT, towerTrainer, towerWin, loadTower, TOWER_LIVES, TOWER_NEXT_MS, TOWER_HEALS, TOWER_BENCH_HEALS, TOWER_HEAL_IDS, TOWER_SWITCH, TRAINER_HEALS } from "./trainers.js";
 // A trainer's Pokémon as the strip draws it: a Mega one shown Mega (its kind), a legendary as itself.
 // What a trainer says, beaten (its class's words; one of them by its name, the same each time).
 const BEATEN_SAYS = {
@@ -420,11 +420,27 @@ function trainerFight() {
   const h = shared(TRAINER_HEALS_KEY);
   return { id: v.id, used: h?.id === v.id ? h.n : 0 };
 }
+// The pane of yours fighting a trainer now, or null.
+function fighterPane() {
+  const v = shared(VISITOR_KEY)?.v;
+  const f = v?.trainer?.fought && !v.trainer.beaten && !v.trainer.leaving && v.trainer.fighter;
+  return f ? agents().find((a) => a.address === f)?.pane ?? null : null;
+}
+// A climb on: healing one of yours not fighting (hurt, or out of it: a Berry, a Revive) only
+// TOWER_BENCH_HEALS a floor; the one fighting, as often as you like (each takes its turn).
+function healBlocked(slot, id) {
+  if (!TOWER_HEAL_IDS.includes(id)) return false;
+  const run = towerNow().run;
+  if (!run || slot === fighterPane()) return false;
+  const hp = hpOf(slot);
+  return (hp == null || hp < 1) && (run.benchHeals ?? 0) >= TOWER_BENCH_HEALS;
+}
 // Uses an item from the Bag on one of yours (the Bag, the picker, its menu, the Box): it as saved
 // now, never a stale copy. What it held goes back in the Bag. The result (useItem's), or null.
 function useOn(slot, id) {
   const live = slot && savedPicks()[slot];
-  if (!live || !hasItem(id)) return null;
+  if (!live || !hasItem(id) || healBlocked(slot, id)) return null;
+  const bench = slot !== fighterPane();
   // A Battle Tower climb on: TOWER_HEALS healing items a floor (Berries, Revives).
   const climb = TOWER_HEAL_IDS.includes(id) ? towerNow() : null;
   // (No limit, in a climb or a trainer's battle: each one takes your turn, as the games'.)
@@ -432,7 +448,7 @@ function useOn(slot, id) {
   const r = useItem(live, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }, Date.now());
   if (!r) return null;
   // (Revived in a climb: back in it, to fight again; the life it cost stays lost.)
-  if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1, out: r.revive ? climb.run.out.filter((x) => x !== slot) : climb.run.out } });
+  if (climb?.run && (r.heal || r.revive)) saveTower({ ...climb, run: { ...climb.run, heals: climb.run.heals + 1, benchHeals: (climb.run.benchHeals ?? 0) + (bench ? 1 : 0), out: r.revive ? climb.run.out.filter((x) => x !== slot) : climb.run.out } });
   if (fight && (r.heal || r.revive)) setShared(TRAINER_HEALS_KEY, { id: fight.id, n: fight.used + 1, at: Date.now() }); // (`at`: the strip gives the trainer its turn)
   savePicks({ [slot]: r.pick });
   healBy(slot, r.heal);
@@ -977,7 +993,7 @@ const monUsable = (pick, slot, b = bag()) => {
   const climb = towerNow().run; // (this floor's heal used: no healing item till the next)
   const fight = trainerFight();
   const spent = false; // (no limit any more: each heal takes your turn)
-  return MON_ITEMS.filter((id) => b.items[id] && !(spent && TOWER_HEAL_IDS.includes(id)) && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
+  return MON_ITEMS.filter((id) => b.items[id] && !(spent && TOWER_HEAL_IDS.includes(id)) && !healBlocked(slot, id) && itemUse(pick, slot, id, { night: isNight(), day: dayOf(Date.now()), hpOf }));
 };
 const openPick = (slot, pick, tag) => openOverlay({ mod: MOD, kind: "dialog", width: 640, height: 760, props: { picker: true, slot, current: pick, tag } });
 function openMon(slot, pick, tag, megaNow = null, allHold = false) {
@@ -1863,7 +1879,7 @@ export default class PokemonHerd extends View {
             saveBag(mark(bag(), { trainers: (bag().marks.trainers ?? 0) + 1 })); // (the Marsh Badge counts them)
             if (tr.paid.money) payOut({ money: tr.paid.money });
             for (const [id, n] of tr.paid.items) payOut({ item: id, count: n });
-            if (tr.tower && t.run) saveTower({ ...t, paid: tw.paid, best: Math.max(t.best, tr.tower), run: { ...t.run, wins: tr.tower, heals: 0, nextAt: now + TOWER_NEXT_MS } }); // (a new floor: its heal back)
+            if (tr.tower && t.run) saveTower({ ...t, paid: tw.paid, best: Math.max(t.best, tr.tower), run: { ...t.run, wins: tr.tower, heals: 0, benchHeals: 0, nextAt: now + TOWER_NEXT_MS } }); // (a new floor: its heal back)
             if (tr.tower) this.towerFighter = tr.fighter ?? null; // it takes on the next one too
           }
         }
@@ -6089,7 +6105,7 @@ export default class PokemonHerd extends View {
     const boxed = boxList(saved, new Set(agents().map((a) => a.pane).filter(Boolean)));
     const how = { night: isNight(), day: dayOf(Date.now()), hpOf }; // Berries: three a day each (and they heal one hurt)
     const ids = Object.keys(ITEMS);
-    const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how) : []]));
+    const takers = Object.fromEntries(ids.map((id) => [id, b.items[id] ? takersOf(id, herd, how).filter((h) => !healBlocked(h.slot, id)) : []]));
     // Usable now: an evolution first (that's news), then hearts.
     const herdBySlot = Object.fromEntries(herd.map((h) => [h.slot, h]));
     const heldAll = Object.fromEntries(ids.filter((id) => ITEMS[id].kind === "held").map((id) => [id, holdersOf(id, saved)]));
@@ -6604,13 +6620,13 @@ export default class PokemonHerd extends View {
           // The Day Care: two at a time (a third takes the place of the first left there).
           .when(!tag, (el) => el.child(pill(`box-care-${slot}`, inCare.has(slot) ? "🥚 Take it from the Day Care" : inCare.size >= 2 ? "🥚 Day Care (in place of the first)" : "🥚 Leave at the Day Care", () => toCare(slot))))
           // Fainted, resting: a Revive or Max Revive brings it back now.
-          .children(["revive", "max-revive"].filter((id) => bag().items[id] && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
+          .children(["revive", "max-revive"].filter((id) => bag().items[id] && !healBlocked(slot, id) && itemUse(pick, slot, id, { hpOf }) === "revive").map((id) =>
             pill(`box-revive-${id}-${slot}`, `💊 ${ITEMS[id].name} ×${bag().items[id]}`, () => useOn(slot, id))))
           // An Ability Capsule (its other ability) or Patch (its hidden one).
           .children(["ability-capsule", "ability-patch", ...FORM_ITEM_IDS].filter((id) => bag().items[id] && ["ability", "form"].includes(itemUse(pick, slot, id))).map((id) =>
             pill(`box-use-${id}-${slot}`, `${ITEMS[id].icon} ${ITEMS[id].name} ×${bag().items[id]}`, () => useOn(slot, id))))
           // Feed it a Berry (a heart, half or whole), with it or waiting in the Box.
-          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>
+          .children(["berry", "sitrus-berry"].filter((id) => bag().items[id] && !healBlocked(slot, id) && ["hearts", "heal"].includes(itemUse(pick, slot, id, { day: dayOf(Date.now()), hpOf }))).map((id) =>
             pill(`box-feed-${id}-${slot}`, `🍒 Feed ${ITEMS[id].name.replace(" Berry", "")} ×${bag().items[id]}`, () => useOn(slot, id))))
           .when(!!pick.held, (el) => el.child(pill(`box-take-${slot}`, `🎒 Take its ${ITEMS[pick.held].name}`, () => takeFrom(slot))))
           // Shadow: purified once it has PURIFY_HEARTS hearts (still an Alpha, a heart more, ₽100).

@@ -327,7 +327,7 @@ test("a trainer's battle and the Tower: heals without limit, each one counted", 
   seed();
   const KEY = `${ids.MOD}-tower`, VK = `${ids.MOD}-visitor`, HP = `${ids.MOD}-hp`;
   H.store.set(KEY, { v: 1, best: 0, run: { at: Date.now() - 1000, wins: 0, faints: 0, out: [], nextAt: 0 } });
-  H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }] } } });
+  H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }], fighter: H.agents().find((a) => a.pane === "p0").address } } });
   H.store.set(ids.BAG_KEY, { ...H.store.get(ids.BAG_KEY), items: { ...H.store.get(ids.BAG_KEY).items, berry: 5 } });
   const hurt = () => H.store.set(HP, { p0: { hp: 0.2, at: Date.now() } });
   const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
@@ -337,6 +337,12 @@ test("a trainer's battle and the Tower: heals without limit, each one counted", 
   assert.ok(K.handlers["mon-use-berry:on_click"], "a fourth, still");
   assert.equal(H.store.get(ids.BAG_KEY).items.berry, 2, "three eaten");
   assert.equal(H.store.get(`${ids.MOD}-trainer-heals`).n, 3, "each counted: its turn");
+  // One not fighting, in the climb: one heal a floor (TOWER_BENCH_HEALS), then none.
+  H.store.set(VK, { at: Date.now(), v: { id: 7, trainer: { fought: true, idx: 0, team: [{ dex: 25 }], fighter: "nobody" } } });
+  again(); click("mon-use-berry:on_click");
+  again();
+  assert.ok(!K.handlers["mon-use-berry:on_click"], "not fighting: its floor's one heal used");
+  assert.equal(H.store.get(KEY).run.benchHeals, 1);
 });
 
 // In a climb, switching between yours on the strip is free; one swapped in from the Box comes in

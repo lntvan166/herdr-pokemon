@@ -155,7 +155,10 @@ export function pixelsOf(rows, colors) {
 // floors; 1 a floor ~9 / ~5.6; 2 a floor ~11 / ~9.3; unlimited ~13 / ~13, up to 41. A day's
 // climb pays ~₽600 and its small gifts, a couple of hours of agents' work.
 export const TOWER_LIVES = 3;
-export const TOWER_HEALS = Infinity; // (no limit: each heal takes your turn)
+export const TOWER_HEALS = Infinity; // (the one fighting: no limit, each heal takes your turn)
+// The others (not in the fight: nothing to pay for it): this many heals a floor, a Revive for one
+// out of the climb too (healed for nothing, a team of six never wore down).
+export const TOWER_BENCH_HEALS = 1;
 // One of yours swapped for another in a climb (brought out of the Box, or a new kind chosen): it
 // comes in with its agent's health as it stands, less this (the Box held fresh ones by the
 // hundred). Switching between those on the strip costs your turn, as with any trainer (it was free).
@@ -247,6 +250,7 @@ export function loadTower(raw) {
     at: r.at, wins: Number.isInteger(r.wins) && r.wins > 0 ? r.wins : 0, faints: Number.isInteger(r.faints) && r.faints > 0 ? r.faints : 0,
     out: Array.isArray(r.out) ? r.out.filter((x) => typeof x === "string") : [], nextAt: Number.isFinite(r.nextAt) ? r.nextAt : 0,
     heals: Number.isInteger(r.heals) && r.heals > 0 ? r.heals : 0,
+    benchHeals: Number.isInteger(r.benchHeals) && r.benchHeals > 0 ? r.benchHeals : 0,
     ...(Number.isInteger(r.lives) && r.lives > 0 ? { lives: Math.min(TOWER_LIVES, r.lives) } : {}),
   } : null;
   const paid = typeof raw?.paid?.day === "string" && Number.isInteger(raw.paid.floor) ? { day: raw.paid.day, floor: raw.paid.floor } : null;

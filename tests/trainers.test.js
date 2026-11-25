@@ -132,7 +132,7 @@ test("the Battle Tower: teams of three, stronger and starrier the higher; pay an
   assert.equal(T.towerWin(1, w.paid, "d2").pay.money, 50, "a new day");
   assert.deepEqual(T.loadTower(null), { v: 1, best: 0, run: null });
   const t = T.loadTower({ best: 4, run: { at: 1, wins: 2, faints: 1, out: ["p1", 3], nextAt: 5 } });
-  assert.deepEqual(t.run, { at: 1, wins: 2, faints: 1, out: ["p1"], nextAt: 5, heals: 0 });
+  assert.deepEqual(t.run, { at: 1, wins: 2, faints: 1, out: ["p1"], nextAt: 5, heals: 0, benchHeals: 0 });
 });
 
 test("the Rival: a starter against yours, a team growing each visit, its pay, its state", async () => {
