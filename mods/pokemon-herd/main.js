@@ -5554,7 +5554,8 @@ export default class PokemonHerd extends View {
           .when(!!m.note || !!m.hungry, (el) =>
             el.child(div().absolute().left(Math.round(sw / 2 - 30)).top(Math.round(Math.max(2, headY - 14))).text_size(13)
               
-              .child(m.note?.item ? this.itemMark(m.note.item, 18) : iconOrEmote(m.note?.icon ?? "🥺", 13))))
+              // (Left of its head: a balloon's tail back right, down to it: the mirrored art, as `balloon` facing left.)
+              .child(m.note?.item ? this.itemMark(m.note.item, 18) : EMOTE_OF[m.note?.icon ?? "🥺"] ? balloon(EMOTE_OF[m.note.icon], false) : iconOrEmote(m.note?.icon ?? "🥺", 13))))
           // Tired (the 5-hour limit is near): working ones sweat.
           .when(!!this.tired && mood === "working", (el) =>
             el.child(div().absolute().left(sw / 2 + 12).top(Math.max(2, headY - 4)).text_size(11)
