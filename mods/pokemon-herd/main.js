@@ -3258,8 +3258,21 @@ export default class PokemonHerd extends View {
   // card under the pointer, and scrolling jittered). `slot`: a saved one's (its own ability, its
   // chosen moves); none: its kind's.
   hovers(el, zone, pick, slot = null) {
-    return HoverCard.new(`hc-${zone}-${slot ?? entryKey(pick)}`).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE)
-      .trigger(el).content(this.infoCard(pick, slot, theme()));
+    return this.lazyHover(el, `hc-${zone}-${slot ?? entryKey(pick)}`, () => this.infoCard(pick, slot, theme()));
+  }
+  // A hover card's content built for the ONE thing under the pointer, not for all of them. A
+  // HoverCard's `content` is an element built in this render (the kit takes no function), so every
+  // card on screen was built every render: a swap row, a Box or a move list of a hundred chips
+  // built a hundred cards (stats, moves) and the view was "interrupted" mid-render. Each keeps its
+  // HoverCard (the tree the same whether hovered or not: it opens as before, after HOVER_OPEN), but
+  // with an empty content till the pointer enters it (`on_hover`: remembered, a redraw well before
+  // it opens); not forgotten on leaving, as the pointer leaves it to reach the card.
+  lazyHover(el, key, build) {
+    const tracked = el.on_hover((on, cx) => {
+      if (on && this.hoverKey !== key) { this.hoverKey = key; cx.notify(); }
+    });
+    return HoverCard.new(key).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE)
+      .trigger(tracked).content(this.hoverKey === key ? build() : div());
   }
   infoCard(p, slot, t) {
     const k = fighterKey(p.dex, p.form ? { form: p.form } : {});
@@ -3281,8 +3294,7 @@ export default class PokemonHerd extends View {
   // A move hovered (its chip, where moves are chosen): its facts, as the games' move info, a card
   // over the rest (as `hovers`).
   hoversMove(el, zone, m, key) {
-    return HoverCard.new(`hm-${zone}-${m.name}`).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE)
-      .trigger(el).content(this.moveCard(m, key, theme()));
+    return this.lazyHover(el, `hm-${zone}-${m.name}`, () => this.moveCard(m, key, theme()));
   }
   moveCard(m, key, t) {
     return v_flex().w(360).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover)
@@ -3293,11 +3305,12 @@ export default class PokemonHerd extends View {
   }
   // An ability hovered: what it does (and if it does anything here), a card over the rest.
   hoversAbil(el, id, k) {
-    const t = theme();
-    return HoverCard.new(`ha-${id}`).anchor("bottom_left").open_delay(HOVER_OPEN).close_delay(HOVER_CLOSE).trigger(el)
-      .content(v_flex().w(320).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover)
+    return this.lazyHover(el, `ha-${id}`, () => {
+      const t = theme();
+      return v_flex().w(320).gap(2).p(8).rounded(8).border_1().border_color(t.accent).bg(t.popover)
         .child(div().text_size(12).font_semibold().text_color(t.foreground).child(abilityName(k)))
-        .child(div().text_size(11).text_color(t.muted).child(`${abilityText(k)}${works(k) ? "" : " (No effect here.)"}`)));
+        .child(div().text_size(11).text_color(t.muted).child(`${abilityText(k)}${works(k) ? "" : " (No effect here.)"}`));
+    });
   }
   itemMark(id, size) {
     const art = ITEMS[id]?.art;

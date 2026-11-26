@@ -1732,3 +1732,18 @@ test("a trainer's battle: none of yours left, it wins and goes", () => {
   st.tick(cx);
   assert.ok(st.visitor === null || st.visitor.trainer.won || st.visitor.trainer.leaving, "it won, going");
 });
+
+// Hover cards: only the one under the pointer builds its card (a swap row of many built them all
+// every render and the view was interrupted).
+test("hover cards: only the hovered one's card is built", () => {
+  seed();
+  const m = view({ mon: true, slot: "p0", current: { dex: 6 }, tag: "api" });
+  let built = 0;
+  const real = m.infoCard.bind(m);
+  m.infoCard = (...a) => { built++; return real(...a); };
+  m.render(cx);
+  assert.equal(built, 0, "none hovered: none built");
+  m.hoverKey = "hc-swap-p1";
+  m.render(cx);
+  assert.equal(built, 1, "the hovered one's only");
+});

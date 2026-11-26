@@ -644,6 +644,12 @@ the day's Research and the Pokédex track progress. **Every rule, number and cap
   `pokemon-herd-picks-rev`, and the same stamp means the same ones (`picksNow`). Never change
   them in place (the render tests freeze them). A full Box (~250) read and checked on every
   tick made it 40–900 ms with the machine busy.
+- Build a hover card's content only for the one under the pointer (`lazyHover`). A HoverCard's
+  `content` is an element built in that render, so a card per Pokémon or per move chip built
+  every card on every render: a swap row or a move list ran past the 50 ms and the view was
+  interrupted. Each keeps its HoverCard (the same tree hovered or not, so it opens as before) with
+  an empty content; `on_hover` remembers the one entered and its content is built from then on
+  (not forgotten on leaving: the pointer leaves it to reach the card).
 
 ## Done when
 
