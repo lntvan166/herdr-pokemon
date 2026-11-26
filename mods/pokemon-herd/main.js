@@ -4414,8 +4414,7 @@ export default class PokemonHerd extends View {
         v.fight.ice = iceOf(st0.wild, given.wild, skipped.wild, now, hitAt, backLaunch ?? wildCostAt, sw.status === "frz");
         dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
         // Protean: its new type, over it as it sets off (before its first move, once).
-        // (After "Protean" as they met, not over it: the two in one place, the second was hidden.)
-        const proAt = (t) => Math.max(t - CHARGE_MS, now + 300 + ENTRY_MS + 40);
+        const proAt = (t) => t - CHARGE_MS; // (only this: not "Protean" as they met too)
         if (proSaid.own) { const a = proAt(ownLaunch); dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: a, until: a + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR }]; }
         if (proSaid.wild) { const a = proAt(backLaunch); v.fight.wildPro = { text: proSaid.wild, at: a, until: a + SETUP_NOTE_MS }; }
         if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };

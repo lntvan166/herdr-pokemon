@@ -150,9 +150,6 @@ export function meet(a, b) {
   };
   scare(a, b, said.a, said.b, said.stages.b);
   scare(b, a, said.b, said.a, said.stages.a);
-  // Protean, Libero: shown as it comes in (its type changes before its first move).
-  if (/^(protean|libero)$/.test(a.ab) && !a.typeAs) said.a.push(a.ab);
-  if (/^(protean|libero)$/.test(b.ab) && !b.typeAs) said.b.push(b.ab);
   return said;
 }
 // Mega Evolving, as the games': it came in with its own ability (Gyarados' Intimidate, said as they

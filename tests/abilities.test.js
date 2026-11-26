@@ -364,7 +364,7 @@ test("Protean: its move's type, STAB, said once a change", async () => {
 test("Protean: once a time in, then its new type's STAB only", async () => {
   const { onHit, newSide, meet } = await import("../mods/pokemon-herd/abilities.js");
   const att = newSide("protean"), def = newSide("");
-  assert.deepEqual(meet(att, def).a, ["protean"], "shown as it comes in");
+  assert.deepEqual(meet(att, def).a, [], "said once, with its type, before its first move");
   onHit(att, def, { type: "fairy", physical: true, stab: false, mul: 1, eff: 1 }, {}, () => 0.99);
   const grass = onHit(att, def, { type: "grass", physical: true, stab: true, mul: 1.5, eff: 1 }, {}, () => 0.99);
   assert.equal(att.typeAs, "fairy", "no second change");
