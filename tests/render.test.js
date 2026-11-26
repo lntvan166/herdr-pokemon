@@ -1089,6 +1089,7 @@ test("a trainer's battle: Protean's new type taken by the other's move", () => {
   }
   assert.ok(effs.length > 0);
   assert.ok(effs.every((e) => e === 1), `as Grass: neutral, ${effs}`);
+  st.render(cx); // (its type tag, GRA, by its health bar)
 });
 
 // An ordinary trainer too, and the Tower's (as the games'): a switch with the one before still up

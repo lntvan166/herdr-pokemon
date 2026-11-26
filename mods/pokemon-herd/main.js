@@ -755,6 +755,9 @@ function statsBlock(k, pick, t, w = 150) {
 }
 const statusTag = (x, top, st) => div().absolute().left(x + 20).top(Math.max(0, top - 3)).h(10).px(2).rounded(2).flex().items_center()
   .bg(STATUS_COLOR[st] ?? "#888888").text_size(7.5).font_bold().text_color("#1d1d1f").child(STATUS_NAMES_SHORT[st] ?? st);
+// The type Protean made it (left of its health bar, while it's in): "GRA" in Grass's colour.
+const typeTag = (x, top, ty) => div().absolute().left(x - 42).top(Math.max(0, top - 3)).h(10).px(2).rounded(2).flex().items_center()
+  .bg(TYPE_COLOR[ty] ?? "#888888").text_size(7.5).font_bold().text_color(typeText(ty)).child(typeLabel(ty).slice(0, 3).toUpperCase());
 const healthBar = (x, top, hp, lost = null) => div().absolute().left(x - 18).top(Math.max(1, top)).w(36).h(5).rounded(2).bg("#00000066").overflow_hidden()
   .when(hp <= RED, (el) => el.loop("opacity", { from: 0.35, to: 1, period: 600 }))
   .when(!!lost, (el) => el.child(div().id(lost.id).absolute().left(0).top(0).h_full().w(Math.round(36 * (lost.first ? lost.prev : hp))).bg("#ffffff").opacity(0.85)
@@ -2855,6 +2858,7 @@ export default class PokemonHerd extends View {
       // Its health bar, while it stands (fainted, it goes with it: it stayed, empty, as it sank).
       if (!v.fainted || now - v.fainted < 600) root.child(hpBar(x));
       if (v.pick.status && !v.fainted) root.child(statusTag(x, headY - 6, v.pick.status)); // (burned, paralysed…: its tag)
+      if (v.abil?.w?.typeAs && !v.fainted) root.child(typeTag(x, headY - 6, v.abil.w.typeAs)); // (Protean: the type it is now)
       // Its ability as they met (Intimidate…), over its head before the moves.
       const en = fx.entry;
       if (en && now >= en.at && now < en.until) root.child(fxWord(`entry-${v.id}-${en.at}`, [en.text, ABIL_COLOR], x, wordTop(headY, 16), this.fxFirst(`entry-${v.id}-${en.at}`) ? 0 : now < en.until - 260 ? 1 : 2));
@@ -5426,6 +5430,7 @@ export default class PokemonHerd extends View {
           .when(ownHp(m, now) < 1 && !(m.sparHp && now < m.sparHp.until), (el) => el.child(healthBar(SLOT_MID, headY - 6, ownHp(m, now), this.lostOf(`own-${a.address}`, m.hpLost, now))))
           // Its status in this encounter (burned, paralysed…: its tag by its bar).
           .when(!!this.visitor?.statuses?.[a.address] && !(now < (m.restUntil ?? 0)), (el) => el.child(statusTag(SLOT_MID, headY - 6, this.visitor.statuses[a.address])))
+          .when(this.visitor?.abil?.own === a.address && !!this.visitor.abil.o?.typeAs && !(now < (m.restUntil ?? 0)), (el) => el.child(typeTag(SLOT_MID, headY - 6, this.visitor.abil.o.typeAs)))
           // Sparring: its health in the battle (full, then what each blow leaves it), drained white.
           .when(!!m.sparHp && now < m.sparHp.until, (el) => {
             const done = m.sparHp.steps.filter((st) => now >= st.at);

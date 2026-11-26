@@ -117,7 +117,7 @@ export function sparTurns(A, B, rnd = Math.random, boost = (m) => m, weather = n
       const r = onHit(ab[by], ab[to], move0, { weather, missRate: move0.missRate ?? missOf(move0.name) }, rnd);
       const move = { ...move0, type: r.type, miss: r.miss, crit: r.crit };
       const d = damage(att.key, def.key, rnd, { mul: r.mul, type: move.type, alphaAttacker: !!att.alpha, alphaTarget: !!def.alpha, shadowAttacker: !!att.shadow, shadowTarget: !!def.shadow,
-        ...moveHow(move), ctx: { na: att.nature, nb: def.nature, ea: att.effort, eb: def.effort } });
+        ...moveHow(move), ctx: { na: att.nature, nb: def.nature, ea: att.effort, eb: def.effort, ...(ab[to].typeAs ? { tt: [ab[to].typeAs] } : {}) } }); // (Protean: hit as the type it became)
       // Stat stages: its attacking stat's, the other's defending stat's; a burn halves its physical moves.
       const stage = (move.physical ? me.stage.atk ?? 1 : me.stage.spa ?? 1) / (move.physical ? st[to].stage.def ?? 1 : st[to].stage.spd ?? 1);
       const dmg = move.miss ? 0 : d.dmg * SPAR_HIT * stage * (me.status === "brn" && move.physical ? 0.5 : 1);
