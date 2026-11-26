@@ -355,7 +355,7 @@ test("Protean: its move's type, STAB, said once a change", async () => {
   assert.ok(Math.abs(r.mul - 1.5) < 1e-9, String(r.mul));
   assert.equal(att.typeAs, "fairy");
   assert.deepEqual(r.said.att, ["protean:fairy"]);
-  assert.equal(sayName("protean:fairy"), "Protean: Fairy type");
+  assert.equal(sayName("protean:fairy"), "Protean: Fairy");
   assert.deepEqual(onHit(att, def, { type: "fairy", physical: true, stab: false, mul: 1, eff: 1 }, {}, () => 0.99).said.att, []);
 });
 

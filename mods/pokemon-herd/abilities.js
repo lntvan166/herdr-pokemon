@@ -113,7 +113,7 @@ export const BATTLE_ITEMS = {
 };
 export const CHOICE = new Set(["choice-band", "choice-specs", "choice-scarf"]);
 // What's said of an ability or an item by its key (an item's words in a battle: "Life Orb").
-export const sayName = (key) => /^(protean|libero):/.test(key) ? `${abilityName(key.split(":")[0])}: ${key.split(":")[1][0].toUpperCase()}${key.split(":")[1].slice(1)} type` : abilityName(key) || BATTLE_ITEMS[key] || (key === "leftovers" ? "Leftovers" : key === "drain" ? "Health drained!" : "");
+export const sayName = (key) => /^(protean|libero):/.test(key) ? `${abilityName(key.split(":")[0])}: ${key.split(":")[1][0].toUpperCase()}${key.split(":")[1].slice(1)}` : abilityName(key) || BATTLE_ITEMS[key] || (key === "leftovers" ? "Leftovers" : key === "drain" ? "Health drained!" : "");
 // Quick Claw: one time in five it moves first among moves as quick (a step of priority, half).
 export const quickClaw = (side, rnd = Math.random) => (side.item === "quick-claw" && rnd() < 0.2 ? 0.5 : 0);
 // Leftovers: a sixteenth of its health back at the end of each exchange.
