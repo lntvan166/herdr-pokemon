@@ -8,7 +8,7 @@
 // as often as its accuracy in the games says (missOf: Thunder 3 in 10, Swift never). Pure.
 import { EXTRA_MOVES, MULTI_POWER } from "./more-moves.js";
 import { MOVE_POWER, MOVE_LIST, MOVESET, LEARNS, SIG_FROM, MOVE_ACC } from "./base-stats.js";
-import { effectOn, typesOf, gameDamage, isPhysicalKey, statsFull } from "./trainer.js";
+import { effectOn, effectOnTypes, typesOf, gameDamage, isPhysicalKey, statsFull } from "./trainer.js";
 import { sizeMiss } from "./weather.js";
 import { MOVE_FLAGS } from "./ability-data.js";
 import { SETUP, SETUP_NAMES, SETUP_LEARNS, STATUS_MOVES, STATUS_NAMES, STATUS_LEARNS, RECHARGE } from "./move-stages.js";
@@ -260,7 +260,9 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const stabOf = (t) => (own.includes(t) ? STAB : 1);
   // What each would do (its own move as its rule makes it: Judgment's type, Arrows on a flier).
   const typeOf = (m) => (EXCLUSIVE[m.name]?.judgment ? judgedType(target) : m.type);
-  const effOf = (m) => { const e = effectOn(typeOf(m), target); return e === 0 && EXCLUSIVE[m.name]?.flying && typesOf(target).includes("flying") ? 1 : e; };
+  // `how.targetTypes`: the types it has now, if not its own (Protean's: the AI sees it).
+  const effOn = (t) => (how.targetTypes ? effectOnTypes(t, how.targetTypes) : effectOn(t, target));
+  const effOf = (m) => { const e = effOn(typeOf(m)); return e === 0 && EXCLUSIVE[m.name]?.flying && typesOf(target).includes("flying") ? 1 : e; };
   // How it picks: `how.ai` (a trainer's, yours against one, a spar): as the games' trainers score
   // (Gen 4's trainer AI; pokeemerald-expansion's TRY_TO_FAINT): each move from 100, −10 if it does
   // nothing to it, +4 if it knocks it out now (+6 a quick one), −1 if not its strongest, a
@@ -348,7 +350,7 @@ export function pickMove(attacker, target, rnd = Math.random, how = {}) {
   const physical = ex ? ex.physical : base.physical;
   // Judgment: the type that does most to it (its plate's; Arceus is that type: STAB).
   const type = ex?.judgment ? judgedType(target) : base.type;
-  let eff = effectOn(type, target);
+  let eff = how.targetTypes ? effectOnTypes(type, how.targetTypes) : effectOn(type, target);
   if (ex?.flying && eff === 0 && typesOf(target).includes("flying")) eff = 1; // Thousand Arrows: a Flying type no shield
   const stab = own.includes(type) || !!ex?.judgment;
   return { type, name, physical, ultimate, ...(ex ? { exclusive: true } : {}), ...(name !== base.name ? { risen: true, base: base.name } : {}), ...(rises ? { dash: risenDash(name) } : {}), missRate, crit, miss, stab, power: powerOf(name), mul: miss ? 0 : (crit ? CRIT_HIT : 1) * (stab ? STAB : 1) * weatherPower(name, how.weather) * (ex?.seBoost && eff > 1 ? 4 / 3 : 1) * (ex?.fickle && rnd() < 0.3 ? 2 : 1), eff };

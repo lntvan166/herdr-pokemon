@@ -4130,8 +4130,8 @@ export default class PokemonHerd extends View {
         // Each move's average damage, a share of the other's health (as hitWild and hitBack reckon it).
         // STAB as it'll be: Protean's before its first move on any (it becomes it), then its new type's.
         const stabOn = (side, ty, t) => (side.typeAs ? t === side.typeAs : ty.includes(t) || PROTEAN.includes(side.ab));
-        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { mul: stabOn(so, ownTy, m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
-        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { mul: (stabOn(sw, wildTy, m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        const dmgOnWild = (m) => damage(ownKey, wildKey, avg, { ...(sw.typeAs ? { tt: [sw.typeAs] } : {}), mul: stabOn(so, ownTy, m.type) ? 1.5 : 1, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!pk.alpha, alphaTarget: !!v.pick.alpha, ctx: { na: pk.nature, ea: effortOf(pk), ...(v.trainer ? { nb: v.pick.nature, eb: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
+        const dmgOnOwn = (m) => damage(wildKey, ownKey, avg, { ...(so.typeAs ? { tt: [so.typeAs] } : {}), mul: (stabOn(sw, wildTy, m.type) ? 1.5 : 1) * OWN_TAKE, type: m.type, ...moveHow({ ...m, power: powerOf(m.name) }), alphaAttacker: !!v.pick.alpha, alphaTarget: !!pk.alpha, ctx: { nb: pk.nature, ...(v.trainer ? { na: v.pick.nature, ea: v.trainer.effort ?? TEAM_EFFORT } : {}) } }).dmg;
         // Both sides pick as the games' trainers (moves.js pickMove `ai`), yours on a wild one to
         // weaken it, not knock it out (`catching`: its quick move first when slower and in danger);
         // a wild one any of its moves (the games' wild ones have no AI).
@@ -4139,11 +4139,11 @@ export default class PokemonHerd extends View {
         const ownSet = movesetOf(ownKey, chosenFor(pk, ownKey)), wildSet = movesetOf(wildKey, v.pick.moves);
         const ownHpNow = so.hp ?? 1;
         // Setup moves (Swords Dance): each one's stages, health, its first turn facing this one.
-        const om = moveAt(ownKey, wildKey, sw, { targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => knownImmune(sw, m, slotsOf(v.pick.dex, v.pick.form)), // (Choose moves: the one you picked)
+        const om = moveAt(ownKey, wildKey, sw, { ...(sw.typeAs ? { targetTypes: [sw.typeAs] } : {}), targetSize: v.pick.size, moves: drop.move ? [drop.move] : chosenFor(pk, ownKey), weather, lock: lockOf(so), immune: (m) => knownImmune(sw, m, slotsOf(v.pick.dex, v.pick.form)), // (Choose moves: the one you picked)
           ai: true, dmgOf: dmgOnWild, targetHp: hp, slower: spWild > spOwn, threatened: wildSet.some((m) => !m.status && dmgOnOwn(m) >= ownHpNow),
           stages: so.st, selfHp: ownHpNow, first: !so.turns, targetStatus: sw.status, targetConfused: sw.confused ?? 0, foeBest: Math.max(0, ...wildSet.filter((m) => !m.status).map(dmgOnOwn)),
           ...(v.trainer ? {} : { catching: true, koAt: (hp > RED ? OVERKILL_GREEN : OVERKILL) * hp }) });
-        let wm = moveAt(wildKey, ownKey, so, { targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
+        let wm = moveAt(wildKey, ownKey, so, { ...(so.typeAs ? { targetTypes: [so.typeAs] } : {}), targetSize: pk.size, weather, lock: lockOf(sw), moves: v.pick.moves, immune: (m) => knownImmune(so, m, slotsOf(pk.dex, pk.form)),
           ...(v.trainer ? { ai: true, dmgOf: dmgOnOwn, targetHp: ownHpNow, slower: spOwn > spWild, threatened: ownSet.some((m) => !m.status && dmgOnWild(m) >= hp), stages: sw.st, selfHp: hp, first: !sw.turns, targetStatus: so.status, targetConfused: so.confused ?? 0, foeBest: Math.max(0, ...ownSet.filter((m) => !m.status).map(dmgOnWild)) } : { random: true }) });
         // Switched in, as the games': the trainer chose its move against the one that was in (it
         // couldn't know), and it lands on this one: a Ground move on one that flies, a super-effective
@@ -4414,8 +4414,10 @@ export default class PokemonHerd extends View {
         v.fight.ice = iceOf(st0.wild, given.wild, skipped.wild, now, hitAt, backLaunch ?? wildCostAt, sw.status === "frz");
         dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
         // Protean: its new type, over it as it sets off (before its first move, once).
-        if (proSaid.own) dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: ownLaunch - CHARGE_MS, until: ownLaunch - CHARGE_MS + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR }];
-        if (proSaid.wild) v.fight.wildPro = { text: proSaid.wild, at: backLaunch - CHARGE_MS, until: backLaunch - CHARGE_MS + SETUP_NOTE_MS };
+        // (After "Protean" as they met, not over it: the two in one place, the second was hidden.)
+        const proAt = (t) => Math.max(t - CHARGE_MS, now + 300 + ENTRY_MS + 40);
+        if (proSaid.own) { const a = proAt(ownLaunch); dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: a, until: a + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR }]; }
+        if (proSaid.wild) { const a = proAt(backLaunch); v.fight.wildPro = { text: proSaid.wild, at: a, until: a + SETUP_NOTE_MS }; }
         if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
         const named = { hit: [...said(words.hit), ...stageSaid.hit], back: [...said(words.back), ...stageSaid.back] };

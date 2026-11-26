@@ -331,3 +331,9 @@ test("a move that costs its next turn: only to finish", async () => {
   assert.equal(pickMove(143, 6, () => 0.99, how(1)).name, "Body Slam");
   assert.equal(pickMove(143, 6, () => 0.99, how(0.4)).name, "Giga Impact");
 });
+
+// The AI sees the type Protean made it (how.targetTypes): Close Combat on a Meowscarada turned Grass, ×1.
+test("pickMove against the types it has now (Protean's)", () => {
+  assert.equal(pickMove(68, 908, () => 0.99, { moves: ["Close Combat"] }).eff, 2);
+  assert.equal(pickMove(68, 908, () => 0.99, { moves: ["Close Combat"], targetTypes: ["grass"] }).eff, 1);
+});
