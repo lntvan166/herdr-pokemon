@@ -430,6 +430,7 @@ const TRAINER_HEALS_KEY = `${MOD}-trainer-heals`;
 const FIGHTING_KEY = `${MOD}-fighting`;
 const CHOOSE_MS = 6000; // Choose moves: this long to pick, then it picks itself
 const SETUP_NOTE_MS = 1400;
+const PRO_MS = 900; // Protean's "Protean: Grass", before its move's name (its move this much later)
 const SWAP_ROW = 6; // a Pokémon menu's Swap row: this many a line (58 + 4 px each, 400 wide)
 const HOVER_OPEN = 350, HOVER_CLOSE = 120; // a hover card: after resting this long; gone this long after leaving // a setup move's words (Swords Dance! Atk↑↑), this long
 const ITEM_TURN_MS = 700, ITEM_TURN_FRESH = 30000; // its turn after an item: this soon; an item this old, none
@@ -2845,7 +2846,7 @@ export default class PokemonHerd extends View {
       const wc = fx.wildCost;
       if (wc && now >= wc.at && now < wc.until) root.child(fxWord(`wcost-${v.id}-${wc.at}`, [wc.text, STATUS_COLOR.brn], x, wordTop(headY, 16), this.fxFirst(`wcost-${v.id}-${wc.at}`) ? 0 : now < wc.until - 260 ? 1 : 2));
       const wp = fx.wildPro;
-      if (wp && now >= wp.at && now < wp.until) root.child(fxWord(`wpro-${v.id}-${wp.at}`, [wp.text, ABIL_COLOR], x, Math.max(0, wordTop(headY, 16) - 17), this.fxFirst(`wpro-${v.id}-${wp.at}`) ? 0 : now < wp.until - 260 ? 1 : 2));
+      if (wp && now >= wp.at && now < wp.until) root.child(fxWord(`wpro-${v.id}-${wp.at}`, [wp.text, ABIL_COLOR], x, wordTop(headY, 16), this.fxFirst(`wpro-${v.id}-${wp.at}`) ? 0 : now < wp.until - 260 ? 1 : 2));
       const wn = fx.wildNote;
       if (wn && now >= wn.at && now < wn.until) root.child(fxWord(`wnote-${v.id}-${wn.at}`, [wn.text, STATUS_COLOR.atk], x, wordTop(headY, 16), this.fxFirst(`wnote-${v.id}-${wn.at}`) ? 0 : now < wn.until - 260 ? 1 : 2));
       if (fx.back && !fx.back.setup && fx.wildMove && now >= fx.backLaunch - CHARGE_MS && now < fx.backHit + 280) {
@@ -4363,7 +4364,9 @@ export default class PokemonHerd extends View {
         const willMega = mega && !dm.mega;
         const megaReady = !!this.sprites[spriteKey(dressed(pk), true)]?.walkR;
         if (willMega && !megaReady) this.want(pk, cx, true);
-        const at = now + 340 + entryMs + (willMega ? MEGA_SHORT.burst + (megaReady ? 500 : 1800) : 0);
+        // Protean: "Protean: Grass" first, then its move (PRO_MS later), one after the other.
+        const proFirst = (wildFirst ? proSaid.wild : proSaid.own) ? PRO_MS : 0;
+        const at = now + 340 + entryMs + proFirst + (willMega ? MEGA_SHORT.burst + (megaReady ? 500 : 1800) : 0);
         dm.dir = v.x > spot ? "r" : "l";
         const sp = reactionAnim("special", hasOf(dMeta)) ?? reactionAnim("spar", hasOf(dMeta));
         const ms = sp ? Math.max(600, msFor(dMeta)(sp)) : 700;
@@ -4372,9 +4375,9 @@ export default class PokemonHerd extends View {
         // (Its move first: it gathers and fires from the start, yours after it lands.)
         const backAt0 = wildFirst ? at : null;
         const backLaunch0 = wildFirst ? at + CHARGE_MS + 20 : null, backHit0 = wildFirst ? backLaunch0 + fly : null;
-        const ownLaunch = wildFirst ? backHit0 + 650 + CHARGE_MS : launch;
+        const ownLaunch = wildFirst ? backHit0 + 650 + CHARGE_MS + (proSaid.own ? PRO_MS : 0) : launch;
         const hitAt = ownStrikes ? ownLaunch + fly : (backHit0 ?? at) + 60000; // (never, in this fight)
-        const backAt = wildFirst ? backAt0 : hitAt + 650, backLaunch = wildFirst ? backLaunch0 : backAt + CHARGE_MS, backHit = wildFirst ? backHit0 : backLaunch + fly;
+        const backAt = wildFirst ? backAt0 : hitAt + 650 + (proSaid.wild ? PRO_MS : 0), backLaunch = wildFirst ? backLaunch0 : backAt + CHARGE_MS, backHit = wildFirst ? backHit0 : backLaunch + fly;
         const ownMove = { ...om, eff: hit.eff, blue: ownKey === "6mX" };
         const wildMove = { ...wm, eff: back?.eff ?? 1 };
         const away = v.x > spot ? 1 : -1; // from yours toward the wild one
@@ -4414,9 +4417,10 @@ export default class PokemonHerd extends View {
         v.fight.ice = iceOf(st0.wild, given.wild, skipped.wild, now, hitAt, backLaunch ?? wildCostAt, sw.status === "frz");
         dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
         // Protean: its new type, over it as it sets off (before its first move, once).
-        const proAt = (t) => t - CHARGE_MS; // (only this: not "Protean" as they met too)
-        if (proSaid.own) { const a = proAt(ownLaunch); dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: a, until: a + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR, dy: 17 }]; } // (a line up: its move's name is under it then)
-        if (proSaid.wild) { const a = proAt(backLaunch); v.fight.wildPro = { text: proSaid.wild, at: a, until: a + SETUP_NOTE_MS }; }
+        // (PRO_MS before its move's name shows: one, then the other, in the same place.)
+        const proAt = (t) => t - CHARGE_MS - PRO_MS;
+        if (proSaid.own) { const a = proAt(ownLaunch); dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: a, until: a + PRO_MS, text: proSaid.own, color: ABIL_COLOR }]; }
+        if (proSaid.wild) { const a = proAt(backLaunch); v.fight.wildPro = { text: proSaid.wild, at: a, until: a + PRO_MS }; }
         if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
         const named = { hit: [...said(words.hit), ...stageSaid.hit], back: [...said(words.back), ...stageSaid.back] };
