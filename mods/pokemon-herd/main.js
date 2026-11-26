@@ -2845,7 +2845,7 @@ export default class PokemonHerd extends View {
       const wc = fx.wildCost;
       if (wc && now >= wc.at && now < wc.until) root.child(fxWord(`wcost-${v.id}-${wc.at}`, [wc.text, STATUS_COLOR.brn], x, wordTop(headY, 16), this.fxFirst(`wcost-${v.id}-${wc.at}`) ? 0 : now < wc.until - 260 ? 1 : 2));
       const wp = fx.wildPro;
-      if (wp && now >= wp.at && now < wp.until) root.child(fxWord(`wpro-${v.id}-${wp.at}`, [wp.text, ABIL_COLOR], x, wordTop(headY, 16), this.fxFirst(`wpro-${v.id}-${wp.at}`) ? 0 : now < wp.until - 260 ? 1 : 2));
+      if (wp && now >= wp.at && now < wp.until) root.child(fxWord(`wpro-${v.id}-${wp.at}`, [wp.text, ABIL_COLOR], x, Math.max(0, wordTop(headY, 16) - 17), this.fxFirst(`wpro-${v.id}-${wp.at}`) ? 0 : now < wp.until - 260 ? 1 : 2));
       const wn = fx.wildNote;
       if (wn && now >= wn.at && now < wn.until) root.child(fxWord(`wnote-${v.id}-${wn.at}`, [wn.text, STATUS_COLOR.atk], x, wordTop(headY, 16), this.fxFirst(`wnote-${v.id}-${wn.at}`) ? 0 : now < wn.until - 260 ? 1 : 2));
       if (fx.back && !fx.back.setup && fx.wildMove && now >= fx.backLaunch - CHARGE_MS && now < fx.backHit + 280) {
@@ -4415,7 +4415,7 @@ export default class PokemonHerd extends View {
         dm.ice = iceOf(st0.own, given.own, skipped.own, now, backHit ?? ownCostAt, ownLaunch, so.status === "frz");
         // Protean: its new type, over it as it sets off (before its first move, once).
         const proAt = (t) => t - CHARGE_MS; // (only this: not "Protean" as they met too)
-        if (proSaid.own) { const a = proAt(ownLaunch); dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: a, until: a + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR }]; }
+        if (proSaid.own) { const a = proAt(ownLaunch); dm.sparNotes = [...(dm.sparNotes ?? []).filter((n) => n.until > now), { at: a, until: a + SETUP_NOTE_MS, text: proSaid.own, color: ABIL_COLOR, dy: 17 }]; } // (a line up: its move's name is under it then)
         if (proSaid.wild) { const a = proAt(backLaunch); v.fight.wildPro = { text: proSaid.wild, at: a, until: a + SETUP_NOTE_MS }; }
         if (costSaid.wild.length) v.fight.wildCost = { text: costSaid.wild.join(" · "), at: wildCostAt, until: wildCostAt + SETUP_NOTE_MS };
         // The other abilities, in the words of the hit they touched ("Super effective! · Levitate").
@@ -5533,7 +5533,7 @@ export default class PokemonHerd extends View {
           })
           // A note in a spar ("It's burned!"), over it while it lasts.
           .children((m.sparNotes ?? []).filter((n) => now >= n.at && now < n.until).map((n) => fxWord(`note-${a.address}-${n.at}`, [n.text, n.color], SLOT_MID,
-            wordTop(headY, 16), this.fxFirst(`note-${a.address}-${n.at}`) ? 0 : now < n.until - 300 ? 1 : 2)))
+            Math.max(0, wordTop(headY, 16) - (n.dy ?? 0)), this.fxFirst(`note-${a.address}-${n.at}`) ? 0 : now < n.until - 300 ? 1 : 2)))
           // It won a spar: "Charizard won! 3–1" (the pair's record) over it while it celebrates.
           .when(!!m.sparWin && now >= m.sparWin.at && now < m.sparWin.at + 1500, (el) => el.child(fxWord(`win-${a.address}-${m.sparWin.at}`,
             [m.sparWin.text, "#ffd23f"], SLOT_MID, Math.max(2, headY - 30), this.fxFirst(`win-${a.address}-${m.sparWin.at}`) ? 0 : now < m.sparWin.at + 1200 ? 1 : 2)))
