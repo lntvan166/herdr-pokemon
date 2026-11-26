@@ -220,6 +220,8 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
   // move.mul is 0 on a miss: what it'd be on a hit, from the move.
   let mul = miss ? 0 : (move.mul > 0 ? move.mul / (move.crit ? 1.5 : 1) : (move.stab ? 1.5 : 1)) * (crit ? 1.5 : 1);
   if (crit && att.ab === "sniper") { mul *= 1.5; said.att.push("sniper"); }
+  // Protean, Libero: its type changes as it moves, before the move lands or misses (once a time in).
+  if ((att.ab === "protean" || att.ab === "libero") && !att.typeAs) { att.typeAs = type; said.att.push(`${att.ab}:${type}`); }
   if (miss) return { mul: 0, type, miss, crit, heal: 0, said };
   // Immune: nothing, and what its ability takes from it.
   const im = IMMUNE[def.ab];
@@ -243,7 +245,6 @@ export function onHit(att, def, move, how = {}, rnd = Math.random) {
     // type, once (said then); STAB is that type's from then on (its own types' no more), and it's
     // hit as that type till it leaves (att.typeAs; main.js ctx.tt).
     case "protean": case "libero":
-      if (!att.typeAs) { att.typeAs = type; said.att.push(`${att.ab}:${type}`); }
       if (type === att.typeAs && !move.stab) base *= 1.5;
       else if (type !== att.typeAs && move.stab) base /= 1.5;
       break;

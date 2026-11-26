@@ -400,3 +400,11 @@ test("confusion: turns, hitting itself, snapping out; Own Tempo", async () => {
   assert.equal(confusedTurn(s, () => 0.1), "end");
   assert.equal(confusedTurn(s, () => 0.1), null);
 });
+
+test("Protean changes its type even when its first move misses", async () => {
+  const { onHit, newSide } = await import("../mods/pokemon-herd/abilities.js");
+  const att = newSide("protean");
+  const r = onHit(att, newSide(""), { type: "ice", physical: true, stab: false, mul: 0, miss: true, eff: 1 }, {}, () => 0.99);
+  assert.equal(att.typeAs, "ice");
+  assert.deepEqual(r.said.att, ["protean:ice"]);
+});
