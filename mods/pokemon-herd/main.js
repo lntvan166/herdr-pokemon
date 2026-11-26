@@ -2219,7 +2219,7 @@ export default class PokemonHerd extends View {
   moveLabel(key, move, x, top, launch, now) {
     if (!move?.name || now < launch - CHARGE_MS || now >= launch + 560) return null;
     const phase = this.fxFirst(key) ? 0 : now < launch + 280 ? 1 : 2; // fading as the word over the other pops up
-    return fxWord(key, [`${move.name}!${move.boosted ? ` ${move.boosted}` : ""}`, move.ultimate ? "#ffd23f" : "#ffffff"], x, top, phase);
+    return fxWord(key, [`${move.pro ? `${move.pro} · ` : ""}${move.name}!${move.boosted ? ` ${move.boosted}` : ""}`, move.ultimate ? "#ffd23f" : "#ffffff"], x, top, phase); // (a spar's Protean: "Protean: Dark · Foul Play!")
   }
   // The weather now (weather.js): the strip's rain, night, season.
   boostNow(now = new Date()) {
@@ -3802,7 +3802,7 @@ export default class PokemonHerd extends View {
       if (k1 && k2) {
         const sideOf = (a, k) => { const p = ids[a.address] ?? {}; return { key: k, alpha: !!p.alpha, shadow: !!p.shadow, hearts: p.hearts ?? 0, size: p.size, effort: effortOf(p), nature: p.nature, moves: chosenFor(p, k) /* its Mega's own when it fights as one (its base four drew Solar Beam on Mega X) */, ab: abilityOf(p, a.pane || a.address), megaAb: megaAbility(k) /* its own first, then its Mega's: spar.js */, held: p.held, nfe: !!p.dex && evolutionsOf(p.dex).length > 0 && k === fighterKey(p.dex, { form: p.form }) }; };
         const result = sparTurns(sideOf(a1, k1), sideOf(a2, k2), Math.random, (mv) => this.boosted(mv), this.boostNow().id);
-        for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) tn.move.abil = tn.abil.map(sayName).filter(Boolean); } // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
+        for (const tn of result.turns) if (tn.move) { tn.move.blue = (tn.by === "a" ? k1 : k2) === "6mX"; if (tn.abil) { const pro = tn.abil.find((x) => PRO_KEY.test(x)); if (pro) tn.move.pro = sayName(pro); tn.move.abil = tn.abil.filter((x) => !PRO_KEY.test(x)).map(sayName).filter(Boolean); } } // (Protean: with its move's name, over it, not with its blow over the other) // Mega Charizard X's blue fire (a turn it lost has no move); the abilities on its hit
         // Their abilities as they meet (Intimidate…): over each one's head first, on their own,
         // the battle held back that long (as with a wild one).
         const fellOn = (k) => (result.entryStages?.[k]?.length ? [stageWords(result.entryStages[k])] : []); // (Intimidate's "Atk↓" over the one it fell on)
